@@ -1,15 +1,17 @@
+const API_URL = typeof process !== 'undefined' && process.env ? process.env.VUE_APP_API_URL || '' : '';
+
 module.exports = {
 	// 小程序 / APP请求配置
 	// #ifdef MP || APP-PLUS
 	// 请求域名 格式： https://您的域名
-	HTTP_REQUEST_URL: `https://demo.crmeb.com`,
+	HTTP_REQUEST_URL: API_URL,
 	// #endif
 
 	// H5请求配置
 	// #ifdef H5
 	// H5接口是浏览器地址，非单独部署不用修改
 	HTTP_REQUEST_URL: window.location.protocol + "//" + window.location.host,
-	// #endif 
+	// #endif
 
 	// 以下配置在不做二开的前提下,不需要做任何的修改
 	HEADER: {

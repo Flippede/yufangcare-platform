@@ -209,11 +209,11 @@ README 要求：
 
 | 等级 | 风险 | 证据 | 影响 | 首轮开发前处理建议 |
 | --- | --- | --- | --- | --- |
-| 高 | 仓库内存在密钥/凭据类字符串 | `template/uni-app/manifest.json`、`crmeb/.version`、Docker README 示例 | 可能泄露第三方 appsecret/appkey 或误用示例凭据 | 先做密钥清单、轮换判断和环境变量改造方案；文档和报告不得展开具体值。 |
+| 阻塞 | 生产 `.env`、微信支付证书/私钥、运行时 PEM、前端 AppSecret/地图 Key 类字段和压缩包进入 Git 当前版本及历史 | `crmeb/.env`、`crmeb/public/install/.env`、`crmeb/public/WXCertUtil/cert/`、`crmeb/runtime/pem/`、`template/uni-app/manifest.json`、`template/uni-app_y8tSE.zip` | 可能泄露数据库、Redis、微信支付、地图和第三方平台凭据；文件删除不等于外部平台已轮换 | 本轮已建立安全基线、移出跟踪并执行历史净化；外部平台凭据仍需按清单轮换并验证。 |
 | 高 | 未发现迁移目录，数据库以安装 SQL 为主 | `crmeb/public/install/crmeb.sql`、未发现 `crmeb/database` | 后续业务表如果只手改 SQL，会难以升级和回滚 | 第一项开发前先确定迁移规范。 |
 | 高 | 需求关键业务域缺失 | 未发现套餐实例、权益计划、预约、产品额度等模型 | 若直接塞入订单备注/余额/分销表，会形成不可审计技术债 | 下一轮先做业务边界最小数据模型。 |
 | 高 | 分销/事业部能力与产品合规边界冲突 | `crmeb/app/adminapi/route/agent.php`、`crmeb/app/api/route/v1.php` | 直接复用多级分佣可能偏离“只读台账、一层推荐、规则版本” | 分销仅作参考，奖励台账独立设计。 |
-| 中 | 多端配置仍指向 CRMEB demo/默认应用 | `template/uni-app/config/app.js`、`manifest.json` | 本地构建可能连到错误环境 | 开发前建立 `.env`/manifest 配置规范。 |
-| 中 | 当前仓库包含 vendor、runtime、压缩包和安装产物 | `crmeb/vendor`、`crmeb/runtime`、`template/uni-app_y8tSE.zip` | 仓库体积大、升级和 diff 噪声高 | 不在本轮清理；架构审核时判断保留策略。 |
+| 中 | 多端配置需要由环境注入 | `template/uni-app/config/app.js`、`template/uni-app/.env.example` | 未配置构建环境变量时 APP/小程序请求地址为空 | 按 `docs/SECURITY_BASELINE.md` 配置本地和服务器环境。 |
+| 中 | 当前仓库仍包含 vendor 和大量静态/构建相关文件 | `crmeb/vendor`、`crmeb/public/admin`、`readme/` | 仓库体积大、升级和 diff 噪声高 | 本轮暂不清理 `vendor/`，避免改变服务器部署方式；后续架构审核判断保留策略。 |
 | 中 | PC 端源码不完整或未确认 | 仅发现 PC 后端接口和路由 | 总部 PC/H5 规划可能与真实端能力有偏差 | 后续确认是否需要独立 PC 前端。 |
 | 中 | 自动化测试未发现有效执行入口 | 前后端包存在测试配置但未安装依赖/未运行 | 改动回归主要依赖人工和静态检查 | 第一轮开发同步建立最小测试/验收脚本。 |

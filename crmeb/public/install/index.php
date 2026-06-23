@@ -30,7 +30,7 @@ header('Content-Type: text/html; charset=UTF-8');
 
 //数据库
 $sqlFile = 'crmeb.sql';
-$configFile = '.env';
+$configFile = '.env.example';
 if (!file_exists(SITE_DIR . 'install/' . $sqlFile) || !file_exists(SITE_DIR . 'install/' . $configFile)) {
     echo '缺少必要的安装文件!';
     exit;

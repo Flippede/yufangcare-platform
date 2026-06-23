@@ -4,9 +4,9 @@
 - 当前代码基础：CRMEB 开源商城 PHP 版 v5.6 系列
 - 本地路径：`C:\Users\zhangxu\Desktop\御方通和\testclone`
 - GitHub 仓库：`https://github.com/Flippede/yufangcare-platform.git`
-- 当前分支：`chore/project-inventory-baseline`
+- 当前分支：`fix/security-baseline`
 - 开始 commit：`273b5faa25502dd59fab5ccd70253b2ec4f70cf2`
-- 完成 commit：提交后回填
+- 完成 commit：本轮安全整改提交；历史净化后的最终 commit 以最终报告和当前 Git 历史为准
 - 产品文档目录：`C:\Users\zhangxu\Desktop\御方通和\yufangcare-platform\项目文档`
 - 完整产品依据：`御方通和加盟小程序项目需求与产品设计文档_V1.0.docx`
 
@@ -72,27 +72,32 @@
 ## 6. 已知问题
 
 - 版本标识不一致：README、`.version`、移动端 manifest、后台 package 标识不同，统一认定为 v5.6 系列。
-- 仓库存在密钥/凭据类字符串，后续需做密钥清单和轮换评估，文档不得展开具体值。
+- 阻塞：仓库当前版本和历史曾包含生产 `.env`、微信支付证书/私钥、运行时 PEM、前端 AppSecret/地图 Key 类字段和压缩包；本轮已做仓库治理，但外部平台凭据仍需轮换并验证。
 - 未发现独立迁移目录，当前以安装 SQL 为主。
-- `vendor`、`runtime`、移动端压缩包和大量静态/构建相关文件进入仓库，后续需评估仓库治理。
+- `vendor` 和大量静态/构建相关文件仍进入仓库，后续需评估仓库体积和部署方式；本轮未移除 `vendor/`，避免改变服务器部署方式。
 - 移动端配置仍有 CRMEB demo/default 配置。
 - 关键产品域缺失，不能把需求文档规划误写为已完成能力。
 - 自动化测试和本地完整启动未验证。
 
 ## 7. 当前开发阶段
 
-阶段：开发前盘点与文档基线建立。
+阶段：安全阻塞整改与 Git 敏感历史治理。
 
 本轮变化：
 
-- 新增 `docs/PRODUCT_REQUIREMENTS.md`。
-- 新增 `docs/PROJECT_INVENTORY.md`。
-- 新增 `docs/REQUIREMENTS_GAP_ANALYSIS.md`。
-- 新增 `docs/PROJECT_HANDOFF.md`。
+- 停止跟踪生产 `.env`、微信支付证书/私钥、运行时 PEM、前端 `.env*` 和移动端压缩包。
+- 新增 `crmeb/.env.example`、`template/admin/.env.example`、`template/uni-app/.env.example`。
+- 将安装模板改为 `crmeb/public/install/.env.example`，安装/升级流程继续生成运行时 `crmeb/.env`。
+- 清空移动端 manifest 中 AppSecret、地图 Key 类可打包敏感字段。
+- 完善 `.gitignore`，覆盖环境文件、证书私钥、runtime 和备份压缩包。
+- 新增 `docs/SECURITY_BASELINE.md` 与 `docs/CREDENTIAL_ROTATION_CHECKLIST.md`。
+- 记录服务器影响：历史改写后服务器不得直接普通 `git pull`，后续部署需重新绑定干净历史或重新克隆并恢复本地配置。
 
 ## 8. 下一步建议
 
-第一项开发任务建议为：御方通和业务基础域与迁移规范设计/落地。
+安全整改完成并完成外部平台凭据轮换验证前，不得开始 5980 套餐、十个月权益、预约核销、加盟、产品额度或奖励台账等业务开发。
+
+安全前置项完成后，第一项开发任务建议为：御方通和业务基础域与迁移规范设计/落地。
 
 建议先明确：
 

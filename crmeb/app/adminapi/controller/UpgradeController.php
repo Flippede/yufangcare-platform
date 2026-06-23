@@ -155,7 +155,7 @@ class UpgradeController
 //                $res = $this->handleCartInfo((int)$sleep, (int)$page, (int)$limit);
 //                return app('json')->success($res);
 //            } else {
-//                file_put_contents(app()->getRootPath() . '.version', "version=" . $data['new_version'] . "\nversion_code=" . $data['new_code'] . "\napp_id=CHANGE_ME" . "\napp_key=CHANGE_MEnvU2OI");
+//                file_put_contents(app()->getRootPath() . '.version', "version=" . $data['new_version'] . "\nversion_code=" . $data['new_code'] . "\napp_id=CHANGE_ME" . "\napp_key=CHANGE_ME");
 //                $this->services->generateSignature();
 //                return app('json')->success(['sleep' => -1]);
 //            }
@@ -165,11 +165,11 @@ class UpgradeController
 //                return app('json')->success($res);
 //            } else {
 //                $this->setEnv();
-//                file_put_contents(app()->getRootPath() . '.version', "version=" . $data['new_version'] . "\nversion_code=" . $data['new_code'] . "\nplatform=CRMEB\napp_id=CHANGE_ME" . "\napp_key=CHANGE_MEnvU2OI");
+//                file_put_contents(app()->getRootPath() . '.version', "version=" . $data['new_version'] . "\nversion_code=" . $data['new_code'] . "\nplatform=CRMEB\napp_id=CHANGE_ME" . "\napp_key=CHANGE_ME");
 //                $this->services->generateSignature();
 //                return app('json')->success(['sleep' => -1]);
 //            }
-            file_put_contents(app()->getRootPath() . '.version', "version=" . $data['new_version'] . "\nversion_code=" . $data['new_code'] . "\nplatform=CRMEB\napp_id=CHANGE_ME" . "\napp_key=CHANGE_MEnvU2OI");
+            file_put_contents(app()->getRootPath() . '.version', "version=" . $data['new_version'] . "\nversion_code=" . $data['new_code'] . "\nplatform=CRMEB\napp_id=CHANGE_ME" . "\napp_key=CHANGE_ME");
             $this->services->generateSignature();
             return app('json')->success(['sleep' => -1]);
         }
@@ -432,7 +432,7 @@ class UpgradeController
     {
         $unique = uniqid();
         //读取配置文件，并替换真实配置数据1
-        $strConfig = file_get_contents(root_path() . 'public/install/.env');
+        $strConfig = file_get_contents(root_path() . 'public/install/.env.example');
         $strConfig = str_replace('#DB_HOST#', Env::get('DATABASE.HOSTNAME', ''), $strConfig);
         $strConfig = str_replace('#DB_NAME#', Env::get('DATABASE.DATABASE', ''), $strConfig);
         $strConfig = str_replace('#DB_USER#', Env::get('DATABASE.USERNAME', ''), $strConfig);
