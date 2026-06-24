@@ -7,6 +7,8 @@ use app\dao\yfth\YfthBenefitPeriodDao;
 use app\dao\yfth\YfthBenefitPlanDao;
 use app\dao\yfth\YfthPackageInstanceDao;
 use app\dao\yfth\YfthPackagePurchaseDao;
+use app\dao\yfth\YfthPackagePurchaseBenefitSnapshotDao;
+use app\dao\yfth\YfthPackagePurchaseSnapshotDao;
 use app\services\order\StoreOrderServices;
 use crmeb\exceptions\ApiException;
 
@@ -22,9 +24,15 @@ class PackageActivationServices extends PackageBenefitBaseServices
 
         /** @var YfthPackagePurchaseDao $purchaseDao */
         $purchaseDao = app()->make(YfthPackagePurchaseDao::class);
-        $purchase = $orderId > 0 ? $purchaseDao->getOne(['order_id' => $orderId]) : null;
+        $purchase = $orderId > 0 ? $purchaseDao->getOne(['order_unique_key' => (string)$orderId]) : null;
+        if (!$purchase && $orderId > 0) {
+            $purchase = $purchaseDao->getOne(['order_id' => $orderId]);
+        }
         if (!$purchase && $orderSn !== '') {
-            $purchase = $purchaseDao->getOne(['order_sn' => $orderSn]);
+            $purchase = $purchaseDao->getOne(['order_sn_unique_key' => $orderSn]);
+            if (!$purchase) {
+                $purchase = $purchaseDao->getOne(['order_sn' => $orderSn]);
+            }
         }
         if (!$purchase) {
             return ['skipped' => true, 'reason' => 'not_package_order'];
@@ -40,11 +48,17 @@ class PackageActivationServices extends PackageBenefitBaseServices
             'order_sn' => (string)$purchaseRow['order_sn'],
         ], (string)$purchaseRow['order_id'], 86400);
         if (!$begin['acquired']) {
-            return [
-                'replayed' => true,
-                'status' => $begin['status'],
-                'result' => $begin['result_summary'] ?? [],
-            ];
+            if (!empty($begin['can_retry'])) {
+                $begin = $idempotency->tryReacquire($begin['record'], 86400);
+            }
+            if (!$begin['acquired']) {
+                return [
+                    'replayed' => true,
+                    'status' => $begin['status'],
+                    'result' => $begin['result_summary'] ?? [],
+                    'can_retry' => $begin['can_retry'] ?? false,
+                ];
+            }
         }
 
         try {
@@ -55,6 +69,13 @@ class PackageActivationServices extends PackageBenefitBaseServices
             return $result;
         } catch (\Throwable $e) {
             $idempotency->fail((int)$begin['record']['id'], $e->getMessage());
+            $purchaseDao->update((int)$purchaseRow['id'], [
+                'activation_status' => 'failed',
+                'activation_attempt_count' => (int)($purchaseRow['activation_attempt_count'] ?? 0) + 1,
+                'last_activation_error' => substr($e->getMessage(), 0, 255),
+                'activation_retry_at' => time(),
+                'update_time' => time(),
+            ]);
             throw $e;
         }
     }
@@ -84,13 +105,30 @@ class PackageActivationServices extends PackageBenefitBaseServices
         if ((int)$order['paid'] !== 1) {
             throw new ApiException('order_not_paid');
         }
+        if ((string)$order['order_id'] !== (string)$purchaseRow['order_sn']) {
+            throw new ApiException('order_identity_mismatch');
+        }
 
-        /** @var PackageTemplateServices $templateServices */
-        $templateServices = app()->make(PackageTemplateServices::class);
-        $rule = $templateServices->ruleById((int)$purchaseRow['rule_version_id']);
+        /** @var YfthPackagePurchaseSnapshotDao $snapshotDao */
+        $snapshotDao = app()->make(YfthPackagePurchaseSnapshotDao::class);
+        $snapshotRow = $this->requireRow($snapshotDao->getOne(['purchase_id' => $purchaseId]), 'package_purchase_snapshot_not_found');
+        if ((int)$snapshotRow['order_id'] !== (int)$purchaseRow['order_id'] || (string)$snapshotRow['order_sn'] !== (string)$purchaseRow['order_sn']) {
+            throw new ApiException('package_purchase_snapshot_order_mismatch');
+        }
+        if (!$this->moneyEquals($snapshotRow['package_price'], $purchaseRow['expected_pay_price'])
+            || !$this->moneyEquals($order['pay_price'], $snapshotRow['order_pay_price'])) {
+            throw new ApiException('package_purchase_snapshot_price_mismatch');
+        }
+
+        /** @var YfthPackagePurchaseBenefitSnapshotDao $benefitSnapshotDao */
+        $benefitSnapshotDao = app()->make(YfthPackagePurchaseBenefitSnapshotDao::class);
+        $benefitSnapshots = $benefitSnapshotDao->selectList(['purchase_id' => $purchaseId], '*', 0, 0, 'month_no asc,id asc', [], false)->toArray();
+        if (!$benefitSnapshots) {
+            throw new ApiException('package_purchase_benefit_snapshot_missing');
+        }
+
         $start = (int)($order['pay_time'] ?: time());
-        $end = strtotime('+' . (int)$rule['month_count'] . ' months', $start);
-        $validation = $this->jsonDecode($purchaseRow['validation_snapshot'] ?? '');
+        $end = strtotime('+' . (int)$snapshotRow['month_count'] . ' months', $start);
 
         $instance = $instanceDao->save($this->withTimestamps([
             'instance_no' => $this->makeNo('YFI'),
@@ -109,17 +147,29 @@ class PackageActivationServices extends PackageBenefitBaseServices
             'end_time' => $end,
             'activated_time' => time(),
             'close_reason' => '',
-            'rule_snapshot' => $this->jsonEncode($validation['rule'] ?? []),
-            'store_snapshot' => $this->jsonEncode($validation['store'] ?? []),
+            'rule_snapshot' => $this->jsonEncode($snapshotRow),
+            'store_snapshot' => $this->jsonEncode([
+                'store_id' => (int)$snapshotRow['store_id'],
+                'available_store_ids' => $this->jsonDecode($snapshotRow['available_store_ids'] ?? ''),
+                'subjects' => [
+                    'sales_subject_id' => (int)$snapshotRow['sales_subject_id'],
+                    'payment_subject_id' => (int)$snapshotRow['payment_subject_id'],
+                    'fulfillment_subject_id' => (int)$snapshotRow['fulfillment_subject_id'],
+                    'invoice_subject_id' => (int)$snapshotRow['invoice_subject_id'],
+                    'refund_subject_id' => (int)$snapshotRow['refund_subject_id'],
+                ],
+            ]),
         ], true));
         $instanceId = (int)$instance->id;
 
-        $planId = $this->createPlanAndBenefits($instanceId, $purchaseRow, $rule, $start, $end);
+        $planId = $this->createPlanAndBenefitsFromSnapshot($instanceId, $purchaseRow, $snapshotRow, $benefitSnapshots, $start, $end);
         $instanceDao->update($instanceId, ['plan_id' => $planId, 'update_time' => time()]);
         $purchaseDao->update($purchaseId, [
             'purchase_status' => 'activated',
             'activation_status' => 'succeeded',
             'instance_id' => $instanceId,
+            'activation_retry_at' => 0,
+            'last_activation_error' => '',
             'update_time' => time(),
         ]);
 
@@ -130,18 +180,18 @@ class PackageActivationServices extends PackageBenefitBaseServices
         $this->recordPackageAudit('package_instance', (string)$instanceId, 'activate', [], [
             'purchase_id' => $purchaseId,
             'plan_id' => $planId,
-            'month_count' => (int)$rule['month_count'],
+            'month_count' => (int)$snapshotRow['month_count'],
         ], (int)$purchaseRow['uid'], 'customer', (int)$purchaseRow['store_id']);
 
         return [
             'purchase_id' => $purchaseId,
             'instance_id' => $instanceId,
             'plan_id' => $planId,
-            'month_count' => (int)$rule['month_count'],
+            'month_count' => (int)$snapshotRow['month_count'],
         ];
     }
 
-    private function createPlanAndBenefits(int $instanceId, array $purchase, array $rule, int $start, int $end): int
+    private function createPlanAndBenefitsFromSnapshot(int $instanceId, array $purchase, array $snapshot, array $benefitSnapshots, int $start, int $end): int
     {
         /** @var YfthBenefitPlanDao $planDao */
         $planDao = app()->make(YfthBenefitPlanDao::class);
@@ -149,8 +199,6 @@ class PackageActivationServices extends PackageBenefitBaseServices
         $periodDao = app()->make(YfthBenefitPeriodDao::class);
         /** @var YfthBenefitItemDao $itemDao */
         $itemDao = app()->make(YfthBenefitItemDao::class);
-        /** @var BenefitTemplateServices $benefitServices */
-        $benefitServices = app()->make(BenefitTemplateServices::class);
 
         $plan = $planDao->save($this->withTimestamps([
             'plan_no' => $this->makeNo('YFPL'),
@@ -159,20 +207,19 @@ class PackageActivationServices extends PackageBenefitBaseServices
             'store_id' => (int)$purchase['store_id'],
             'template_id' => (int)$purchase['template_id'],
             'rule_version_id' => (int)$purchase['rule_version_id'],
-            'month_count' => (int)$rule['month_count'],
+            'month_count' => (int)$snapshot['month_count'],
             'status' => 'active',
             'start_time' => $start,
             'end_time' => $end,
             'opened_month_no' => 0,
         ], true));
         $planId = (int)$plan->id;
-        $rules = $benefitServices->rulesForVersion((int)$rule['id']);
         $rulesByMonth = [];
-        foreach ($rules as $monthlyRule) {
+        foreach ($benefitSnapshots as $monthlyRule) {
             $rulesByMonth[(int)$monthlyRule['month_no']][] = $monthlyRule;
         }
 
-        for ($monthNo = 1; $monthNo <= (int)$rule['month_count']; $monthNo++) {
+        for ($monthNo = 1; $monthNo <= (int)$snapshot['month_count']; $monthNo++) {
             $periodStart = strtotime('+' . ($monthNo - 1) . ' months', $start);
             $periodEnd = strtotime('+' . $monthNo . ' months', $start) - 1;
             $openAt = $periodStart;
@@ -218,7 +265,7 @@ class PackageActivationServices extends PackageBenefitBaseServices
                     'expire_time' => $itemExpireAt,
                     'status' => $itemStatus,
                     'fulfillment_status' => 'none',
-                    'source_rule_id' => (int)$monthlyRule['id'],
+                    'source_rule_id' => (int)$monthlyRule['source_rule_id'],
                 ], true));
             }
             if ($status === 'available') {

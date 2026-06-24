@@ -84,3 +84,20 @@
 - 退款失败：标记失败原因，保留人工重试入口。
 
 所有退款同步只改变御方通和扩展表状态，不改写 CRMEB 退款主流程。
+
+## 7. 2026-06-24 状态机收口
+
+新增和强化的状态语义：
+
+- purchase 新增 `closed_after_partial_refund`，表示已有履约价值，退款后关闭但不能视为未履约全额退款。
+- instance 支持 `frozen`、`suspended`，冻结/暂停时 plan 转为 `paused`，未来 period/item 不得被 `openDuePeriods` 打开。
+- refunding、refunded、closed、expired 均由 `PackageLifecycleServices` 统一写入，Controller 和后台不直接改实例状态。
+- `openDuePeriods` 每条候选周期都会重新锁定并校验 instance=`active`、plan=`active`、refund_status=`none`，避免扫描期间发生退款/关闭后仍误开放。
+- 退款失败通过真实原订单恢复到 `activated/active`，仍保持幂等；已关闭或已退款状态不可无审计恢复。
+
+激活幂等状态：
+
+- `processing` 超时或 `failed` 且未超过最大次数时，可由数据库条件更新重新抢占。
+- `succeeded` 重放返回原激活结果。
+- request hash 不一致直接拒绝。
+- 超过最大次数后由后台人工重试入口记录原因并触发同一激活服务。

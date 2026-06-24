@@ -28,9 +28,16 @@
                 <span v-else>-</span>
               </template>
             </el-table-column>
-            <el-table-column label="操作" width="120" fixed="right">
+            <el-table-column label="操作" width="190" fixed="right">
               <template slot-scope="scope">
                 <el-button type="text" icon="el-icon-edit" @click="openTemplate(scope.row)">编辑</el-button>
+                <el-button
+                  v-if="scope.row.current_rule"
+                  type="text"
+                  icon="el-icon-document-copy"
+                  @click="copyCurrentRule(scope.row)"
+                  >复制规则</el-button
+                >
               </template>
             </el-table-column>
           </el-table>
@@ -103,6 +110,7 @@
               <el-option label="已退款" value="refunded" />
             </el-select>
             <el-button type="primary" icon="el-icon-search" @click="loadPurchases">查询</el-button>
+            <el-button icon="el-icon-refresh" @click="recoverActivation">扫描补偿</el-button>
           </div>
           <el-table v-loading="loading.purchase" :data="lists.purchase" border>
             <el-table-column prop="id" label="ID" width="80" />
@@ -113,6 +121,18 @@
             <el-table-column prop="expected_pay_price" label="应付" width="100" />
             <el-table-column prop="purchase_status" label="购买状态" width="120" />
             <el-table-column prop="activation_status" label="激活状态" width="120" />
+            <el-table-column prop="last_activation_error" label="最近失败" min-width="180" show-overflow-tooltip />
+            <el-table-column label="操作" width="110" fixed="right">
+              <template slot-scope="scope">
+                <el-button
+                  v-if="scope.row.instance_id === 0 && ['pending', 'failed'].includes(scope.row.activation_status)"
+                  type="text"
+                  icon="el-icon-refresh-right"
+                  @click="retryActivation(scope.row)"
+                  >重试</el-button
+                >
+              </template>
+            </el-table-column>
           </el-table>
         </el-tab-pane>
       </el-tabs>
@@ -250,11 +270,14 @@ import {
   yfthMonthlyRuleList,
   yfthMonthlyRuleSave,
   yfthOpenDuePeriods,
+  yfthPackageActivationRecover,
+  yfthPackageActivationRetry,
   yfthPackageBindingSave,
   yfthPackageInstanceDetail,
+  yfthPackageInstanceLifecycle,
   yfthPackageInstanceList,
-  yfthPackageInstanceState,
   yfthPackagePurchaseList,
+  yfthPackageRuleCopy,
   yfthPackageRuleSave,
   yfthPackageTemplateList,
   yfthPackageTemplateSave,
@@ -385,6 +408,12 @@ export default {
         this.loadTemplates();
       });
     },
+    copyCurrentRule(row) {
+      yfthPackageRuleCopy(row.current_rule.id).then(() => {
+        this.$message.success('已复制为新草稿版本');
+        this.loadTemplates();
+      });
+    },
     openBinding() {
       this.forms.binding = { binding_status: 'active', sku_price_snapshot: '0.00' };
       this.dialogs.binding = true;
@@ -433,17 +462,38 @@ export default {
       this.dialogs.state = true;
     },
     saveState() {
-      yfthPackageInstanceState(this.stateTarget.id, this.forms.state).then(() => {
+      yfthPackageInstanceLifecycle(this.stateTarget.id, this.forms.state).then(() => {
         this.$message.success('Updated');
         this.dialogs.state = false;
         this.loadInstances();
       });
     },
     openDuePeriods() {
-      yfthOpenDuePeriods().then((res) => {
+      yfthOpenDuePeriods({ limit: 100 }).then((res) => {
         const data = res.data || {};
         this.$message.success(`Opened ${data.opened || 0}, expired ${data.expired || 0}`);
         this.loadInstances();
+      });
+    },
+    recoverActivation() {
+      yfthPackageActivationRecover({ limit: 50 }).then((res) => {
+        const data = res.data || {};
+        this.$message.success(`Activated ${data.activated || 0}, failed ${data.failed || 0}`);
+        this.loadPurchases();
+      });
+    },
+    retryActivation(row) {
+      this.$prompt('请输入人工重试原因', '重试激活', {
+        inputType: 'textarea',
+        confirmButtonText: '重试',
+        cancelButtonText: '取消',
+        inputValidator: (value) => !!String(value || '').trim(),
+        inputErrorMessage: '必须填写原因',
+      }).then(({ value }) => {
+        yfthPackageActivationRetry(row.id, { reason: value }).then(() => {
+          this.$message.success('已触发重试');
+          this.loadPurchases();
+        });
       });
     },
     timeText(value) {

@@ -152,6 +152,13 @@ export function yfthPackageRuleSave(data) {
   });
 }
 
+export function yfthPackageRuleCopy(id) {
+  return request({
+    url: `yfth/package_benefit/rule/${id}/copy`,
+    method: 'post',
+  });
+}
+
 export function yfthPackageBindingSave(data) {
   return request({
     url: 'yfth/package_benefit/binding/save',
@@ -223,6 +230,14 @@ export function yfthPackageInstanceState(id, data) {
   });
 }
 
+export function yfthPackageInstanceLifecycle(id, data) {
+  return request({
+    url: `yfth/package_benefit/instance/${id}/lifecycle`,
+    method: 'post',
+    data,
+  });
+}
+
 export function yfthBenefitPlanList(params) {
   return request({
     url: 'yfth/package_benefit/plan',
@@ -231,9 +246,26 @@ export function yfthBenefitPlanList(params) {
   });
 }
 
-export function yfthOpenDuePeriods() {
+export function yfthOpenDuePeriods(data) {
   return request({
     url: 'yfth/package_benefit/period/open_due',
     method: 'post',
+    data,
+  });
+}
+
+export function yfthPackageActivationRecover(data) {
+  return request({
+    url: 'yfth/package_benefit/activation/recover',
+    method: 'post',
+    data,
+  });
+}
+
+export function yfthPackageActivationRetry(id, data) {
+  return request({
+    url: `yfth/package_benefit/purchase/${id}/activation_retry`,
+    method: 'post',
+    data,
   });
 }

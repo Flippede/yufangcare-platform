@@ -162,3 +162,17 @@
 - 新增验证脚本：`crmeb/tests/yfth_package_benefit_contract_check.php` 和 `crmeb/tests/yfth_package_benefit_runtime_check.php`。
 
 仍未完成的后续域：服务项目、预约时段、动态权益核销码、权益履约消费明细、门店工作台、推荐关系、只读奖励台账、库存补货、产品额度、加盟合同和支付路由真实分账执行。
+
+## 13. 2026-06-24 套餐支付激活一致性整改
+
+- 当前开发分支：`feature/yfth-package-benefits-v1`；本轮开始 commit：`b811fc585c774ed7dd42a2c2e1252833b35685c7`。
+- 本轮新增纠偏 migration：`20260624170000_harden_yfth_package_purchase_snapshots.php` 和 `20260624170010_seed_yfth_package_recovery_menus.php`。
+- 新增 `yfth_package_purchase_intent`、`yfth_package_purchase_snapshot`、`yfth_package_purchase_benefit_snapshot`，成交时把套餐规则、协议、门店主体、支付路由、商品/SKU、月度权益逐行固化为关系型快照。
+- `yfth_package_purchase` 增加可空唯一键 `order_unique_key`、`order_sn_unique_key`，用 MySQL 唯一索引保证一个 CRMEB 订单只能绑定一条套餐购买记录；服务层捕获唯一冲突后回查并返回已有购买记录。
+- uni-app 套餐购买页已移除手工订单号、商品 ID、SKU unique 输入，改为 `createIntent -> createOrderFromIntent -> CRMEB payment`，支付结果页轮询真实购买激活状态。
+- 支付激活只读取已绑定订单、购买记录和成交快照，不再读取实时可编辑模板/权益配置；激活失败会写入重试字段，并可通过幂等记录原子重新抢占。
+- 新增自动/人工补偿：后台 `activation/recover`、`purchase/:id/activation_retry`，以及命令 `php think yfth:package recover-activation --limit 50`。
+- 新增集中生命周期服务，退款中、全额退款、部分履约后退款关闭、人工关闭/冻结均通过统一状态机联动 purchase、instance、plan、period、item 和 `member_5980` 身份。
+- `openDuePeriods` 改为批量上限、逐条锁定、计划/实例 active 二次校验；冻结、退款中、已退款、关闭状态不再开放未来月份或延迟权益项。
+- 退款事件映射改为优先解析 `store_order_id/store_order_sn`，找不到时通过真实退款单回查原订单；映射失败写技术日志和审计待补偿记录。
+- 新增真实应用验证脚本 `crmeb/tests/yfth_package_benefit_real_flow_check.php`，用于 MySQL 5.7/8.0 测试库上的真实迁移、表/索引、Service、Listener 和可选下单激活闭环验证；旧 runtime 脚本仍仅可作为轻量回归，不可替代最终验收。

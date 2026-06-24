@@ -20,6 +20,14 @@ export function createYfthPackagePurchase(data) {
 	return request.post('yfth/package/purchase', data);
 }
 
+export function createYfthPackageIntent(data) {
+	return request.post('yfth/package/intent', data);
+}
+
+export function createYfthPackageOrder(data) {
+	return request.post('yfth/package/order', data);
+}
+
 export function getYfthPurchaseStatus(purchaseNo) {
 	return request.get('yfth/package/purchase/' + purchaseNo);
 }

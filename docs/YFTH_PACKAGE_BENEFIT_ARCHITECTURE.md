@@ -53,3 +53,22 @@
 套餐激活使用 `yfth_idempotency_record`，同一订单重复支付回调只返回已有实例，不重复生成计划或权益项。
 
 服务层状态变化通过 `recordAudit` 写入基础域审计。高风险后台状态变更要求确认词和原因，保留历史快照。
+
+
+## 7. 2026-06-24 支付激活一致性整改
+
+本轮把套餐购买从“用户输入已有 CRMEB 订单”改为正式购买闭环：
+
+1. 用户确认套餐、门店和协议后，服务端创建 `yfth_package_purchase_intent`。
+2. intent 内固化服务端校验快照，随后调用 CRMEB 真实购物车确认和 `StoreOrderCreateServices` 创建订单。
+3. 订单创建成功后，在事务内绑定购买记录、订单唯一键和关系型成交快照。
+4. 支付成功 listener 仅以真实订单、购买记录和快照激活套餐。
+5. 若 listener 异常，补偿命令或后台人工重试仍走同一 `PackageActivationServices` 幂等激活链路。
+
+关键边界：
+
+- 不使用订单备注保存套餐数据。
+- 不信任前端价格、规则版本、商品/SKU、主体或权益内容。
+- 不修改普通商品下单、普通支付和退款主流程。
+- 已发布或已被 intent/purchase/snapshot 引用的规则、月度规则和权益内容不可原地修改，只能复制新草稿版本。
+- 部分履约后退款使用 `closed_after_partial_refund`/`partial_fulfillment_refunded` 语义，不再把所有退款统一写成 `refunded`。

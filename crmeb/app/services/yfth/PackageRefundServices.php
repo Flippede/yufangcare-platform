@@ -2,162 +2,130 @@
 
 namespace app\services\yfth;
 
-use app\dao\yfth\YfthBenefitItemDao;
-use app\dao\yfth\YfthBenefitPeriodDao;
-use app\dao\yfth\YfthBenefitPlanDao;
-use app\dao\yfth\YfthPackageInstanceDao;
+use app\dao\order\StoreOrderRefundDao;
 use app\dao\yfth\YfthPackagePurchaseDao;
 use app\services\order\StoreOrderServices;
+use think\facade\Log;
 
 class PackageRefundServices extends PackageBenefitBaseServices
 {
     public function onRefundApplied(array $order): void
     {
-        $purchase = $this->findPurchaseByOrder((int)($order['id'] ?? 0), (string)($order['order_id'] ?? ''));
+        $purchase = $this->resolvePurchase($order, 'refund_apply');
         if (!$purchase) {
             return;
         }
-        $this->markRefunding($purchase, 'refund_applied');
+        app()->make(PackageLifecycleServices::class)->markRefunding($purchase, 'refund_applied', $order);
     }
 
     public function onRefundCanceled(array $refundInfo): void
     {
-        $purchase = $this->findPurchaseByOrder((int)($refundInfo['store_order_id'] ?? 0), '');
+        $purchase = $this->resolvePurchase($refundInfo, 'refund_cancel');
         if (!$purchase) {
             return;
         }
-        $this->restoreAfterRefundCancel($purchase);
+        app()->make(PackageLifecycleServices::class)->restoreAfterRefundCancel($purchase, $refundInfo);
     }
 
     public function onRefundSucceeded(string $orderSn, array $eventData = []): void
     {
-        $purchase = $this->findPurchaseByOrder(0, $orderSn);
+        $purchase = $this->resolvePurchase(array_merge($eventData, ['event_order_sn' => $orderSn]), 'refund_success');
         if (!$purchase) {
             return;
         }
-        $this->transaction(function () use ($purchase, $eventData) {
-            $this->markRefundSucceeded($purchase, $eventData);
-        });
+        app()->make(PackageLifecycleServices::class)->markRefundSucceeded($purchase, $eventData);
     }
 
     public function onRefundFailed(string $orderSn, array $eventData = []): void
     {
-        $purchase = $this->findPurchaseByOrder(0, $orderSn);
+        $purchase = $this->resolvePurchase(array_merge($eventData, ['event_order_sn' => $orderSn]), 'refund_fail');
         if (!$purchase) {
             return;
         }
-        /** @var YfthPackagePurchaseDao $purchaseDao */
-        $purchaseDao = app()->make(YfthPackagePurchaseDao::class);
-        $before = $purchase;
-        $purchaseDao->update((int)$purchase['id'], [
-            'purchase_status' => 'refund_failed',
-            'update_time' => time(),
-        ]);
-        $this->recordPackageAudit('package_purchase', (string)$purchase['id'], 'refund_failed', $before, $eventData, 0, 'system', (int)$purchase['store_id'], (string)($eventData['refund_reason'] ?? ''));
+        app()->make(PackageLifecycleServices::class)->restoreAfterRefundFailed($purchase, $eventData);
     }
 
-    private function markRefunding(array $purchase, string $reason): void
+    private function resolvePurchase(array $payload, string $scene): array
     {
-        /** @var YfthPackagePurchaseDao $purchaseDao */
-        $purchaseDao = app()->make(YfthPackagePurchaseDao::class);
-        /** @var YfthPackageInstanceDao $instanceDao */
-        $instanceDao = app()->make(YfthPackageInstanceDao::class);
-        $before = $purchase;
-        $from = (string)$purchase['purchase_status'];
-        if ($from !== 'refunding') {
-            $this->assertTransition('purchase', $from, 'refunding');
-            $purchaseDao->update((int)$purchase['id'], ['purchase_status' => 'refunding', 'update_time' => time()]);
-        }
-
-        if ((int)$purchase['instance_id'] > 0) {
-            $instance = $instanceDao->get((int)$purchase['instance_id']);
-            if ($instance && $instance['status'] !== 'refunding') {
-                $this->assertTransition('instance', (string)$instance['status'], 'refunding');
-                $instanceDao->update((int)$instance['id'], [
-                    'status' => 'refunding',
-                    'refund_status' => 'pending',
-                    'update_time' => time(),
-                ]);
+        $candidates = $this->extractOrderCandidates($payload);
+        foreach ($candidates['order_ids'] as $orderId) {
+            $purchase = $this->findPurchaseByOrder((int)$orderId, '');
+            if ($purchase) {
+                return $purchase;
             }
         }
-        $this->recordPackageAudit('package_purchase', (string)$purchase['id'], 'refunding', $before, array_merge($purchase, ['purchase_status' => 'refunding']), 0, 'system', (int)$purchase['store_id'], $reason);
-    }
-
-    private function restoreAfterRefundCancel(array $purchase): void
-    {
-        /** @var YfthPackagePurchaseDao $purchaseDao */
-        $purchaseDao = app()->make(YfthPackagePurchaseDao::class);
-        /** @var YfthPackageInstanceDao $instanceDao */
-        $instanceDao = app()->make(YfthPackageInstanceDao::class);
-        $target = (int)$purchase['instance_id'] > 0 ? 'activated' : 'wait_pay';
-        $purchaseDao->update((int)$purchase['id'], ['purchase_status' => $target, 'update_time' => time()]);
-        if ((int)$purchase['instance_id'] > 0) {
-            $instanceDao->update((int)$purchase['instance_id'], [
-                'status' => 'active',
-                'refund_status' => 'none',
-                'update_time' => time(),
-            ]);
+        foreach ($candidates['order_sns'] as $orderSn) {
+            $purchase = $this->findPurchaseByOrder(0, (string)$orderSn);
+            if ($purchase) {
+                return $purchase;
+            }
         }
-        $this->recordPackageAudit('package_purchase', (string)$purchase['id'], 'refund_cancel', $purchase, ['purchase_status' => $target], 0, 'system', (int)$purchase['store_id']);
+        $this->recordPendingCompensation($payload, $scene, $candidates);
+        return [];
     }
 
-    private function markRefundSucceeded(array $purchase, array $eventData): void
+    private function extractOrderCandidates(array $payload): array
     {
-        /** @var YfthPackagePurchaseDao $purchaseDao */
-        $purchaseDao = app()->make(YfthPackagePurchaseDao::class);
-        /** @var YfthPackageInstanceDao $instanceDao */
-        $instanceDao = app()->make(YfthPackageInstanceDao::class);
-        /** @var YfthBenefitPlanDao $planDao */
-        $planDao = app()->make(YfthBenefitPlanDao::class);
-        /** @var YfthBenefitPeriodDao $periodDao */
-        $periodDao = app()->make(YfthBenefitPeriodDao::class);
-        /** @var YfthBenefitItemDao $itemDao */
-        $itemDao = app()->make(YfthBenefitItemDao::class);
+        $orderIds = [];
+        $orderSns = [];
+        foreach (['store_order_id', 'oid'] as $field) {
+            if (!empty($payload[$field])) {
+                $orderIds[] = (int)$payload[$field];
+            }
+        }
+        foreach (['store_order_sn', 'order_sn', 'event_order_sn'] as $field) {
+            if (!empty($payload[$field])) {
+                $orderSns[] = (string)$payload[$field];
+            }
+        }
 
-        $purchaseDao->update((int)$purchase['id'], [
-            'purchase_status' => 'refunded',
-            'update_time' => time(),
-        ]);
+        if (!empty($payload['id']) && empty($payload['pay_price']) && empty($payload['total_price'])) {
+            $this->appendRefundRecordCandidates((int)$payload['id'], '', $orderIds, $orderSns);
+        }
+        if (!empty($payload['refund_order_id'])) {
+            $this->appendRefundRecordCandidates(0, (string)$payload['refund_order_id'], $orderIds, $orderSns);
+        }
+        if (!empty($payload['order_id'])) {
+            $orderIdValue = (string)$payload['order_id'];
+            $this->appendRefundRecordCandidates(0, $orderIdValue, $orderIds, $orderSns);
+            $orderSns[] = $orderIdValue;
+        }
 
-        if ((int)$purchase['instance_id'] <= 0) {
-            $this->recordPackageAudit('package_purchase', (string)$purchase['id'], 'refund_succeeded_unactivated', $purchase, $eventData, 0, 'system', (int)$purchase['store_id']);
+        return [
+            'order_ids' => array_values(array_unique(array_filter($orderIds))),
+            'order_sns' => array_values(array_unique(array_filter($orderSns))),
+        ];
+    }
+
+    private function appendRefundRecordCandidates(int $refundId, string $refundOrderSn, array &$orderIds, array &$orderSns): void
+    {
+        /** @var StoreOrderRefundDao $refundDao */
+        $refundDao = app()->make(StoreOrderRefundDao::class);
+        $refund = null;
+        if ($refundId > 0) {
+            $refund = $refundDao->get($refundId);
+        }
+        if (!$refund && $refundOrderSn !== '') {
+            $refund = $refundDao->getOne(['order_id' => $refundOrderSn]);
+        }
+        if (!$refund) {
             return;
         }
-
-        $instance = $this->requireRow($instanceDao->get((int)$purchase['instance_id']), 'package_instance_not_found');
-        $usedCount = (int)$itemDao->search([])
-            ->where('package_instance_id', (int)$instance['id'])
-            ->where(function ($query) {
-                $query->where('quantity_used', '>', 0)->whereOr('status', 'used');
-            })
-            ->count();
-        $refundStatus = $usedCount > 0 ? 'partial_fulfillment_refunded' : 'full_refunded_no_fulfillment';
-        $instanceStatus = $usedCount > 0 ? 'closed' : 'refunded';
-        $instanceDao->update((int)$instance['id'], [
-            'status' => $instanceStatus,
-            'refund_status' => $refundStatus,
-            'fulfilled_count' => $usedCount,
-            'close_reason' => (string)($eventData['refund_reason_wap'] ?? 'refund_succeeded'),
-            'update_time' => time(),
-        ]);
-        $planDao->update(['package_instance_id' => (int)$instance['id']], [
-            'status' => $instanceStatus === 'refunded' ? 'refunded' : 'closed',
-            'update_time' => time(),
-        ]);
-        $periodDao->search([])->where('package_instance_id', (int)$instance['id'])->update([
-            'status' => $instanceStatus === 'refunded' ? 'refunded' : 'closed',
-            'update_time' => time(),
-        ]);
-        $itemDao->search([])->where('package_instance_id', (int)$instance['id'])->where('status', '<>', 'used')->update([
-            'status' => $instanceStatus === 'refunded' ? 'refunded' : 'closed',
-            'update_time' => time(),
-        ]);
-        app()->make(PackageInstanceServices::class)->recomputeMemberIdentity((int)$purchase['uid']);
-        $this->recordPackageAudit('package_instance', (string)$instance['id'], 'refund_succeeded', $instance, array_merge($eventData, [
-            'status' => $instanceStatus,
-            'refund_status' => $refundStatus,
-            'used_count' => $usedCount,
-        ]), 0, 'system', (int)$purchase['store_id']);
+        $refund = $refund->toArray();
+        if ((int)($refund['store_order_id'] ?? 0) > 0) {
+            $orderIds[] = (int)$refund['store_order_id'];
+        }
+        if (!empty($refund['store_order_sn'])) {
+            $orderSns[] = (string)$refund['store_order_sn'];
+        }
+        if ((int)($refund['store_order_id'] ?? 0) > 0) {
+            /** @var StoreOrderServices $orderServices */
+            $orderServices = app()->make(StoreOrderServices::class);
+            $order = $orderServices->get((int)$refund['store_order_id']);
+            if ($order) {
+                $orderSns[] = (string)$order['order_id'];
+            }
+        }
     }
 
     private function findPurchaseByOrder(int $orderId = 0, string $orderSn = ''): array
@@ -166,10 +134,16 @@ class PackageRefundServices extends PackageBenefitBaseServices
         $purchaseDao = app()->make(YfthPackagePurchaseDao::class);
         $purchase = null;
         if ($orderId > 0) {
-            $purchase = $purchaseDao->getOne(['order_id' => $orderId]);
+            $purchase = $purchaseDao->getOne(['order_unique_key' => (string)$orderId]);
+            if (!$purchase) {
+                $purchase = $purchaseDao->getOne(['order_id' => $orderId]);
+            }
         }
         if (!$purchase && $orderSn !== '') {
-            $purchase = $purchaseDao->getOne(['order_sn' => $orderSn]);
+            $purchase = $purchaseDao->getOne(['order_sn_unique_key' => $orderSn]);
+            if (!$purchase) {
+                $purchase = $purchaseDao->getOne(['order_sn' => $orderSn]);
+            }
         }
         if (!$purchase && $orderId > 0) {
             /** @var StoreOrderServices $orderServices */
@@ -180,5 +154,26 @@ class PackageRefundServices extends PackageBenefitBaseServices
             }
         }
         return $purchase ? $purchase->toArray() : [];
+    }
+
+    private function recordPendingCompensation(array $payload, string $scene, array $candidates): void
+    {
+        Log::warning([
+            'msg' => 'yfth_package_refund_mapping_pending_compensation',
+            'scene' => $scene,
+            'payload' => $this->sanitizeState($payload),
+            'candidates' => $candidates,
+        ]);
+        $this->recordPackageAudit(
+            'package_refund_event',
+            substr(hash('sha256', $scene . $this->jsonEncode($payload)), 0, 32),
+            'mapping_pending_compensation',
+            [],
+            ['scene' => $scene, 'candidates' => $candidates],
+            0,
+            'system',
+            0,
+            'refund_event_mapping_failed'
+        );
     }
 }

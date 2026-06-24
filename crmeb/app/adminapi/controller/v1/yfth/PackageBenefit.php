@@ -6,7 +6,9 @@ use app\adminapi\controller\AuthController;
 use app\services\yfth\BenefitPeriodServices;
 use app\services\yfth\BenefitPlanServices;
 use app\services\yfth\BenefitTemplateServices;
+use app\services\yfth\PackageActivationRecoveryServices;
 use app\services\yfth\PackageInstanceServices;
+use app\services\yfth\PackageLifecycleServices;
 use app\services\yfth\PackagePurchaseServices;
 use app\services\yfth\PackageTemplateServices;
 use crmeb\exceptions\AdminException;
@@ -61,6 +63,11 @@ class PackageBenefit extends AuthController
             ['expire_time', 0],
         ]), (int)$this->adminId);
         return app('json')->success('saved');
+    }
+
+    public function ruleCopy(PackageTemplateServices $services, $id)
+    {
+        return app('json')->success($services->copyRuleVersion((int)$id, (int)$this->adminId));
     }
 
     public function bindingSave(PackageTemplateServices $services)
@@ -171,7 +178,26 @@ class PackageBenefit extends AuthController
 
     public function openPeriods(BenefitPeriodServices $services)
     {
-        return app('json')->success($services->openDuePeriods());
+        $data = $this->request->postMore([
+            [['limit', 'd'], 100],
+        ]);
+        return app('json')->success($services->openDuePeriods(0, (int)$data['limit']));
+    }
+
+    public function recoverActivation(PackageActivationRecoveryServices $services)
+    {
+        $data = $this->request->postMore([
+            [['limit', 'd'], 50],
+        ]);
+        return app('json')->success($services->recoverPaidUnactivated((int)$data['limit'], (int)$this->adminId, 'admin_manual'));
+    }
+
+    public function retryActivation(PackageActivationRecoveryServices $services, $id)
+    {
+        $data = $this->request->postMore([
+            ['reason', ''],
+        ]);
+        return app('json')->success($services->retryPurchase((int)$id, (string)$data['reason'], (int)$this->adminId));
     }
 
     public function instanceState(PackageInstanceServices $services, $id)
@@ -186,5 +212,18 @@ class PackageBenefit extends AuthController
         }
         $services->changeState((int)$id, (string)$data['status'], (string)$data['reason'], (int)$this->adminId);
         return app('json')->success('updated');
+    }
+
+    public function instanceLifecycle(PackageLifecycleServices $services, $id)
+    {
+        $data = $this->request->postMore([
+            ['status', ''],
+            ['reason', ''],
+            ['confirm_text', ''],
+        ]);
+        if ($data['confirm_text'] !== 'CONFIRM') {
+            throw new AdminException('high_risk_confirmation_required');
+        }
+        return app('json')->success($services->changeInstanceState((int)$id, (string)$data['status'], (string)$data['reason'], (int)$this->adminId));
     }
 }

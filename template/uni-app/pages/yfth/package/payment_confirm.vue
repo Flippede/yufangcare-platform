@@ -5,32 +5,46 @@
 			<view class="row"><text>价格</text><text>¥{{ price }}</text></view>
 			<view class="row"><text>权益周期</text><text>{{ monthCount }}个月</text></view>
 			<view class="row"><text>服务门店</text><text>{{ storeId }}</text></view>
+			<view class="row" v-if="orderSn"><text>订单号</text><text>{{ orderSn }}</text></view>
 		</view>
-		<view class="panel">
-			<view class="label">CRMEB订单号</view>
-			<input v-model="orderSn" class="input" placeholder="请先通过商城订单流程创建订单" />
-			<view class="label">商品ID</view>
-			<input v-model="productId" class="input" placeholder="绑定的套餐商品ID" />
-			<view class="label">SKU unique</view>
-			<input v-model="skuUnique" class="input" placeholder="绑定的SKU unique" />
-		</view>
-		<button class="btn" @click="createPurchase">确认并绑定订单</button>
+		<button class="btn" :disabled="submitting" @click="createOrderAndPay">{{ submitting ? '处理中' : '确认并支付' }}</button>
+		<payment
+			:payMode="payMode"
+			:pay_close="payClose"
+			@onChangeFun="onPayChange"
+			:order_id="orderSn"
+			:totalPrice="price"
+		></payment>
 	</view>
 </template>
 
 <script>
-import { createYfthPackagePurchase, getYfthPackageDetail, getYfthPackageRulePreview } from '@/api/yfth.js';
+import payment from '@/components/payment';
+import {
+	createYfthPackageIntent,
+	createYfthPackageOrder,
+	getYfthPackageDetail,
+	getYfthPackageRulePreview
+} from '@/api/yfth.js';
 
 export default {
+	components: { payment },
 	data() {
 		return {
 			id: 0,
 			storeId: 0,
 			detail: {},
 			preview: { rule: {} },
+			intentNo: '',
+			purchaseNo: '',
 			orderSn: '',
-			productId: '',
-			skuUnique: ''
+			submitting: false,
+			payClose: false,
+			payMode: [
+				{ name: '微信支付', icon: 'icon-weixin2', value: 'weixin', title: '微信安全支付', payStatus: true },
+				{ name: '支付宝支付', icon: 'icon-zhifubao', value: 'alipay', title: '支付宝安全支付', payStatus: true },
+				{ name: '余额支付', icon: 'icon-yuezhifu', value: 'yue', title: '可用余额', number: 0, payStatus: true }
+			]
 		};
 	},
 	computed: {
@@ -46,33 +60,54 @@ export default {
 		this.storeId = Number(options.store_id || 0);
 		getYfthPackageDetail(this.id).then((res) => {
 			this.detail = res.data || {};
-			const binding = (this.detail.bindings || [])[0] || {};
-			this.productId = binding.product_id || '';
-			this.skuUnique = binding.product_attr_unique || '';
 		});
 		getYfthPackageRulePreview(this.id).then((res) => {
 			this.preview = res.data || { rule: {} };
 		});
 	},
 	methods: {
-		createPurchase() {
-			createYfthPackagePurchase({
+		createOrderAndPay() {
+			if (this.submitting) return;
+			this.submitting = true;
+			createYfthPackageIntent({
 				template_id: this.id,
 				store_id: this.storeId,
-				product_id: this.productId,
-				product_attr_unique: this.skuUnique,
-				rule_version_id: this.preview.rule.id,
-				client_price: this.price,
-				client_month_count: this.monthCount,
-				client_benefit_hash: this.preview.benefit_hash,
-				order_sn: this.orderSn,
-				agreement_accepted: 1,
 				source: 'mobile'
-			}).then((res) => {
-				uni.navigateTo({
-					url: '/pages/yfth/package/payment_result?purchase_no=' + res.data.purchase_no
+			}).then((intentRes) => {
+				this.intentNo = intentRes.data.intent_no;
+				return createYfthPackageOrder({
+					intent_no: this.intentNo,
+					pay_type: 'weixin',
+					shipping_type: 2,
+					source: 'mobile'
 				});
+			}).then((orderRes) => {
+				const data = orderRes.data || {};
+				this.purchaseNo = data.purchase ? data.purchase.purchase_no : '';
+				this.orderSn = data.order ? data.order.order_id : '';
+				this.payClose = true;
+			}).catch((err) => {
+				this.$util.Tips({ title: err });
+			}).finally(() => {
+				this.submitting = false;
 			});
+		},
+		onPayChange(e) {
+			if (e.action === 'payClose') {
+				this.payClose = false;
+			}
+			if (e.action === 'pay_complete') {
+				this.payClose = false;
+				uni.redirectTo({
+					url: '/pages/yfth/package/payment_result?purchase_no=' + this.purchaseNo
+				});
+			}
+			if (e.action === 'pay_fail') {
+				this.payClose = false;
+				uni.navigateTo({
+					url: '/pages/yfth/package/payment_result?purchase_no=' + this.purchaseNo
+				});
+			}
 		}
 	}
 };
@@ -93,19 +128,15 @@ export default {
 .row {
 	display: flex;
 	justify-content: space-between;
+	gap: 24rpx;
 	padding: 16rpx 0;
 	border-bottom: 1px solid #edf0f2;
+	font-size: 28rpx;
+	color: #263238;
 }
-.label {
-	font-size: 26rpx;
-	color: #58636f;
-	margin: 18rpx 0 10rpx;
-}
-.input {
-	height: 76rpx;
-	background: #f4f6f7;
-	border-radius: 8rpx;
-	padding: 0 18rpx;
+.row text:last-child {
+	text-align: right;
+	word-break: break-all;
 }
 .btn {
 	margin-top: 16rpx;
@@ -114,5 +145,9 @@ export default {
 	background: #2f7668;
 	color: #fff;
 	border-radius: 10rpx;
+}
+.btn[disabled] {
+	background: #9fb9b4;
+	color: #fff;
 }
 </style>

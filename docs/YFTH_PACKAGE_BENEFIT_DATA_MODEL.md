@@ -49,3 +49,28 @@
 ## 5. 后续扩展位
 
 后续服务预约、动态核销、配送履约和权益恢复应新增履约流水表，并引用 `yfth_benefit_item.id`。不要直接在权益项上追加大量一次性字段，也不要把履约明细塞入权益项 JSON。
+
+## 6. 2026-06-24 购买意图与成交快照
+
+本轮新增三类表，解决支付激活读取实时配置和订单重复绑定问题：
+
+- `yfth_package_purchase_intent`：保存不可预测 intent 编号、UID、门店、套餐规则、商品/SKU、协议快照、价格快照、权益 hash、过期时间和已绑定订单。
+- `yfth_package_purchase_snapshot`：保存购买成交时的套餐、规则、商品/SKU、协议 hash、主体、支付路由、订单金额和可服务门店快照。
+- `yfth_package_purchase_benefit_snapshot`：按月、按权益逐行保存权益名称、类型、履约方式、数量、开放/过期规则、服务能力和适用门店。
+
+购买记录新增字段：
+
+- `intent_id`、`snapshot_id`：串联 intent 与成交快照。
+- `order_unique_key`、`order_sn_unique_key`：可空唯一键，只对真实绑定订单生效，避免 MySQL 空值唯一语义误伤未绑定记录。
+- `activation_attempt_count`、`last_activation_error`、`activation_retry_at`：用于激活失败后的自动补偿和人工重试。
+
+新增索引：
+
+- `uniq_yfth_pkg_purchase_order_key`
+- `uniq_yfth_pkg_purchase_order_sn_key`
+- `uniq_yfth_pkg_snapshot_purchase`
+- `uniq_yfth_pkg_benefit_snapshot_rule`
+- `idx_yfth_benefit_period_open_guard`
+- `idx_yfth_benefit_period_expire_guard`
+
+迁移执行前会检测历史重复 `order_id/order_sn` 并抛出冲突记录 ID，不会自动删除非隔离环境数据。

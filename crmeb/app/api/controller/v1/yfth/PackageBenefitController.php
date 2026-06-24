@@ -51,6 +51,31 @@ class PackageBenefitController
         ])));
     }
 
+    public function createIntent(Request $request, PackagePurchaseServices $services)
+    {
+        return app('json')->success($services->createIntent((int)$request->uid(), $request->postMore([
+            [['template_id', 'd'], 0],
+            [['store_id', 'd'], 0],
+            [['product_id', 'd'], 0],
+            ['product_attr_unique', ''],
+            ['source', 'mobile'],
+        ])));
+    }
+
+    public function createOrderFromIntent(Request $request, PackagePurchaseServices $services)
+    {
+        $data = $request->postMore([
+            ['intent_no', ''],
+            ['pay_type', 'weixin'],
+            [['shipping_type', 'd'], 2],
+            [['address_id', 'd'], 0],
+            ['real_name', ''],
+            ['phone', ''],
+            ['source', 'mobile'],
+        ]);
+        return app('json')->success($services->createOrderFromIntent((int)$request->uid(), (string)$data['intent_no'], $data));
+    }
+
     public function purchaseStatus(Request $request, PackagePurchaseServices $services, $purchaseNo)
     {
         return app('json')->success($services->purchaseStatus((int)$request->uid(), (string)$purchaseNo));

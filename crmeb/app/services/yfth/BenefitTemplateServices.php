@@ -4,6 +4,8 @@ namespace app\services\yfth;
 
 use app\dao\yfth\YfthBenefitTemplateDao;
 use app\dao\yfth\YfthMonthlyBenefitRuleDao;
+use app\dao\yfth\YfthPackagePurchaseBenefitSnapshotDao;
+use app\dao\yfth\YfthPackagePurchaseIntentDao;
 use app\dao\yfth\YfthPackageRuleVersionDao;
 use crmeb\exceptions\AdminException;
 
@@ -28,6 +30,9 @@ class BenefitTemplateServices extends PackageBenefitBaseServices
     {
         $id = (int)($data['id'] ?? 0);
         $before = $id ? $this->dao->get($id) : null;
+        if ($before && $this->isBenefitTemplateImmutable($id)) {
+            throw new AdminException('benefit_template_is_published_or_referenced_copy_new_template');
+        }
         unset($data['id']);
         $data = $this->normalizeBenefitTemplate($data, $id);
         $result = $id ? $this->dao->update($id, $data) : $this->dao->save($data);
@@ -63,6 +68,7 @@ class BenefitTemplateServices extends PackageBenefitBaseServices
         $before = $id ? $ruleDao->get($id) : null;
         unset($data['id']);
         $data = $this->normalizeMonthlyRule($data, $id);
+        $this->assertRuleVersionMutable((int)$data['rule_version_id'], $id > 0 ? ($before ? $before->toArray() : []) : []);
         $result = $id ? $ruleDao->update($id, $data) : $ruleDao->save($data);
         $objectId = $id ?: (int)$result->id;
         $after = $id ? $ruleDao->get($id)->toArray() : array_merge($data, ['id' => $objectId]);
@@ -74,7 +80,17 @@ class BenefitTemplateServices extends PackageBenefitBaseServices
     {
         /** @var YfthMonthlyBenefitRuleDao $ruleDao */
         $ruleDao = app()->make(YfthMonthlyBenefitRuleDao::class);
-        return $ruleDao->selectList(['rule_version_id' => $ruleVersionId, 'status' => 'active'], '*', 0, 0, 'month_no asc,id asc', [], false)->toArray();
+        $rows = $ruleDao->selectList(['rule_version_id' => $ruleVersionId, 'status' => 'active'], '*', 0, 0, 'month_no asc,id asc', [], false)->toArray();
+        $benefitIds = array_values(array_unique(array_map('intval', array_column($rows, 'benefit_template_id'))));
+        $templates = $benefitIds ? $this->dao->selectList(['id' => $benefitIds], '*', 0, 0, 'id asc', [], false)->toArray() : [];
+        $templates = array_column($templates, null, 'id');
+        foreach ($rows as &$row) {
+            $template = $templates[(int)$row['benefit_template_id']] ?? [];
+            $row['fulfillment_type'] = (string)($template['fulfillment_type'] ?? '');
+            $row['unit'] = (string)($template['unit'] ?? '');
+            $row['benefit_description'] = (string)($template['description'] ?? '');
+        }
+        return $rows;
     }
 
     private function normalizeBenefitTemplate(array $data, int $id): array
@@ -121,5 +137,48 @@ class BenefitTemplateServices extends PackageBenefitBaseServices
         $data['service_capability'] = trim((string)($data['service_capability'] ?? ''));
         $data['status'] = trim((string)($data['status'] ?? 'active')) ?: 'active';
         return $this->withTimestamps($data, $id === 0);
+    }
+
+    private function assertRuleVersionMutable(int $ruleVersionId, array $before = []): void
+    {
+        /** @var YfthPackageRuleVersionDao $ruleVersionDao */
+        $ruleVersionDao = app()->make(YfthPackageRuleVersionDao::class);
+        $ruleVersion = $this->requireRow($ruleVersionDao->get($ruleVersionId), 'rule_version_not_found');
+        if ((string)$ruleVersion['status'] === 'published' || $this->isRuleReferenced($ruleVersionId)) {
+            throw new AdminException('published_or_referenced_monthly_rule_is_immutable_copy_new_rule_version');
+        }
+        if ($before && (int)$before['rule_version_id'] !== $ruleVersionId && $this->isRuleReferenced((int)$before['rule_version_id'])) {
+            throw new AdminException('referenced_monthly_rule_is_immutable_copy_new_rule_version');
+        }
+    }
+
+    private function isRuleReferenced(int $ruleVersionId): bool
+    {
+        /** @var YfthPackagePurchaseIntentDao $intentDao */
+        $intentDao = app()->make(YfthPackagePurchaseIntentDao::class);
+        if ($intentDao->count(['rule_version_id' => $ruleVersionId], false) > 0) {
+            return true;
+        }
+        /** @var YfthPackagePurchaseBenefitSnapshotDao $snapshotDao */
+        $snapshotDao = app()->make(YfthPackagePurchaseBenefitSnapshotDao::class);
+        return $snapshotDao->count(['rule_version_id' => $ruleVersionId], false) > 0;
+    }
+
+    private function isBenefitTemplateImmutable(int $benefitTemplateId): bool
+    {
+        /** @var YfthMonthlyBenefitRuleDao $ruleDao */
+        $ruleDao = app()->make(YfthMonthlyBenefitRuleDao::class);
+        /** @var YfthPackageRuleVersionDao $ruleVersionDao */
+        $ruleVersionDao = app()->make(YfthPackageRuleVersionDao::class);
+        $rules = $ruleDao->selectList(['benefit_template_id' => $benefitTemplateId], 'rule_version_id', 0, 0, 'id asc', [], false)->toArray();
+        foreach ($rules as $rule) {
+            $ruleVersion = $ruleVersionDao->get((int)$rule['rule_version_id']);
+            if ($ruleVersion && ((string)$ruleVersion['status'] === 'published' || $this->isRuleReferenced((int)$rule['rule_version_id']))) {
+                return true;
+            }
+        }
+        /** @var YfthPackagePurchaseBenefitSnapshotDao $snapshotDao */
+        $snapshotDao = app()->make(YfthPackagePurchaseBenefitSnapshotDao::class);
+        return $snapshotDao->count(['benefit_template_id' => $benefitTemplateId], false) > 0;
     }
 }

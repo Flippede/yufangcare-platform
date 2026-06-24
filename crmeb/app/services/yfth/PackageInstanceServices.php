@@ -64,22 +64,9 @@ class PackageInstanceServices extends PackageBenefitBaseServices
 
     public function changeState(int $instanceId, string $toStatus, string $reason, int $operatorUid = 0)
     {
-        if (trim($reason) === '') {
-            throw new AdminException('state_change_reason_required');
-        }
-        $row = $this->requireRow($this->dao->get($instanceId), 'package_instance_not_found');
-        $this->assertTransition('instance', (string)$row['status'], $toStatus);
-        $before = $row;
-        $data = [
-            'status' => $toStatus,
-            'close_reason' => $reason,
-            'update_time' => time(),
-        ];
-        $result = $this->dao->update($instanceId, $data);
-        $after = $this->dao->get($instanceId)->toArray();
-        $this->recordPackageAudit('package_instance', (string)$instanceId, 'change_state', $before, $after, $operatorUid, 'admin', (int)$row['store_id'], $reason);
-        $this->recomputeMemberIdentity((int)$row['uid']);
-        return $result;
+        /** @var PackageLifecycleServices $lifecycleServices */
+        $lifecycleServices = app()->make(PackageLifecycleServices::class);
+        return $lifecycleServices->changeInstanceState($instanceId, $toStatus, $reason, $operatorUid);
     }
 
     public function recomputeMemberIdentity(int $uid): void
