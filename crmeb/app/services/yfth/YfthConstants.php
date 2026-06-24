@@ -14,62 +14,82 @@ class YfthConstants
     public static function roles(): array
     {
         return [
-            'customer' => '普通用户',
-            'family_member' => '家庭成员',
-            'store_manager' => '门店店长',
-            'store_staff' => '门店员工',
-            'franchisee' => '加盟商',
-            'supplier' => '供应商',
-            'headquarter_operator' => '总部运营',
+            'customer' => 'Customer',
+            'family_member' => 'Family member',
+            'member_5980' => '5980 member',
+            'franchise_applicant' => 'Franchise applicant',
+            'franchisee' => 'Franchisee',
+            'store_manager' => 'Store manager',
+            'store_staff' => 'Store staff',
+            'service_mentor' => 'Service mentor',
+            'supplier' => 'Supplier',
+            'headquarter_operator' => 'Headquarter operator',
         ];
     }
 
     public static function storeRoles(): array
     {
-        return ['store_manager', 'store_staff'];
+        return ['franchisee', 'store_manager', 'store_staff'];
+    }
+
+    public static function globalRoles(): array
+    {
+        return array_values(array_diff(array_keys(self::roles()), self::storeRoles()));
     }
 
     public static function subjectTypes(): array
     {
         return [
-            'headquarter' => '总部主体',
-            'franchise_company' => '加盟公司',
-            'store_company' => '门店公司',
-            'individual' => '个体工商户',
-            'supplier' => '供应商主体',
+            'headquarter' => 'Headquarter subject',
+            'franchise_company' => 'Franchise company',
+            'store_company' => 'Store company',
+            'individual' => 'Individual business',
+            'supplier' => 'Supplier subject',
         ];
     }
 
     public static function storeTypes(): array
     {
         return [
-            'direct' => '直营店',
-            'franchise' => '加盟店',
-            'store_in_store' => '店中店',
-            'partner' => '合作点',
+            'direct' => 'Direct store',
+            'franchise' => 'Franchise store',
+            'store_in_store' => 'Store in store',
+            'partner' => 'Partner site',
+        ];
+    }
+
+    public static function subjectRoles(): array
+    {
+        return [
+            'sales' => 'Sales subject',
+            'payment' => 'Payment subject',
+            'fulfillment' => 'Fulfillment subject',
+            'invoice' => 'Invoice subject',
+            'refund' => 'Refund subject',
+            'host' => 'Host subject',
         ];
     }
 
     public static function qualificationStatus(): array
     {
         return [
-            self::STATUS_PENDING => '待审核',
-            self::STATUS_ACTIVE => '已通过',
-            self::STATUS_REJECTED => '已驳回',
-            self::STATUS_PAUSED => '已暂停',
-            self::STATUS_EXPIRED => '已过期',
+            self::STATUS_PENDING => 'Pending',
+            self::STATUS_ACTIVE => 'Active',
+            self::STATUS_REJECTED => 'Rejected',
+            self::STATUS_PAUSED => 'Paused',
+            self::STATUS_EXPIRED => 'Expired',
         ];
     }
 
     public static function capabilityLabels(): array
     {
         return [
-            'retail_sale' => '商品销售',
-            'package_sale' => '套餐销售',
-            'reservation_service' => '预约服务',
-            'order_writeoff' => '订单核销',
-            'store_purchase' => '门店采购',
-            'online_payment' => '在线收款',
+            'retail_sale' => 'Retail sale',
+            'package_sale' => 'Package sale',
+            'reservation_service' => 'Reservation service',
+            'order_writeoff' => 'Order writeoff',
+            'store_purchase' => 'Store purchase',
+            'online_payment' => 'Online payment',
         ];
     }
 
@@ -87,10 +107,14 @@ class YfthConstants
     public static function paymentScenes(): array
     {
         return [
-            'retail_order' => '零售订单',
-            'package_order' => '套餐订单',
-            'franchise_purchase' => '加盟采购',
-            'service_refund' => '服务退款',
+            'store_retail' => 'Store retail order',
+            'retail_order' => 'Retail order',
+            'package_5980' => '5980 package order',
+            'package_order' => 'Package order',
+            'paid_service' => 'Paid service',
+            'headquarter_purchase' => 'Headquarter purchase',
+            'franchise_purchase' => 'Franchise purchase',
+            'service_refund' => 'Service refund',
         ];
     }
 }

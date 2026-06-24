@@ -3,6 +3,7 @@
 namespace app\services\yfth;
 
 use app\dao\yfth\YfthAuditEventDao;
+use think\facade\Log;
 
 class AuditEventServices extends YfthFoundationBaseServices
 {
@@ -56,5 +57,34 @@ class AuditEventServices extends YfthFoundationBaseServices
         ];
         $data = $this->withTimestamps($data, true);
         return $this->dao->save($data);
+    }
+
+    public function recordSafely(
+        string $domain,
+        string $objectType,
+        string $objectId,
+        string $action,
+        array $before = [],
+        array $after = [],
+        int $operatorUid = 0,
+        string $roleCode = '',
+        int $storeId = 0,
+        string $reason = '',
+        string $requestId = ''
+    ): void {
+        try {
+            $this->record($domain, $objectType, $objectId, $action, $before, $after, $operatorUid, $roleCode, $storeId, $reason, $requestId);
+        } catch (\Throwable $e) {
+            Log::error([
+                'msg' => 'yfth_audit_record_failed',
+                'domain' => $domain,
+                'object_type' => $objectType,
+                'object_id' => $objectId,
+                'action' => $action,
+                'error' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+            ]);
+        }
     }
 }

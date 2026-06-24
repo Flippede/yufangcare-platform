@@ -110,10 +110,22 @@ class StoreQualificationServices extends YfthFoundationBaseServices
         return true;
     }
 
+    public function contextStatus(int $storeId): string
+    {
+        $active = $this->dao->search([])
+            ->where('store_id', $storeId)
+            ->where('status', YfthConstants::STATUS_ACTIVE)
+            ->where(function ($query) {
+                $query->where('expire_time', '=', 0)->whereOr('expire_time', '>', time());
+            })
+            ->count();
+        return $active > 0 ? 'active' : 'missing_or_inactive';
+    }
+
     private function recordAudit(string $objectId, string $action, array $before, array $after, int $operatorUid, int $storeId, string $reason = ''): void
     {
         /** @var AuditEventServices $audit */
         $audit = app()->make(AuditEventServices::class);
-        $audit->record('yfth_foundation', 'store_qualification', $objectId, $action, $before, $after, $operatorUid, 'admin', $storeId, $reason);
+        $audit->recordSafely('yfth_foundation', 'store_qualification', $objectId, $action, $before, $after, $operatorUid, 'admin', $storeId, $reason);
     }
 }

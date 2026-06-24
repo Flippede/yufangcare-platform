@@ -119,3 +119,17 @@ V2.0 复用比例估算：约 15%-25%。现有分销/事业部只能提供技术
 - 加盟申请、合同、筹备任务、开店验收、采购、库存、补货、产品额度。
 - 奖励台账、规则版本、观察期、冲正和结算。
 - 支付路由真实执行、分账、退款后置业务事件。
+
+## 8. 2026-06-24 Blocker hardening delta
+
+- Foundation V1 remains a prerequisite layer only. It still does not implement 5980 package instances, ten-month equity plans, reservation, procurement, inventory, package writeoff, reward ledger, or payment execution/splitting.
+- The previous blocker set is closed for the foundation layer:
+  - Server-side store context no longer trusts client `store_id`.
+  - `franchisee` is store-bound.
+  - Store subject and payment route active uniqueness is enforced at service and database-contract level.
+  - Idempotency begins by insert-first unique-key handling.
+  - Store order writeoff confirmation is row-lock protected and duplicate confirmation is idempotent.
+  - Menu seed is idempotent and rollback-safe.
+  - Backend subject and audit outputs now mask sensitive data.
+- Remaining business gaps are unchanged and must be designed on top of this foundation rather than bypassing it through order remarks, user balance, distribution fields, or unaudited JSON.
+- Runtime confidence improved: portable PHP 7.4.33 plus isolated MariaDB 10.11.18 checks now cover the foundation constraints and can be rerun before the next feature layer starts.

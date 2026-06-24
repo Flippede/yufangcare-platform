@@ -45,12 +45,20 @@ class UserStoreRoleServices extends YfthFoundationBaseServices
     public function assertStoreRole(int $uid, int $storeId, string $roleCode = ''): array
     {
         if ($storeId <= 0) {
-            throw new ApiException('门店身份必须指定门店');
+            throw new ApiException('store_id is required');
+        }
+        if ($roleCode !== '' && !in_array($roleCode, YfthConstants::storeRoles(), true)) {
+            throw new ApiException('role_is_not_store_scoped');
         }
         $role = $this->getActiveRole($uid, $storeId, $roleCode);
         if (!$role) {
-            throw new ApiException('当前用户无权访问该门店');
+            throw new ApiException('store_role_not_granted');
         }
+
+        /** @var StoreAccessServices $storeAccessServices */
+        $storeAccessServices = app()->make(StoreAccessServices::class);
+        $storeAccessServices->assertStoreActive($storeId);
+
         return is_array($role) ? $role : $role->toArray();
     }
 
@@ -61,6 +69,14 @@ class UserStoreRoleServices extends YfthFoundationBaseServices
         $data['uid'] = (int)($data['uid'] ?? 0);
         $data['store_id'] = (int)($data['store_id'] ?? 0);
         $data['role_code'] = trim((string)($data['role_code'] ?? ''));
+        if ($data['uid'] <= 0 || $data['store_id'] <= 0 || !in_array($data['role_code'], YfthConstants::storeRoles(), true)) {
+            throw new ApiException('invalid_store_role');
+        }
+
+        /** @var StoreAccessServices $storeAccessServices */
+        $storeAccessServices = app()->make(StoreAccessServices::class);
+        $storeAccessServices->assertStoreActive($data['store_id']);
+
         $data['status'] = $data['status'] ?? YfthConstants::STATUS_ACTIVE;
         $data['permission_scope'] = $this->jsonEncode($data['permission_scope'] ?? '');
         $data['start_time'] = $this->parseTime($data['start_time'] ?? 0);

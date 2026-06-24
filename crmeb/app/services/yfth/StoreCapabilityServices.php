@@ -51,6 +51,18 @@ class StoreCapabilityServices extends YfthFoundationBaseServices
         return true;
     }
 
+    public function activeCodesForStore(int $storeId): array
+    {
+        $rows = $this->activeCapabilityQuery($storeId, '')->select()->toArray();
+        $codes = [];
+        foreach ($rows as $row) {
+            if (!empty($row['capability_code']) && $this->isAvailable($storeId, (string)$row['capability_code'])) {
+                $codes[] = (string)$row['capability_code'];
+            }
+        }
+        return array_values(array_unique($codes));
+    }
+
     public function syncFromQualification(array $qualification): void
     {
         $codes = YfthConstants::qualificationCapabilityMap()[$qualification['qualification_type']] ?? [];
@@ -97,8 +109,10 @@ class StoreCapabilityServices extends YfthFoundationBaseServices
     {
         $query = $this->dao->search([])
             ->where('store_id', $storeId)
-            ->where('capability_code', $capabilityCode)
             ->where('status', YfthConstants::STATUS_ACTIVE);
+        if ($capabilityCode !== '') {
+            $query->where('capability_code', $capabilityCode);
+        }
         return $this->applyActiveWindow($query);
     }
 

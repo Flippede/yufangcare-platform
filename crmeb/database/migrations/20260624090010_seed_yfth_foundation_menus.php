@@ -12,89 +12,103 @@ class SeedYfthFoundationMenus extends Migrator
         'yfth-foundation-subject-list',
         'yfth-foundation-subject-save',
         'yfth-foundation-store-subject-list',
+        'yfth-foundation-store-subject-save',
+        'yfth-foundation-store-subject-disable',
         'yfth-foundation-qualification-list',
         'yfth-foundation-qualification-save',
         'yfth-foundation-qualification-audit',
         'yfth-foundation-capability-list',
         'yfth-foundation-payment-route-list',
+        'yfth-foundation-payment-route-save',
+        'yfth-foundation-payment-route-disable',
+        'yfth-foundation-payment-route-resolve',
         'yfth-foundation-audit-event-list',
     ];
 
     public function up()
     {
-        $this->table('system_menus')->insert([
-            [
-                'pid' => 0,
-                'icon' => 'md-git-network',
-                'menu_name' => '御方通和',
-                'module' => 'admin',
-                'controller' => '',
-                'action' => '',
-                'api_url' => '',
-                'methods' => 'GET',
-                'params' => '',
-                'sort' => 320,
-                'is_show' => 1,
-                'is_show_path' => 1,
-                'access' => 1,
-                'menu_path' => '/yfth',
-                'path' => '/yfth',
-                'auth_type' => 1,
-                'header' => 'yfth',
-                'is_header' => 1,
-                'unique_auth' => 'yfth-foundation',
-                'is_del' => 0,
-                'mark' => 'yfth',
-            ],
-            [
-                'pid' => 0,
-                'icon' => 'md-business',
-                'menu_name' => '基础域',
-                'module' => 'admin',
-                'controller' => 'v1.yfth.Foundation',
-                'action' => 'index',
-                'api_url' => 'yfth/foundation/identity',
-                'methods' => 'GET',
-                'params' => '',
-                'sort' => 10,
-                'is_show' => 1,
-                'is_show_path' => 1,
-                'access' => 1,
-                'menu_path' => '/yfth/foundation',
-                'path' => '/yfth/foundation',
-                'auth_type' => 1,
-                'header' => 'yfth',
-                'is_header' => 0,
-                'unique_auth' => 'yfth-foundation-index',
-                'is_del' => 0,
-                'mark' => 'yfth',
-            ],
-            $this->apiRow('用户身份列表', 'yfth/foundation/identity', 'GET', 'yfth-foundation-identity-list'),
-            $this->apiRow('门店角色列表', 'yfth/foundation/store_role', 'GET', 'yfth-foundation-store-role-list'),
-            $this->apiRow('经营主体列表', 'yfth/foundation/subject', 'GET', 'yfth-foundation-subject-list'),
-            $this->apiRow('保存经营主体', 'yfth/foundation/subject/save', 'POST', 'yfth-foundation-subject-save'),
-            $this->apiRow('门店主体列表', 'yfth/foundation/store_subject', 'GET', 'yfth-foundation-store-subject-list'),
-            $this->apiRow('门店资质列表', 'yfth/foundation/qualification', 'GET', 'yfth-foundation-qualification-list'),
-            $this->apiRow('提交门店资质', 'yfth/foundation/qualification/save', 'POST', 'yfth-foundation-qualification-save'),
-            $this->apiRow('审核门店资质', 'yfth/foundation/qualification/audit', 'POST', 'yfth-foundation-qualification-audit'),
-            $this->apiRow('门店能力列表', 'yfth/foundation/capability', 'GET', 'yfth-foundation-capability-list'),
-            $this->apiRow('收款路由列表', 'yfth/foundation/payment_route', 'GET', 'yfth-foundation-payment-route-list'),
-            $this->apiRow('审计事件列表', 'yfth/foundation/audit_event', 'GET', 'yfth-foundation-audit-event-list'),
-        ])->saveData();
+        $rootId = $this->upsertMenu([
+            'pid' => 0,
+            'icon' => 'md-git-network',
+            'menu_name' => 'YFTH',
+            'module' => 'admin',
+            'controller' => '',
+            'action' => '',
+            'api_url' => '',
+            'methods' => 'GET',
+            'params' => '',
+            'sort' => 320,
+            'is_show' => 1,
+            'is_show_path' => 1,
+            'access' => 1,
+            'menu_path' => '/yfth',
+            'path' => '/yfth',
+            'auth_type' => 1,
+            'header' => 'yfth',
+            'is_header' => 1,
+            'unique_auth' => 'yfth-foundation',
+            'is_del' => 0,
+            'mark' => 'yfth',
+        ]);
+
+        $pageId = $this->upsertMenu([
+            'pid' => $rootId,
+            'icon' => 'md-business',
+            'menu_name' => 'Foundation',
+            'module' => 'admin',
+            'controller' => 'v1.yfth.Foundation',
+            'action' => 'index',
+            'api_url' => 'yfth/foundation/identity',
+            'methods' => 'GET',
+            'params' => '',
+            'sort' => 10,
+            'is_show' => 1,
+            'is_show_path' => 1,
+            'access' => 1,
+            'menu_path' => '/yfth/foundation',
+            'path' => (string)$rootId,
+            'auth_type' => 1,
+            'header' => 'yfth',
+            'is_header' => 0,
+            'unique_auth' => 'yfth-foundation-index',
+            'is_del' => 0,
+            'mark' => 'yfth',
+        ]);
+
+        foreach ([
+            $this->apiRow($pageId, 'Identity list', 'yfth/foundation/identity', 'GET', 'yfth-foundation-identity-list'),
+            $this->apiRow($pageId, 'Store role list', 'yfth/foundation/store_role', 'GET', 'yfth-foundation-store-role-list'),
+            $this->apiRow($pageId, 'Subject list', 'yfth/foundation/subject', 'GET', 'yfth-foundation-subject-list'),
+            $this->apiRow($pageId, 'Subject save', 'yfth/foundation/subject/save', 'POST', 'yfth-foundation-subject-save'),
+            $this->apiRow($pageId, 'Store subject list', 'yfth/foundation/store_subject', 'GET', 'yfth-foundation-store-subject-list'),
+            $this->apiRow($pageId, 'Store subject save', 'yfth/foundation/store_subject/save', 'POST', 'yfth-foundation-store-subject-save'),
+            $this->apiRow($pageId, 'Store subject disable', 'yfth/foundation/store_subject/disable', 'POST', 'yfth-foundation-store-subject-disable'),
+            $this->apiRow($pageId, 'Qualification list', 'yfth/foundation/qualification', 'GET', 'yfth-foundation-qualification-list'),
+            $this->apiRow($pageId, 'Qualification save', 'yfth/foundation/qualification/save', 'POST', 'yfth-foundation-qualification-save'),
+            $this->apiRow($pageId, 'Qualification audit', 'yfth/foundation/qualification/audit', 'POST', 'yfth-foundation-qualification-audit'),
+            $this->apiRow($pageId, 'Capability list', 'yfth/foundation/capability', 'GET', 'yfth-foundation-capability-list'),
+            $this->apiRow($pageId, 'Payment route list', 'yfth/foundation/payment_route', 'GET', 'yfth-foundation-payment-route-list'),
+            $this->apiRow($pageId, 'Payment route save', 'yfth/foundation/payment_route/save', 'POST', 'yfth-foundation-payment-route-save'),
+            $this->apiRow($pageId, 'Payment route disable', 'yfth/foundation/payment_route/disable', 'POST', 'yfth-foundation-payment-route-disable'),
+            $this->apiRow($pageId, 'Payment route resolve', 'yfth/foundation/payment_route/resolve', 'GET', 'yfth-foundation-payment-route-resolve'),
+            $this->apiRow($pageId, 'Audit event list', 'yfth/foundation/audit_event', 'GET', 'yfth-foundation-audit-event-list'),
+        ] as $row) {
+            $this->upsertMenu($row);
+        }
     }
 
     public function down()
     {
         $quoted = array_map(function ($key) {
-            return "'" . str_replace("'", "''", $key) . "'";
+            return $this->quote($key);
         }, $this->menuKeys);
         $this->execute('DELETE FROM `' . $this->prefixed('system_menus') . '` WHERE `unique_auth` IN (' . implode(',', $quoted) . ')');
     }
 
-    private function apiRow(string $name, string $url, string $method, string $auth): array
+    private function apiRow(int $pid, string $name, string $url, string $method, string $auth): array
     {
         return [
-            'pid' => 0,
+            'pid' => $pid,
             'icon' => '',
             'menu_name' => $name,
             'module' => 'admin',
@@ -108,7 +122,7 @@ class SeedYfthFoundationMenus extends Migrator
             'is_show_path' => 0,
             'access' => 1,
             'menu_path' => '',
-            'path' => '',
+            'path' => (string)$pid,
             'auth_type' => 2,
             'header' => 'yfth',
             'is_header' => 0,
@@ -116,6 +130,41 @@ class SeedYfthFoundationMenus extends Migrator
             'is_del' => 0,
             'mark' => 'yfth',
         ];
+    }
+
+    private function upsertMenu(array $row): int
+    {
+        $table = '`' . $this->prefixed('system_menus') . '`';
+        $existing = $this->getAdapter()->fetchRow('SELECT `id` FROM ' . $table . ' WHERE `unique_auth` = ' . $this->quote($row['unique_auth']) . ' LIMIT 1');
+        if ($existing) {
+            $sets = [];
+            foreach ($row as $field => $value) {
+                if ($field === 'unique_auth') {
+                    continue;
+                }
+                $sets[] = '`' . $field . '` = ' . $this->quote($value);
+            }
+            $this->execute('UPDATE ' . $table . ' SET ' . implode(', ', $sets) . ' WHERE `id` = ' . (int)$existing['id']);
+            return (int)$existing['id'];
+        }
+
+        $fields = array_map(function ($field) {
+            return '`' . $field . '`';
+        }, array_keys($row));
+        $values = array_map(function ($value) {
+            return $this->quote($value);
+        }, array_values($row));
+        $this->execute('INSERT INTO ' . $table . ' (' . implode(', ', $fields) . ') VALUES (' . implode(', ', $values) . ')');
+        $created = $this->getAdapter()->fetchRow('SELECT `id` FROM ' . $table . ' WHERE `unique_auth` = ' . $this->quote($row['unique_auth']) . ' LIMIT 1');
+        return (int)$created['id'];
+    }
+
+    private function quote($value): string
+    {
+        if (is_int($value) || is_float($value)) {
+            return (string)$value;
+        }
+        return "'" . str_replace("'", "''", (string)$value) . "'";
     }
 
     private function prefixed(string $table): string

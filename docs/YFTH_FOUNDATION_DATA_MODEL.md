@@ -69,3 +69,13 @@
 ## 6. 敏感字段
 
 支付路由表不包含密钥、证书、私钥或 API Key。后台输出时商户引用字段提供脱敏值。审计事件写入前会对手机号和 secret/token/password/key 类字段做处理。
+
+## 7. 2026-06-24 Blocker hardening data model updates
+
+- `yfth_user_store_role`: active rows bind a user to a concrete store and role. `franchisee` is store-scoped; do not model it as a global identity when a store workbench is required.
+- `yfth_store_subject`: active uniqueness is `active_key = store_id:subject_role`. `subject_id` is intentionally not part of the active key, so a store can have only one active sales/payment/fulfillment/invoice/refund/host subject at a time. Disabled/expired/history rows use `active_key = NULL`.
+- `yfth_store_subject` role coverage now includes `sales`, `payment`, `fulfillment`, `invoice`, `refund`, and `host`, plus boolean flags for compatibility and querying.
+- `yfth_store_payment_route`: new `version_no`, `priority`, and `active_key` columns. Active uniqueness is `active_key = store_id:business_scene`; route resolution orders by `priority desc, version_no desc, id desc` and fails if historical data creates more than one active match.
+- `yfth_store_payment_route` stores metadata and external merchant references only. It must not store payment secrets, private keys, API keys, certificates, or raw credential material.
+- `yfth_idempotency_record`: unique key remains `business_domain + action_type + idempotency_key`. The service now inserts first and treats duplicate-key conflicts as the replay boundary.
+- `yfth_audit_event`: before/after payloads must be sanitized. Full verification codes, full credit codes, certificate/id-like numbers, merchant refs, tokens, passwords, secrets, API keys, and private keys must not be persisted in clear text.

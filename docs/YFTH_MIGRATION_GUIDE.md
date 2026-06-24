@@ -53,3 +53,15 @@ php tests/yfth_foundation_contract_check.php
 ## 5. 回滚说明
 
 表结构迁移使用 `change()`，支持自动回滚。菜单权限迁移使用 `up/down`，回滚时按 `unique_auth` 删除本轮新增权限点。
+
+## 6. 2026-06-24 Blocker hardening verification
+
+- Runtime verification used portable PHP 7.4.33 and MariaDB 10.11.18 in an isolated local data directory under the Codex tool cache.
+- `crmeb/tests/yfth_foundation_runtime_check.php` creates temporary InnoDB tables and verifies active store subject uniqueness, active payment route uniqueness, insert-first idempotency conflicts, and row-lock writeoff side-effect idempotency.
+- `crmeb/tests/yfth_foundation_contract_check.php` verifies service contracts for store context trust boundaries, `franchisee` store binding, route/idempotency/audit masking rules, and menu seed idempotency.
+- Current migration contracts require:
+  - `yfth_store_subject.active_key = store_id:subject_role` for active rows.
+  - `yfth_store_payment_route.active_key = store_id:business_scene` for active rows.
+  - `yfth_idempotency_record` unique key on `business_domain + action_type + idempotency_key`.
+  - `system_menus` seed upsert by `unique_auth`, with root -> page -> API permission parentage.
+- Before production migration, run both PHP checks plus `php -l` on changed migration/service files. Do not apply this migration directly to production without the existing backup and maintenance-window process.

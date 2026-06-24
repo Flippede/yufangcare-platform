@@ -40,6 +40,22 @@ export function yfthStoreSubjectList(params) {
   });
 }
 
+export function yfthStoreSubjectSave(data) {
+  return request({
+    url: 'yfth/foundation/store_subject/save',
+    method: 'post',
+    data,
+  });
+}
+
+export function yfthStoreSubjectDisable(data) {
+  return request({
+    url: 'yfth/foundation/store_subject/disable',
+    method: 'post',
+    data,
+  });
+}
+
 export function yfthQualificationList(params) {
   return request({
     url: 'yfth/foundation/qualification',
@@ -75,6 +91,30 @@ export function yfthCapabilityList(params) {
 export function yfthPaymentRouteList(params) {
   return request({
     url: 'yfth/foundation/payment_route',
+    method: 'get',
+    params,
+  });
+}
+
+export function yfthPaymentRouteSave(data) {
+  return request({
+    url: 'yfth/foundation/payment_route/save',
+    method: 'post',
+    data,
+  });
+}
+
+export function yfthPaymentRouteDisable(data) {
+  return request({
+    url: 'yfth/foundation/payment_route/disable',
+    method: 'post',
+    data,
+  });
+}
+
+export function yfthPaymentRouteResolve(params) {
+  return request({
+    url: 'yfth/foundation/payment_route/resolve',
     method: 'get',
     params,
   });

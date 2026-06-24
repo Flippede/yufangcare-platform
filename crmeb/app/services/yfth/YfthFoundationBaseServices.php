@@ -115,6 +115,27 @@ abstract class YfthFoundationBaseServices extends BaseServices
         return substr($ref, 0, 4) . '****' . substr($ref, -4);
     }
 
+    protected function maskCreditCode(string $code): string
+    {
+        $code = trim($code);
+        if ($code === '') {
+            return '';
+        }
+        if (strlen($code) <= 8) {
+            return '****' . substr($code, -2);
+        }
+        return substr($code, 0, 4) . '********' . substr($code, -4);
+    }
+
+    protected function maskVerifyCode(string $code): string
+    {
+        $code = trim($code);
+        if ($code === '') {
+            return '';
+        }
+        return 'hash:' . substr(hash('sha256', $code), 0, 16) . ':tail:' . substr($code, -4);
+    }
+
     protected function sanitizeState($value)
     {
         if (!is_array($value)) {
@@ -123,8 +144,8 @@ abstract class YfthFoundationBaseServices extends BaseServices
         $result = [];
         foreach ($value as $key => $item) {
             $lower = strtolower((string)$key);
-            if (strpos($lower, 'secret') !== false || strpos($lower, 'token') !== false || strpos($lower, 'password') !== false || $lower === 'key') {
-                $result[$key] = '[redacted]';
+            if ($this->isSensitiveStateKey($lower)) {
+                $result[$key] = $this->maskSensitiveValue($lower, $item);
                 continue;
             }
             if (strpos($lower, 'phone') !== false || strpos($lower, 'mobile') !== false) {
@@ -134,5 +155,62 @@ abstract class YfthFoundationBaseServices extends BaseServices
             $result[$key] = is_array($item) ? $this->sanitizeState($item) : $item;
         }
         return $result;
+    }
+
+    private function isSensitiveStateKey(string $key): bool
+    {
+        if (in_array($key, ['verify_code_hash', 'verify_code_tail', 'credit_code_masked', 'merchant_ref_masked', 'sub_merchant_ref_masked'], true)) {
+            return false;
+        }
+        if ($key === 'key' || substr($key, -4) === '_key') {
+            return true;
+        }
+        foreach ([
+            'secret',
+            'token',
+            'password',
+            'verify_code',
+            'verification_code',
+            'private',
+            'api_key',
+            'appsecret',
+            'certificate_no',
+            'cert_no',
+            'credit_code',
+            'id_card',
+            'identity_no',
+            'license_no',
+            'merchant_ref',
+            'sub_merchant_ref',
+        ] as $needle) {
+            if (strpos($key, $needle) !== false) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private function maskSensitiveValue(string $key, $value)
+    {
+        if (is_array($value)) {
+            return $this->sanitizeState($value);
+        }
+        if (!is_scalar($value)) {
+            return '[redacted]';
+        }
+        $value = (string)$value;
+        if ($value === '') {
+            return '';
+        }
+        if (strpos($key, 'verify_code') !== false || strpos($key, 'verification_code') !== false) {
+            return $this->maskVerifyCode($value);
+        }
+        if (strpos($key, 'credit_code') !== false) {
+            return $this->maskCreditCode($value);
+        }
+        if (strpos($key, 'phone') !== false || strpos($key, 'mobile') !== false) {
+            return $this->maskPhone($value);
+        }
+        return '[redacted:' . substr(hash('sha256', $value), 0, 12) . ':tail:' . substr($value, -4) . ']';
     }
 }

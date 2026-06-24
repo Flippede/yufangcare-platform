@@ -41,7 +41,7 @@ class Foundation extends AuthController
             ['subject_type', ''],
             ['status', ''],
         ]);
-        return app('json')->success($services->adminList($where));
+        return app('json')->success($services->adminList($where, false));
     }
 
     public function subjectSave(BusinessSubjectServices $services)
@@ -58,7 +58,7 @@ class Foundation extends AuthController
             ['status', 'active'],
         ]);
         $services->saveSubject($data, (int)$this->adminId);
-        return app('json')->success('保存成功');
+        return app('json')->success('saved');
     }
 
     public function storeSubject(StoreSubjectServices $services)
@@ -70,6 +70,36 @@ class Foundation extends AuthController
             ['status', ''],
         ]);
         return app('json')->success($services->adminList($where));
+    }
+
+    public function storeSubjectSave(StoreSubjectServices $services)
+    {
+        $data = $this->request->postMore([
+            [['id', 'd'], 0],
+            [['store_id', 'd'], 0],
+            [['subject_id', 'd'], 0],
+            ['store_type', ''],
+            ['subject_role', 'sales'],
+            [['is_sales_subject', 'd'], 0],
+            [['is_service_subject', 'd'], 0],
+            [['is_payment_subject', 'd'], 0],
+            [['is_fulfillment_subject', 'd'], 0],
+            [['is_invoice_subject', 'd'], 0],
+            [['is_refund_subject', 'd'], 0],
+            [['is_host_subject', 'd'], 0],
+            ['status', 'active'],
+            ['effective_time', 0],
+            ['expire_time', 0],
+        ]);
+        $services->saveStoreSubject($data, (int)$this->adminId);
+        return app('json')->success('saved');
+    }
+
+    public function storeSubjectDisable(StoreSubjectServices $services)
+    {
+        $data = $this->request->postMore([[['id', 'd'], 0]]);
+        $services->disableStoreSubject((int)$data['id'], (int)$this->adminId);
+        return app('json')->success('disabled');
     }
 
     public function qualification(StoreQualificationServices $services)
@@ -99,7 +129,7 @@ class Foundation extends AuthController
             ['reject_reason', ''],
         ]);
         $services->saveQualification($data, (int)$this->adminId);
-        return app('json')->success('提交成功');
+        return app('json')->success('submitted');
     }
 
     public function qualificationAudit(StoreQualificationServices $services)
@@ -130,6 +160,46 @@ class Foundation extends AuthController
             ['status', ''],
         ]);
         return app('json')->success($services->adminList($where));
+    }
+
+    public function paymentRouteSave(StorePaymentRouteServices $services)
+    {
+        $data = $this->request->postMore([
+            [['id', 'd'], 0],
+            [['store_id', 'd'], 0],
+            [['subject_id', 'd'], 0],
+            ['business_scene', ''],
+            ['route_type', ''],
+            ['merchant_ref', ''],
+            ['sub_merchant_ref', ''],
+            [['receiver_subject_id', 'd'], 0],
+            [['invoice_subject_id', 'd'], 0],
+            [['refund_subject_id', 'd'], 0],
+            ['status', 'active'],
+            ['config_status', 'metadata_only'],
+            [['version_no', 'd'], 0],
+            [['priority', 'd'], 0],
+            ['effective_time', 0],
+            ['expire_time', 0],
+        ]);
+        $services->saveRoute($data, (int)$this->adminId);
+        return app('json')->success('saved');
+    }
+
+    public function paymentRouteDisable(StorePaymentRouteServices $services)
+    {
+        $data = $this->request->postMore([[['id', 'd'], 0]]);
+        $services->disableRoute((int)$data['id'], (int)$this->adminId);
+        return app('json')->success('disabled');
+    }
+
+    public function paymentRouteResolve(StorePaymentRouteServices $services)
+    {
+        $where = $this->request->getMore([
+            [['store_id', 'd'], 0],
+            ['business_scene', ''],
+        ]);
+        return app('json')->success($services->resolveRoute((int)$where['store_id'], (string)$where['business_scene']));
     }
 
     public function auditEvent(AuditEventServices $services)

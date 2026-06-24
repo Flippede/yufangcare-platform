@@ -51,3 +51,14 @@
 ## 8. 冻结模块
 
 本轮未改写登录、微信授权、token、商品、SKU、普通订单、支付回调、退款、后台权限、门店档案等成熟模块，仅在订单核销处做最小权限修复。
+
+## 9. 2026-06-24 Blocker hardening architecture
+
+- Trust boundary: `CurrentBusinessContextServices` no longer trusts client-supplied `store_id` for non-store identities. Store identities must pass `UserStoreRoleServices::assertStoreRole()` and `StoreAccessServices::assertStoreActive()`.
+- Store-scoped identity set: `franchisee`, `store_manager`, and `store_staff` all require an active store relation. Global roles resolve with `store_id = 0`.
+- Store subject relation: `StoreSubjectServices` enforces one active relation per `store_id + subject_role`. Supported subject roles are `sales`, `payment`, `fulfillment`, `invoice`, `refund`, and `host`.
+- Payment route: `StorePaymentRouteServices` enforces one active route per `store_id + business_scene`, adds route `version_no` and `priority`, strips secret-like fields, returns masked refs, and declares the order snapshot requirement.
+- Idempotency: `IdempotencyRecordServices::begin()` is insert-first. Unique-key conflicts become replay/conflict state instead of a race-prone pre-read.
+- Writeoff: `StoreOrderWriteOffServices` uses row locking on confirmation and keeps duplicate confirmations idempotent with no duplicate fulfillment side effects.
+- Audit: `AuditEventServices::recordSafely()` isolates audit-write failures from user-facing flows while logging technical details. Sanitization now covers verification codes, credit codes, certificates, identity-like fields, merchant refs, and secret-like keys.
+- Admin surface: foundation endpoints now include store subject save/disable and payment route save/disable/resolve. The Vue admin page exposes these operations and displays masked sensitive values by default.
