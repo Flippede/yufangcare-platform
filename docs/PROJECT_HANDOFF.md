@@ -115,3 +115,15 @@
 - 支付成功、退款成功、订单取消后的业务事件处理。
 
 完成该任务后，建议进行一次架构审核。
+
+## 9. 2026-06-24 业务基础域 V1 落地状态
+
+- 当前开发分支：`feature/yfth-foundation-domain-v1`。
+- 新增迁移目录 `crmeb/database/migrations`，建立 9 张 `yfth_*` 业务基础表和 `yfth-foundation-*` 后台权限点。
+- 新增 `app/services/yfth`、`app/dao/yfth`、`app/model/yfth`，覆盖多身份、门店角色、经营主体、门店主体、资质、能力、收款路由、审计、幂等。
+- 新增用户端基础域 API：身份列表、当前业务上下文、门店能力校验。
+- 新增后台基础域管理页：`template/admin/src/pages/yfth/foundation/index.vue`。
+- 修复订单核销跨店风险：店员只能核销订单原门店；重复核销返回幂等结果，不重复扣减。
+- 新增文档：`YFTH_FOUNDATION_ARCHITECTURE.md`、`YFTH_FOUNDATION_DATA_MODEL.md`、`YFTH_MIGRATION_GUIDE.md`。
+
+后续 5980 套餐、十个月权益、预约、采购、库存、奖励、支付路由执行和分账等业务，应复用本轮基础域，不得直接塞入订单备注、用户余额、分销字段或未审计 JSON。

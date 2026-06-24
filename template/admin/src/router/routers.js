@@ -24,6 +24,7 @@ import LayoutMain from '@/layout';
 import statistic from './modules/statistic';
 import frameOut from './modules/frameOut';
 import division from './modules/division';
+import yfth from './modules/yfth';
 import settings from '@/setting';
 import crud from './modules/crud';
 
@@ -169,6 +170,7 @@ const frameIn = [
   system,
   app,
   statistic,
+  yfth,
   division,
   ...routers,
   crud,

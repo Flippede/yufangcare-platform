@@ -217,3 +217,20 @@ README 要求：
 | 中 | 当前仓库仍包含 vendor 和大量静态/构建相关文件 | `crmeb/vendor`、`crmeb/public/admin`、`readme/` | 仓库体积大、升级和 diff 噪声高 | 本轮暂不清理 `vendor/`，避免改变服务器部署方式；后续架构审核判断保留策略。 |
 | 中 | PC 端源码不完整或未确认 | 仅发现 PC 后端接口和路由 | 总部 PC/H5 规划可能与真实端能力有偏差 | 后续确认是否需要独立 PC 前端。 |
 | 中 | 自动化测试未发现有效执行入口 | 前后端包存在测试配置但未安装依赖/未运行 | 改动回归主要依赖人工和静态检查 | 第一轮开发同步建立最小测试/验收脚本。 |
+
+## 13. 2026-06-24 新增基础域资产
+
+| 路径 | 用途 |
+| --- | --- |
+| `crmeb/database/migrations/20260624090000_create_yfth_foundation_tables.php` | 创建 9 张御方通和基础域表 |
+| `crmeb/database/migrations/20260624090010_seed_yfth_foundation_menus.php` | 新增后台基础域菜单和权限点 |
+| `crmeb/app/services/yfth` | 基础域服务层 |
+| `crmeb/app/dao/yfth` | 基础域 DAO |
+| `crmeb/app/model/yfth` | 基础域模型 |
+| `crmeb/app/api/controller/v1/yfth/BusinessContextController.php` | 用户端身份/上下文/能力接口 |
+| `crmeb/app/adminapi/controller/v1/yfth/Foundation.php` | 后台基础域管理接口 |
+| `crmeb/app/adminapi/route/yfth.php` | 后台基础域路由 |
+| `template/admin/src/pages/yfth/foundation/index.vue` | 后台基础域管理页面 |
+| `crmeb/tests/yfth_foundation_contract_check.php` | 可重复静态契约校验脚本 |
+
+原有订单核销服务 `crmeb/app/services/order/StoreOrderWriteOffServices.php` 已做最小修复；`crmeb/app/services/system/store/SystemStoreStaffServices.php` 新增门店一致性断言。

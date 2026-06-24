@@ -117,6 +117,12 @@ Route::group(function () {
     })->option(['mark' => 'common', 'mark_name' => '公共接口']);
 
     Route::group(function () {
+        Route::get('yfth/identities', 'v1.yfth.BusinessContextController/identities')->option(['real_name' => '御方通和当前用户身份列表']);
+        Route::get('yfth/context', 'v1.yfth.BusinessContextController/context')->option(['real_name' => '御方通和当前业务上下文']);
+        Route::get('yfth/capability/:capability', 'v1.yfth.BusinessContextController/capability')->option(['real_name' => '御方通和门店能力校验']);
+    })->option(['mark' => 'yfth', 'mark_name' => '御方通和基础域']);
+
+    Route::group(function () {
         //用户类 客服聊天记录
         Route::get('user/service/list', 'v1.user.StoreService/lst')->name('userServiceList')->option(['real_name' => '客服列表']);//客服列表
         Route::get('user/service/record', 'v1.user.StoreService/record')->name('userServiceRecord')->option(['real_name' => '客服聊天记录']);//客服聊天记录

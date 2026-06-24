@@ -17,6 +17,7 @@ use app\services\activity\combination\StorePinkServices;
 use app\services\BaseServices;
 use app\services\system\store\SystemStoreStaffServices;
 use app\services\user\UserServices;
+use app\services\yfth\AuditEventServices;
 use crmeb\exceptions\ApiException;
 
 /**
@@ -78,13 +79,7 @@ class StoreOrderWriteOffServices extends BaseServices
                 case 2://自提订单
                     /** @var SystemStoreStaffServices $storeStaffServices */
                     $storeStaffServices = app()->make(SystemStoreStaffServices::class);
-                    $staffInfo = $storeStaffServices->get(['uid' => $uid, 'verify_status' => 1, 'status' => 1]);
-                    if ($staffInfo) {
-                        $isAuth = true;
-                        $orderInfo->store_id = $staffInfo->store_id;
-                    } else {
-                        $isAuth = false;
-                    }
+                    $isAuth = (bool)$storeStaffServices->assertWriteOffStoreAccess($uid, (int)$orderInfo->store_id);
                     break;
             }
             if (!$isAuth) {
@@ -92,14 +87,9 @@ class StoreOrderWriteOffServices extends BaseServices
             }
         }
         if ($orderInfo->status == 2) {
-            throw new ApiException(410270);
+            $this->recordWriteOffAudit($orderInfo, $uid, true);
+            return $this->writeOffResponse($orderInfo, true);
         }
-        /** @var StoreOrderCartInfoServices $orderCartInfo */
-        $orderCartInfo = app()->make(StoreOrderCartInfoServices::class);
-        $cartInfo = $orderCartInfo->getOne([
-            ['cart_id', '=', $orderInfo['cart_id'][0]]
-        ], 'cart_info');
-        if ($cartInfo) $orderInfo['image'] = $cartInfo['cart_info']['productInfo']['image'];
         if ($orderInfo->shipping_type == 2) {
             if ($orderInfo->status > 0) {
                 throw new ApiException(410270);
@@ -112,10 +102,7 @@ class StoreOrderWriteOffServices extends BaseServices
             if ($res) throw new ApiException(410271);
         }
         if ($confirm == 0) {
-            /** @var UserServices $services */
-            $services = app()->make(UserServices::class);
-            $orderInfo['nickname'] = $services->value(['uid' => $orderInfo['uid']], 'nickname');
-            return $orderInfo->toArray();
+            return $this->writeOffResponse($orderInfo);
         }
         $orderInfo->status = 2;
         if ($uid) {
@@ -133,9 +120,71 @@ class StoreOrderWriteOffServices extends BaseServices
             if ($orderInfo['shipping_type'] == 2) {
                 event('OrderShippingListener', ['product', $orderInfo, 4, '', '']);
             }
-            return $orderInfo->toArray();
+            $this->recordWriteOffAudit($orderInfo, $uid, false);
+            return $this->writeOffResponse($orderInfo);
         } else {
             throw new ApiException(410272);
+        }
+    }
+
+    /**
+     * 组装核销预览/结果返回，重复核销不再进入扣减履约流程。
+     * @param $orderInfo
+     * @param bool $repeat
+     * @return array
+     */
+    private function writeOffResponse($orderInfo, bool $repeat = false): array
+    {
+        /** @var StoreOrderCartInfoServices $orderCartInfo */
+        $orderCartInfo = app()->make(StoreOrderCartInfoServices::class);
+        $cartIds = $orderInfo['cart_id'] ?? [];
+        $cartId = is_array($cartIds) ? ($cartIds[0] ?? 0) : $cartIds;
+        if ($cartId) {
+            $cartInfo = $orderCartInfo->getOne([
+                ['cart_id', '=', $cartId]
+            ], 'cart_info');
+            if ($cartInfo) {
+                $orderInfo['image'] = $cartInfo['cart_info']['productInfo']['image'] ?? '';
+            }
+        }
+
+        /** @var UserServices $services */
+        $services = app()->make(UserServices::class);
+        $orderInfo['nickname'] = $services->value(['uid' => $orderInfo['uid']], 'nickname');
+        $data = $orderInfo->toArray();
+        $data['is_repeat_writeoff'] = $repeat ? 1 : 0;
+        $data['writeoff_status'] = $repeat ? 'already_written_off' : 'ok';
+        return $data;
+    }
+
+    /**
+     * 新基础域审计表未迁移时不影响既有核销主流程。
+     * @param $orderInfo
+     * @param int $uid
+     * @param bool $repeat
+     */
+    private function recordWriteOffAudit($orderInfo, int $uid, bool $repeat): void
+    {
+        try {
+            /** @var AuditEventServices $audit */
+            $audit = app()->make(AuditEventServices::class);
+            $audit->record(
+                'order',
+                'store_order',
+                (string)$orderInfo['id'],
+                $repeat ? 'writeoff_repeat' : 'writeoff',
+                [],
+                [
+                    'order_id' => $orderInfo['order_id'] ?? '',
+                    'store_id' => (int)$orderInfo['store_id'],
+                    'status' => (int)$orderInfo['status'],
+                    'verify_code' => $orderInfo['verify_code'] ?? '',
+                ],
+                $uid,
+                $uid ? 'store_staff' : 'admin',
+                (int)$orderInfo['store_id']
+            );
+        } catch (\Throwable $e) {
         }
     }
 }

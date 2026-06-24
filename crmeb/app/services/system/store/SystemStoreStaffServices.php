@@ -15,6 +15,7 @@ namespace app\services\system\store;
 use app\dao\system\store\SystemStoreStaffDao;
 use app\services\BaseServices;
 use crmeb\exceptions\AdminException;
+use crmeb\exceptions\ApiException;
 use crmeb\services\FormBuilder;
 
 /**
@@ -53,6 +54,31 @@ class SystemStoreStaffServices extends BaseServices
     public function verifyStatus($uid)
     {
         return (bool)$this->dao->getOne(['uid' => $uid, 'status' => 1, 'verify_status' => 1]);
+    }
+
+    /**
+     * 获取已开启核销权限的店员。
+     * @param int $uid
+     * @return array|\think\Model|null
+     */
+    public function getActiveVerifier(int $uid)
+    {
+        return $this->dao->getOne(['uid' => $uid, 'status' => 1, 'verify_status' => 1]);
+    }
+
+    /**
+     * 店员只能核销自己所属门店的订单。
+     * @param int $uid
+     * @param int $storeId
+     * @return array
+     */
+    public function assertWriteOffStoreAccess(int $uid, int $storeId): array
+    {
+        $staffInfo = $this->getActiveVerifier($uid);
+        if (!$staffInfo || (int)$staffInfo->store_id !== $storeId) {
+            throw new ApiException(410269);
+        }
+        return $staffInfo->toArray();
     }
 
     /**
