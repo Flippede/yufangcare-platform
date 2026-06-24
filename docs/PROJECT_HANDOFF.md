@@ -2,11 +2,11 @@
 
 - 项目名称：御方通和加盟 APP / 微信小程序
 - 当前代码基础：CRMEB 开源商城 PHP 版 v5.6 系列
-- 本地路径：`C:\Users\zhangxu\Desktop\御方通和\testclone`
+- 本地路径：`C:\Users\zhangxu\Desktop\御方通和\yufangcare-platform`
 - GitHub 仓库：`https://github.com/Flippede/yufangcare-platform.git`
-- 当前分支：`fix/security-baseline`
+- 当前分支：`feature/yfth-foundation-domain-v1`
 - 开始 commit：`273b5faa25502dd59fab5ccd70253b2ec4f70cf2`
-- 完成 commit：`9e194629da7a2bd1b4d00d4d489d9b139d43675d`；本轮新增生产服务器安全切换准备记录
+- 最近业务开发 commit：`038e288`；本轮目录治理提交见当前分支最新 Git 提交
 - 产品文档目录：`C:\Users\zhangxu\Desktop\御方通和\yufangcare-platform\项目文档`
 - 完整产品依据：`御方通和加盟小程序项目需求与产品设计文档_V1.0.docx`
 
@@ -127,3 +127,11 @@
 - 新增文档：`YFTH_FOUNDATION_ARCHITECTURE.md`、`YFTH_FOUNDATION_DATA_MODEL.md`、`YFTH_MIGRATION_GUIDE.md`。
 
 后续 5980 套餐、十个月权益、预约、采购、库存、奖励、支付路由执行和分账等业务，应复用本轮基础域，不得直接塞入订单备注、用户余额、分销字段或未审计 JSON。
+
+## 10. 2026-06-24 本地工作区目录治理
+
+- 正式本地工作区统一为：`C:\Users\zhangxu\Desktop\御方通和\yufangcare-platform`。
+- 旧 `testclone` 为正式仓库来源，完成目录清理后重命名为 `yufangcare-platform`。
+- 旧 `yufangcare-platform` 不是顶层 Git 仓库；其中同名产品 DOCX 与正式仓库一致，补充合并唯一 Markdown：`项目文档/御方通和加盟小程序项目需求与产品设计文档_V1.0.md`。
+- 旧 `yufangcare-platform\yufangcare-platform-local` 存在未推送分支 `feature/app-interaction-demo`，提交为 `5c4a85b feat: add interactive app flow prototype`；远端 push 超时，已用 bundle 保全到父目录：`C:\Users\zhangxu\Desktop\御方通和\yufangcare-platform-app-interaction-demo-20260624.bundle`。
+- 旧 `yufangcare-platform-backup-20260623` 为空目录，无唯一资料。
