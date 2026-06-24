@@ -133,5 +133,4 @@
 - 正式本地工作区统一为：`C:\Users\zhangxu\Desktop\御方通和\yufangcare-platform`。
 - 旧 `testclone` 为正式仓库来源，完成目录清理后重命名为 `yufangcare-platform`。
 - 旧 `yufangcare-platform` 不是顶层 Git 仓库；其中同名产品 DOCX 与正式仓库一致，补充合并唯一 Markdown：`项目文档/御方通和加盟小程序项目需求与产品设计文档_V1.0.md`。
-- 旧 `yufangcare-platform\yufangcare-platform-local` 存在未推送分支 `feature/app-interaction-demo`，提交为 `5c4a85b feat: add interactive app flow prototype`；远端 push 超时，已用 bundle 保全到父目录：`C:\Users\zhangxu\Desktop\御方通和\yufangcare-platform-app-interaction-demo-20260624.bundle`。
 - 旧 `yufangcare-platform-backup-20260623` 为空目录，无唯一资料。
