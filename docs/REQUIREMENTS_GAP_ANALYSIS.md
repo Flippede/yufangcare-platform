@@ -133,3 +133,23 @@ V2.0 复用比例估算：约 15%-25%。现有分销/事业部只能提供技术
   - Backend subject and audit outputs now mask sensitive data.
 - Remaining business gaps are unchanged and must be designed on top of this foundation rather than bypassing it through order remarks, user balance, distribution fields, or unaudited JSON.
 - Runtime confidence improved: portable PHP 7.4.33 plus isolated MariaDB 10.11.18 checks now cover the foundation constraints and can be rerun before the next feature layer starts.
+
+## 9. 2026-06-24 5980 套餐与十个月权益 V1 差距变化
+
+已从“未实现”推进为“V1 闭环已落地”的项目：
+
+- 5980 套餐实例：新增套餐模板、规则版本、商品/SKU 绑定、购买绑定、协议快照和套餐实例。
+- 十个月权益计划：新增权益模板、月度权益规则、权益计划、月度周期和权益项，支付后按规则快照一次性生成 10 个月计划。
+- 支付后置事件：通过 `OrderPaySuccessListener` 后置监听生成套餐实例和权益计划，并用 `yfth_idempotency_record` 的 `package_activate:*` 键保护重复回调。
+- 退款同步：通过退款申请、取消、成功、失败事件同步套餐购买、实例、计划、周期和权益项状态，保留历史，不物理删除。
+- 会员身份：`member_5980` 来源于 active 套餐实例，退款、关闭、过期后重算，不覆盖用户其他身份。
+- 用户端页面：套餐公开详情、服务门店、协议确认、支付确认、支付结果、我的套餐、计划时间线、当月权益。
+- 总部后台：套餐模板、规则、商品绑定、权益模板、月度规则、购买记录、实例状态和计划查看。
+
+仍未完成或仅预留边界的项目：
+
+- 权益领取、配送、服务预约、签到、动态权益核销码、权益恢复和履约消费流水尚未实现。
+- 门店 B 端工作台、客户归属、今日待办、预约容量和门店经营报表尚未实现。
+- 推荐关系、有效新客观察期、只读奖励台账、冲正和结算尚未实现。
+- 支付路由仍是业务校验与快照元数据，不代表已完成微信/第三方分账执行。
+- 5980/10 个月是通过模板、规则、SKU 绑定和月度规则配置落库，不应在后续代码中写成散落硬编码。

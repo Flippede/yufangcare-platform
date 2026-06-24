@@ -25,5 +25,14 @@ export default {
       },
       component: () => import('@/pages/yfth/foundation/index'),
     },
+    {
+      path: 'package-benefit',
+      name: `${pre}package_benefit`,
+      meta: {
+        auth: ['yfth-package-benefit-index'],
+        title: '套餐权益',
+      },
+      component: () => import('@/pages/yfth/packageBenefit/index'),
+    },
   ],
 };

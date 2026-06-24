@@ -120,6 +120,15 @@ Route::group(function () {
         Route::get('yfth/identities', 'v1.yfth.BusinessContextController/identities')->option(['real_name' => '御方通和当前用户身份列表']);
         Route::get('yfth/context', 'v1.yfth.BusinessContextController/context')->option(['real_name' => '御方通和当前业务上下文']);
         Route::get('yfth/capability/:capability', 'v1.yfth.BusinessContextController/capability')->option(['real_name' => '御方通和门店能力校验']);
+        Route::post('yfth/package/purchase', 'v1.yfth.PackageBenefitController/createPurchase')->option(['real_name' => '御方通和套餐购买绑定']);
+        Route::get('yfth/package/purchase/:purchaseNo', 'v1.yfth.PackageBenefitController/purchaseStatus')->option(['real_name' => '御方通和套餐购买状态']);
+        Route::get('yfth/package/my', 'v1.yfth.PackageBenefitController/myPackages')->option(['real_name' => '御方通和我的套餐']);
+        Route::get('yfth/package/my/:id', 'v1.yfth.PackageBenefitController/myPackageDetail')->option(['real_name' => '御方通和我的套餐详情']);
+        Route::get('yfth/package/plan/:instanceId', 'v1.yfth.PackageBenefitController/benefitPlan')->option(['real_name' => '御方通和权益计划']);
+        Route::get('yfth/package/timeline/:instanceId', 'v1.yfth.PackageBenefitController/monthTimeline')->option(['real_name' => '御方通和十个月权益时间线']);
+        Route::get('yfth/package/current_benefits', 'v1.yfth.PackageBenefitController/currentMonthBenefits')->option(['real_name' => '御方通和当前月权益']);
+        Route::get('yfth/package/benefit_history', 'v1.yfth.PackageBenefitController/benefitHistory')->option(['real_name' => '御方通和权益历史']);
+        Route::get('yfth/package/agreement/:purchaseNo', 'v1.yfth.PackageBenefitController/agreementRecord')->option(['real_name' => '御方通和套餐协议快照']);
     })->option(['mark' => 'yfth', 'mark_name' => '御方通和基础域']);
 
     Route::group(function () {
@@ -367,6 +376,13 @@ Route::group(function () {
         Route::get('diy/get_diy/[:id]', 'v1.PublicController/getDiy');
         Route::get('home/products', 'v1.PublicController/home_products_list')->name('homeProductsList')->option(['real_name' => '获取首页推荐不同类型商品的轮播图和商品']);//获取首页推荐不同类型商品的轮播图和商品
     })->option(['mark' => 'index', 'mark_name' => '主页接口']);
+
+    Route::group(function () {
+        Route::get('yfth/package/list', 'v1.yfth.PackageBenefitController/packageList')->option(['real_name' => '御方通和套餐公开列表']);
+        Route::get('yfth/package/detail/:id', 'v1.yfth.PackageBenefitController/packageDetail')->option(['real_name' => '御方通和套餐公开详情']);
+        Route::get('yfth/package/service_stores/:id', 'v1.yfth.PackageBenefitController/serviceStores')->option(['real_name' => '御方通和套餐服务门店']);
+        Route::get('yfth/package/rule_preview/:id', 'v1.yfth.PackageBenefitController/rulePreview')->option(['real_name' => '御方通和套餐规则预览']);
+    })->option(['mark' => 'yfth_package_public', 'mark_name' => '御方通和套餐公开接口']);
 
     Route::group(function () {
         Route::get('search/keyword', 'v1.PublicController/search')->name('searchKeyword')->option(['real_name' => '热门搜索关键字获取']);//热门搜索关键字获取

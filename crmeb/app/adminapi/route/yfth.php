@@ -21,6 +21,23 @@ Route::group('yfth', function () {
         Route::get('payment_route/resolve', 'v1.yfth.Foundation/paymentRouteResolve')->option(['real_name' => 'YFTH payment route resolve']);
         Route::get('audit_event', 'v1.yfth.Foundation/auditEvent')->option(['real_name' => 'YFTH audit event list']);
     })->option(['parent' => 'yfth', 'cate_name' => 'YFTH foundation']);
+
+    Route::group('package_benefit', function () {
+        Route::get('template', 'v1.yfth.PackageBenefit/templateList')->option(['real_name' => 'YFTH package template list']);
+        Route::post('template/save', 'v1.yfth.PackageBenefit/templateSave')->option(['real_name' => 'YFTH package template save']);
+        Route::post('rule/save', 'v1.yfth.PackageBenefit/ruleSave')->option(['real_name' => 'YFTH package rule save']);
+        Route::post('binding/save', 'v1.yfth.PackageBenefit/bindingSave')->option(['real_name' => 'YFTH package product binding save']);
+        Route::get('benefit_template', 'v1.yfth.PackageBenefit/benefitTemplateList')->option(['real_name' => 'YFTH benefit template list']);
+        Route::post('benefit_template/save', 'v1.yfth.PackageBenefit/benefitTemplateSave')->option(['real_name' => 'YFTH benefit template save']);
+        Route::get('monthly_rule', 'v1.yfth.PackageBenefit/monthlyRuleList')->option(['real_name' => 'YFTH monthly benefit rule list']);
+        Route::post('monthly_rule/save', 'v1.yfth.PackageBenefit/monthlyRuleSave')->option(['real_name' => 'YFTH monthly benefit rule save']);
+        Route::get('purchase', 'v1.yfth.PackageBenefit/purchaseList')->option(['real_name' => 'YFTH package purchase list']);
+        Route::get('instance', 'v1.yfth.PackageBenefit/instanceList')->option(['real_name' => 'YFTH package instance list']);
+        Route::get('instance/:id', 'v1.yfth.PackageBenefit/instanceDetail')->option(['real_name' => 'YFTH package instance detail']);
+        Route::post('instance/:id/state', 'v1.yfth.PackageBenefit/instanceState')->option(['real_name' => 'YFTH package instance state change']);
+        Route::get('plan', 'v1.yfth.PackageBenefit/planList')->option(['real_name' => 'YFTH benefit plan list']);
+        Route::post('period/open_due', 'v1.yfth.PackageBenefit/openPeriods')->option(['real_name' => 'YFTH open due benefit periods']);
+    })->option(['parent' => 'yfth', 'cate_name' => 'YFTH package benefits']);
 })->middleware([
     \app\http\middleware\AllowOriginMiddleware::class,
     \app\adminapi\middleware\AdminAuthTokenMiddleware::class,

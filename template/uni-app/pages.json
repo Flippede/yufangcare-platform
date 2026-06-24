@@ -64,6 +64,64 @@
 
 	],
 	"subPackages": [{ // 模块分包
+			"root": "pages/yfth",
+			"name": "yfth",
+			"pages": [{
+					"path": "package/detail",
+					"style": {
+						"navigationBarTitleText": "套餐详情"
+					}
+				},
+				{
+					"path": "package/store_select",
+					"style": {
+						"navigationBarTitleText": "选择服务门店"
+					}
+				},
+				{
+					"path": "package/agreement_confirm",
+					"style": {
+						"navigationBarTitleText": "确认协议"
+					}
+				},
+				{
+					"path": "package/payment_confirm",
+					"style": {
+						"navigationBarTitleText": "支付确认"
+					}
+				},
+				{
+					"path": "package/payment_result",
+					"style": {
+						"navigationBarTitleText": "支付结果"
+					}
+				},
+				{
+					"path": "package/my_packages",
+					"style": {
+						"navigationBarTitleText": "我的套餐"
+					}
+				},
+				{
+					"path": "package/package_detail",
+					"style": {
+						"navigationBarTitleText": "套餐实例"
+					}
+				},
+				{
+					"path": "package/timeline",
+					"style": {
+						"navigationBarTitleText": "权益时间轴"
+					}
+				},
+				{
+					"path": "package/current_month",
+					"style": {
+						"navigationBarTitleText": "当月权益"
+					}
+				}
+			]
+		}, {
 			"root": "pages/extension",
 			"name": "extension",
 			"pages": [{

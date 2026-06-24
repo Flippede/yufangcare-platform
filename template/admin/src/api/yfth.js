@@ -127,3 +127,113 @@ export function yfthAuditEventList(params) {
     params,
   });
 }
+
+export function yfthPackageTemplateList(params) {
+  return request({
+    url: 'yfth/package_benefit/template',
+    method: 'get',
+    params,
+  });
+}
+
+export function yfthPackageTemplateSave(data) {
+  return request({
+    url: 'yfth/package_benefit/template/save',
+    method: 'post',
+    data,
+  });
+}
+
+export function yfthPackageRuleSave(data) {
+  return request({
+    url: 'yfth/package_benefit/rule/save',
+    method: 'post',
+    data,
+  });
+}
+
+export function yfthPackageBindingSave(data) {
+  return request({
+    url: 'yfth/package_benefit/binding/save',
+    method: 'post',
+    data,
+  });
+}
+
+export function yfthBenefitTemplateList(params) {
+  return request({
+    url: 'yfth/package_benefit/benefit_template',
+    method: 'get',
+    params,
+  });
+}
+
+export function yfthBenefitTemplateSave(data) {
+  return request({
+    url: 'yfth/package_benefit/benefit_template/save',
+    method: 'post',
+    data,
+  });
+}
+
+export function yfthMonthlyRuleList(params) {
+  return request({
+    url: 'yfth/package_benefit/monthly_rule',
+    method: 'get',
+    params,
+  });
+}
+
+export function yfthMonthlyRuleSave(data) {
+  return request({
+    url: 'yfth/package_benefit/monthly_rule/save',
+    method: 'post',
+    data,
+  });
+}
+
+export function yfthPackagePurchaseList(params) {
+  return request({
+    url: 'yfth/package_benefit/purchase',
+    method: 'get',
+    params,
+  });
+}
+
+export function yfthPackageInstanceList(params) {
+  return request({
+    url: 'yfth/package_benefit/instance',
+    method: 'get',
+    params,
+  });
+}
+
+export function yfthPackageInstanceDetail(id) {
+  return request({
+    url: `yfth/package_benefit/instance/${id}`,
+    method: 'get',
+  });
+}
+
+export function yfthPackageInstanceState(id, data) {
+  return request({
+    url: `yfth/package_benefit/instance/${id}/state`,
+    method: 'post',
+    data,
+  });
+}
+
+export function yfthBenefitPlanList(params) {
+  return request({
+    url: 'yfth/package_benefit/plan',
+    method: 'get',
+    params,
+  });
+}
+
+export function yfthOpenDuePeriods() {
+  return request({
+    url: 'yfth/package_benefit/period/open_due',
+    method: 'post',
+  });
+}
