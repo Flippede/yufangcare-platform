@@ -63,11 +63,22 @@ class PackagePurchaseServices extends PackageBenefitBaseServices
                 'status' => 'created',
                 'order_id' => 0,
                 'order_sn' => '',
+                'creating_started_at' => 0,
+                'creating_request_id' => '',
+                'bound_order_id' => 0,
+                'bound_order_sn' => '',
                 'purchase_id' => 0,
                 'expires_at' => time() + 1800,
                 'source' => trim((string)($data['source'] ?? 'mobile')) ?: 'mobile',
                 'validation_snapshot' => $this->jsonEncode($validation),
                 'fail_reason' => '',
+                'last_error_code' => '',
+                'last_error_message' => '',
+                'retry_count' => 0,
+                'orphan_order_id' => 0,
+                'orphan_order_sn' => '',
+                'orphan_close_status' => '',
+                'orphan_close_error' => '',
             ], true);
             $intent = $intentDao->save($row);
             $row['id'] = (int)$intent->id;
@@ -80,44 +91,139 @@ class PackagePurchaseServices extends PackageBenefitBaseServices
     {
         /** @var YfthPackagePurchaseIntentDao $intentDao */
         $intentDao = app()->make(YfthPackagePurchaseIntentDao::class);
-        $intent = $intentDao->getOne(['intent_no' => $intentNo]);
-        $intentRow = $this->requireRow($intent, 'package_purchase_intent_not_found');
-        if ((int)$intentRow['uid'] !== $uid) {
-            throw new ApiException('package_purchase_intent_forbidden');
-        }
-        if ((int)$intentRow['purchase_id'] > 0) {
+        $requestId = trim((string)($data['request_id'] ?? '')) ?: $this->makeNo('YFREQ');
+        $claim = $this->claimIntentForOrder($intentDao, $uid, $intentNo, $requestId);
+        $intentRow = $claim['intent'];
+        if ($claim['state'] === 'bound') {
             return $this->intentBoundPayload($intentRow);
         }
-        if ((string)$intentRow['status'] !== 'created') {
-            throw new ApiException('package_purchase_intent_not_available');
-        }
-        if ((int)$intentRow['expires_at'] > 0 && (int)$intentRow['expires_at'] < time()) {
-            $intentDao->update((int)$intentRow['id'], ['status' => 'expired', 'update_time' => time()]);
-            throw new ApiException('package_purchase_intent_expired');
+        if ($claim['state'] === 'creating') {
+            return $this->intentCreatingPayload($intentRow);
         }
 
         $validation = $this->jsonDecode($intentRow['validation_snapshot'] ?? '');
         if (!$validation) {
+            $this->markIntentFailed($intentDao, $intentRow, $requestId, 'package_purchase_intent_snapshot_missing', 'package_purchase_intent_snapshot_missing');
             throw new ApiException('package_purchase_intent_snapshot_missing');
         }
 
         try {
             $order = $this->createCrmebOrderFromSnapshot($uid, $intentRow, $validation, $data);
         } catch (\Throwable $e) {
-            $intentDao->update((int)$intentRow['id'], [
-                'fail_reason' => substr($e->getMessage(), 0, 255),
-                'update_time' => time(),
-            ]);
+            $this->markIntentFailed($intentDao, $intentRow, $requestId, $this->errorCode($e->getMessage()), $e->getMessage());
             throw $e;
         }
 
-        $purchase = $this->transaction(function () use ($intentDao, $intentRow, $validation, $order, $uid, $data) {
+        try {
+            $purchase = $this->bindCreatedOrderToIntent($intentDao, $intentRow, $validation, $order, $uid, $data, $requestId);
+        } catch (\Throwable $e) {
+            $this->markIntentFailed($intentDao, $intentRow, $requestId, $this->errorCode($e->getMessage()), $e->getMessage(), $order);
+            $this->compensateUnboundPackageOrder($intentDao, $intentRow, $order, $uid, $requestId, $e->getMessage());
+            throw $e;
+        }
+
+        return [
+            'intent' => $this->formatIntent(array_merge($intentRow, [
+                'status' => 'bound',
+                'order_id' => (int)$order['id'],
+                'order_sn' => (string)$order['order_id'],
+                'bound_order_id' => (int)$order['id'],
+                'bound_order_sn' => (string)$order['order_id'],
+                'purchase_id' => (int)$purchase['id'],
+                'creating_request_id' => $requestId,
+            ])),
+            'purchase' => $purchase,
+            'order' => [
+                'order_id' => (string)$order['order_id'],
+                'store_order_id' => (int)$order['id'],
+                'pay_price' => $this->normalizeMoney($order['pay_price'] ?? '0.00'),
+                'paid' => (int)($order['paid'] ?? 0),
+            ],
+            'pay' => [
+                'order_id' => (string)$order['order_id'],
+                'total_price' => $this->normalizeMoney($order['pay_price'] ?? '0.00'),
+                'pay_weixin_open' => $data['pay_weixin_open'] ?? null,
+            ],
+        ];
+    }
+
+    private function claimIntentForOrder(YfthPackagePurchaseIntentDao $intentDao, int $uid, string $intentNo, string $requestId): array
+    {
+        return $this->transaction(function () use ($intentDao, $uid, $intentNo, $requestId) {
+            $locked = $intentDao->search([])->where('intent_no', $intentNo)->lock(true)->find();
+            $row = $this->requireRow($locked, 'package_purchase_intent_not_found');
+            if ((int)$row['uid'] !== $uid) {
+                throw new ApiException('package_purchase_intent_forbidden');
+            }
+
+            if ((int)($row['purchase_id'] ?? 0) > 0 || (string)($row['status'] ?? '') === 'bound') {
+                return ['state' => 'bound', 'intent' => $row];
+            }
+
+            $status = (string)($row['status'] ?? '');
+            if ((int)($row['expires_at'] ?? 0) > 0 && (int)$row['expires_at'] < time() && in_array($status, ['created', 'failed'], true)) {
+                $update = [
+                    'status' => 'expired',
+                    'last_error_code' => 'package_purchase_intent_expired',
+                    'last_error_message' => 'package_purchase_intent_expired',
+                    'fail_reason' => 'package_purchase_intent_expired',
+                    'update_time' => time(),
+                ];
+                $intentDao->update((int)$row['id'], $update);
+                throw new ApiException('package_purchase_intent_expired');
+            }
+
+            if ($status === 'creating') {
+                return ['state' => 'creating', 'intent' => $row];
+            }
+            if (in_array($status, ['expired', 'cancelled', 'canceled'], true)) {
+                throw new ApiException('package_purchase_intent_' . ($status === 'canceled' ? 'cancelled' : $status));
+            }
+            if (!in_array($status, ['created', 'failed'], true)) {
+                throw new ApiException('package_purchase_intent_not_available');
+            }
+            if ($status === 'failed'
+                && (int)($row['orphan_order_id'] ?? 0) > 0
+                && !in_array((string)($row['orphan_close_status'] ?? ''), ['cancelled'], true)) {
+                throw new ApiException('package_purchase_intent_orphan_order_pending');
+            }
+
+            $now = time();
+            $update = [
+                'status' => 'creating',
+                'creating_started_at' => $now,
+                'creating_request_id' => $requestId,
+                'last_error_code' => '',
+                'last_error_message' => '',
+                'fail_reason' => '',
+                'retry_count' => (int)($row['retry_count'] ?? 0) + 1,
+                'update_time' => $now,
+            ];
+            $intentDao->update((int)$row['id'], $update);
+            return ['state' => 'claimed', 'intent' => array_merge($row, $update)];
+        });
+    }
+
+    private function bindCreatedOrderToIntent(
+        YfthPackagePurchaseIntentDao $intentDao,
+        array $intentRow,
+        array $validation,
+        array $order,
+        int $uid,
+        array $data,
+        string $requestId
+    ): array {
+        return $this->transaction(function () use ($intentDao, $intentRow, $validation, $order, $uid, $data, $requestId) {
             /** @var YfthPackagePurchaseDao $purchaseDao */
             $purchaseDao = app()->make(YfthPackagePurchaseDao::class);
             $lockedIntent = $intentDao->search([])->where('id', (int)$intentRow['id'])->lock(true)->find();
             $lockedIntentRow = $this->requireRow($lockedIntent, 'package_purchase_intent_not_found');
-            if ((int)$lockedIntentRow['purchase_id'] > 0) {
-                return $this->formatPurchase($this->requireRow($purchaseDao->get((int)$lockedIntentRow['purchase_id']), 'package_purchase_not_found'));
+            if ((int)($lockedIntentRow['purchase_id'] ?? 0) > 0 || (string)($lockedIntentRow['status'] ?? '') === 'bound') {
+                throw new ApiException('package_purchase_intent_already_bound');
+            }
+            if ((string)($lockedIntentRow['status'] ?? '') !== 'creating'
+                || (string)($lockedIntentRow['creating_request_id'] ?? '') !== $requestId) {
+                throw new ApiException('package_purchase_intent_creation_claim_lost');
             }
 
             $existing = $this->findPurchaseByOrderIdentity((int)$order['id'], (string)$order['order_id']);
@@ -129,7 +235,12 @@ class PackagePurchaseServices extends PackageBenefitBaseServices
                     'status' => 'bound',
                     'order_id' => (int)$existing['order_id'],
                     'order_sn' => (string)$existing['order_sn'],
+                    'bound_order_id' => (int)$existing['order_id'],
+                    'bound_order_sn' => (string)$existing['order_sn'],
                     'purchase_id' => (int)$existing['id'],
+                    'last_error_code' => '',
+                    'last_error_message' => '',
+                    'fail_reason' => '',
                     'update_time' => time(),
                 ]);
                 return $this->formatPurchase($existing);
@@ -148,7 +259,12 @@ class PackagePurchaseServices extends PackageBenefitBaseServices
                     'status' => 'bound',
                     'order_id' => (int)$purchaseRow['order_id'],
                     'order_sn' => (string)$purchaseRow['order_sn'],
+                    'bound_order_id' => (int)$purchaseRow['order_id'],
+                    'bound_order_sn' => (string)$purchaseRow['order_sn'],
                     'purchase_id' => (int)$purchaseRow['id'],
+                    'last_error_code' => '',
+                    'last_error_message' => '',
+                    'fail_reason' => '',
                     'update_time' => time(),
                 ]);
                 return $this->formatPurchase($purchaseRow);
@@ -160,33 +276,107 @@ class PackagePurchaseServices extends PackageBenefitBaseServices
                 'status' => 'bound',
                 'order_id' => (int)$order['id'],
                 'order_sn' => (string)$order['order_id'],
+                'bound_order_id' => (int)$order['id'],
+                'bound_order_sn' => (string)$order['order_id'],
                 'purchase_id' => (int)$purchaseRow['id'],
+                'last_error_code' => '',
+                'last_error_message' => '',
+                'fail_reason' => '',
+                'orphan_order_id' => 0,
+                'orphan_order_sn' => '',
+                'orphan_close_status' => '',
+                'orphan_close_error' => '',
                 'update_time' => time(),
             ]);
-            $this->recordPackageAudit('package_purchase', (string)$purchaseRow['id'], 'bind_order', [], $purchaseRow, $uid, 'customer', (int)$purchaseRow['store_id']);
+            $this->recordPackageAudit('package_purchase', (string)$purchaseRow['id'], 'bind_order', [], $purchaseRow, $uid, 'customer', (int)$purchaseRow['store_id'], '', $requestId);
             return $this->formatPurchase($purchaseRow);
         });
+    }
 
-        return [
-            'intent' => $this->formatIntent(array_merge($intentRow, [
-                'status' => 'bound',
-                'order_id' => (int)$order['id'],
-                'order_sn' => (string)$order['order_id'],
-                'purchase_id' => (int)$purchase['id'],
-            ])),
-            'purchase' => $purchase,
-            'order' => [
-                'order_id' => (string)$order['order_id'],
-                'store_order_id' => (int)$order['id'],
-                'pay_price' => $this->normalizeMoney($order['pay_price'] ?? '0.00'),
-                'paid' => (int)($order['paid'] ?? 0),
-            ],
-            'pay' => [
-                'order_id' => (string)$order['order_id'],
-                'total_price' => $this->normalizeMoney($order['pay_price'] ?? '0.00'),
-                'pay_weixin_open' => $data['pay_weixin_open'] ?? null,
-            ],
+    private function markIntentFailed(
+        YfthPackagePurchaseIntentDao $intentDao,
+        array $intent,
+        string $requestId,
+        string $errorCode,
+        string $message,
+        array $order = []
+    ): void {
+        $safeCode = substr($errorCode ?: 'package_purchase_intent_failed', 0, 64);
+        $safeMessage = substr($message ?: $safeCode, 0, 255);
+        $update = [
+            'status' => 'failed',
+            'last_error_code' => $safeCode,
+            'last_error_message' => $safeMessage,
+            'fail_reason' => $safeMessage,
+            'update_time' => time(),
         ];
+        if (!empty($order['id'])) {
+            $update['orphan_order_id'] = (int)$order['id'];
+            $update['orphan_order_sn'] = (string)($order['order_id'] ?? '');
+            $update['orphan_close_status'] = 'pending';
+            $update['orphan_close_error'] = '';
+        }
+        $updated = $intentDao->search([])
+            ->where('id', (int)$intent['id'])
+            ->where('status', 'creating')
+            ->where('creating_request_id', $requestId)
+            ->update($update);
+        if ($updated) {
+            $this->recordPackageAudit('package_purchase_intent', (string)$intent['id'], 'create_order_failed', $intent, $update, (int)$intent['uid'], 'customer', (int)$intent['store_id'], $safeCode, $requestId);
+        }
+    }
+
+    private function compensateUnboundPackageOrder(
+        YfthPackagePurchaseIntentDao $intentDao,
+        array $intent,
+        array $order,
+        int $uid,
+        string $requestId,
+        string $reason,
+        int $operatorUid = 0
+    ): array {
+        $orderId = (int)($order['id'] ?? 0);
+        $orderSn = (string)($order['order_id'] ?? '');
+        if ($orderId <= 0 || $orderSn === '') {
+            return ['status' => 'skipped', 'reason' => 'missing_order_identity'];
+        }
+        if ($this->findPurchaseByOrderIdentity($orderId, $orderSn)) {
+            return ['status' => 'skipped', 'reason' => 'order_already_bound'];
+        }
+
+        /** @var StoreOrderServices $orderServices */
+        $orderServices = app()->make(StoreOrderServices::class);
+        try {
+            $current = $this->requireRow($orderServices->get($orderId), 'order_not_found');
+            if ((int)($current['paid'] ?? 0) === 1) {
+                $status = 'pending_manual_paid';
+                $error = 'orphan_order_already_paid';
+            } elseif ((int)($current['is_cancel'] ?? 0) === 1 || (int)($current['is_del'] ?? 0) === 1) {
+                $status = 'cancelled';
+                $error = '';
+            } else {
+                $orderServices->cancelOrder($orderSn, $uid);
+                $status = 'cancelled';
+                $error = '';
+            }
+        } catch (\Throwable $e) {
+            $status = 'pending_manual';
+            $error = substr($e->getMessage(), 0, 255);
+        }
+
+        $update = [
+            'orphan_order_id' => $orderId,
+            'orphan_order_sn' => $orderSn,
+            'orphan_close_status' => $status,
+            'orphan_close_error' => $error,
+            'update_time' => time(),
+        ];
+        $intentDao->update((int)$intent['id'], $update);
+        $this->recordPackageAudit('package_purchase_intent', (string)$intent['id'], 'orphan_order_compensate', $intent, array_merge($update, [
+            'reason' => substr($reason, 0, 255),
+        ]), $operatorUid ?: $uid, $operatorUid > 0 ? 'admin' : 'system', (int)$intent['store_id'], $status, $requestId);
+
+        return ['status' => $status, 'error' => $error, 'order_id' => $orderId, 'order_sn' => $orderSn];
     }
 
     public function createPurchase(int $uid, array $data): array
@@ -242,6 +432,68 @@ class PackagePurchaseServices extends PackageBenefitBaseServices
         }
 
         throw $lastException ?: new ApiException('package_purchase_retry_exhausted');
+    }
+
+    public function scanUnboundPackageIntentOrders(int $limit = 50, bool $close = false, int $operatorUid = 0): array
+    {
+        $limit = max(1, min($limit, 200));
+        /** @var YfthPackagePurchaseIntentDao $intentDao */
+        $intentDao = app()->make(YfthPackagePurchaseIntentDao::class);
+        $rows = $intentDao->search([])
+            ->where('orphan_order_id', '>', 0)
+            ->whereIn('orphan_close_status', ['', 'pending', 'pending_manual', 'failed', 'cancel_failed'])
+            ->order('id asc')
+            ->limit($limit)
+            ->select()
+            ->toArray();
+
+        $result = [
+            'scanned' => count($rows),
+            'payable_orphans' => 0,
+            'closed' => 0,
+            'pending_manual' => 0,
+            'items' => [],
+        ];
+        /** @var StoreOrderServices $orderServices */
+        $orderServices = app()->make(StoreOrderServices::class);
+        foreach ($rows as $row) {
+            $order = $orderServices->get((int)$row['orphan_order_id']);
+            $orderRow = $order ? (is_array($order) ? $order : $order->toArray()) : [];
+            $purchase = $this->findPurchaseByOrderIdentity((int)($row['orphan_order_id'] ?? 0), (string)($row['orphan_order_sn'] ?? ''));
+            $payable = $orderRow
+                && !$purchase
+                && (int)($orderRow['paid'] ?? 0) === 0
+                && (int)($orderRow['is_cancel'] ?? 0) === 0
+                && (int)($orderRow['is_del'] ?? 0) === 0;
+            if ($payable) {
+                $result['payable_orphans']++;
+            }
+            $item = [
+                'intent_id' => (int)$row['id'],
+                'intent_no' => (string)$row['intent_no'],
+                'order_id' => (int)($row['orphan_order_id'] ?? 0),
+                'order_sn' => (string)($row['orphan_order_sn'] ?? ''),
+                'payable' => $payable,
+                'has_purchase' => (bool)$purchase,
+                'close_status' => (string)($row['orphan_close_status'] ?? ''),
+            ];
+            if ($close && $payable) {
+                $closeResult = $this->compensateUnboundPackageOrder($intentDao, $row, [
+                    'id' => (int)$row['orphan_order_id'],
+                    'order_id' => (string)$row['orphan_order_sn'],
+                ], (int)$row['uid'], 'scan-orphan-orders', 'manual scan close', $operatorUid);
+                $item['close_result'] = $closeResult;
+                if (($closeResult['status'] ?? '') === 'cancelled') {
+                    $result['closed']++;
+                } else {
+                    $result['pending_manual']++;
+                }
+            } elseif (!$payable && !$purchase) {
+                $result['pending_manual']++;
+            }
+            $result['items'][] = $item;
+        }
+        return $result;
     }
 
     public function purchaseStatus(int $uid, string $purchaseNo): array
@@ -621,6 +873,12 @@ class PackagePurchaseServices extends PackageBenefitBaseServices
             'activation_attempt_count' => 0,
             'last_activation_error' => '',
             'activation_retry_at' => 0,
+            'manual_retry_count' => 0,
+            'last_manual_retry_at' => 0,
+            'last_manual_retry_operator' => 0,
+            'manual_retry_reason' => '',
+            'manual_retry_request_id' => '',
+            'manual_retry_result' => '',
         ], true);
     }
 
@@ -833,6 +1091,18 @@ class PackagePurchaseServices extends PackageBenefitBaseServices
         ];
     }
 
+    private function intentCreatingPayload(array $intent): array
+    {
+        return [
+            'intent' => $this->formatIntent($intent),
+            'purchase' => null,
+            'order' => null,
+            'pay' => null,
+            'processing' => true,
+            'message' => 'package_order_creating',
+        ];
+    }
+
     private function formatIntent(array $row): array
     {
         $row['expected_pay_price'] = $this->normalizeMoney($row['expected_pay_price'] ?? '0.00');
@@ -847,6 +1117,39 @@ class PackagePurchaseServices extends PackageBenefitBaseServices
         $row['order_pay_price'] = $this->normalizeMoney($row['order_pay_price'] ?? '0.00');
         $row['route_snapshot'] = $this->jsonDecode($row['route_snapshot'] ?? '');
         $row['validation_snapshot'] = $this->jsonDecode($row['validation_snapshot'] ?? '');
+        $row['auto_retry_count'] = 0;
+        $row['auto_retry_max_attempts'] = 5;
+        $row['auto_retry_exceeded'] = false;
+        if ((int)($row['order_id'] ?? 0) > 0) {
+            $idem = app()->make(IdempotencyRecordServices::class)->getOne([
+                'business_domain' => 'yfth_package',
+                'action_type' => 'activate',
+                'idempotency_key' => 'package_activate:' . (int)$row['order_id'],
+            ]);
+            if ($idem) {
+                $idemRow = is_array($idem) ? $idem : $idem->toArray();
+                $row['auto_retry_count'] = (int)($idemRow['attempt_count'] ?? 0);
+                $row['auto_retry_max_attempts'] = (int)($idemRow['max_attempts'] ?? 5) ?: 5;
+                $row['auto_retry_exceeded'] = (string)($idemRow['process_status'] ?? '') === 'failed'
+                    && $row['auto_retry_count'] >= $row['auto_retry_max_attempts'];
+            }
+        }
+        $row['can_manual_retry'] = (int)($row['instance_id'] ?? 0) === 0
+            && in_array((string)($row['activation_status'] ?? ''), ['pending', 'failed'], true)
+            && !in_array((string)($row['purchase_status'] ?? ''), ['refunding', 'refunded', 'closed', 'closed_after_partial_refund', 'partial_fulfillment_refunded'], true);
         return $row;
+    }
+
+    private function errorCode(string $message): string
+    {
+        $message = trim($message);
+        if ($message === '') {
+            return 'unknown';
+        }
+        $pos = strpos($message, ':');
+        if ($pos !== false) {
+            $message = substr($message, 0, $pos);
+        }
+        return preg_replace('/[^a-zA-Z0-9_\\-]/', '_', substr($message, 0, 64));
     }
 }

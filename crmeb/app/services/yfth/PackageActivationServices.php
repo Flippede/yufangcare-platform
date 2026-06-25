@@ -6,9 +6,11 @@ use app\dao\yfth\YfthBenefitItemDao;
 use app\dao\yfth\YfthBenefitPeriodDao;
 use app\dao\yfth\YfthBenefitPlanDao;
 use app\dao\yfth\YfthPackageInstanceDao;
+use app\dao\yfth\YfthPackageProductBindingDao;
 use app\dao\yfth\YfthPackagePurchaseDao;
 use app\dao\yfth\YfthPackagePurchaseBenefitSnapshotDao;
 use app\dao\yfth\YfthPackagePurchaseSnapshotDao;
+use app\services\order\StoreOrderCartInfoServices;
 use app\services\order\StoreOrderServices;
 use crmeb\exceptions\ApiException;
 
@@ -16,33 +18,42 @@ class PackageActivationServices extends PackageBenefitBaseServices
 {
     public function activateByPaidOrder(array $orderInfo): array
     {
-        $orderId = (int)($orderInfo['id'] ?? 0);
-        $orderSn = (string)($orderInfo['order_id'] ?? '');
-        if ($orderId <= 0 && $orderSn === '') {
-            return ['skipped' => true, 'reason' => 'missing_order_identity'];
+        $purchaseRow = $this->resolvePurchaseForPaidOrder($orderInfo);
+        if (!$purchaseRow) {
+            return $this->missingPurchaseResult($orderInfo);
         }
+        return $this->activateWithIdempotency($purchaseRow, 'activate', 'package_activate:' . (int)$purchaseRow['order_id']);
+    }
 
+    public function manualActivateByPaidOrder(array $orderInfo, int $operatorUid, string $reason, string $requestId = ''): array
+    {
+        $reason = trim($reason);
+        if ($operatorUid <= 0) {
+            throw new ApiException('manual_activation_operator_required');
+        }
+        if ($reason === '') {
+            throw new ApiException('manual_activation_reason_required');
+        }
+        $purchaseRow = $this->resolvePurchaseForPaidOrder($orderInfo);
+        if (!$purchaseRow) {
+            return $this->missingPurchaseResult($orderInfo);
+        }
+        $requestId = $requestId ?: $this->makeNo('YFMAN');
+        return $this->activateWithIdempotency($purchaseRow, 'manual_activate', 'package_activate_manual:' . (int)$purchaseRow['id'], [
+            'manual' => true,
+            'operator_uid' => $operatorUid,
+            'reason' => $reason,
+            'request_id' => $requestId,
+        ]);
+    }
+
+    private function activateWithIdempotency(array $purchaseRow, string $action, string $key, array $manual = []): array
+    {
         /** @var YfthPackagePurchaseDao $purchaseDao */
         $purchaseDao = app()->make(YfthPackagePurchaseDao::class);
-        $purchase = $orderId > 0 ? $purchaseDao->getOne(['order_unique_key' => (string)$orderId]) : null;
-        if (!$purchase && $orderId > 0) {
-            $purchase = $purchaseDao->getOne(['order_id' => $orderId]);
-        }
-        if (!$purchase && $orderSn !== '') {
-            $purchase = $purchaseDao->getOne(['order_sn_unique_key' => $orderSn]);
-            if (!$purchase) {
-                $purchase = $purchaseDao->getOne(['order_sn' => $orderSn]);
-            }
-        }
-        if (!$purchase) {
-            return ['skipped' => true, 'reason' => 'not_package_order'];
-        }
-        $purchaseRow = $purchase->toArray();
-        $key = 'package_activate:' . (int)$purchaseRow['order_id'];
-
         /** @var IdempotencyRecordServices $idempotency */
         $idempotency = app()->make(IdempotencyRecordServices::class);
-        $begin = $idempotency->begin('yfth_package', 'activate', $key, [
+        $begin = $idempotency->begin('yfth_package', $action, $key, [
             'purchase_id' => (int)$purchaseRow['id'],
             'order_id' => (int)$purchaseRow['order_id'],
             'order_sn' => (string)$purchaseRow['order_sn'],
@@ -57,8 +68,13 @@ class PackageActivationServices extends PackageBenefitBaseServices
                     'status' => $begin['status'],
                     'result' => $begin['result_summary'] ?? [],
                     'can_retry' => $begin['can_retry'] ?? false,
+                    'manual' => !empty($manual['manual']),
                 ];
             }
+        }
+
+        if (!empty($manual['manual'])) {
+            $this->markManualRetryAttempt($purchaseDao, (int)$purchaseRow['id'], $manual);
         }
 
         try {
@@ -66,18 +82,110 @@ class PackageActivationServices extends PackageBenefitBaseServices
                 return $this->activateLockedPurchase($purchaseDao, (int)$purchaseRow['id']);
             });
             $idempotency->complete((int)$begin['record']['id'], $result);
+            if (!empty($manual['manual'])) {
+                $purchaseDao->update((int)$purchaseRow['id'], [
+                    'manual_retry_result' => 'succeeded',
+                    'update_time' => time(),
+                ]);
+                $result['manual_retry'] = true;
+                $result['manual_request_id'] = (string)$manual['request_id'];
+            }
             return $result;
         } catch (\Throwable $e) {
             $idempotency->fail((int)$begin['record']['id'], $e->getMessage());
-            $purchaseDao->update((int)$purchaseRow['id'], [
+            $update = [
                 'activation_status' => 'failed',
-                'activation_attempt_count' => (int)($purchaseRow['activation_attempt_count'] ?? 0) + 1,
                 'last_activation_error' => substr($e->getMessage(), 0, 255),
                 'activation_retry_at' => time(),
                 'update_time' => time(),
-            ]);
+            ];
+            if (!empty($manual['manual'])) {
+                $update['manual_retry_result'] = 'failed';
+            } else {
+                $update['activation_attempt_count'] = (int)($purchaseRow['activation_attempt_count'] ?? 0) + 1;
+            }
+            $purchaseDao->update((int)$purchaseRow['id'], $update);
             throw $e;
         }
+    }
+
+    private function resolvePurchaseForPaidOrder(array $orderInfo): array
+    {
+        $orderId = (int)($orderInfo['id'] ?? 0);
+        $orderSn = (string)($orderInfo['order_id'] ?? '');
+        if ($orderId <= 0 && $orderSn === '') {
+            return [];
+        }
+
+        /** @var YfthPackagePurchaseDao $purchaseDao */
+        $purchaseDao = app()->make(YfthPackagePurchaseDao::class);
+        $purchase = $orderId > 0 ? $purchaseDao->getOne(['order_unique_key' => (string)$orderId]) : null;
+        if (!$purchase && $orderId > 0) {
+            $purchase = $purchaseDao->getOne(['order_id' => $orderId]);
+        }
+        if (!$purchase && $orderSn !== '') {
+            $purchase = $purchaseDao->getOne(['order_sn_unique_key' => $orderSn]);
+            if (!$purchase) {
+                $purchase = $purchaseDao->getOne(['order_sn' => $orderSn]);
+            }
+        }
+        return $purchase ? $purchase->toArray() : [];
+    }
+
+    private function missingPurchaseResult(array $orderInfo): array
+    {
+        if ($this->isPackageSkuOrder($orderInfo)) {
+            $payload = [
+                'order_id' => (int)($orderInfo['id'] ?? 0),
+                'order_sn' => (string)($orderInfo['order_id'] ?? ''),
+                'uid' => (int)($orderInfo['uid'] ?? 0),
+                'store_id' => (int)($orderInfo['store_id'] ?? 0),
+                'reason' => 'package_order_missing_purchase',
+            ];
+            $this->recordPackageAudit('package_orphan_order', (string)($orderInfo['id'] ?? $orderInfo['order_id'] ?? ''), 'paid_order_missing_purchase', [], $payload, 0, 'system', (int)($orderInfo['store_id'] ?? 0), 'package_order_missing_purchase');
+            return ['skipped' => true, 'reason' => 'package_order_missing_purchase', 'pending_compensation' => true];
+        }
+        return ['skipped' => true, 'reason' => 'not_package_order'];
+    }
+
+    private function isPackageSkuOrder(array $orderInfo): bool
+    {
+        $orderId = (int)($orderInfo['id'] ?? 0);
+        if ($orderId <= 0) {
+            return false;
+        }
+        /** @var StoreOrderCartInfoServices $cartInfoServices */
+        $cartInfoServices = app()->make(StoreOrderCartInfoServices::class);
+        /** @var YfthPackageProductBindingDao $bindingDao */
+        $bindingDao = app()->make(YfthPackageProductBindingDao::class);
+        foreach ($cartInfoServices->getOrderCartInfo($orderId) as $item) {
+            $cart = $item['cart_info'] ?? [];
+            $productId = (int)($cart['productInfo']['id'] ?? $item['product_id'] ?? 0);
+            $skuUnique = (string)($cart['productInfo']['attrInfo']['unique'] ?? $cart['attrInfo']['unique'] ?? $cart['productAttrUnique'] ?? '');
+            if ($productId > 0 && $skuUnique !== '' && $bindingDao->getOne([
+                'product_id' => $productId,
+                'product_attr_unique' => $skuUnique,
+                'binding_status' => 'active',
+            ])) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private function markManualRetryAttempt(YfthPackagePurchaseDao $purchaseDao, int $purchaseId, array $manual): void
+    {
+        $purchaseDao->search([])
+            ->where('id', $purchaseId)
+            ->inc('manual_retry_count')
+            ->update([
+                'last_manual_retry_at' => time(),
+                'last_manual_retry_operator' => (int)$manual['operator_uid'],
+                'manual_retry_reason' => substr((string)$manual['reason'], 0, 255),
+                'manual_retry_request_id' => substr((string)$manual['request_id'], 0, 64),
+                'manual_retry_result' => 'processing',
+                'update_time' => time(),
+            ]);
     }
 
     private function activateLockedPurchase(YfthPackagePurchaseDao $purchaseDao, int $purchaseId): array

@@ -121,15 +121,36 @@
             <el-table-column prop="expected_pay_price" label="应付" width="100" />
             <el-table-column prop="purchase_status" label="购买状态" width="120" />
             <el-table-column prop="activation_status" label="激活状态" width="120" />
+            <el-table-column label="自动重试" width="110">
+              <template slot-scope="scope">
+                {{ scope.row.auto_retry_count || 0 }}/{{ scope.row.auto_retry_max_attempts || 5 }}
+              </template>
+            </el-table-column>
+            <el-table-column label="超限" width="90">
+              <template slot-scope="scope">
+                <el-tag v-if="scope.row.auto_retry_exceeded" type="danger" size="mini">是</el-tag>
+                <el-tag v-else type="success" size="mini">否</el-tag>
+              </template>
+            </el-table-column>
             <el-table-column prop="last_activation_error" label="最近失败" min-width="180" show-overflow-tooltip />
-            <el-table-column label="操作" width="110" fixed="right">
+            <el-table-column label="最近人工重试" min-width="180">
+              <template slot-scope="scope">
+                <span v-if="scope.row.last_manual_retry_at">
+                  #{{ scope.row.last_manual_retry_operator }} {{ timeText(scope.row.last_manual_retry_at) }}
+                </span>
+                <span v-else>-</span>
+              </template>
+            </el-table-column>
+            <el-table-column prop="manual_retry_result" label="人工结果" width="110" />
+            <el-table-column label="操作" width="130" fixed="right">
               <template slot-scope="scope">
                 <el-button
-                  v-if="scope.row.instance_id === 0 && ['pending', 'failed'].includes(scope.row.activation_status)"
+                  v-if="scope.row.can_manual_retry"
                   type="text"
                   icon="el-icon-refresh-right"
+                  :loading="retryingPurchaseId === scope.row.id"
                   @click="retryActivation(scope.row)"
-                  >重试</el-button
+                  >人工重试</el-button
                 >
               </template>
             </el-table-column>
@@ -325,6 +346,7 @@ export default {
       },
       stateTarget: null,
       instanceDetail: {},
+      retryingPurchaseId: 0,
     };
   },
   mounted() {
@@ -490,9 +512,20 @@ export default {
         inputValidator: (value) => !!String(value || '').trim(),
         inputErrorMessage: '必须填写原因',
       }).then(({ value }) => {
-        yfthPackageActivationRetry(row.id, { reason: value }).then(() => {
-          this.$message.success('已触发重试');
-          this.loadPurchases();
+        this.$confirm('确认执行受控人工激活重试？', '二次确认', {
+          type: 'warning',
+          confirmButtonText: '确认重试',
+          cancelButtonText: '取消',
+        }).then(() => {
+          this.retryingPurchaseId = row.id;
+          yfthPackageActivationRetry(row.id, { reason: value })
+            .then(() => {
+              this.$message.success('已触发人工重试');
+              this.loadPurchases();
+            })
+            .finally(() => {
+              this.retryingPurchaseId = 0;
+            });
         });
       });
     },

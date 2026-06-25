@@ -3,6 +3,8 @@
 namespace app\services\yfth;
 
 use app\dao\yfth\YfthPackagePurchaseDao;
+use app\dao\yfth\YfthPackagePurchaseBenefitSnapshotDao;
+use app\dao\yfth\YfthPackagePurchaseSnapshotDao;
 use app\services\order\StoreOrderServices;
 use crmeb\exceptions\AdminException;
 
@@ -46,9 +48,17 @@ class PackageActivationRecoveryServices extends PackageBenefitBaseServices
 
     public function retryPurchase(int $purchaseId, string $reason, int $operatorUid = 0): array
     {
+        return $this->manualRetryActivation($purchaseId, $reason, $operatorUid);
+    }
+
+    public function manualRetryActivation(int $purchaseId, string $reason, int $operatorUid, string $requestId = ''): array
+    {
         $reason = trim($reason);
         if ($reason === '') {
             throw new AdminException('activation_retry_reason_required');
+        }
+        if ($operatorUid <= 0) {
+            throw new AdminException('activation_retry_operator_required');
         }
         /** @var YfthPackagePurchaseDao $purchaseDao */
         $purchaseDao = app()->make(YfthPackagePurchaseDao::class);
@@ -68,7 +78,41 @@ class PackageActivationRecoveryServices extends PackageBenefitBaseServices
         if (in_array((string)$purchase['purchase_status'], ['refunding', 'refunded', 'closed', 'closed_after_partial_refund', 'partial_fulfillment_refunded'], true)) {
             throw new AdminException('package_purchase_not_retryable_in_current_status');
         }
-        return $this->recoverOne($purchase, $operatorUid, 'admin_manual', $reason);
+        /** @var StoreOrderServices $orderServices */
+        $orderServices = app()->make(StoreOrderServices::class);
+        $order = $this->requireRow($orderServices->get((int)$purchase['order_id']), 'order_not_found');
+        $this->assertManualRetryOrderAndSnapshots($purchase, $order);
+
+        $requestId = $requestId ?: $this->makeNo('YFMAN');
+        try {
+            /** @var PackageActivationServices $activationServices */
+            $activationServices = app()->make(PackageActivationServices::class);
+            $activation = $activationServices->manualActivateByPaidOrder(is_array($order) ? $order : $order->toArray(), $operatorUid, $reason, $requestId);
+            $payload = [
+                'purchase_id' => (int)$purchase['id'],
+                'order_id' => (int)$purchase['order_id'],
+                'order_sn' => (string)$purchase['order_sn'],
+                'request_id' => $requestId,
+                'activation' => $activation,
+            ];
+            $this->recordPackageAudit('package_purchase', (string)$purchase['id'], 'activation_manual_retry', $purchase, $payload, $operatorUid, 'admin', (int)$purchase['store_id'], $reason, $requestId);
+            return [
+                'purchase_id' => (int)$purchase['id'],
+                'order_id' => (int)$purchase['order_id'],
+                'order_sn' => (string)$purchase['order_sn'],
+                'manual_retry' => true,
+                'request_id' => $requestId,
+                'activated' => empty($activation['replayed']) && (int)($activation['instance_id'] ?? 0) > 0,
+                'replayed' => !empty($activation['replayed']),
+                'result' => $activation,
+            ];
+        } catch (\Throwable $e) {
+            $this->recordPackageAudit('package_purchase', (string)$purchase['id'], 'activation_manual_retry_failed', $purchase, [
+                'error' => substr($e->getMessage(), 0, 255),
+                'request_id' => $requestId,
+            ], $operatorUid, 'admin', (int)$purchase['store_id'], $reason, $requestId);
+            throw $e;
+        }
     }
 
     private function recoverOne(array $purchase, int $operatorUid, string $source, string $reason): array
@@ -87,6 +131,12 @@ class PackageActivationRecoveryServices extends PackageBenefitBaseServices
             /** @var PackageActivationServices $activationServices */
             $activationServices = app()->make(PackageActivationServices::class);
             $activation = $activationServices->activateByPaidOrder(is_array($order) ? $order : $order->toArray());
+            if (!empty($activation['replayed'])) {
+                if (($activation['status'] ?? '') === 'failed' && empty($activation['can_retry'])) {
+                    return $this->skip($purchase, 'activation_auto_retry_limit_exceeded', $operatorUid, $source, $reason);
+                }
+                return $this->skip($purchase, 'activation_replay_' . (string)($activation['status'] ?? 'unknown'), $operatorUid, $source, $reason);
+            }
             $payload = [
                 'purchase_id' => (int)$purchase['id'],
                 'order_id' => (int)$purchase['order_id'],
@@ -114,6 +164,33 @@ class PackageActivationRecoveryServices extends PackageBenefitBaseServices
                 'failed' => true,
                 'error' => $e->getMessage(),
             ];
+        }
+    }
+
+    private function assertManualRetryOrderAndSnapshots(array $purchase, array $order): void
+    {
+        if ((int)($order['paid'] ?? 0) !== 1) {
+            throw new AdminException('package_manual_retry_order_not_paid');
+        }
+        if ((string)($order['order_id'] ?? '') !== (string)$purchase['order_sn']) {
+            throw new AdminException('package_manual_retry_order_identity_mismatch');
+        }
+        if ((int)($order['is_del'] ?? 0) !== 0 || (int)($order['is_cancel'] ?? 0) !== 0) {
+            throw new AdminException('package_manual_retry_order_closed');
+        }
+        if ((int)($order['refund_status'] ?? 0) !== 0) {
+            throw new AdminException('package_manual_retry_order_refunding_or_refunded');
+        }
+        /** @var YfthPackagePurchaseSnapshotDao $snapshotDao */
+        $snapshotDao = app()->make(YfthPackagePurchaseSnapshotDao::class);
+        $snapshot = $this->requireRow($snapshotDao->getOne(['purchase_id' => (int)$purchase['id']]), 'package_purchase_snapshot_not_found');
+        if ((int)$snapshot['order_id'] !== (int)$purchase['order_id'] || (string)$snapshot['order_sn'] !== (string)$purchase['order_sn']) {
+            throw new AdminException('package_manual_retry_snapshot_order_mismatch');
+        }
+        /** @var YfthPackagePurchaseBenefitSnapshotDao $benefitSnapshotDao */
+        $benefitSnapshotDao = app()->make(YfthPackagePurchaseBenefitSnapshotDao::class);
+        if ($benefitSnapshotDao->getCount(['purchase_id' => (int)$purchase['id']]) <= 0) {
+            throw new AdminException('package_purchase_benefit_snapshot_missing');
         }
     }
 

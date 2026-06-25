@@ -72,3 +72,19 @@
 - 不修改普通商品下单、普通支付和退款主流程。
 - 已发布或已被 intent/purchase/snapshot 引用的规则、月度规则和权益内容不可原地修改，只能复制新草稿版本。
 - 部分履约后退款使用 `closed_after_partial_refund`/`partial_fulfillment_refunded` 语义，不再把所有退款统一写成 `refunded`。
+
+## 8. 2026-06-25 intent 并发建单与人工恢复整改
+
+intent 到 CRMEB 订单的边界收口为“先抢占、后建单、再绑定”：
+
+1. `createOrderFromIntent()` 先锁定 `yfth_package_purchase_intent`，只有 `created` 或允许重试的 `failed` intent 能更新为 `creating` 并写入 `creating_request_id`。
+2. 抢占失败的并发请求不得调用 CRMEB 建单；已 `bound` 的 intent 返回已有订单，`creating` 的 intent 返回处理中状态。
+3. CRMEB 订单创建后，服务层必须用同一个 `creating_request_id` 在事务内绑定 intent、purchase、购买快照和权益快照。
+4. 如果订单已创建但绑定失败，系统记录 `orphan_order_id/sn` 和错误信息，并调用 CRMEB 取消订单能力补偿，不物理删除订单。
+5. `php think yfth:package scan-orphan-orders --close` 可扫描未绑定套餐 SKU 订单，并在人工确认后关闭仍可关闭的孤儿订单。
+
+激活恢复拆分自动与人工两条幂等链路：
+
+- 支付回调和自动补偿继续使用 `activate` / `package_activate:{order_id}`，达到最大重试次数后自动补偿跳过并等待人工处理。
+- 后台人工重试使用 `manual_activate` / `package_activate_manual:{purchase_id}`，必须记录操作人、原因、请求号、次数和结果。
+- 人工重试仍调用同一套成交快照激活服务，只是绕开自动失败幂等记录的最大次数限制；并发人工重试只能有一个请求真正执行激活。

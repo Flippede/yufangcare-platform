@@ -27,6 +27,7 @@ $assertNotContains = function (string $haystack, string $needle, string $message
 
 $migration = $read('database/migrations/20260624130000_create_yfth_package_benefit_tables.php');
 $hardeningMigration = $read('database/migrations/20260624170000_harden_yfth_package_purchase_snapshots.php');
+$orderingMigration = $read('database/migrations/20260625170000_serialize_yfth_package_intent_ordering_and_manual_recovery.php');
 $menuMigration = $read('database/migrations/20260624130010_seed_yfth_package_benefit_menus.php');
 $recoveryMenuMigration = $read('database/migrations/20260624170010_seed_yfth_package_recovery_menus.php');
 $event = $read('app/event.php');
@@ -94,6 +95,20 @@ foreach ([
     $assertContains($hardeningMigration, $index, "Missing hardening unique/index contract: {$index}");
 }
 
+foreach ([
+    'creating_request_id',
+    'bound_order_id',
+    'last_error_code',
+    'retry_count',
+    'orphan_order_id',
+    'manual_retry_count',
+    'last_manual_retry_operator',
+    'idx_yfth_pkg_intent_claim',
+    'idx_yfth_pkg_intent_orphan',
+] as $fieldOrIndex) {
+    $assertContains($orderingMigration, $fieldOrIndex, "Missing intent/manual recovery migration contract: {$fieldOrIndex}");
+}
+
 $assertContains($menuMigration, 'yfth-package-benefit-index', 'Missing package benefit admin page menu permission');
 $assertContains($menuMigration, 'upsertMenu', 'Package benefit menu seed must be idempotent');
 $assertContains($menuMigration, "'pid' => \$rootId", 'Package benefit page must be parented under YFTH root');
@@ -114,6 +129,9 @@ foreach ([
 $assertContains($activation, 'IdempotencyRecordServices::class', 'Activation must use foundation idempotency service');
 $assertContains($activation, 'tryReacquire', 'Activation must reacquire failed/expired idempotency records');
 $assertContains($activation, "'package_activate:'", 'Activation must use package_activate idempotency key');
+$assertContains($activation, 'manualActivateByPaidOrder', 'Activation must expose controlled manual retry entry');
+$assertContains($activation, 'package_activate_manual:', 'Manual retry must use a separate idempotency key');
+$assertContains($activation, 'paid_order_missing_purchase', 'Package paid orphan orders must be audited');
 $assertContains($activation, 'lock(true)', 'Activation must lock package purchase row');
 $assertContains($activation, 'createPlanAndBenefitsFromSnapshot', 'Paid package activation must create benefit plan and items from snapshots');
 $assertContains($activation, 'YfthPackagePurchaseSnapshotDao::class', 'Activation must read package purchase snapshot');
@@ -127,6 +145,10 @@ $assertNotContains($activation, 'BenefitTemplateServices::class', 'Activation mu
 $assertContains($purchase, "package_5980", 'Purchase validation must verify package payment route scene');
 $assertContains($purchase, 'createIntent', 'Purchase service must create package purchase intents');
 $assertContains($purchase, 'createOrderFromIntent', 'Purchase service must create CRMEB orders from intents');
+$assertContains($purchase, 'claimIntentForOrder', 'Purchase intent order creation must claim intent before CRMEB order creation');
+$assertContains($purchase, 'creating_request_id', 'Purchase intent binding must verify creating request id');
+$assertContains($purchase, 'compensateUnboundPackageOrder', 'Purchase service must close unbound package intent orders');
+$assertContains($purchase, 'scanUnboundPackageIntentOrders', 'Purchase service must scan package intent orphan orders');
 $assertContains($purchase, 'StoreOrderCreateServices::class', 'Purchase service must use CRMEB order creation service');
 $assertContains($purchase, 'savePurchaseResolvingOrderConflict', 'Purchase creation must resolve DB unique order conflicts');
 $assertContains($purchase, 'createPurchaseSnapshots', 'Purchase service must create relational purchase snapshots');
@@ -135,8 +157,11 @@ $assertContains($purchase, 'agreement_snapshot_id', 'Purchase must keep accepted
 $assertContains($purchase, 'benefit_hash', 'Purchase validation must detect benefit rule hash mismatch');
 $assertContains($recovery, 'recoverPaidUnactivated', 'Missing paid-but-unactivated compensation scan service');
 $assertContains($recovery, 'retryPurchase', 'Missing manual activation retry service');
+$assertContains($recovery, 'manualRetryActivation', 'Missing controlled manual activation override');
+$assertContains($recovery, 'activation_auto_retry_limit_exceeded', 'Automatic recovery must stop clearly at retry limit');
 $assertContains($recovery, 'PackageActivationServices::class', 'Recovery must reuse activation service');
 $assertContains($command, 'recover-activation', 'Missing console recovery action');
+$assertContains($command, 'scan-orphan-orders', 'Missing console orphan package order scan action');
 $assertContains($console, 'yfth:package', 'Missing console command registration');
 $assertContains($template, 'agreement_content_hash', 'Rule version must snapshot agreement hash');
 $assertContains($template, 'copyRuleVersion', 'Published/referenced rule must support copy-as-new-version');

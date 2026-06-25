@@ -26,6 +26,28 @@
 - `refund_failed -> activated`
 - `refund_failed -> refunding`
 
+### 1.1 购买 intent 状态
+
+| 状态 | 含义 |
+| --- | --- |
+| `created` | intent 已创建，尚未开始 CRMEB 建单。 |
+| `creating` | 已被一个请求抢占并正在创建 CRMEB 订单；其他请求只能返回处理中。 |
+| `bound` | 已绑定唯一 CRMEB 订单、购买记录和成交快照。 |
+| `failed` | 建单或绑定失败，已记录错误；仅在无未关闭孤儿订单时允许重新抢占。 |
+| `expired` | intent 超时失效，不再允许建单。 |
+| `cancelled` | 用户或后台取消，不再允许建单。 |
+
+核心转换：
+
+- `created -> creating`
+- `creating -> bound`
+- `creating -> failed`
+- `failed -> creating`
+- `created/failed -> expired`
+- `created/failed -> cancelled`
+
+`creating` 必须保存 `creating_request_id`。绑定订单时必须校验当前请求号，避免旧请求把新一轮抢占的 intent 误绑定。已创建 CRMEB 订单但未能绑定的场景，记录为 orphan 并走取消订单补偿，不删除 CRMEB 订单。
+
 ## 2. 套餐实例状态
 
 | 状态 | 含义 |
@@ -100,4 +122,11 @@
 - `processing` 超时或 `failed` 且未超过最大次数时，可由数据库条件更新重新抢占。
 - `succeeded` 重放返回原激活结果。
 - request hash 不一致直接拒绝。
-- 超过最大次数后由后台人工重试入口记录原因并触发同一激活服务。
+- 超过最大次数后，自动恢复不再继续抢占，返回 `activation_auto_retry_limit_exceeded` 并等待后台人工处理。
+
+人工激活恢复：
+
+- 人工重试必须有后台操作人和原因，写入 purchase 的 `manual_retry_*` 字段。
+- 人工重试使用独立的 `manual_activate` 幂等动作和 `package_activate_manual:{purchase_id}` 键，不复用已经失败到上限的自动激活记录。
+- 人工重试前必须确认订单已支付、未取消、未删除、未退款，且购买快照和权益快照完整。
+- 并发人工重试只有一个请求能进入 `processing` 并激活；重复请求返回已有实例或处理中结果，不重复生成实例、计划、周期或权益项。

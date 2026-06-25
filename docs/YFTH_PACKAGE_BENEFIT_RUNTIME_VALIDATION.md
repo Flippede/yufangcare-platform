@@ -138,3 +138,31 @@ YFTH_REAL_FLOW_EXECUTE=1 YFTH_REAL_FLOW_ISOLATED_DB=1 YFTH_REAL_FLOW_RUN_ID=RFVA
 - 推荐关系、有效新客观察期、只读奖励台账、冲正和结算。
 - 库存、采购、补货、产品额度、加盟合同、开店验收。
 - 支付路由真实分账执行；当前只完成业务校验和成交快照。
+
+## 10. 2026-06-25 P1 整改回归验证
+
+本轮整改起点为 `527aacbd10b8c3a5346d713f5a41d37951b0811f`，目标是关闭套餐 intent 并发建单和自动激活重试上限后的人工恢复缺口。
+
+真实 MySQL 验证环境：
+
+- MySQL：MySQL Community Server 8.0.46，隔离端口 `127.0.0.1:33322`。
+- 基线：重新导入 `crmeb/public/install/crmeb.sql`，再执行全部 YFTH migration。
+- 新迁移：`20260625170000_serialize_yfth_package_intent_ordering_and_manual_recovery.php`。
+- 迁移验证：新迁移在真实 MySQL 8.0 上完成 run、rollback、再次 run。
+- 真实闭环命令：`YFTH_REAL_FLOW_EXECUTE=1 YFTH_REAL_FLOW_ISOLATED_DB=1 YFTH_REAL_FLOW_RUN_ID=RFIM02 php tests/yfth_package_benefit_real_flow_check.php`。
+
+本轮新增验证点：
+
+- `yfth_package_purchase_intent` 新增抢占、绑定、错误和 orphan 字段，并验证 `idx_yfth_pkg_intent_claim`、`idx_yfth_pkg_intent_bound_order`、`idx_yfth_pkg_intent_orphan`。
+- `yfth_package_purchase` 新增 `manual_retry_*` 字段，用于人工激活重试审计。
+- 10 个进程并发请求同一 intent 时，只生成 1 个 CRMEB 套餐 SKU 订单、1 条购买记录、1 条购买快照和 10 条权益快照。
+- 并发建单测试确认最终 intent 为 `bound`，且可支付 orphan 订单数量为 0。
+- 自动激活幂等失败达到最大次数后，自动补偿返回 `activation_auto_retry_limit_exceeded`。
+- 人工重试要求操作人和原因，使用 `package_activate_manual:{purchase_id}` 独立幂等键覆盖自动失败上限并完成激活。
+- 并发人工重试只允许一个 worker 进入激活处理，最终只生成 1 个套餐实例，人工重试次数和操作人记录保持一致。
+
+最终输出：
+
+```text
+[OK] YFTH package benefit real application checks verified on MySQL 8.0.46.
+```

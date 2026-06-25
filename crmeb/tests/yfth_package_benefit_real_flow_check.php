@@ -2,6 +2,7 @@
 
 use app\listener\yfth\PackagePaySuccessListener;
 use app\services\order\StoreCartServices;
+use app\services\order\StoreOrderCartInfoServices;
 use app\services\order\StoreOrderCreateServices;
 use app\services\order\StoreOrderServices;
 use app\services\yfth\BenefitPeriodServices;
@@ -61,6 +62,12 @@ $query = function (string $sql, array $bind = []) use (&$failures) {
 if ((string)getenv('YFTH_REAL_FLOW_WORKER') === 'bind_purchase') {
     vfRunBindPurchaseWorker();
 }
+if ((string)getenv('YFTH_REAL_FLOW_WORKER') === 'intent_order') {
+    vfRunIntentOrderWorker();
+}
+if ((string)getenv('YFTH_REAL_FLOW_WORKER') === 'manual_retry') {
+    vfRunManualRetryWorker();
+}
 
 $versionRow = $query('SELECT VERSION() AS version');
 $mysqlVersion = (string)($versionRow[0]['version'] ?? '');
@@ -92,6 +99,8 @@ if ($mysqlVersion !== '') {
     foreach ([
         [$prefix . 'yfth_package_purchase', 'uniq_yfth_pkg_purchase_order_key'],
         [$prefix . 'yfth_package_purchase', 'uniq_yfth_pkg_purchase_order_sn_key'],
+        [$prefix . 'yfth_package_purchase_intent', 'idx_yfth_pkg_intent_claim'],
+        [$prefix . 'yfth_package_purchase_intent', 'idx_yfth_pkg_intent_orphan'],
         [$prefix . 'yfth_package_purchase_snapshot', 'uniq_yfth_pkg_snapshot_purchase'],
         [$prefix . 'yfth_package_purchase_benefit_snapshot', 'uniq_yfth_pkg_benefit_snapshot_rule'],
         [$prefix . 'yfth_benefit_period', 'idx_yfth_benefit_period_open_guard'],
@@ -135,6 +144,7 @@ if ($executeFlow) {
             vfRunActivationFailureRetryFlow($fixture, $assert);
             vfRunActivationRecoveryFlow($fixture, $assert);
             vfRunConcurrencyFlow($fixture, $assert, $notes);
+            vfRunManualRetryOverrideFlow($fixture, $assert, $notes);
             vfRunLifecycleAndRefundFlow($fixture, $main, $assert);
             vfRunRuleImmutabilityFlow($fixture, $assert);
         } catch (Throwable $e) {
@@ -187,6 +197,48 @@ function vfRunBindPurchaseWorker(): void
         ];
         $result = app()->make(PackagePurchaseServices::class)->createPurchase($uid, $data);
         echo json_encode(['purchase_id' => (int)$result['id'], 'order_sn' => (string)$result['order_sn']]) . "\n";
+        exit(0);
+    } catch (Throwable $e) {
+        fwrite(STDERR, '[WORKER_FAIL] ' . $e->getMessage() . "\n");
+        exit(1);
+    }
+}
+
+function vfRunIntentOrderWorker(): void
+{
+    try {
+        $uid = (int)getenv('YFTH_WORKER_UID');
+        $result = app()->make(PackagePurchaseServices::class)->createOrderFromIntent($uid, (string)getenv('YFTH_WORKER_INTENT_NO'), [
+            'pay_type' => 'weixin',
+            'shipping_type' => 2,
+            'real_name' => 'YFTH Real Flow',
+            'phone' => (string)getenv('YFTH_WORKER_PHONE'),
+            'source' => 'real_flow_intent_worker',
+            'request_id' => (string)getenv('YFTH_WORKER_REQUEST_ID'),
+        ]);
+        echo json_encode([
+            'state' => !empty($result['processing']) ? 'processing' : 'bound',
+            'purchase_id' => (int)($result['purchase']['id'] ?? 0),
+            'order_id' => (int)($result['order']['store_order_id'] ?? 0),
+            'order_sn' => (string)($result['order']['order_id'] ?? ''),
+        ], JSON_UNESCAPED_UNICODE) . "\n";
+        exit(0);
+    } catch (Throwable $e) {
+        fwrite(STDERR, '[WORKER_FAIL] ' . $e->getMessage() . "\n");
+        exit(1);
+    }
+}
+
+function vfRunManualRetryWorker(): void
+{
+    try {
+        $result = app()->make(PackageActivationRecoveryServices::class)->manualRetryActivation(
+            (int)getenv('YFTH_WORKER_PURCHASE_ID'),
+            (string)getenv('YFTH_WORKER_REASON'),
+            (int)getenv('YFTH_WORKER_OPERATOR_ID'),
+            (string)getenv('YFTH_WORKER_REQUEST_ID')
+        );
+        echo json_encode($result, JSON_UNESCAPED_UNICODE) . "\n";
         exit(0);
     } catch (Throwable $e) {
         fwrite(STDERR, '[WORKER_FAIL] ' . $e->getMessage() . "\n");
@@ -602,23 +654,114 @@ function vfRunActivationRecoveryFlow(array $fixture, callable $assert): void
     $assert(vfCount('yfth_package_instance', ['purchase_id' => $purchaseId]) === $instanceCount, 'recovery_repeat_does_not_duplicate_instance');
 }
 
+function vfRunManualRetryOverrideFlow(array $fixture, callable $assert, array &$notes): void
+{
+    $manual = vfPrepareManualRetryPurchase($fixture, 'real_flow_manual_retry');
+    $auto = app()->make(PackageActivationRecoveryServices::class)->recoverPaidUnactivated(50, 0, 'real_flow_auto_limit');
+    $autoItem = null;
+    foreach ($auto['items'] as $item) {
+        if ((int)$item['purchase_id'] === (int)$manual['purchase_id']) {
+            $autoItem = $item;
+            break;
+        }
+    }
+    $assert($autoItem && ($autoItem['reason'] ?? '') === 'activation_auto_retry_limit_exceeded', 'auto_recovery_stops_at_max_attempts');
+    $assert(vfCount('yfth_package_instance', ['purchase_id' => (int)$manual['purchase_id']]) === 0, 'auto_limit_does_not_create_instance');
+
+    try {
+        app()->make(PackageActivationRecoveryServices::class)->manualRetryActivation((int)$manual['purchase_id'], '', 1);
+        $assert(false, 'manual_retry_rejects_empty_reason');
+    } catch (Throwable $e) {
+        $assert(strpos($e->getMessage(), 'activation_retry_reason_required') !== false, 'manual_retry_rejects_empty_reason');
+    }
+    try {
+        app()->make(PackageActivationRecoveryServices::class)->manualRetryActivation((int)$manual['purchase_id'], 'real flow manual reason', 0);
+        $assert(false, 'manual_retry_rejects_missing_operator');
+    } catch (Throwable $e) {
+        $assert(strpos($e->getMessage(), 'activation_retry_operator_required') !== false, 'manual_retry_rejects_missing_operator');
+    }
+
+    $result = app()->make(PackageActivationRecoveryServices::class)->manualRetryActivation((int)$manual['purchase_id'], 'real flow manual reason', 1, 'manual-single-' . $manual['purchase_id']);
+    $purchase = Db::name('yfth_package_purchase')->where('id', (int)$manual['purchase_id'])->find();
+    $instanceId = (int)($purchase['instance_id'] ?? 0);
+    $assert(!empty($result['manual_retry']) && $instanceId > 0, 'manual_retry_overrides_auto_limit_and_activates');
+    vfAssertActivationShape((int)$manual['purchase_id'], $instanceId, $assert, 'manual_retry');
+    $assert((int)($purchase['manual_retry_count'] ?? 0) === 1 && (int)($purchase['last_manual_retry_operator'] ?? 0) === 1, 'manual_retry_records_operator_and_count');
+    $assert(vfCount('yfth_audit_event', [
+        'object_type' => 'package_purchase',
+        'object_id' => (string)$manual['purchase_id'],
+        'action' => 'activation_manual_retry',
+        'operator_uid' => 1,
+    ]) >= 1, 'manual_retry_audit_contains_operator_reason_and_result');
+
+    $repeat = app()->make(PackageActivationRecoveryServices::class)->manualRetryActivation((int)$manual['purchase_id'], 'repeat manual reason', 1, 'manual-repeat-' . $manual['purchase_id']);
+    $assert(!empty($repeat['skipped']) && ($repeat['reason'] ?? '') === 'already_has_instance', 'manual_retry_repeat_returns_existing_instance');
+    $assert(vfCount('yfth_package_instance', ['purchase_id' => (int)$manual['purchase_id']]) === 1, 'manual_retry_repeat_does_not_duplicate_instance');
+
+    $concurrent = vfPrepareManualRetryPurchase($fixture, 'real_flow_manual_concurrent');
+    $workers = [];
+    $cmd = vfBuildPhpCommand();
+    for ($i = 0; $i < 2; $i++) {
+        $env = vfWorkerEnv([
+            'YFTH_REAL_FLOW_WORKER' => 'manual_retry',
+            'YFTH_WORKER_PURCHASE_ID' => (string)$concurrent['purchase_id'],
+            'YFTH_WORKER_OPERATOR_ID' => (string)(10 + $i),
+            'YFTH_WORKER_REASON' => 'concurrent manual retry ' . $i,
+            'YFTH_WORKER_REQUEST_ID' => 'manual-concurrent-' . $i . '-' . $concurrent['purchase_id'],
+        ]);
+        $pipes = [];
+        $process = proc_open($cmd, [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes, dirname(__DIR__), $env);
+        if (!is_resource($process)) {
+            $assert(false, 'manual_concurrent_worker_started');
+            return;
+        }
+        $workers[] = [$process, $pipes];
+    }
+    $ok = 0;
+    $activated = 0;
+    foreach ($workers as [$process, $pipes]) {
+        $stdout = stream_get_contents($pipes[1]);
+        $stderr = stream_get_contents($pipes[2]);
+        fclose($pipes[1]);
+        fclose($pipes[2]);
+        $code = proc_close($process);
+        if ($code === 0) {
+            $ok++;
+            $decoded = json_decode(trim($stdout), true);
+            if (!empty($decoded['activated'])) {
+                $activated++;
+            }
+        } else {
+            $notes[] = 'manual_concurrent_worker_failed:' . substr(trim($stderr ?: $stdout), 0, 160);
+        }
+    }
+    $concurrentPurchase = Db::name('yfth_package_purchase')->where('id', (int)$concurrent['purchase_id'])->find();
+    $assert($ok === 2, 'manual_concurrent_workers_return_success_or_replay');
+    $assert($activated === 1, 'manual_concurrent_only_one_worker_activates');
+    $assert(vfCount('yfth_package_instance', ['purchase_id' => (int)$concurrent['purchase_id']]) === 1, 'manual_concurrent_creates_one_instance');
+    $assert((int)($concurrentPurchase['manual_retry_count'] ?? 0) === 1, 'manual_concurrent_records_one_processing_owner');
+}
+
 function vfRunConcurrencyFlow(array $fixture, callable $assert, array &$notes): void
 {
-    $order = vfCreateStandaloneCrmebOrder($fixture, 'real_flow_concurrency');
-    $orderId = (int)$order['id'];
-    $orderSn = (string)$order['order_id'];
+    $intent = app()->make(PackagePurchaseServices::class)->createIntent((int)$fixture['uid'], [
+        'template_id' => (int)$fixture['template_id'],
+        'store_id' => (int)$fixture['store_id'],
+        'source' => 'real_flow_concurrent_intent',
+    ]);
+    $intentNo = (string)$intent['intent_no'];
+    $intentId = (int)$intent['id'];
+    $beforeOrderId = (int)Db::name('store_order')->max('id');
 
     $workers = [];
     $cmd = vfBuildPhpCommand();
     for ($i = 0; $i < 10; $i++) {
         $env = vfWorkerEnv([
-            'YFTH_REAL_FLOW_WORKER' => 'bind_purchase',
+            'YFTH_REAL_FLOW_WORKER' => 'intent_order',
             'YFTH_WORKER_UID' => (string)$fixture['uid'],
-            'YFTH_WORKER_TEMPLATE_ID' => (string)$fixture['template_id'],
-            'YFTH_WORKER_STORE_ID' => (string)$fixture['store_id'],
-            'YFTH_WORKER_PRODUCT_ID' => (string)$fixture['product_id'],
-            'YFTH_WORKER_SKU' => (string)$fixture['product_attr_unique'],
-            'YFTH_WORKER_ORDER_SN' => $orderSn,
+            'YFTH_WORKER_PHONE' => (string)$fixture['phone'],
+            'YFTH_WORKER_INTENT_NO' => $intentNo,
+            'YFTH_WORKER_REQUEST_ID' => 'intent-worker-' . $i . '-' . $intentId,
         ]);
         $pipes = [];
         $process = proc_open($cmd, [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes, dirname(__DIR__), $env);
@@ -630,6 +773,7 @@ function vfRunConcurrencyFlow(array $fixture, callable $assert, array &$notes): 
     }
 
     $workerOk = 0;
+    $workerResults = [];
     foreach ($workers as [$process, $pipes]) {
         $stdout = stream_get_contents($pipes[1]);
         $stderr = stream_get_contents($pipes[2]);
@@ -638,23 +782,38 @@ function vfRunConcurrencyFlow(array $fixture, callable $assert, array &$notes): 
         $code = proc_close($process);
         if ($code === 0) {
             $workerOk++;
+            $decoded = json_decode(trim($stdout), true);
+            if (is_array($decoded)) {
+                $workerResults[] = $decoded;
+            }
         } else {
             $notes[] = 'concurrent_worker_failed:' . substr(trim($stderr ?: $stdout), 0, 160);
         }
     }
-    $assert($workerOk === 10, 'all_concurrent_workers_return_existing_or_created_purchase');
+    $assert($workerOk === 10, 'all_concurrent_intent_workers_return_bound_or_processing');
+    $assert(count(array_filter($workerResults, function ($row) {
+        return ($row['state'] ?? '') === 'bound';
+    })) >= 1, 'one_concurrent_intent_worker_bound_order');
 
-    $purchaseCount = (int)Db::name('yfth_package_purchase')
-        ->where(function ($query) use ($orderId, $orderSn) {
-            $query->where('order_unique_key', (string)$orderId)
-                ->whereOr('order_id', $orderId)
-                ->whereOr('order_sn_unique_key', $orderSn)
-                ->whereOr('order_sn', $orderSn);
-        })
-        ->count();
-    $purchase = Db::name('yfth_package_purchase')->where('order_id', $orderId)->find();
-    $assert($purchaseCount === 1, 'mysql_unique_order_binding_allows_only_one_purchase_under_concurrency');
-    $assert($purchase && vfCount('yfth_package_purchase_snapshot', ['purchase_id' => (int)$purchase['id']]) === 1, 'concurrent_purchase_has_single_snapshot');
+    $intentRow = Db::name('yfth_package_purchase_intent')->where('id', $intentId)->find();
+    $orderId = (int)($intentRow['bound_order_id'] ?: $intentRow['order_id']);
+    $orderSn = (string)($intentRow['bound_order_sn'] ?: $intentRow['order_sn']);
+    $purchase = Db::name('yfth_package_purchase')->where('intent_id', $intentId)->find();
+    $assert((string)($intentRow['status'] ?? '') === 'bound' && $orderId > 0, 'concurrent_intent_finally_bound');
+    $assert(vfCountPackageOrdersSince($fixture, $beforeOrderId) === 1, 'concurrent_intent_creates_only_one_crmeb_order');
+    $assert(vfCount('yfth_package_purchase', ['intent_id' => $intentId]) === 1, 'concurrent_intent_has_one_purchase');
+    $assert($purchase && vfCount('yfth_package_purchase_snapshot', ['purchase_id' => (int)$purchase['id']]) === 1, 'concurrent_intent_has_single_purchase_snapshot');
+    $assert($purchase && vfCount('yfth_package_purchase_benefit_snapshot', ['purchase_id' => (int)$purchase['id']]) === 10, 'concurrent_intent_has_ten_benefit_snapshots');
+    $scan = app()->make(PackagePurchaseServices::class)->scanUnboundPackageIntentOrders(100, false, 0);
+    $assert((int)($scan['payable_orphans'] ?? 0) === 0, 'concurrent_intent_has_zero_payable_orphan_orders');
+
+    $order = vfMarkPaid($orderId);
+    app()->make(PackagePaySuccessListener::class)->handle([$order]);
+    $purchase = Db::name('yfth_package_purchase')->where('intent_id', $intentId)->find();
+    $instanceId = (int)($purchase['instance_id'] ?? 0);
+    $assert($instanceId > 0 && vfCount('yfth_package_instance', ['purchase_id' => (int)$purchase['id']]) === 1, 'concurrent_intent_payment_creates_one_instance');
+    vfAssertActivationShape((int)$purchase['id'], $instanceId, $assert, 'concurrent_intent');
+    $notes[] = 'concurrent_intent_order:' . $orderSn;
 }
 
 function vfRunLifecycleAndRefundFlow(array $fixture, array $main, callable $assert): void
@@ -777,6 +936,64 @@ function vfCreateAndActivatePackage(array $fixture, string $source): array
     ];
 }
 
+function vfPrepareManualRetryPurchase(array $fixture, string $source): array
+{
+    [, $payload] = vfCreatePackageOrder($fixture, $source);
+    $purchaseId = (int)$payload['purchase']['id'];
+    $orderId = (int)$payload['order']['store_order_id'];
+    $orderSn = (string)$payload['order']['order_id'];
+    vfMarkPaid($orderId);
+    vfInsertFailedAutoIdempotency($purchaseId, $orderId, $orderSn);
+    Db::name('yfth_package_purchase')->where('id', $purchaseId)->update([
+        'activation_status' => 'failed',
+        'activation_attempt_count' => 5,
+        'last_activation_error' => 'real_flow_auto_retry_limit',
+        'activation_retry_at' => time() - 1,
+        'instance_id' => 0,
+        'update_time' => time(),
+    ]);
+    return [
+        'purchase_id' => $purchaseId,
+        'order_id' => $orderId,
+        'order_sn' => $orderSn,
+    ];
+}
+
+function vfInsertFailedAutoIdempotency(int $purchaseId, int $orderId, string $orderSn): void
+{
+    $now = time();
+    $payload = [
+        'purchase_id' => $purchaseId,
+        'order_id' => $orderId,
+        'order_sn' => $orderSn,
+    ];
+    Db::name('yfth_idempotency_record')->where([
+        'business_domain' => 'yfth_package',
+        'action_type' => 'activate',
+        'idempotency_key' => 'package_activate:' . $orderId,
+    ])->delete();
+    Db::name('yfth_idempotency_record')->insert([
+        'add_time' => $now,
+        'update_time' => $now,
+        'business_domain' => 'yfth_package',
+        'action_type' => 'activate',
+        'idempotency_key' => 'package_activate:' . $orderId,
+        'object_id' => (string)$orderId,
+        'request_hash' => hash('sha256', json_encode($payload, JSON_UNESCAPED_UNICODE)),
+        'process_status' => 'failed',
+        'result_summary' => '',
+        'fail_reason' => 'real_flow_auto_retry_limit',
+        'finish_time' => $now,
+        'expire_time' => $now + 86400,
+        'attempt_count' => 5,
+        'max_attempts' => 5,
+        'last_error_code' => 'real_flow_auto_retry_limit',
+        'last_failed_at' => $now,
+        'processing_started_at' => $now - 60,
+        'next_retry_at' => $now - 1,
+    ]);
+}
+
 function vfCreateStandaloneCrmebOrder(array $fixture, string $source): array
 {
     $uid = (int)$fixture['uid'];
@@ -825,6 +1042,35 @@ function vfMarkPaid(int $orderId): array
         'pay_type' => 'weixin',
     ]);
     return Db::name('store_order')->where('id', $orderId)->find();
+}
+
+function vfCountPackageOrdersSince(array $fixture, int $afterOrderId): int
+{
+    $count = 0;
+    $orders = Db::name('store_order')
+        ->where('id', '>', $afterOrderId)
+        ->where('uid', (int)$fixture['uid'])
+        ->select()
+        ->toArray();
+    foreach ($orders as $order) {
+        if (vfOrderContainsPackageSku((int)$order['id'], $fixture)) {
+            $count++;
+        }
+    }
+    return $count;
+}
+
+function vfOrderContainsPackageSku(int $orderId, array $fixture): bool
+{
+    foreach (app()->make(StoreOrderCartInfoServices::class)->getOrderCartInfo($orderId) as $item) {
+        $cart = $item['cart_info'] ?? [];
+        $productId = (int)($cart['productInfo']['id'] ?? $item['product_id'] ?? 0);
+        $skuUnique = (string)($cart['productInfo']['attrInfo']['unique'] ?? $cart['attrInfo']['unique'] ?? $cart['productAttrUnique'] ?? '');
+        if ($productId === (int)$fixture['product_id'] && $skuUnique === (string)$fixture['product_attr_unique']) {
+            return true;
+        }
+    }
+    return false;
 }
 
 function vfAssertActivationShape(int $purchaseId, int $instanceId, callable $assert, string $label): void

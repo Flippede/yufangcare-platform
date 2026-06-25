@@ -4,9 +4,9 @@
 - 当前代码基础：CRMEB 开源商城 PHP 版 v5.6 系列
 - 本地路径：`C:\Users\zhangxu\Desktop\御方通和\yufangcare-platform`
 - GitHub 仓库：`https://github.com/Flippede/yufangcare-platform.git`
-- 当前分支：`feature/yfth-foundation-domain-v1`
-- 开始 commit：`273b5faa25502dd59fab5ccd70253b2ec4f70cf2`
-- 最近业务开发 commit：`038e288`；本轮目录治理提交见当前分支最新 Git 提交
+- 当前分支：`feature/yfth-package-benefits-v1`
+- 本轮开始 commit：`527aacbd10b8c3a5346d713f5a41d37951b0811f`
+- 最近业务开发 commit：本轮整改提交 `fix: serialize package intent ordering and manual recovery`，以当前分支最新 Git 提交为准
 - 产品文档目录：`C:\Users\zhangxu\Desktop\御方通和\yufangcare-platform\项目文档`
 - 完整产品依据：`御方通和加盟小程序项目需求与产品设计文档_V1.0.docx`
 
@@ -14,7 +14,7 @@
 
 在 CRMEB 成熟商城和后台能力基础上，开发御方通和加盟 APP / 微信小程序，覆盖公共用户端、C端家庭康养会员、B端加盟商/门店工作台、A端服务导师、总部 Web 管理后台、商品商城、5980 家庭康养套餐、十个月权益、预约核销、加盟经营、推荐关系、奖励台账、内容活动、报表和审计。
 
-当前阶段目标是完成真实代码盘点、需求映射和文档基线，不实现产品功能。
+当前阶段目标是收口 5980 套餐权益 V1 的真实下单、支付激活、并发建单、补偿恢复和人工激活恢复链路；不得把尚未实现的预约核销、配送履约、奖励台账、库存补货或真实分账执行误认为已完成。
 
 ## 2. 架构概览
 
@@ -44,11 +44,10 @@
 
 ## 4. 当前未完成模块
 
-尚未发现御方通和专属实现：
+当前仍未完成或仅预留边界的御方通和专属模块：
 
 - 康养中心底部导航和页面结构。
-- 5980 家庭康养套餐实例。
-- 十个月权益计划、月度权益批次和履约状态。
+- 5980 家庭康养套餐实例与十个月权益计划 V1 已落地，但仍需继续完成发布前架构审核、灰度方案和生产配置核验。
 - 服务项目、门店预约时段、容量、签到。
 - 动态权益核销码、权益恢复、权益历史。
 - B端门店经营工作台、客户归属、经营待办。
@@ -73,17 +72,26 @@
 
 - 版本标识不一致：README、`.version`、移动端 manifest、后台 package 标识不同，统一认定为 v5.6 系列。
 - 阻塞：仓库当前版本和历史曾包含生产 `.env`、微信支付证书/私钥、运行时 PEM、前端 AppSecret/地图 Key 类字段和压缩包；本轮已做仓库治理，但外部平台凭据仍需轮换并验证。
-- 未发现独立迁移目录，当前以安装 SQL 为主。
+- 御方通和业务域已使用 `crmeb/database/migrations` 管理迁移；CRMEB 原始安装仍以 `crmeb/public/install/crmeb.sql` 为基线。
 - `vendor` 和大量静态/构建相关文件仍进入仓库，后续需评估仓库体积和部署方式；本轮未移除 `vendor/`，避免改变服务器部署方式。
 - 移动端配置仍有 CRMEB demo/default 配置。
-- 关键产品域缺失，不能把需求文档规划误写为已完成能力。
-- 自动化测试和本地完整启动未验证。
+- 关键产品域仍有缺口，不能把需求文档规划误写为已完成能力。
+- 5980 套餐权益相关后端脚本和真实 MySQL 8.0 闭环已验证；整站本地完整启动、真实支付沙箱和生产灰度仍未验证。
 
 ## 7. 当前开发阶段
 
-阶段：生产服务器安全切换准备与凭据使用核验。
+阶段：5980 套餐权益 V1 并发建单与人工激活恢复整改。
 
 本轮变化：
+
+- 套餐购买 intent 下单改为数据库行锁抢占：`created/failed -> creating -> bound`，同一 intent 的并发请求只有一个能调用 CRMEB 下单，其余返回已有绑定结果或处理中状态。
+- intent 新增 `creating_request_id`、`bound_order_id/sn`、`orphan_order_id/sn`、`last_error_code/message` 等字段；创建 CRMEB 订单后必须在事务内绑定购买记录和成交快照。
+- 若 CRMEB 订单已创建但 intent 绑定失败，不物理删除订单，记录孤儿订单信息并调用 CRMEB 订单取消能力做补偿；新增 `php think yfth:package scan-orphan-orders --close` 扫描/关闭入口。
+- 自动激活重试达到幂等上限后，后台人工重试使用独立 `manual_activate` 幂等键，必须记录操作人和原因，避免继续被自动失败记录卡死。
+- 后台购买列表显示自动重试次数、是否超过上限、最近人工重试操作人与结果，并要求二次确认原因。
+- 真实 MySQL 8.0.46 隔离验证已覆盖同一 intent 10 进程并发建单、孤儿订单为 0、自动上限停止、人工重试覆盖上限、人工并发只激活一次。
+
+历史安全治理记录仍需保留，用于生产切换上下文：
 
 - 停止跟踪生产 `.env`、微信支付证书/私钥、运行时 PEM、前端 `.env*` 和移动端压缩包。
 - 新增 `crmeb/.env.example`、`template/admin/.env.example`、`template/uni-app/.env.example`。
@@ -99,11 +107,11 @@
 
 ## 8. 下一步建议
 
-安全整改完成并完成外部平台凭据轮换验证前，不得开始 5980 套餐、十个月权益、预约核销、加盟、产品额度或奖励台账等业务开发。
+当前下一步不应合并 `main` 或部署生产。建议先完成本轮 P1 整改的架构复核、真实支付沙箱联调方案、灰度回滚方案和生产配置核验。
 
-当前唯一下一步：先为生产服务器配置 GitHub Deploy Key 或受控 SSH 凭据，使 `git@github.com:Flippede/yufangcare-platform.git` 能按预案克隆到 `/www/wwwroot/yufangcare-platform-clean`，再进入正式维护窗口准备。
+生产服务器仍需保持干净克隆和凭据轮换要求：正式切换前应确认 GitHub Deploy Key 或受控 SSH 凭据可用，并确认生产 `.env`、微信支付证书、运行时 PEM 和前端环境变量均不进入 Git。
 
-安全前置项完成后，第一项开发任务建议为：御方通和业务基础域与迁移规范设计/落地。
+完成套餐权益发布前复核后，后续开发建议按业务风险顺序推进：服务预约/签到/动态核销、权益领取配送履约、门店工作台、推荐关系与只读奖励台账，再进入库存补货、产品额度、加盟合同和真实分账执行。
 
 建议先明确：
 
@@ -189,3 +197,14 @@
 - 新增验收文档：`docs/YFTH_PACKAGE_BENEFIT_RUNTIME_VALIDATION.md`。
 - 前端 `template/admin` 生产构建通过；强制绕过 ignore 的 ESLint 仅暴露既有 CRLF 行尾 Prettier 问题，本轮未批量格式化前端文件。
 - 本轮结束后不得合并到 `main`，也不得部署到生产；需先完成后续架构审核，再决定是否进入发布准备。
+
+## 15. 2026-06-25 套餐 intent 并发建单与人工激活恢复整改
+
+- 当前开发分支：`feature/yfth-package-benefits-v1`；本轮开始 commit：`527aacbd10b8c3a5346d713f5a41d37951b0811f`。
+- intent 下单增加 `creating_started_at`、`creating_request_id`、`bound_order_id/sn`、`orphan_order_id/sn`、`last_error_code/message`、`retry_count` 等字段和索引；同一 intent 通过数据库行锁抢占串行化 CRMEB 建单。
+- `createOrderFromIntent()` 只允许抢占成功者调用 CRMEB 订单创建；重复请求返回已绑定订单或处理中状态，不再产生多个待支付 CRMEB 订单。
+- 订单创建成功但绑定失败时，记录孤儿订单并调用 CRMEB 取消订单能力补偿，不做物理删除；新增 `scan-orphan-orders --close` 命令用于扫描和人工收口。
+- 自动激活失败达到幂等最大次数后，自动补偿不再反复抢占；人工重试必须提供操作人和原因，走独立 `manual_activate` 幂等键并记录人工重试次数、时间、操作人和结果。
+- 后台套餐购买列表新增自动重试次数/上限、是否可人工重试、最近人工重试操作人与结果展示；人工重试入口增加原因输入和二次确认。
+- 真实 MySQL 8.0.46 隔离验证已覆盖：新 migration run/rollback/run、同一 intent 10 进程并发只生成 1 个 CRMEB 订单、孤儿可支付订单为 0、自动重试上限跳过、人工重试覆盖上限并激活、人工并发只生成 1 个实例。
+- 本轮仍不代表服务预约、签到、动态权益核销码、配送履约、奖励台账、库存补货、产品额度、加盟合同或真实支付分账执行已经完成。
