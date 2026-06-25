@@ -26,7 +26,7 @@ class HardenYfthPackagePurchaseSnapshots extends Migrator
             'yfth_package_purchase_intent',
         ] as $tableName) {
             if ($this->hasTable($tableName)) {
-                $this->table($tableName)->drop()->save();
+                $this->table($tableName)->drop();
             }
         }
     }
@@ -201,7 +201,7 @@ class HardenYfthPackagePurchaseSnapshots extends Migrator
                 array_pop($columns);
                 $unique = true;
             }
-            if (!$table->hasIndexByName($indexName)) {
+            if (!$this->tableHasIndex('yfth_package_purchase', $indexName)) {
                 $table->addIndex($columns, ['unique' => $unique, 'name' => $indexName]);
                 $changed = true;
             }
@@ -247,7 +247,7 @@ class HardenYfthPackagePurchaseSnapshots extends Migrator
             'idx_yfth_benefit_period_open_guard' => ['status', 'open_at', 'plan_id', 'package_instance_id'],
             'idx_yfth_benefit_period_expire_guard' => ['status', 'expire_at', 'plan_id', 'package_instance_id'],
         ] as $indexName => $columns) {
-            if (!$table->hasIndexByName($indexName)) {
+            if (!$this->tableHasIndex('yfth_benefit_period', $indexName)) {
                 $table->addIndex($columns, ['name' => $indexName]);
                 $changed = true;
             }
@@ -269,7 +269,7 @@ class HardenYfthPackagePurchaseSnapshots extends Migrator
             'idx_yfth_pkg_purchase_snapshot',
             'idx_yfth_pkg_purchase_intent',
         ] as $indexName) {
-            if ($table->hasIndexByName($indexName)) {
+            if ($this->tableHasIndex('yfth_package_purchase', $indexName)) {
                 $table->removeIndexByName($indexName)->update();
                 $table = $this->table('yfth_package_purchase');
             }
@@ -322,7 +322,7 @@ class HardenYfthPackagePurchaseSnapshots extends Migrator
             'idx_yfth_benefit_period_expire_guard',
             'idx_yfth_benefit_period_open_guard',
         ] as $indexName) {
-            if ($table->hasIndexByName($indexName)) {
+            if ($this->tableHasIndex('yfth_benefit_period', $indexName)) {
                 $table->removeIndexByName($indexName)->update();
                 $table = $this->table('yfth_benefit_period');
             }
@@ -355,5 +355,10 @@ class HardenYfthPackagePurchaseSnapshots extends Migrator
         $adapter = $this->getAdapter();
         $prefix = method_exists($adapter, 'getOption') ? (string)$adapter->getOption('table_prefix') : '';
         return $prefix . $table;
+    }
+
+    private function tableHasIndex(string $table, string $indexName): bool
+    {
+        return $this->getAdapter()->hasIndexByName($table, $indexName);
     }
 }

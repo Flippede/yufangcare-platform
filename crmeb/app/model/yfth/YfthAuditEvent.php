@@ -2,10 +2,9 @@
 
 namespace app\model\yfth;
 
-use crmeb\basic\BaseModel;
 use crmeb\traits\ModelTrait;
 
-class YfthAuditEvent extends BaseModel
+class YfthAuditEvent extends YfthBaseModel
 {
     use ModelTrait;
 

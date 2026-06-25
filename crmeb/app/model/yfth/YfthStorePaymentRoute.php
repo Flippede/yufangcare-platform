@@ -2,10 +2,9 @@
 
 namespace app\model\yfth;
 
-use crmeb\basic\BaseModel;
 use crmeb\traits\ModelTrait;
 
-class YfthStorePaymentRoute extends BaseModel
+class YfthStorePaymentRoute extends YfthBaseModel
 {
     use ModelTrait;
 

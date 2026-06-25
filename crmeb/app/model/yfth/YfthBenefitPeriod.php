@@ -2,10 +2,9 @@
 
 namespace app\model\yfth;
 
-use crmeb\basic\BaseModel;
 use crmeb\traits\ModelTrait;
 
-class YfthBenefitPeriod extends BaseModel
+class YfthBenefitPeriod extends YfthBaseModel
 {
     use ModelTrait;
 

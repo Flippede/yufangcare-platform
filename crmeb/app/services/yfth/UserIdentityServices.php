@@ -94,6 +94,12 @@ class UserIdentityServices extends YfthFoundationBaseServices
         $data['effective_time'] = $this->parseTime($data['effective_time'] ?? 0);
         $data['expire_time'] = $this->parseTime($data['expire_time'] ?? 0);
         $data['active_key'] = $this->activeKey([$data['uid'], $data['role_code'], $data['source_type'], $data['source_id']], $data['status']);
+        if (!$id && $data['active_key']) {
+            $existing = $this->dao->getOne(['active_key' => $data['active_key']]);
+            if ($existing) {
+                $id = (int)$existing['id'];
+            }
+        }
         $data = $this->withTimestamps($data, $id === 0);
         return $id ? $this->dao->update($id, $data) : $this->dao->save($data);
     }

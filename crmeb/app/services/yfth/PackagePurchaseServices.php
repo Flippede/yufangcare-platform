@@ -193,8 +193,43 @@ class PackagePurchaseServices extends PackageBenefitBaseServices
     {
         $validation = $this->validatePurchaseRequest($uid, $data);
 
-        return $this->transaction(function () use ($uid, $data, $validation) {
-            if (!empty($validation['order']['order_id'])) {
+        $lastException = null;
+        for ($attempt = 0; $attempt < 5; $attempt++) {
+            try {
+                return $this->transaction(function () use ($uid, $data, $validation) {
+                    if (!empty($validation['order']['order_id'])) {
+                        $existing = $this->findPurchaseByOrderIdentity((int)$validation['order']['order_id'], (string)($validation['order']['order_sn'] ?? ''));
+                        if ($existing) {
+                            if ((int)$existing['uid'] !== $uid) {
+                                throw new ApiException('order_already_bound_to_other_user');
+                            }
+                            return $this->formatPurchase($existing);
+                        }
+                    }
+
+                    $agreement = $this->createAgreementSnapshot($uid, $validation, $data);
+                    $payload = $this->buildPurchasePayload($uid, $validation, $validation['order'] ?? [], (int)$agreement['id'], 0, $data);
+                    $row = $this->savePurchaseResolvingOrderConflict($this->dao, $payload, $uid);
+                    if (!empty($row['_existing'])) {
+                        return $this->formatPurchase($row);
+                    }
+                    if ((int)$row['order_id'] > 0) {
+                        $snapshotId = $this->createPurchaseSnapshots($row, $validation, [
+                            'id' => (int)$row['order_id'],
+                            'order_id' => (string)$row['order_sn'],
+                            'pay_price' => $row['order_pay_price'],
+                        ], []);
+                        $this->dao->update((int)$row['id'], ['snapshot_id' => $snapshotId, 'update_time' => time()]);
+                        $row['snapshot_id'] = $snapshotId;
+                    }
+                    $this->recordPackageAudit('package_purchase', (string)$row['id'], 'create', [], $row, $uid, 'customer', (int)$payload['store_id']);
+                    return $this->formatPurchase($row);
+                });
+            } catch (\Throwable $e) {
+                if (!$this->isRetryableOrderWriteConflict($e) || empty($validation['order']['order_id'])) {
+                    throw $e;
+                }
+                $lastException = $e;
                 $existing = $this->findPurchaseByOrderIdentity((int)$validation['order']['order_id'], (string)($validation['order']['order_sn'] ?? ''));
                 if ($existing) {
                     if ((int)$existing['uid'] !== $uid) {
@@ -202,26 +237,11 @@ class PackagePurchaseServices extends PackageBenefitBaseServices
                     }
                     return $this->formatPurchase($existing);
                 }
+                usleep(50000 * ($attempt + 1));
             }
+        }
 
-            $agreement = $this->createAgreementSnapshot($uid, $validation, $data);
-            $payload = $this->buildPurchasePayload($uid, $validation, $validation['order'] ?? [], (int)$agreement['id'], 0, $data);
-            $row = $this->savePurchaseResolvingOrderConflict($this->dao, $payload, $uid);
-            if (!empty($row['_existing'])) {
-                return $this->formatPurchase($row);
-            }
-            if ((int)$row['order_id'] > 0) {
-                $snapshotId = $this->createPurchaseSnapshots($row, $validation, [
-                    'id' => (int)$row['order_id'],
-                    'order_id' => (string)$row['order_sn'],
-                    'pay_price' => $row['order_pay_price'],
-                ], []);
-                $this->dao->update((int)$purchase->id, ['snapshot_id' => $snapshotId, 'update_time' => time()]);
-                $row['snapshot_id'] = $snapshotId;
-            }
-            $this->recordPackageAudit('package_purchase', (string)$purchase->id, 'create', [], $row, $uid, 'customer', (int)$payload['store_id']);
-            return $this->formatPurchase($row);
-        });
+        throw $lastException ?: new ApiException('package_purchase_retry_exhausted');
     }
 
     public function purchaseStatus(int $uid, string $purchaseNo): array
@@ -735,7 +755,14 @@ class PackagePurchaseServices extends PackageBenefitBaseServices
             if (!$this->isOrderUniqueConflict($e)) {
                 throw $e;
             }
-            $existing = $this->findPurchaseByOrderIdentity((int)($payload['order_id'] ?? 0), (string)($payload['order_sn'] ?? ''));
+            $existing = [];
+            for ($attempt = 0; $attempt < 5; $attempt++) {
+                $existing = $this->findPurchaseByOrderIdentityForUpdate((int)($payload['order_id'] ?? 0), (string)($payload['order_sn'] ?? ''));
+                if ($existing) {
+                    break;
+                }
+                usleep(50000);
+            }
             if (!$existing) {
                 throw $e;
             }
@@ -747,6 +774,26 @@ class PackagePurchaseServices extends PackageBenefitBaseServices
         }
     }
 
+    private function findPurchaseByOrderIdentityForUpdate(int $orderId = 0, string $orderSn = ''): array
+    {
+        foreach ([
+            ['order_unique_key', $orderId > 0 ? (string)$orderId : ''],
+            ['order_id', $orderId > 0 ? $orderId : ''],
+            ['order_sn_unique_key', $orderSn],
+            ['order_sn', $orderSn],
+        ] as $condition) {
+            [$field, $value] = $condition;
+            if ($value === '' || $value === 0) {
+                continue;
+            }
+            $row = $this->dao->search([])->where($field, $value)->lock(true)->find();
+            if ($row) {
+                return $row->toArray();
+            }
+        }
+        return [];
+    }
+
     private function isOrderUniqueConflict(\Throwable $e): bool
     {
         $message = strtolower($e->getMessage());
@@ -755,6 +802,15 @@ class PackagePurchaseServices extends PackageBenefitBaseServices
             || strpos($message, 'uniq_yfth_pkg_purchase_order_key') !== false
             || strpos($message, 'uniq_yfth_pkg_purchase_order_sn_key') !== false
             || (string)$e->getCode() === '23000';
+    }
+
+    private function isRetryableOrderWriteConflict(\Throwable $e): bool
+    {
+        $message = strtolower($e->getMessage());
+        return $this->isOrderUniqueConflict($e)
+            || strpos($message, 'deadlock') !== false
+            || strpos($message, '1213') !== false
+            || (string)$e->getCode() === '40001';
     }
 
     private function intentBoundPayload(array $intent): array

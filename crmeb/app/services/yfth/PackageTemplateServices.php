@@ -411,17 +411,17 @@ class PackageTemplateServices extends PackageBenefitBaseServices
     {
         /** @var YfthPackagePurchaseIntentDao $intentDao */
         $intentDao = app()->make(YfthPackagePurchaseIntentDao::class);
-        if ($intentDao->count(['rule_version_id' => $ruleVersionId], false) > 0) {
+        if ($intentDao->getCount(['rule_version_id' => $ruleVersionId]) > 0) {
             return true;
         }
         /** @var YfthPackagePurchaseDao $purchaseDao */
         $purchaseDao = app()->make(YfthPackagePurchaseDao::class);
-        if ($purchaseDao->count(['rule_version_id' => $ruleVersionId], false) > 0) {
+        if ($purchaseDao->getCount(['rule_version_id' => $ruleVersionId]) > 0) {
             return true;
         }
         /** @var YfthPackagePurchaseSnapshotDao $snapshotDao */
         $snapshotDao = app()->make(YfthPackagePurchaseSnapshotDao::class);
-        return $snapshotDao->count(['rule_version_id' => $ruleVersionId], false) > 0;
+        return $snapshotDao->getCount(['rule_version_id' => $ruleVersionId]) > 0;
     }
 
     private function withCurrentRule(array $row): array

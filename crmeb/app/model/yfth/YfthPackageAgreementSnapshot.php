@@ -2,10 +2,9 @@
 
 namespace app\model\yfth;
 
-use crmeb\basic\BaseModel;
 use crmeb\traits\ModelTrait;
 
-class YfthPackageAgreementSnapshot extends BaseModel
+class YfthPackageAgreementSnapshot extends YfthBaseModel
 {
     use ModelTrait;
 

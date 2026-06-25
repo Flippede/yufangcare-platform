@@ -176,3 +176,16 @@
 - `openDuePeriods` 改为批量上限、逐条锁定、计划/实例 active 二次校验；冻结、退款中、已退款、关闭状态不再开放未来月份或延迟权益项。
 - 退款事件映射改为优先解析 `store_order_id/store_order_sn`，找不到时通过真实退款单回查原订单；映射失败写技术日志和审计待补偿记录。
 - 新增真实应用验证脚本 `crmeb/tests/yfth_package_benefit_real_flow_check.php`，用于 MySQL 5.7/8.0 测试库上的真实迁移、表/索引、Service、Listener 和可选下单激活闭环验证；旧 runtime 脚本仍仅可作为轻量回归，不可替代最终验收。
+
+## 14. 2026-06-25 5980 套餐权益真实 MySQL 隔离验收
+
+- 当前开发分支：`feature/yfth-package-benefits-v1`；本轮开始 commit：`c200ef37f6cbf168a79aa3c493995373ed09521b`。
+- 本轮使用 MySQL Community Server 8.0.46 官方 ZIP 在本地隔离端口 `127.0.0.1:33306` 验收，不使用 MariaDB，不连接生产库，不读取生产 `.env`。
+- `crmeb/public/install/crmeb.sql` 已导入真实 CRMEB 基线库；导入时仅会话级放宽历史 SQL 兼容项，全局 MySQL 严格模式保持不变。
+- 御方通和 6 个 migration 完成真实 MySQL 上的 run、rollback 到 0、再次 run：迁移后 178 张表、23 张 `eb_yfth_*` 表、37 个 `yfth-%` 后台权限点；回滚后 YFTH 表和权限点均清零。
+- 修复真实 MySQL 暴露的阻塞问题：菜单 `sort` 越界、Phinx 索引/回滚 API 兼容、YFTH 整型时间戳被 ThinkORM 自动时间戳误解析、套餐购买旧路径未定义变量、并发唯一冲突恢复、`member_5980` active 身份重复写入、规则引用计数误判。
+- 真实闭环脚本 `crmeb/tests/yfth_package_benefit_real_flow_check.php` 已扩展为隔离执行模式，覆盖真实下单激活、重复支付幂等、失败激活重试、补偿恢复、10 进程并发绑定、冻结/退款生命周期、规则不可变和复制新版本。
+- 最终真实闭环验证输出：`[OK] YFTH package benefit real application checks verified on MySQL 8.0.46.`
+- 新增验收文档：`docs/YFTH_PACKAGE_BENEFIT_RUNTIME_VALIDATION.md`。
+- 前端 `template/admin` 生产构建通过；强制绕过 ignore 的 ESLint 仅暴露既有 CRLF 行尾 Prettier 问题，本轮未批量格式化前端文件。
+- 本轮结束后不得合并到 `main`，也不得部署到生产；需先完成后续架构审核，再决定是否进入发布准备。

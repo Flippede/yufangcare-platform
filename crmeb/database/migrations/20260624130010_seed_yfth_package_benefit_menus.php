@@ -94,7 +94,7 @@ class SeedYfthPackageBenefitMenus extends Migrator
             'api_url' => '',
             'methods' => 'GET',
             'params' => '',
-            'sort' => 320,
+            'sort' => 32,
             'is_show' => 1,
             'is_show_path' => 1,
             'access' => 1,

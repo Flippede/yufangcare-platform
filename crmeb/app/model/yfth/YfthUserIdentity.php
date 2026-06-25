@@ -2,10 +2,9 @@
 
 namespace app\model\yfth;
 
-use crmeb\basic\BaseModel;
 use crmeb\traits\ModelTrait;
 
-class YfthUserIdentity extends BaseModel
+class YfthUserIdentity extends YfthBaseModel
 {
     use ModelTrait;
 

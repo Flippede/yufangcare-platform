@@ -2,10 +2,9 @@
 
 namespace app\model\yfth;
 
-use crmeb\basic\BaseModel;
 use crmeb\traits\ModelTrait;
 
-class YfthStoreQualification extends BaseModel
+class YfthStoreQualification extends YfthBaseModel
 {
     use ModelTrait;
 

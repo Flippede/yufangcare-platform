@@ -2,10 +2,9 @@
 
 namespace app\model\yfth;
 
-use crmeb\basic\BaseModel;
 use crmeb\traits\ModelTrait;
 
-class YfthIdempotencyRecord extends BaseModel
+class YfthIdempotencyRecord extends YfthBaseModel
 {
     use ModelTrait;
 

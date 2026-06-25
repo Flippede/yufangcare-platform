@@ -156,12 +156,12 @@ class BenefitTemplateServices extends PackageBenefitBaseServices
     {
         /** @var YfthPackagePurchaseIntentDao $intentDao */
         $intentDao = app()->make(YfthPackagePurchaseIntentDao::class);
-        if ($intentDao->count(['rule_version_id' => $ruleVersionId], false) > 0) {
+        if ($intentDao->getCount(['rule_version_id' => $ruleVersionId]) > 0) {
             return true;
         }
         /** @var YfthPackagePurchaseBenefitSnapshotDao $snapshotDao */
         $snapshotDao = app()->make(YfthPackagePurchaseBenefitSnapshotDao::class);
-        return $snapshotDao->count(['rule_version_id' => $ruleVersionId], false) > 0;
+        return $snapshotDao->getCount(['rule_version_id' => $ruleVersionId]) > 0;
     }
 
     private function isBenefitTemplateImmutable(int $benefitTemplateId): bool
@@ -179,6 +179,6 @@ class BenefitTemplateServices extends PackageBenefitBaseServices
         }
         /** @var YfthPackagePurchaseBenefitSnapshotDao $snapshotDao */
         $snapshotDao = app()->make(YfthPackagePurchaseBenefitSnapshotDao::class);
-        return $snapshotDao->count(['benefit_template_id' => $benefitTemplateId], false) > 0;
+        return $snapshotDao->getCount(['benefit_template_id' => $benefitTemplateId]) > 0;
     }
 }
