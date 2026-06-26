@@ -88,3 +88,32 @@ intent 到 CRMEB 订单的边界收口为“先抢占、后建单、再绑定”
 - 支付回调和自动补偿继续使用 `activate` / `package_activate:{order_id}`，达到最大重试次数后自动补偿跳过并等待人工处理。
 - 后台人工重试使用 `manual_activate` / `package_activate_manual:{purchase_id}`，必须记录操作人、原因、请求号、次数和结果。
 - 人工重试仍调用同一套成交快照激活服务，只是绕开自动失败幂等记录的最大次数限制；并发人工重试只能有一个请求真正执行激活。
+
+## 9. 2026-06-26 后台权限与孤儿订单恢复架构
+
+### 9.1 后台权限链
+
+- `AdminCheckRoleMiddleware` 仍负责真实后台请求的第一层校验：未登录拒绝，超管放行，普通管理员进入角色权限校验。
+- `SystemRoleServices::verifyAuth()` 只对已登记 API 执行强制权限校验。未登记 API 继续兼容旧 CRMEB 行为；已登记但角色未授权时抛出 `AuthException(100101)`。
+- API rule 和 method 会统一小写、去空格并规范 `<id>`/`:id` 动态段；`<param>` 规则也能匹配真实路径片段，避免动态路由误放行或误拒绝。
+- 人工激活、激活恢复和 orphan 扫描属于敏感入口，Controller 侧必须再次调用 `assertApiAuthForAdmin()`，并只信任当前后台登录上下文，不信任前端传入的操作人 ID。
+
+### 9.2 订单来源与 attempt
+
+- 新表 `yfth_package_order_attempt` 记录每次 intent 调用 CRMEB 建单的 attempt。字段包括 intent、UID、门店、request id、商品/SKU、CRMEB `orderKey`、订单 ID/SN、状态、超时和恢复错误。
+- 来源标记使用 CRMEB 建单确认阶段生成的 `orderKey`，落在 `store_order.unique`，同时保存 `source_token_hash`。该值由服务端生成、不可枚举、普通用户不可编辑，可在崩溃后从订单反查 attempt。
+- 普通 CRMEB 订单没有 attempt 记录，不进入套餐 orphan 扫描；扫描不依赖订单备注、展示备注、UID/SKU/时间窗口猜测。
+
+### 9.3 creating 超时和 orphan 收口
+
+- `creating` 超过 `CREATING_TIMEOUT_SECONDS` 后先查 attempt/order，再决定恢复动作。
+- 无订单：intent 记录 `order_creation_timeout_no_order` 并回到可重试的 `failed`。
+- 未支付订单：标记 orphan，调用 CRMEB 原生取消能力；取消成功后 intent 才允许重新建单。
+- 已支付订单：不取消，不重建订单；intent/attempt 进入 `orphan_paid_pending`，后续由扫描或后台受控恢复创建唯一 purchase、快照、实例和权益计划。
+- 已关闭订单：记录关闭结果并允许安全重试。
+- 旧请求延迟返回：如果 intent 已被新请求绑定，旧 attempt 只能收口旧订单，不覆盖新 purchase 绑定；已支付且 intent 已绑定的旧 attempt 转人工处理，不自动生成第二条 purchase。
+
+### 9.4 Listener 和扫描入口
+
+- `PackagePaySuccessListener` 对缺少 purchase 的套餐来源 paid order 记录高优先级错误日志和 YFTH 审计，不抛出异常破坏 CRMEB 支付成功主流程。
+- `scan-orphan-orders` 默认只读 dry-run；`--close-unpaid` 和 `--recover-paid` 是显式动作开关。后台 `orphan/scan` API 使用同一服务层能力和独立权限点。

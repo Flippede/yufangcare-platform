@@ -166,3 +166,56 @@ YFTH_REAL_FLOW_EXECUTE=1 YFTH_REAL_FLOW_ISOLATED_DB=1 YFTH_REAL_FLOW_RUN_ID=RFVA
 ```text
 [OK] YFTH package benefit real application checks verified on MySQL 8.0.46.
 ```
+
+## 11. 2026-06-26 后台权限与未记录孤儿订单恢复验收
+
+本轮整改起点：`0b309ddab919850836f22e0ff2671f86b4a4503d`。验证对象为后台权限强制校验、订单来源 attempt、`creating` 超时恢复、未记录 orphan 扫描和 paid orphan 恢复。
+
+真实 MySQL 验证环境：
+
+- MySQL：MySQL Community Server 8.0.46，隔离端口 `127.0.0.1:33326`。
+- 临时库：`yufangcare_validation_20260626_orphanfix`。
+- 临时用户：`yfth_val_orphanfix`。
+- 临时验证副本：`.codex/tools/yfth-validation/orphanfix-20260626-104747`。
+- CRMEB 基线：导入 `crmeb/public/install/crmeb.sql`，仅在导入会话中使用 `sql_mode='NO_ENGINE_SUBSTITUTION'`；服务器全局严格 SQL mode 保持默认。
+
+迁移验证：
+
+- `php think migrate:run` 完成，新增 `20260626090000 CreateYfthPackageOrderAttempts`。
+- `php think migrate:rollback -t 0` 完成，回滚后 `eb_yfth_*` 表数为 0、YFTH migration 记录为 0、`yfth-%` 菜单权限为 0。
+- 再次 `php think migrate:run` 完成，结果为 179 张总表、24 张 `eb_yfth_*` 表、8 条 YFTH migration、38 个 `yfth-%` 菜单权限。
+- attempt 关键索引已验证存在：`uniq_yfth_pkg_attempt_no`、`uniq_yfth_pkg_attempt_order_key`、`uniq_yfth_pkg_attempt_src_hash`、`idx_yfth_pkg_attempt_recovery`、`idx_yfth_pkg_attempt_intent_status`、`idx_yfth_pkg_attempt_order_id`、`idx_yfth_pkg_attempt_order_sn`、`idx_yfth_pkg_attempt_request`。
+- 真实 MySQL 暴露并已修复的新 migration 问题：`system_menus.menu_name` 超长、`Table::drop()->save()` 兼容错误。
+
+真实闭环命令：
+
+```powershell
+YFTH_REAL_FLOW_EXECUTE=1 YFTH_REAL_FLOW_ISOLATED_DB=1 YFTH_REAL_FLOW_RUN_ID=RFORPH01 php tests/yfth_package_benefit_real_flow_check.php
+```
+
+新增通过项：
+
+- 真实 `AdminCheckRoleMiddleware` 等价链路覆盖未登录拒绝、超管允许、授权角色允许、查看角色拒绝、无权角色拒绝、原 CRMEB 代表 API 授权/未授权边界。
+- 纵深校验覆盖空后台身份拒绝、查看角色拒绝、人工恢复角色允许。
+- 未支付 orphan：dry-run 只统计不关闭；`--close-unpaid` 调用 CRMEB 原生取消，intent 进入可重试状态，重新建单只生成一张新订单和一条 purchase。
+- 已支付 orphan：listener 标记 `orphan_paid_pending` 并写审计；`--recover-paid` 恢复唯一 purchase、1 条购买快照、10 条权益快照、1 个实例、1 个计划、10 个周期和 10 个权益项；重复恢复不重复生成。
+- 无订单超时：`creating` 超时且无 CRMEB 订单时记录失败并允许重新建单，最终只绑定一条 purchase。
+- 旧请求延迟返回：新请求已绑定后，旧 request 创建的未支付订单被识别并关闭，不覆盖新订单绑定。
+- 既有并发验证仍通过：同一 intent 10 进程只产生一张 CRMEB 订单，并发人工激活只产生一个实例。
+
+辅助验证：
+
+- 所有本轮修改 PHP 文件均通过 `php -l`。
+- `crmeb/tests/yfth_package_benefit_contract_check.php` 通过。
+- `composer validate` 通过，保留上游 PSR-0 和 exact version 约束警告。
+- Composer autoload 验证通过。
+- 定向 ESLint：`src/api/yfth.js`、`src/pages/yfth/packageBenefit/index.vue` 通过。
+- `template/admin` 执行 `NODE_OPTIONS=--openssl-legacy-provider npm run build` 成功，仍有既有 CSS order、包体积和 Browserslist 陈旧警告。
+
+清理结果：
+
+- 已删除临时数据库 `yufangcare_validation_20260626_orphanfix`。
+- 已删除临时用户 `yfth_val_orphanfix`。
+- 已停止本轮临时 `mysqld` 进程。
+- 已删除临时验证副本和 MySQL data dir。
+- 未提交临时 `.env`、测试密码、验证副本或 MySQL data dir。

@@ -134,12 +134,16 @@ class PackageActivationServices extends PackageBenefitBaseServices
 
     private function missingPurchaseResult(array $orderInfo): array
     {
-        if ($this->isPackageSkuOrder($orderInfo)) {
+        $attempt = app()->make(PackagePurchaseServices::class)->locatePackageOrderAttempt($orderInfo);
+        if ($attempt || $this->isPackageSkuOrder($orderInfo)) {
             $payload = [
                 'order_id' => (int)($orderInfo['id'] ?? 0),
                 'order_sn' => (string)($orderInfo['order_id'] ?? ''),
                 'uid' => (int)($orderInfo['uid'] ?? 0),
                 'store_id' => (int)($orderInfo['store_id'] ?? 0),
+                'intent_id' => (int)($attempt['intent_id'] ?? 0),
+                'attempt_id' => (int)($attempt['id'] ?? 0),
+                'request_id' => (string)($attempt['request_id'] ?? ''),
                 'reason' => 'package_order_missing_purchase',
             ];
             $this->recordPackageAudit('package_orphan_order', (string)($orderInfo['id'] ?? $orderInfo['order_id'] ?? ''), 'paid_order_missing_purchase', [], $payload, 0, 'system', (int)($orderInfo['store_id'] ?? 0), 'package_order_missing_purchase');

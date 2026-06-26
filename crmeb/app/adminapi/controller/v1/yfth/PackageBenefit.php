@@ -3,6 +3,7 @@
 namespace app\adminapi\controller\v1\yfth;
 
 use app\adminapi\controller\AuthController;
+use app\services\system\admin\SystemRoleServices;
 use app\services\yfth\BenefitPeriodServices;
 use app\services\yfth\BenefitPlanServices;
 use app\services\yfth\BenefitTemplateServices;
@@ -186,6 +187,7 @@ class PackageBenefit extends AuthController
 
     public function recoverActivation(PackageActivationRecoveryServices $services)
     {
+        $this->assertAdminApiAuth('yfth/package_benefit/activation/recover', 'POST');
         $data = $this->request->postMore([
             [['limit', 'd'], 50],
         ]);
@@ -194,10 +196,27 @@ class PackageBenefit extends AuthController
 
     public function retryActivation(PackageActivationRecoveryServices $services, $id)
     {
+        $this->assertAdminApiAuth('yfth/package_benefit/purchase/<id>/activation_retry', 'POST');
         $data = $this->request->postMore([
             ['reason', ''],
         ]);
         return app('json')->success($services->retryPurchase((int)$id, (string)$data['reason'], (int)$this->adminId));
+    }
+
+    public function scanOrphanOrders(PackagePurchaseServices $services)
+    {
+        $this->assertAdminApiAuth('yfth/package_benefit/orphan/scan', 'POST');
+        $data = $this->request->postMore([
+            [['limit', 'd'], 50],
+            [['close_unpaid', 'd'], 0],
+            [['recover_paid', 'd'], 0],
+        ]);
+        return app('json')->success($services->scanUnboundPackageIntentOrders(
+            (int)$data['limit'],
+            (bool)$data['close_unpaid'],
+            (bool)$data['recover_paid'],
+            (int)$this->adminId
+        ));
     }
 
     public function instanceState(PackageInstanceServices $services, $id)
@@ -225,5 +244,12 @@ class PackageBenefit extends AuthController
             throw new AdminException('high_risk_confirmation_required');
         }
         return app('json')->success($services->changeInstanceState((int)$id, (string)$data['status'], (string)$data['reason'], (int)$this->adminId));
+    }
+
+    private function assertAdminApiAuth(string $rule, string $method): void
+    {
+        /** @var SystemRoleServices $roleServices */
+        $roleServices = app()->make(SystemRoleServices::class);
+        $roleServices->assertApiAuthForAdmin($this->adminInfo ?: [], $rule, $method);
     }
 }

@@ -41,6 +41,7 @@ Route::group('yfth', function () {
         Route::post('period/open_due', 'v1.yfth.PackageBenefit/openPeriods')->option(['real_name' => 'YFTH open due benefit periods']);
         Route::post('activation/recover', 'v1.yfth.PackageBenefit/recoverActivation')->option(['real_name' => 'YFTH package activation recovery']);
         Route::post('purchase/:id/activation_retry', 'v1.yfth.PackageBenefit/retryActivation')->option(['real_name' => 'YFTH package activation retry']);
+        Route::post('orphan/scan', 'v1.yfth.PackageBenefit/scanOrphanOrders')->option(['real_name' => 'YFTH package orphan order scan and recovery']);
     })->option(['parent' => 'yfth', 'cate_name' => 'YFTH package benefits']);
 })->middleware([
     \app\http\middleware\AllowOriginMiddleware::class,

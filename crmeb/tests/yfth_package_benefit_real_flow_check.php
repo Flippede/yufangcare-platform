@@ -1,6 +1,9 @@
 <?php
 
 use app\listener\yfth\PackagePaySuccessListener;
+use app\adminapi\middleware\AdminCheckRoleMiddleware;
+use app\Request;
+use app\services\system\admin\SystemRoleServices;
 use app\services\order\StoreCartServices;
 use app\services\order\StoreOrderCartInfoServices;
 use app\services\order\StoreOrderCreateServices;
@@ -18,9 +21,11 @@ use app\services\yfth\PackageTemplateServices;
 use app\services\yfth\StorePaymentRouteServices;
 use app\services\yfth\StoreSubjectServices;
 use crmeb\services\CacheService;
+use crmeb\exceptions\AuthException;
 use think\App;
 use think\facade\Config;
 use think\facade\Db;
+use think\route\Rule;
 
 require dirname(__DIR__) . '/vendor/autoload.php';
 
@@ -82,6 +87,7 @@ $prefix = (string)Config::get('database.connections.' . $connection . '.prefix')
 if ($mysqlVersion !== '') {
     foreach ([
         'yfth_package_purchase_intent',
+        'yfth_package_order_attempt',
         'yfth_package_purchase',
         'yfth_package_purchase_snapshot',
         'yfth_package_purchase_benefit_snapshot',
@@ -101,6 +107,8 @@ if ($mysqlVersion !== '') {
         [$prefix . 'yfth_package_purchase', 'uniq_yfth_pkg_purchase_order_sn_key'],
         [$prefix . 'yfth_package_purchase_intent', 'idx_yfth_pkg_intent_claim'],
         [$prefix . 'yfth_package_purchase_intent', 'idx_yfth_pkg_intent_orphan'],
+        [$prefix . 'yfth_package_order_attempt', 'uniq_yfth_pkg_attempt_order_key'],
+        [$prefix . 'yfth_package_order_attempt', 'idx_yfth_pkg_attempt_recovery'],
         [$prefix . 'yfth_package_purchase_snapshot', 'uniq_yfth_pkg_snapshot_purchase'],
         [$prefix . 'yfth_package_purchase_benefit_snapshot', 'uniq_yfth_pkg_benefit_snapshot_rule'],
         [$prefix . 'yfth_benefit_period', 'idx_yfth_benefit_period_open_guard'],
@@ -140,10 +148,12 @@ if ($executeFlow) {
             $fixture = vfSeedFixture($runId);
             $notes[] = 'real_flow_seeded_run:' . $runId;
 
+            vfRunAdminPermissionFlow($assert);
             $main = vfRunIntentOrderActivationFlow($fixture, $assert, $notes);
             vfRunActivationFailureRetryFlow($fixture, $assert);
             vfRunActivationRecoveryFlow($fixture, $assert);
             vfRunConcurrencyFlow($fixture, $assert, $notes);
+            vfRunOrphanAttemptRecoveryFlow($fixture, $assert, $notes);
             vfRunManualRetryOverrideFlow($fixture, $assert, $notes);
             vfRunLifecycleAndRefundFlow($fixture, $main, $assert);
             vfRunRuleImmutabilityFlow($fixture, $assert);
@@ -652,6 +662,310 @@ function vfRunActivationRecoveryFlow(array $fixture, callable $assert): void
     $instanceCount = vfCount('yfth_package_instance', ['purchase_id' => $purchaseId]);
     app()->make(PackageActivationRecoveryServices::class)->recoverPaidUnactivated(50, 0, 'real_flow_check_repeat');
     $assert(vfCount('yfth_package_instance', ['purchase_id' => $purchaseId]) === $instanceCount, 'recovery_repeat_does_not_duplicate_instance');
+}
+
+function vfRunAdminPermissionFlow(callable $assert): void
+{
+    try {
+        CacheService::clear();
+    } catch (Throwable $e) {
+        // Cache is best-effort in the isolated runtime.
+    }
+
+    $retryMenuId = vfApiMenuId('yfth/package_benefit/purchase/<id>/activation_retry', 'POST', 'real-flow-yfth-activation-retry');
+    $viewMenuId = vfApiMenuId('yfth/package_benefit/purchase', 'GET', 'real-flow-yfth-purchase-view');
+    $orphanMenuId = vfApiMenuId('yfth/package_benefit/orphan/scan', 'POST', 'real-flow-yfth-orphan-scan');
+    $legacyMenuId = vfApiMenuId('setting/menus', 'POST', 'real-flow-setting-menus-save');
+
+    $retryRole = vfCreateRole('YFTH Retry Role', [$retryMenuId, $orphanMenuId]);
+    $viewRole = vfCreateRole('YFTH View Role', [$viewMenuId]);
+    $legacyRole = vfCreateRole('CRMEB Legacy Role', [$legacyMenuId]);
+    $noRightRole = vfCreateRole('YFTH No Right Role', []);
+
+    try {
+        CacheService::clear();
+    } catch (Throwable $e) {
+        // Cache is best-effort in the isolated runtime.
+    }
+
+    $retryRule = 'yfth/package_benefit/purchase/123/activation_retry';
+    $orphanRule = 'yfth/package_benefit/orphan/scan';
+    $legacyRule = 'setting/menus';
+
+    $assert(!vfMiddlewareAllows([], $retryRule, 'POST'), 'admin_permission_guest_rejected');
+    $assert(vfMiddlewareAllows(['id' => 9001, 'level' => 0, 'roles' => []], $retryRule, 'POST'), 'admin_permission_super_admin_allowed');
+    $assert(vfMiddlewareAllows(['id' => 9002, 'level' => 1, 'roles' => [$retryRole]], $retryRule, 'POST'), 'admin_permission_retry_role_allowed');
+    $assert(!vfMiddlewareAllows(['id' => 9003, 'level' => 1, 'roles' => [$viewRole]], $retryRule, 'POST'), 'admin_permission_view_only_retry_rejected');
+    $assert(!vfMiddlewareAllows(['id' => 9004, 'level' => 1, 'roles' => [$noRightRole]], $retryRule, 'POST'), 'admin_permission_no_right_retry_rejected');
+    $assert(!vfMiddlewareAllows(['id' => 9005, 'level' => 1, 'roles' => [$viewRole]], $orphanRule, 'POST'), 'admin_permission_view_only_orphan_scan_rejected');
+    $assert(vfMiddlewareAllows(['id' => 9006, 'level' => 1, 'roles' => [$retryRole]], $orphanRule, 'POST'), 'admin_permission_orphan_scan_role_allowed');
+    $assert(vfMiddlewareAllows(['id' => 9007, 'level' => 1, 'roles' => [$legacyRole]], $legacyRule, 'POST'), 'admin_permission_legacy_authorized_api_allowed');
+    $assert(!vfMiddlewareAllows(['id' => 9008, 'level' => 1, 'roles' => [$noRightRole]], $legacyRule, 'POST'), 'admin_permission_legacy_unauthorized_api_rejected');
+
+    /** @var SystemRoleServices $roleServices */
+    $roleServices = app()->make(SystemRoleServices::class);
+    try {
+        $roleServices->assertApiAuthForAdmin([], $retryRule, 'POST');
+        $assert(false, 'admin_depth_empty_identity_rejected');
+    } catch (AuthException $e) {
+        $assert(true, 'admin_depth_empty_identity_rejected');
+    }
+    try {
+        $roleServices->assertApiAuthForAdmin(['id' => 9010, 'level' => 1, 'roles' => [$viewRole]], $retryRule, 'POST');
+        $assert(false, 'admin_depth_view_only_retry_rejected');
+    } catch (AuthException $e) {
+        $assert(true, 'admin_depth_view_only_retry_rejected');
+    }
+    try {
+        $roleServices->assertApiAuthForAdmin(['id' => 9011, 'level' => 1, 'roles' => [$retryRole]], $retryRule, 'POST');
+        $assert(true, 'admin_depth_retry_role_allowed');
+    } catch (AuthException $e) {
+        $assert(false, 'admin_depth_retry_role_allowed');
+    }
+}
+
+function vfApiMenuId(string $apiUrl, string $method, string $uniqueAuth): int
+{
+    $method = strtoupper($method);
+    $existing = Db::name('system_menus')
+        ->where('api_url', $apiUrl)
+        ->where('methods', $method)
+        ->where('auth_type', 2)
+        ->find();
+    if ($existing) {
+        return (int)$existing['id'];
+    }
+    $uniqueExisting = Db::name('system_menus')->where('unique_auth', $uniqueAuth)->find();
+    if ($uniqueExisting) {
+        Db::name('system_menus')->where('id', (int)$uniqueExisting['id'])->update([
+            'api_url' => $apiUrl,
+            'methods' => $method,
+            'auth_type' => 2,
+            'is_del' => 0,
+        ]);
+        return (int)$uniqueExisting['id'];
+    }
+    return (int)Db::name('system_menus')->insertGetId([
+        'pid' => 0,
+        'icon' => '',
+        'menu_name' => 'Real Flow API',
+        'module' => 'admin',
+        'controller' => '',
+        'action' => '',
+        'api_url' => $apiUrl,
+        'methods' => $method,
+        'params' => '[]',
+        'sort' => 1,
+        'is_show' => 0,
+        'is_show_path' => 0,
+        'access' => 1,
+        'menu_path' => '',
+        'path' => '',
+        'auth_type' => 2,
+        'header' => '',
+        'is_header' => 0,
+        'unique_auth' => $uniqueAuth,
+        'is_del' => 0,
+        'mark' => 'YFTH real flow validation permission',
+    ]);
+}
+
+function vfCreateRole(string $name, array $menuIds): int
+{
+    return (int)Db::name('system_role')->insertGetId([
+        'role_name' => substr($name . ' ' . vfRunId(), 0, 32),
+        'rules' => implode(',', array_map('intval', $menuIds)),
+        'level' => 1,
+        'status' => 1,
+    ]);
+}
+
+function vfMiddlewareAllows(array $adminInfo, string $rule, string $method): bool
+{
+    $request = vfAdminRequest($adminInfo, $rule, $method);
+    try {
+        app()->make(AdminCheckRoleMiddleware::class)->handle($request, function () {
+            return 'allowed';
+        });
+        return true;
+    } catch (AuthException $e) {
+        return false;
+    }
+}
+
+function vfAdminRequest(array $adminInfo, string $rule, string $method): Request
+{
+    $request = new Request();
+    $request->setMethod(strtoupper($method));
+    $request->setRule(new class($rule) extends Rule {
+        public function __construct(string $rule)
+        {
+            $this->rule = $rule;
+        }
+
+        public function check(\think\Request $request, string $url, bool $completeMatch = false)
+        {
+            return false;
+        }
+    });
+    $request::macro('adminId', function () use ($adminInfo) {
+        return (int)($adminInfo['id'] ?? 0);
+    });
+    $request::macro('adminInfo', function () use ($adminInfo) {
+        return $adminInfo;
+    });
+    return $request;
+}
+
+function vfRunOrphanAttemptRecoveryFlow(array $fixture, callable $assert, array &$notes): void
+{
+    $purchaseServices = app()->make(PackagePurchaseServices::class);
+
+    $unpaid = vfCreateCrashAttempt($fixture, 'real_flow_orphan_unpaid', false);
+    $dry = $purchaseServices->scanUnboundPackageIntentOrders(100, false, false, 0);
+    $assert(!empty($dry['dry_run']) && (int)$dry['payable_orphans'] >= 1, 'orphan_unpaid_dry_run_detects_payable_order');
+    $unpaidOrderBeforeClose = Db::name('store_order')->where('id', (int)$unpaid['order']['id'])->find();
+    $assert((int)($unpaidOrderBeforeClose['is_cancel'] ?? 0) === 0, 'orphan_unpaid_dry_run_does_not_close_order');
+    $close = $purchaseServices->scanUnboundPackageIntentOrders(100, true, false, 88);
+    $unpaidOrder = Db::name('store_order')->where('id', (int)$unpaid['order']['id'])->find();
+    $unpaidIntent = Db::name('yfth_package_purchase_intent')->where('id', (int)$unpaid['intent']['id'])->find();
+    $unpaidAttempt = Db::name('yfth_package_order_attempt')->where('id', (int)$unpaid['attempt_id'])->find();
+    $assert((int)$close['closed'] >= 1 && (int)($unpaidOrder['is_cancel'] ?? 0) === 1, 'orphan_unpaid_scan_closes_native_crmeb_order');
+    $assert((string)$unpaidIntent['status'] === 'failed' && (string)$unpaidIntent['orphan_close_status'] === 'cancelled', 'orphan_unpaid_intent_is_retry_safe_after_close');
+    $assert((string)$unpaidAttempt['status'] === 'orphan_closed', 'orphan_unpaid_attempt_marked_closed');
+    $retryPayload = $purchaseServices->createOrderFromIntent((int)$fixture['uid'], (string)$unpaid['intent']['intent_no'], vfIntentOrderData($fixture, 'real_flow_orphan_unpaid_retry'));
+    $assert((int)$retryPayload['order']['store_order_id'] !== (int)$unpaid['order']['id'], 'orphan_unpaid_retry_creates_new_order_only_after_close');
+    $assert(vfCount('yfth_package_purchase', ['intent_id' => (int)$unpaid['intent']['id']]) === 1, 'orphan_unpaid_retry_creates_single_purchase');
+
+    $paid = vfCreateCrashAttempt($fixture, 'real_flow_orphan_paid', true);
+    app()->make(PackagePaySuccessListener::class)->handle([$paid['order']]);
+    $paidIntent = Db::name('yfth_package_purchase_intent')->where('id', (int)$paid['intent']['id'])->find();
+    $paidAttempt = Db::name('yfth_package_order_attempt')->where('id', (int)$paid['attempt_id'])->find();
+    $assert((string)$paidIntent['status'] === 'orphan_paid_pending', 'paid_orphan_listener_marks_intent_pending_recovery');
+    $assert((string)$paidAttempt['status'] === 'orphan_paid_pending', 'paid_orphan_listener_marks_attempt_pending_recovery');
+    $assert(vfCount('yfth_audit_event', ['object_type' => 'package_order_attempt', 'object_id' => (string)$paid['attempt_id'], 'action' => 'paid_order_missing_purchase']) >= 1, 'paid_orphan_listener_records_recovery_audit');
+    $recover = $purchaseServices->scanUnboundPackageIntentOrders(100, false, true, 89);
+    $recoveredPurchase = Db::name('yfth_package_purchase')->where('order_id', (int)$paid['order']['id'])->find();
+    $assert((int)$recover['recovered'] >= 1 && $recoveredPurchase, 'paid_orphan_scan_recovers_purchase');
+    $recoveredPurchaseId = (int)$recoveredPurchase['id'];
+    $recoveredInstanceId = (int)($recoveredPurchase['instance_id'] ?? 0);
+    $assert($recoveredInstanceId > 0, 'paid_orphan_recovery_activates_package');
+    vfAssertActivationShape($recoveredPurchaseId, $recoveredInstanceId, $assert, 'paid_orphan_recovery');
+    $repeatRecover = $purchaseServices->scanUnboundPackageIntentOrders(100, false, true, 90);
+    $assert(vfCount('yfth_package_purchase', ['order_id' => (int)$paid['order']['id']]) === 1, 'paid_orphan_recovery_repeat_has_single_purchase');
+    $assert(vfCount('yfth_package_instance', ['purchase_id' => $recoveredPurchaseId]) === 1, 'paid_orphan_recovery_repeat_has_single_instance');
+    $notes[] = 'paid_orphan_repeat_scan_recovered:' . (int)($repeatRecover['recovered'] ?? 0);
+
+    $noOrderIntent = vfCreateTimedOutIntentOnly($fixture, 'real_flow_no_order_timeout');
+    $beforeOrderId = (int)Db::name('store_order')->max('id');
+    $noOrderPayload = $purchaseServices->createOrderFromIntent((int)$fixture['uid'], (string)$noOrderIntent['intent_no'], vfIntentOrderData($fixture, 'real_flow_no_order_retry'));
+    $noOrderIntentRow = Db::name('yfth_package_purchase_intent')->where('id', (int)$noOrderIntent['id'])->find();
+    $assert((int)$noOrderPayload['order']['store_order_id'] > $beforeOrderId, 'creating_timeout_no_order_allows_new_order');
+    $assert((string)$noOrderIntentRow['status'] === 'bound' && vfCount('yfth_package_purchase', ['intent_id' => (int)$noOrderIntent['id']]) === 1, 'creating_timeout_no_order_binds_single_purchase');
+
+    $delayed = vfCreateTimedOutIntentOnly($fixture, 'real_flow_delayed_old_request');
+    $newPayload = $purchaseServices->createOrderFromIntent((int)$fixture['uid'], (string)$delayed['intent_no'], vfIntentOrderData($fixture, 'real_flow_delayed_new_request'));
+    $boundPurchaseId = (int)$newPayload['purchase']['id'];
+    $oldOrder = vfCreateStandaloneCrmebOrder($fixture, 'real_flow_delayed_old_order');
+    $oldAttemptId = vfInsertPackageAttempt($delayed, $fixture, $oldOrder, 'old-delayed-' . $delayed['id'], 'order_created');
+    Db::name('yfth_package_order_attempt')->where('id', $oldAttemptId)->update(['timeout_at' => time() - 600]);
+    $purchaseServices->scanUnboundPackageIntentOrders(100, true, false, 91);
+    $delayedIntent = Db::name('yfth_package_purchase_intent')->where('id', (int)$delayed['id'])->find();
+    $oldOrderRow = Db::name('store_order')->where('id', (int)$oldOrder['id'])->find();
+    $oldAttempt = Db::name('yfth_package_order_attempt')->where('id', $oldAttemptId)->find();
+    $assert((int)$oldOrderRow['is_cancel'] === 1, 'delayed_old_request_orphan_order_closed');
+    $assert((string)$delayedIntent['status'] === 'bound' && (int)$delayedIntent['purchase_id'] === $boundPurchaseId, 'delayed_old_request_does_not_overwrite_new_binding');
+    $assert((string)$oldAttempt['status'] === 'orphan_closed', 'delayed_old_request_attempt_marked_closed');
+}
+
+function vfCreateTimedOutIntentOnly(array $fixture, string $source): array
+{
+    $intent = app()->make(PackagePurchaseServices::class)->createIntent((int)$fixture['uid'], [
+        'template_id' => (int)$fixture['template_id'],
+        'store_id' => (int)$fixture['store_id'],
+        'source' => $source,
+    ]);
+    Db::name('yfth_package_purchase_intent')->where('id', (int)$intent['id'])->update([
+        'status' => 'creating',
+        'creating_started_at' => time() - 600,
+        'creating_request_id' => 'crash-before-order-' . $intent['id'],
+        'retry_count' => 1,
+        'update_time' => time() - 600,
+    ]);
+    return Db::name('yfth_package_purchase_intent')->where('id', (int)$intent['id'])->find();
+}
+
+function vfCreateCrashAttempt(array $fixture, string $source, bool $paid): array
+{
+    $intent = app()->make(PackagePurchaseServices::class)->createIntent((int)$fixture['uid'], [
+        'template_id' => (int)$fixture['template_id'],
+        'store_id' => (int)$fixture['store_id'],
+        'source' => $source,
+    ]);
+    $requestId = 'crash-after-order-' . $intent['id'] . '-' . ($paid ? 'paid' : 'unpaid');
+    $order = vfCreateStandaloneCrmebOrder($fixture, $source);
+    if ($paid) {
+        $order = vfMarkPaid((int)$order['id']);
+    }
+    Db::name('yfth_package_purchase_intent')->where('id', (int)$intent['id'])->update([
+        'status' => 'creating',
+        'creating_started_at' => time() - 600,
+        'creating_request_id' => $requestId,
+        'retry_count' => 1,
+        'update_time' => time() - 600,
+    ]);
+    $intentRow = Db::name('yfth_package_purchase_intent')->where('id', (int)$intent['id'])->find();
+    $attemptId = vfInsertPackageAttempt($intentRow, $fixture, $order, $requestId, 'order_created');
+    return [
+        'intent' => $intentRow,
+        'order' => Db::name('store_order')->where('id', (int)$order['id'])->find(),
+        'attempt_id' => $attemptId,
+    ];
+}
+
+function vfInsertPackageAttempt(array $intent, array $fixture, array $order, string $requestId, string $status): int
+{
+    $now = time();
+    $orderKey = (string)($order['unique'] ?? '');
+    if ($orderKey === '') {
+        $orderKey = (string)Db::name('store_order')->where('id', (int)$order['id'])->value('unique');
+    }
+    return (int)Db::name('yfth_package_order_attempt')->insertGetId([
+        'attempt_no' => 'YFATT' . strtoupper(substr(hash('sha256', $requestId . $orderKey . random_int(1, 999999)), 0, 24)),
+        'intent_id' => (int)$intent['id'],
+        'intent_no' => (string)$intent['intent_no'],
+        'uid' => (int)$fixture['uid'],
+        'store_id' => (int)$fixture['store_id'],
+        'request_id' => $requestId,
+        'product_id' => (int)$fixture['product_id'],
+        'product_attr_unique' => (string)$fixture['product_attr_unique'],
+        'order_key' => $orderKey,
+        'source_token_hash' => hash('sha256', $orderKey),
+        'status' => $status,
+        'recovery_status' => '',
+        'order_id' => (int)$order['id'],
+        'order_sn' => (string)$order['order_id'],
+        'order_paid' => (int)($order['paid'] ?? 0),
+        'timeout_at' => $now - 300,
+        'recoverable_at' => $now - 300,
+        'last_error_code' => '',
+        'last_error_message' => '',
+        'recovery_error' => '',
+        'add_time' => $now - 600,
+        'update_time' => $now - 600,
+    ]);
+}
+
+function vfIntentOrderData(array $fixture, string $source): array
+{
+    return [
+        'pay_type' => 'weixin',
+        'shipping_type' => 2,
+        'real_name' => 'YFTH Real Flow',
+        'phone' => (string)$fixture['phone'],
+        'source' => $source,
+        'request_id' => $source . '-' . strtoupper(substr(bin2hex(random_bytes(3)), 0, 6)),
+    ];
 }
 
 function vfRunManualRetryOverrideFlow(array $fixture, callable $assert, array &$notes): void

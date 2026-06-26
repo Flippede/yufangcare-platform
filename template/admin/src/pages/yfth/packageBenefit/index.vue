@@ -111,6 +111,15 @@
             </el-select>
             <el-button type="primary" icon="el-icon-search" @click="loadPurchases">查询</el-button>
             <el-button icon="el-icon-refresh" @click="recoverActivation">扫描补偿</el-button>
+            <el-button icon="el-icon-search" :loading="orphanScanning" @click="scanOrphans(false, false)"
+              >Orphan dry-run</el-button
+            >
+            <el-button icon="el-icon-close" :loading="orphanScanning" @click="confirmScanOrphans(true, false)"
+              >Close unpaid</el-button
+            >
+            <el-button icon="el-icon-refresh-right" :loading="orphanScanning" @click="confirmScanOrphans(false, true)"
+              >Recover paid</el-button
+            >
           </div>
           <el-table v-loading="loading.purchase" :data="lists.purchase" border>
             <el-table-column prop="id" label="ID" width="80" />
@@ -297,6 +306,7 @@ import {
   yfthPackageInstanceDetail,
   yfthPackageInstanceLifecycle,
   yfthPackageInstanceList,
+  yfthPackageOrphanScan,
   yfthPackagePurchaseList,
   yfthPackageRuleCopy,
   yfthPackageRuleSave,
@@ -347,6 +357,7 @@ export default {
       stateTarget: null,
       instanceDetail: {},
       retryingPurchaseId: 0,
+      orphanScanning: false,
     };
   },
   mounted() {
@@ -503,6 +514,33 @@ export default {
         this.$message.success(`Activated ${data.activated || 0}, failed ${data.failed || 0}`);
         this.loadPurchases();
       });
+    },
+    confirmScanOrphans(closeUnpaid, recoverPaid) {
+      this.$confirm('Confirm controlled orphan order action?', 'Confirm', {
+        type: 'warning',
+        confirmButtonText: 'Confirm',
+        cancelButtonText: 'Cancel',
+      }).then(() => this.scanOrphans(closeUnpaid, recoverPaid));
+    },
+    scanOrphans(closeUnpaid, recoverPaid) {
+      this.orphanScanning = true;
+      yfthPackageOrphanScan({
+        limit: 50,
+        close_unpaid: closeUnpaid ? 1 : 0,
+        recover_paid: recoverPaid ? 1 : 0,
+      })
+        .then((res) => {
+          const data = res.data || {};
+          this.$message.success(
+            `Scanned ${data.scanned || 0}, unpaid ${data.payable_orphans || 0}, paid ${
+              data.paid_orphans || 0
+            }, closed ${data.closed || 0}, recovered ${data.recovered || 0}`,
+          );
+          this.loadPurchases();
+        })
+        .finally(() => {
+          this.orphanScanning = false;
+        });
     },
     retryActivation(row) {
       this.$prompt('请输入人工重试原因', '重试激活', {

@@ -208,3 +208,16 @@
 - 后台套餐购买列表新增自动重试次数/上限、是否可人工重试、最近人工重试操作人与结果展示；人工重试入口增加原因输入和二次确认。
 - 真实 MySQL 8.0.46 隔离验证已覆盖：新 migration run/rollback/run、同一 intent 10 进程并发只生成 1 个 CRMEB 订单、孤儿可支付订单为 0、自动重试上限跳过、人工重试覆盖上限并激活、人工并发只生成 1 个实例。
 - 本轮仍不代表服务预约、签到、动态权益核销码、配送履约、奖励台账、库存补货、产品额度、加盟合同或真实支付分账执行已经完成。
+
+## 16. 2026-06-26 后台权限强制校验与未记录孤儿订单恢复整改
+
+- 当前分支：`feature/yfth-package-benefits-v1`；本轮开始 commit：`0b309ddab919850836f22e0ff2671f86b4a4503d`。
+- 后台权限 P1 已关闭：`SystemRoleServices::verifyAuth()` 对已登记 API 不再默认放行，未授权普通角色抛出 `AuthException(100101)`；未登记 API、CRUD 和超管保持兼容放行。
+- 敏感入口增加纵深校验：人工激活重试、激活恢复、orphan 扫描均在 Controller 侧通过当前管理员身份再次调用 `assertApiAuthForAdmin()`，空后台身份不会被误判为超管。
+- 新增 `yfth_package_order_attempt`，在 CRMEB 建单前用服务端生成的 `orderKey` 持久化 attempt，并通过 `store_order.unique` 反查 intent/attempt；不使用订单备注、展示备注、前端标记或 UID/SKU/时间猜测来源。
+- `creating` 超时恢复覆盖无订单、未支付 orphan、已支付 orphan、已关闭订单和旧请求延迟返回。未支付 orphan 只在 CRMEB 原生取消成功后允许重试；已支付 orphan 进入 `orphan_paid_pending` 并走受控恢复，不创建第二张订单。
+- `scan-orphan-orders` 默认 dry-run；显式 `--close-unpaid` 才关闭未支付 orphan，显式 `--recover-paid` 才恢复已支付 orphan。后台新增 orphan 扫描入口，仍受独立权限控制。
+- 支付 listener 发现套餐来源订单缺少 purchase 时写 `Log::error` 和 YFTH 审计/恢复记录，日志只包含脱敏订单号、order id、intent/attempt、request id 和安全错误码，不影响 CRMEB 支付成功主流程。
+- 真实 MySQL 8.0.46 隔离验证通过：临时端口 `127.0.0.1:33326`，临时库 `yufangcare_validation_20260626_orphanfix`；migration 完成 run/rollback/run，回滚后 YFTH 表/菜单/迁移记录均为 0，第二次 run 后 179 张表、24 张 `eb_yfth_*` 表、8 条 YFTH migration、38 个 `yfth-%` 权限点。
+- `crmeb/tests/yfth_package_benefit_real_flow_check.php` 已覆盖真实权限中间件、未登录/超管/授权/未授权角色、真实 CRMEB 下单、未支付 orphan 关闭、已支付 orphan 恢复、无订单超时重试、旧请求延迟保护、10 进程 intent 并发和并发人工激活。
+- 本轮验证后已删除临时 MySQL 库、用户、data dir 和验证副本；未提交临时 `.env`、测试密码或验证数据。

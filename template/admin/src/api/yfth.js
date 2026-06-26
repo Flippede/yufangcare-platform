@@ -269,3 +269,11 @@ export function yfthPackageActivationRetry(id, data) {
     data,
   });
 }
+
+export function yfthPackageOrphanScan(data) {
+  return request({
+    url: 'yfth/package_benefit/orphan/scan',
+    method: 'post',
+    data,
+  });
+}

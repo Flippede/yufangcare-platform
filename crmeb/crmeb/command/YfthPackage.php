@@ -17,7 +17,9 @@ class YfthPackage extends Command
         $this->setName('yfth:package')
             ->addArgument('action', Argument::REQUIRED, 'recover-activation|scan-orphan-orders')
             ->addOption('limit', null, Option::VALUE_OPTIONAL, 'batch limit', 50)
-            ->addOption('close', null, Option::VALUE_NONE, 'close payable orphan package intent orders')
+            ->addOption('close', null, Option::VALUE_NONE, 'legacy alias of --close-unpaid')
+            ->addOption('close-unpaid', null, Option::VALUE_NONE, 'close unpaid orphan package orders')
+            ->addOption('recover-paid', null, Option::VALUE_NONE, 'recover paid orphan package orders')
             ->setDescription('YFTH package maintenance commands');
     }
 
@@ -35,7 +37,9 @@ class YfthPackage extends Command
         if ($action === 'scan-orphan-orders') {
             /** @var PackagePurchaseServices $services */
             $services = app()->make(PackagePurchaseServices::class);
-            $result = $services->scanUnboundPackageIntentOrders($limit, (bool)$input->getOption('close'), 0);
+            $closeUnpaid = (bool)$input->getOption('close') || (bool)$input->getOption('close-unpaid');
+            $recoverPaid = (bool)$input->getOption('recover-paid');
+            $result = $services->scanUnboundPackageIntentOrders($limit, $closeUnpaid, $recoverPaid, 0);
             $output->writeln(json_encode($result, JSON_UNESCAPED_UNICODE));
             return;
         }

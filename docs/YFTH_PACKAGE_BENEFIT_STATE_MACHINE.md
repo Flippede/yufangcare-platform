@@ -130,3 +130,42 @@
 - 人工重试使用独立的 `manual_activate` 幂等动作和 `package_activate_manual:{purchase_id}` 键，不复用已经失败到上限的自动激活记录。
 - 人工重试前必须确认订单已支付、未取消、未删除、未退款，且购买快照和权益快照完整。
 - 并发人工重试只有一个请求能进入 `processing` 并激活；重复请求返回已有实例或处理中结果，不重复生成实例、计划、周期或权益项。
+
+## 8. 2026-06-26 attempt 与 orphan 状态
+
+### 8.1 intent 补充状态
+
+| 状态 | 含义 |
+| --- | --- |
+| `orphan_paid_pending` | CRMEB 套餐来源订单已支付，但尚无 YFTH purchase。禁止重新建单，等待受控恢复。 |
+| `failed` + `orphan_close_status=cancelled` | 未支付 orphan 已通过 CRMEB 原生取消能力关闭，允许重新抢占建单。 |
+
+`creating` 超时不允许直接重置后建单，必须先定位 attempt/order：
+
+- 无订单：记录 `order_creation_timeout_no_order`，intent 转 `failed`。
+- 未支付订单：订单取消成功后 intent 转 `failed`，旧订单不得继续支付。
+- 已支付订单：intent 转 `orphan_paid_pending`，不得取消或生成第二张订单。
+- 已关闭订单：记录关闭状态，允许安全重试。
+- 旧请求延迟返回：如果 intent 已是 `bound`，旧 attempt 不得覆盖 `purchase_id`、`bound_order_id` 或 `bound_order_sn`。
+
+### 8.2 order attempt 状态
+
+| 状态 | 含义 |
+| --- | --- |
+| `creating` | 已持久化 attempt，正在调用 CRMEB 建单。 |
+| `order_created` | CRMEB 订单已创建，尚未绑定 YFTH purchase。 |
+| `bound` | attempt 对应订单已绑定 purchase。 |
+| `orphan_unpaid` | 未支付孤儿订单待关闭或关闭失败待人工处理。 |
+| `orphan_paid_pending` | 已支付孤儿订单待恢复。 |
+| `orphan_closed` | 未支付孤儿订单已关闭。 |
+| `recovered` | 已支付 orphan 已恢复 purchase、快照、实例和权益计划。 |
+| `recovery_failed` | 恢复过程失败，保留错误等待人工处理。 |
+| `failed` | 建单前后失败且没有可绑定订单。 |
+
+`recovery_status` 用于补充处理结果：`pending`、`closed`、`recovered`、`failed`、`pending_manual`。重复扫描必须幂等：已 `bound/recovered/orphan_closed` 的 attempt 不再重复动作。
+
+### 8.3 扫描动作
+
+- dry-run：只统计 `creating_timeout`、`payable_orphans`、`paid_orphans`、`closed`、`recovered`、`pending_manual`，不改写订单。
+- `--close-unpaid`：只关闭未支付且未取消的套餐来源 orphan；已支付订单永不自动关闭。
+- `--recover-paid`：只恢复已支付且来源、UID、门店、SKU、价格、协议和快照一致的 orphan；无法确认一致或 intent 已绑定时转人工处理。
