@@ -1,0 +1,14 @@
+<?php
+
+namespace app\dao\yfth;
+
+use app\dao\BaseDao;
+use app\model\yfth\YfthStoreServiceScheduleRule;
+
+class YfthStoreServiceScheduleRuleDao extends BaseDao
+{
+    protected function setModel(): string
+    {
+        return YfthStoreServiceScheduleRule::class;
+    }
+}

@@ -277,3 +277,107 @@ export function yfthPackageOrphanScan(data) {
     data,
   });
 }
+
+export function yfthServiceProjectList(params) {
+  return request({
+    url: 'yfth/service_appointment/project',
+    method: 'get',
+    params,
+  });
+}
+
+export function yfthServiceProjectSave(data) {
+  return request({
+    url: 'yfth/service_appointment/project/save',
+    method: 'post',
+    data,
+  });
+}
+
+export function yfthServiceProjectDisable(data) {
+  return request({
+    url: 'yfth/service_appointment/project/disable',
+    method: 'post',
+    data,
+  });
+}
+
+export function yfthStoreServiceList(params) {
+  return request({
+    url: 'yfth/service_appointment/store_service',
+    method: 'get',
+    params,
+  });
+}
+
+export function yfthStoreServiceSave(data) {
+  return request({
+    url: 'yfth/service_appointment/store_service/save',
+    method: 'post',
+    data,
+  });
+}
+
+export function yfthStoreServiceDisable(data) {
+  return request({
+    url: 'yfth/service_appointment/store_service/disable',
+    method: 'post',
+    data,
+  });
+}
+
+export function yfthServiceScheduleRuleList(params) {
+  return request({
+    url: 'yfth/service_appointment/schedule_rule',
+    method: 'get',
+    params,
+  });
+}
+
+export function yfthServiceScheduleRuleSave(data) {
+  return request({
+    url: 'yfth/service_appointment/schedule_rule/save',
+    method: 'post',
+    data,
+  });
+}
+
+export function yfthServiceScheduleRuleDisable(data) {
+  return request({
+    url: 'yfth/service_appointment/schedule_rule/disable',
+    method: 'post',
+    data,
+  });
+}
+
+export function yfthServiceSpecialDayList(params) {
+  return request({
+    url: 'yfth/service_appointment/special_day',
+    method: 'get',
+    params,
+  });
+}
+
+export function yfthServiceSpecialDaySave(data) {
+  return request({
+    url: 'yfth/service_appointment/special_day/save',
+    method: 'post',
+    data,
+  });
+}
+
+export function yfthServiceSpecialDayDisable(data) {
+  return request({
+    url: 'yfth/service_appointment/special_day/disable',
+    method: 'post',
+    data,
+  });
+}
+
+export function yfthServiceSlotPreview(params) {
+  return request({
+    url: 'yfth/service_appointment/slot_preview',
+    method: 'get',
+    params,
+  });
+}

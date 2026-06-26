@@ -43,6 +43,22 @@ Route::group('yfth', function () {
         Route::post('purchase/:id/activation_retry', 'v1.yfth.PackageBenefit/retryActivation')->option(['real_name' => 'YFTH package activation retry']);
         Route::post('orphan/scan', 'v1.yfth.PackageBenefit/scanOrphanOrders')->option(['real_name' => 'YFTH package orphan order scan and recovery']);
     })->option(['parent' => 'yfth', 'cate_name' => 'YFTH package benefits']);
+
+    Route::group('service_appointment', function () {
+        Route::get('project', 'v1.yfth.ServiceAppointment/projectList')->option(['real_name' => 'YFTH service project list']);
+        Route::post('project/save', 'v1.yfth.ServiceAppointment/projectSave')->option(['real_name' => 'YFTH service project save']);
+        Route::post('project/disable', 'v1.yfth.ServiceAppointment/projectDisable')->option(['real_name' => 'YFTH service project disable']);
+        Route::get('store_service', 'v1.yfth.ServiceAppointment/storeServiceList')->option(['real_name' => 'YFTH store service list']);
+        Route::post('store_service/save', 'v1.yfth.ServiceAppointment/storeServiceSave')->option(['real_name' => 'YFTH store service save']);
+        Route::post('store_service/disable', 'v1.yfth.ServiceAppointment/storeServiceDisable')->option(['real_name' => 'YFTH store service disable']);
+        Route::get('schedule_rule', 'v1.yfth.ServiceAppointment/scheduleRuleList')->option(['real_name' => 'YFTH service schedule rule list']);
+        Route::post('schedule_rule/save', 'v1.yfth.ServiceAppointment/scheduleRuleSave')->option(['real_name' => 'YFTH service schedule rule save']);
+        Route::post('schedule_rule/disable', 'v1.yfth.ServiceAppointment/scheduleRuleDisable')->option(['real_name' => 'YFTH service schedule rule disable']);
+        Route::get('special_day', 'v1.yfth.ServiceAppointment/specialDayList')->option(['real_name' => 'YFTH service special day list']);
+        Route::post('special_day/save', 'v1.yfth.ServiceAppointment/specialDaySave')->option(['real_name' => 'YFTH service special day save']);
+        Route::post('special_day/disable', 'v1.yfth.ServiceAppointment/specialDayDisable')->option(['real_name' => 'YFTH service special day disable']);
+        Route::get('slot_preview', 'v1.yfth.ServiceAppointment/slotPreview')->option(['real_name' => 'YFTH service slot preview']);
+    })->option(['parent' => 'yfth', 'cate_name' => 'YFTH service appointment']);
 })->middleware([
     \app\http\middleware\AllowOriginMiddleware::class,
     \app\adminapi\middleware\AdminAuthTokenMiddleware::class,

@@ -59,3 +59,23 @@ export function getYfthBenefitHistory(data) {
 export function getYfthAgreementRecord(purchaseNo) {
 	return request.get('yfth/package/agreement/' + purchaseNo);
 }
+
+export function getYfthServiceProjects(data) {
+	return request.get('yfth/service/project', data || {}, { noAuth: true });
+}
+
+export function getYfthServiceProjectDetail(id) {
+	return request.get('yfth/service/project/' + id, {}, { noAuth: true });
+}
+
+export function getYfthServiceStores(id) {
+	return request.get('yfth/service/project/' + id + '/stores', {}, { noAuth: true });
+}
+
+export function getYfthServiceAvailableDates(id, data) {
+	return request.get('yfth/service/project/' + id + '/dates', data || {}, { noAuth: true });
+}
+
+export function getYfthServiceDaySlots(id, data) {
+	return request.get('yfth/service/project/' + id + '/slots', data || {}, { noAuth: true });
+}

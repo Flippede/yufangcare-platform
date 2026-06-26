@@ -221,3 +221,19 @@
 - 真实 MySQL 8.0.46 隔离验证通过：临时端口 `127.0.0.1:33326`，临时库 `yufangcare_validation_20260626_orphanfix`；migration 完成 run/rollback/run，回滚后 YFTH 表/菜单/迁移记录均为 0，第二次 run 后 179 张表、24 张 `eb_yfth_*` 表、8 条 YFTH migration、38 个 `yfth-%` 权限点。
 - `crmeb/tests/yfth_package_benefit_real_flow_check.php` 已覆盖真实权限中间件、未登录/超管/授权/未授权角色、真实 CRMEB 下单、未支付 orphan 关闭、已支付 orphan 恢复、无订单超时重试、旧请求延迟保护、10 进程 intent 并发和并发人工激活。
 - 本轮验证后已删除临时 MySQL 库、用户、data dir 和验证副本；未提交临时 `.env`、测试密码或验证数据。
+## 17. 2026-06-26 Service Appointment Domain V1 / 服务项目与门店预约时段基础域 V1
+
+- 当前开发分支：`feature/yfth-service-appointment-writeoff-v1`；基于 `main` 的 `7413627250bd057474fd2a4ea04068fae5f2ec9c` 开始。
+- 本轮新增服务项目、门店服务授权、周排班规则、特殊日期规则和只读可预约时段查询；没有实现预约提交、确认/取消/改期、签到、动态码、扫码核销、独立付费服务订单、消息通知或推荐奖励。
+- 新增迁移：`20260626130000_create_yfth_service_appointment_tables.php` 和 `20260626130010_seed_yfth_service_appointment_menus.php`。
+- 新增表：`yfth_service_project`、`yfth_store_service`、`yfth_store_service_schedule_rule`、`yfth_store_service_special_day`。服务项目保持独立业务对象，不复用普通商品；门店服务授权通过 `store_id + service_project_id` 的 active key 防重复；周规则和特殊日期均保留历史停用记录。
+- 时段方案：V1 采用“周规则实时计算 + 特殊日期覆盖”，不预生成 slot 表，也不写虚假的已预约人数。接口返回 `occupied_count = 0`、`locked_count = 0`、`remaining_capacity = capacity`，供下一轮真实预约占用接入。
+- 权限边界：后台 API 继续走 CRMEB 菜单/API 权限；服务层再按服务端 `adminInfo` 的门店范围校验。总部可维护服务项目和门店授权；店长可在本店范围维护排班和特殊日期；店员不能配置服务项目、门店服务、排班或容量。
+- 门店可用性：只读查询会校验门店存在且启用、门店拥有 `reservation_service` 能力、服务项目 active、门店服务授权 active 且 appointment enabled。当前未建设完整资质中心，继续复用既有 `StoreCapabilityServices` 作为扩展点，不把资质硬编码为永远通过。
+- 后台入口：`template/admin/src/pages/yfth/serviceAppointment/index.vue`，支持服务项目、门店服务授权、排班规则、特殊日期和时段预览。
+- 小程序端：仅新增 `template/uni-app/api/yfth.js` 的只读 API 封装，未创建静态页面，避免在预约提交与权益锁定前制作假交互。
+- 新增只读公开接口：`yfth/service/project`、`yfth/service/project/:id`、`yfth/service/project/:id/stores`、`yfth/service/project/:id/dates`、`yfth/service/project/:id/slots`。
+- 审计：服务项目、门店授权、排班规则和特殊日期的新增、更新、停用均写入 `yfth_audit_event`，业务域为 `yfth_service_appointment`。
+- 下一轮“预约创建、取消、改期和权益锁定”应复用：`ServiceAppointmentQueryServices::daySlots()` / `slotsForBinding()`、`StoreServiceAppointmentServices::activeBinding()`、`StoreServiceScheduleServices` 的冲突规则，以及 `yfth_store_service` 的容量与提前预约配置。
+- 不得重复开发的稳定能力：5980 套餐购买、CRMEB 订单/支付/退款、成交快照、权益计划、激活补偿、订单异常恢复、后台权限强校验、门店能力/资质扩展点和 YFTH 审计能力。
+- 已知限制：V1 不支持跨日服务时段；特殊关闭按整日关闭处理；没有真实预约占用表，因此无并发扣减；服务项目的权益模板范围先以服务类 benefit template id 列表表达，后续如范围复杂化可拆独立关系表。

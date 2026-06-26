@@ -34,5 +34,14 @@ export default {
       },
       component: () => import('@/pages/yfth/packageBenefit/index'),
     },
+    {
+      path: 'service-appointment',
+      name: `${pre}service_appointment`,
+      meta: {
+        auth: ['yfth-service-appointment-index'],
+        title: 'Service Appointment',
+      },
+      component: () => import('@/pages/yfth/serviceAppointment/index'),
+    },
   ],
 };
