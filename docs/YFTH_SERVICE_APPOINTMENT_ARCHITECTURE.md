@@ -35,6 +35,18 @@ Not implemented in this round:
 - `extra`: an extra non-overlapping service window.
 - `capacity_override`: capacity overlay for calculated slots.
 
+There is no real appointment occupancy table in V1. Appointment rows, service benefit locks, check-in records, dynamic codes, and writeoff records must be introduced in later rounds instead of being stored in order remarks, stock, balance, points, commission, or generic JSON fields.
+
+## Service Classes
+
+The admin and public APIs use the following service layer classes:
+
+- `ServiceProjectServices` for headquarters service project definition.
+- `StoreServiceAppointmentServices` for store service authorization and active binding lookup.
+- `StoreServiceScheduleServices` for weekly schedule rules, special-day rules, conflict checks, and admin slot preview.
+- `ServiceAppointmentQueryServices` for public read-only service, store, date, and slot queries.
+- `ServiceAppointmentBaseServices` for shared date, timezone, permission, and audit helpers.
+
 ## Slot Strategy
 
 V1 uses realtime calculation from weekly rules plus special-day overlays. No slot instance table is generated yet because there is no real appointment occupancy in this round.
@@ -50,6 +62,8 @@ Public slot responses include:
 
 `occupied_count` and `locked_count` intentionally remain `0` until the next appointment-creation round introduces real records and transactional occupancy.
 
+V1 does not support cross-day service windows. The service layer rejects ranges where the end minute is not within the same service date boundary.
+
 ## Permission Boundary
 
 CRMEB admin menu/API permission remains the first gate. Service-layer checks add store-scope constraints from server-side `adminInfo`:
@@ -59,6 +73,17 @@ CRMEB admin menu/API permission remains the first gate. Service-layer checks add
 - Store staff cannot configure services, schedules, or capacity.
 
 Public APIs do not trust client `store_id` alone. They verify active store state, active service project, active store service authorization, appointment enabled flag, and the store `reservation_service` capability.
+
+## Audit
+
+Service appointment operations reuse the unified YFTH foundation audit path:
+
+- Audit service: `AuditEventServices::recordSafely()`.
+- Audit table: `yfth_audit_event`.
+- Business domain: `yfth_service_appointment`.
+- Shared helper: `ServiceAppointmentBaseServices::recordServiceAudit()`.
+
+The audited object types are `service_project`, `store_service`, `schedule_rule`, and `special_day`. Create, update, and disable operations record operator uid, role code, store id, object type, object id, action, before state, after state, reason, request id, ip, and timestamps through the existing audit table columns. The module does not write `yfth_sensitive_operation_log`, and there is no split where some service appointment changes go to a second audit table.
 
 ## Reuse For Next Round
 
