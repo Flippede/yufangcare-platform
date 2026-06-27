@@ -14,6 +14,7 @@ namespace app\adminapi\middleware;
 
 use app\Request;
 use app\services\system\admin\AdminAuthServices;
+use app\services\yfth\AdminStoreContextServices;
 use crmeb\interfaces\MiddlewareInterface;
 use think\facade\Config;
 use crmeb\services\CacheService;
@@ -45,6 +46,9 @@ class AdminAuthTokenMiddleware implements MiddlewareInterface
         /** @var AdminAuthServices $service */
         $service = app()->make(AdminAuthServices::class);
         $adminInfo = $service->parseToken($token);
+        /** @var AdminStoreContextServices $yfthContext */
+        $yfthContext = app()->make(AdminStoreContextServices::class);
+        $adminInfo = $yfthContext->enrichAdminInfo($adminInfo);
         $request->macro('isAdminLogin', function () use (&$adminInfo) {
             return !is_null($adminInfo);
         });

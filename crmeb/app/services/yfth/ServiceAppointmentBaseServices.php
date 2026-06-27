@@ -92,15 +92,18 @@ abstract class ServiceAppointmentBaseServices extends YfthFoundationBaseServices
 
     protected function serviceDateToInt($value, string $timezone = self::DEFAULT_TIMEZONE): int
     {
-        if (is_numeric($value) && preg_match('/^\d{8}$/', (string)$value)) {
-            return (int)$value;
-        }
-        $date = trim((string)$value);
-        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
+        $raw = trim((string)$value);
+        if (preg_match('/^\d{8}$/', $raw)) {
+            $date = substr($raw, 0, 4) . '-' . substr($raw, 4, 2) . '-' . substr($raw, 6, 2);
+        } elseif (preg_match('/^\d{4}-\d{2}-\d{2}$/', $raw)) {
+            $date = $raw;
+        } else {
             throw new ApiException('invalid_service_date');
         }
+
         $dt = DateTimeImmutable::createFromFormat('!Y-m-d', $date, new DateTimeZone($this->normalizeTimezoneForRead($timezone)));
-        if (!$dt || $dt->format('Y-m-d') !== $date) {
+        $errors = DateTimeImmutable::getLastErrors();
+        if (!$dt || ($errors && ($errors['warning_count'] || $errors['error_count'])) || $dt->format('Y-m-d') !== $date) {
             throw new ApiException('invalid_service_date');
         }
         return (int)$dt->format('Ymd');
@@ -166,58 +169,18 @@ abstract class ServiceAppointmentBaseServices extends YfthFoundationBaseServices
 
     protected function assertHeadquarterScope(array $adminInfo): void
     {
-        if ((int)($adminInfo['level'] ?? -1) === 0) {
-            return;
-        }
-        if ($this->adminStoreIds($adminInfo) || in_array($this->adminStoreRoleCode($adminInfo), YfthConstants::storeRoles(), true)) {
-            throw new AdminException('headquarter_permission_required');
-        }
+        app()->make(AdminStoreContextServices::class)->assertHeadquarterScope($adminInfo);
     }
 
     protected function assertStoreConfigScope(array $adminInfo, int $storeId): void
     {
-        if ($storeId <= 0) {
-            throw new AdminException('store_id_required');
-        }
-        if ($this->adminStoreRoleCode($adminInfo) === 'store_staff') {
-            throw new AdminException('store_staff_cannot_configure_service_appointment');
-        }
-        if ((int)($adminInfo['level'] ?? -1) === 0) {
-            return;
-        }
-        $storeIds = $this->adminStoreIds($adminInfo);
-        if ($storeIds && !in_array($storeId, $storeIds, true)) {
-            throw new AdminException('store_scope_forbidden');
-        }
+        app()->make(AdminStoreContextServices::class)->assertStoreWritable($adminInfo, $storeId);
     }
 
     protected function adminStoreIds(array $adminInfo): array
     {
-        $values = [];
-        foreach (['store_id', 'store_ids', 'store_id_list', 'yfth_store_ids'] as $key) {
-            if (!array_key_exists($key, $adminInfo)) {
-                continue;
-            }
-            $raw = $adminInfo[$key];
-            if (is_array($raw)) {
-                $values = array_merge($values, $raw);
-            } else {
-                $values = array_merge($values, explode(',', (string)$raw));
-            }
-        }
-        $values = array_values(array_filter(array_unique(array_map('intval', $values))));
-        return $values;
-    }
-
-    private function adminStoreRoleCode(array $adminInfo): string
-    {
-        foreach (['yfth_store_role_code', 'store_role_code', 'role_code'] as $key) {
-            $role = trim((string)($adminInfo[$key] ?? ''));
-            if (in_array($role, YfthConstants::storeRoles(), true)) {
-                return $role;
-            }
-        }
-        return '';
+        $context = app()->make(AdminStoreContextServices::class)->resolve($adminInfo);
+        return array_values(array_filter(array_unique(array_map('intval', $context['store_ids'] ?? []))));
     }
 
     private function normalizeTimezoneForRead(string $timezone): string

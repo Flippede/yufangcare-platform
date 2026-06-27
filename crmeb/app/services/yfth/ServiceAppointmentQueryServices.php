@@ -242,7 +242,9 @@ class ServiceAppointmentQueryServices extends ServiceAppointmentBaseServices
         if ((string)$project['status'] !== YfthConstants::STATUS_ACTIVE) {
             return ['status' => 'unavailable', 'reason' => 'service_project_not_active'];
         }
-        return ['status' => 'ok', 'project' => $project];
+        /** @var ServiceProjectServices $projectServices */
+        $projectServices = app()->make(ServiceProjectServices::class);
+        return ['status' => 'ok', 'project' => $projectServices->publicProjectRow($project)];
     }
 
     private function generateSlots(array $binding, int $serviceDate, int $start, int $end, int $capacity, int $interval, string $sourceType, int $sourceId, bool $ignoreAdvance): array

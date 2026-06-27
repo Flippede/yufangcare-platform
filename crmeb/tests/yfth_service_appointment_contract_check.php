@@ -20,6 +20,10 @@ $read = function (string $path) use ($root): string {
 foreach ([
     'database/migrations/20260626130000_create_yfth_service_appointment_tables.php',
     'database/migrations/20260626130010_seed_yfth_service_appointment_menus.php',
+    'database/migrations/20260627100000_create_yfth_admin_store_scope.php',
+    'app/model/yfth/YfthAdminStoreScope.php',
+    'app/dao/yfth/YfthAdminStoreScopeDao.php',
+    'app/services/yfth/AdminStoreContextServices.php',
     'app/services/yfth/ServiceProjectServices.php',
     'app/services/yfth/StoreServiceAppointmentServices.php',
     'app/services/yfth/StoreServiceScheduleServices.php',
@@ -29,6 +33,20 @@ foreach ([
     'app/api/route/yfth_service.php',
 ] as $file) {
     $assert(is_file($root . DIRECTORY_SEPARATOR . $file), 'file_exists:' . $file);
+}
+
+$adminScopeMigration = $read('database/migrations/20260627100000_create_yfth_admin_store_scope.php');
+foreach ([
+    'yfth_admin_store_scope',
+    'admin_id',
+    'store_id',
+    'role_code',
+    'permission_scope',
+    'uniq_yfth_admin_scope_active',
+    'idx_yfth_admin_scope_admin_role',
+    'idx_yfth_admin_scope_store_role',
+] as $needle) {
+    $assert(strpos($adminScopeMigration, $needle) !== false, 'admin_scope_migration_contains:' . $needle);
 }
 
 $migration = $read('database/migrations/20260626130000_create_yfth_service_appointment_tables.php');
@@ -68,6 +86,26 @@ foreach ([
     $assert(strpos($adminController, $needle) !== false, 'controller_forces_api_auth:' . $needle);
 }
 
+$middleware = $read('app/adminapi/middleware/AdminAuthTokenMiddleware.php');
+foreach ([
+    'AdminStoreContextServices',
+    'enrichAdminInfo($adminInfo)',
+] as $needle) {
+    $assert(strpos($middleware, $needle) !== false, 'admin_token_context_contains:' . $needle);
+}
+
+$adminContext = $read('app/services/yfth/AdminStoreContextServices.php');
+foreach ([
+    'YfthAdminStoreScopeDao',
+    'assertHeadquarterScope',
+    'assertStoreWritable',
+    'applyStoreFilter',
+    'store_staff_cannot_configure_service_appointment',
+    'store_scope_forbidden',
+] as $needle) {
+    $assert(strpos($adminContext, $needle) !== false, 'admin_context_guard_contains:' . $needle);
+}
+
 $query = $read('app/services/yfth/ServiceAppointmentQueryServices.php');
 foreach ([
     'slot_generation_mode',
@@ -77,6 +115,7 @@ foreach ([
     'remaining_capacity',
     'store_capability_unavailable',
     'special_day_closed',
+    'publicProjectRow',
 ] as $needle) {
     $assert(strpos($query, $needle) !== false, 'query_contract_contains:' . $needle);
 }
@@ -86,10 +125,13 @@ foreach ([
     'schedule_rule_overlap',
     'special_day_closed_conflict',
     'extra_special_day_overlaps_weekly_schedule',
-    'store_staff_cannot_configure_service_appointment',
+    'invalid_service_date',
 ] as $needle) {
     $assert(strpos($schedule, $needle) !== false, 'schedule_guard_contains:' . $needle);
 }
+
+$storeService = $read('app/services/yfth/StoreServiceAppointmentServices.php');
+$assert(strpos($storeService, 'store_service_identity_immutable') !== false, 'store_service_identity_immutable_guard_exists');
 
 $apiRoute = $read('app/api/route/yfth_service.php');
 foreach ([

@@ -168,7 +168,7 @@ class ServiceProjectServices extends ServiceAppointmentBaseServices
         return $row;
     }
 
-    private function publicProjectRow(array $row): array
+    public function publicProjectRow(array $row): array
     {
         $row = $this->formatProjectRow($row);
         return [

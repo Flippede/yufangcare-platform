@@ -1,5 +1,9 @@
 <?php
 
+use app\Request;
+use app\adminapi\middleware\AdminAuthTokenMiddleware;
+use app\services\system\admin\SystemAdminServices;
+use app\services\yfth\AdminStoreContextServices;
 use app\services\yfth\BenefitTemplateServices;
 use app\services\yfth\ServiceAppointmentQueryServices;
 use app\services\yfth\ServiceProjectServices;
@@ -17,6 +21,20 @@ try {
         public function loadEnv(string $envName = ''): void
         {
             parent::loadEnv($envName);
+            foreach ([
+                'YFTH_REAL_FLOW_DB_HOSTNAME' => 'database.hostname',
+                'YFTH_REAL_FLOW_DB_HOSTPORT' => 'database.hostport',
+                'YFTH_REAL_FLOW_DB_USERNAME' => 'database.username',
+                'YFTH_REAL_FLOW_DB_PASSWORD' => 'database.password',
+                'YFTH_REAL_FLOW_DB_DATABASE' => 'database.database',
+                'YFTH_REAL_FLOW_DB_PREFIX' => 'database.prefix',
+                'YFTH_REAL_FLOW_DB_CHARSET' => 'database.charset',
+            ] as $envKey => $configKey) {
+                $value = getenv($envKey);
+                if ($value !== false) {
+                    $this->env->set($configKey, $value);
+                }
+            }
             $this->env->set('cache.driver', 'file');
         }
     };
@@ -62,6 +80,7 @@ foreach ([
     'yfth_store_service',
     'yfth_store_service_schedule_rule',
     'yfth_store_service_special_day',
+    'yfth_admin_store_scope',
 ] as $table) {
     $fullTable = $prefix . $table;
     $rows = $query('SELECT COUNT(*) AS cnt FROM information_schema.TABLES WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?', [$database, $fullTable]);
@@ -74,6 +93,8 @@ foreach ([
     [$prefix . 'yfth_store_service_schedule_rule', 'uniq_yfth_svc_rule_active'],
     [$prefix . 'yfth_store_service_special_day', 'uniq_yfth_svc_day_active'],
     [$prefix . 'yfth_store_service_special_day', 'idx_yfth_svc_day_binding_date'],
+    [$prefix . 'yfth_admin_store_scope', 'uniq_yfth_admin_scope_active'],
+    [$prefix . 'yfth_admin_store_scope', 'idx_yfth_admin_scope_admin_role'],
 ] as $index) {
     $rows = $query('SELECT COUNT(*) AS cnt FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND INDEX_NAME = ?', [$database, $index[0], $index[1]]);
     $assert((int)($rows[0]['cnt'] ?? 0) > 0, 'real_index_exists:' . $index[0] . '.' . $index[1]);
@@ -84,6 +105,7 @@ foreach ([
     StoreServiceAppointmentServices::class,
     StoreServiceScheduleServices::class,
     ServiceAppointmentQueryServices::class,
+    AdminStoreContextServices::class,
 ] as $class) {
     try {
         app()->make($class);
@@ -127,12 +149,28 @@ echo "[OK] YFTH service appointment real MySQL checks verified on MySQL {$mysqlV
 function vfRunServiceAppointmentFlow(callable $assert, array &$notes): void
 {
     $runId = 'SA' . date('His') . strtoupper(substr(bin2hex(random_bytes(3)), 0, 6));
-    $admin = ['level' => 0, 'roles' => []];
+    $admin = ['id' => 1, 'level' => 0, 'roles' => []];
     $operator = 91001;
     $storeId = vfCreateStore($runId);
     vfGrantCapability($storeId, 'reservation_service', $runId);
     $store2Id = vfCreateStore($runId . 'B');
     vfGrantCapability($store2Id, 'reservation_service', $runId . 'B');
+    $hqAdmin = vfCreateAdmin($runId, 'hq', 1);
+    vfGrantAdminScope($hqAdmin['id'], 0, AdminStoreContextServices::ROLE_HEADQUARTER, $runId);
+    $managerAdmin = vfCreateAdmin($runId, 'manager', 1);
+    vfGrantAdminScope($managerAdmin['id'], $storeId, 'store_manager', $runId);
+    $staffAdmin = vfCreateAdmin($runId, 'staff', 1);
+    vfGrantAdminScope($staffAdmin['id'], $storeId, 'store_staff', $runId);
+    $noScopeAdmin = vfCreateAdmin($runId, 'noscope', 1);
+
+    $hqInfo = vfAdminInfoFromToken($hqAdmin['id'], $hqAdmin['pwd']);
+    $managerInfo = vfAdminInfoFromToken($managerAdmin['id'], $managerAdmin['pwd']);
+    $staffInfo = vfAdminInfoFromToken($staffAdmin['id'], $staffAdmin['pwd']);
+    $noScopeInfo = vfAdminInfoFromToken($noScopeAdmin['id'], $noScopeAdmin['pwd']);
+    $assert(!empty($hqInfo['yfth_admin_context']['is_headquarter_admin']), 'backend_token_resolves_headquarter_context');
+    $assert(in_array($storeId, $managerInfo['yfth_store_ids'] ?? [], true), 'backend_token_resolves_manager_store_scope');
+    $assert(($staffInfo['yfth_store_role_code'] ?? '') === 'store_staff', 'backend_token_resolves_staff_role');
+    $assert(empty($noScopeInfo['yfth_store_ids'] ?? []), 'backend_token_with_no_scope_has_no_store_context');
 
     /** @var BenefitTemplateServices $benefitServices */
     $benefitServices = app()->make(BenefitTemplateServices::class);
@@ -179,9 +217,15 @@ function vfRunServiceAppointmentFlow(callable $assert, array &$notes): void
         'allow_paid' => 0,
         'status' => 'active',
         'sort' => 10,
-    ], $operator, $admin);
+    ], $operator, $hqInfo);
     $projectId = (int)$project->id;
     $notes[] = 'real_flow_project_id:' . $projectId;
+    vfExpectException(function () use ($projectServices, $operator, $managerInfo, $runId) {
+        $projectServices->saveProject([
+            'service_code' => 'MGR' . $runId,
+            'service_name' => 'Manager Forbidden',
+        ], $operator, $managerInfo);
+    }, 'store_manager_cannot_save_global_project', $assert);
 
     /** @var StoreServiceAppointmentServices $storeServiceServices */
     $storeServiceServices = app()->make(StoreServiceAppointmentServices::class);
@@ -198,17 +242,27 @@ function vfRunServiceAppointmentFlow(callable $assert, array &$notes): void
         'default_capacity' => 3,
         'timezone' => 'Asia/Shanghai',
         'status' => 'active',
-    ], $operator, $admin);
+    ], $operator, $hqInfo);
     $bindingId = (int)$binding->id;
-    vfExpectException(function () use ($storeServiceServices, $storeId, $projectId, $operator, $admin) {
+    vfExpectException(function () use ($storeServiceServices, $storeId, $projectId, $operator, $hqInfo) {
         $storeServiceServices->saveStoreService([
             'store_id' => $storeId,
             'service_project_id' => $projectId,
             'duration_minutes' => 60,
             'default_capacity' => 1,
             'status' => 'active',
-        ], $operator, $admin);
+        ], $operator, $hqInfo);
     }, 'duplicate_active_binding_rejected', $assert);
+    vfExpectException(function () use ($storeServiceServices, $bindingId, $store2Id, $projectId, $operator, $hqInfo) {
+        $storeServiceServices->saveStoreService([
+            'id' => $bindingId,
+            'store_id' => $store2Id,
+            'service_project_id' => $projectId,
+            'duration_minutes' => 60,
+            'default_capacity' => 3,
+            'status' => 'active',
+        ], $operator, $hqInfo);
+    }, 'store_service_store_id_immutable', $assert);
 
     /** @var StoreServiceScheduleServices $scheduleServices */
     $scheduleServices = app()->make(StoreServiceScheduleServices::class);
@@ -222,10 +276,10 @@ function vfRunServiceAppointmentFlow(callable $assert, array &$notes): void
         'slot_interval_minutes' => 60,
         'slot_capacity' => 3,
         'status' => 'active',
-    ], $operator, $admin);
+    ], $operator, $managerInfo);
     $scheduleId = (int)$schedule->id;
     $assert($scheduleId > 0, 'schedule_rule_created');
-    vfExpectException(function () use ($scheduleServices, $bindingId, $weekday, $operator, $admin) {
+    vfExpectException(function () use ($scheduleServices, $bindingId, $weekday, $operator, $managerInfo) {
         $scheduleServices->saveScheduleRule([
             'store_service_id' => $bindingId,
             'weekday' => $weekday,
@@ -234,9 +288,9 @@ function vfRunServiceAppointmentFlow(callable $assert, array &$notes): void
             'slot_interval_minutes' => 60,
             'slot_capacity' => 1,
             'status' => 'active',
-        ], $operator, $admin);
+        ], $operator, $managerInfo);
     }, 'overlapping_schedule_rejected', $assert);
-    vfExpectException(function () use ($scheduleServices, $bindingId, $weekday, $operator, $admin) {
+    vfExpectException(function () use ($scheduleServices, $bindingId, $weekday, $operator, $managerInfo) {
         $scheduleServices->saveScheduleRule([
             'store_service_id' => $bindingId,
             'weekday' => $weekday,
@@ -245,9 +299,9 @@ function vfRunServiceAppointmentFlow(callable $assert, array &$notes): void
             'slot_interval_minutes' => 60,
             'slot_capacity' => 1,
             'status' => 'active',
-        ], $operator, $admin);
+        ], $operator, $managerInfo);
     }, 'cross_day_schedule_rejected', $assert);
-    vfExpectException(function () use ($scheduleServices, $bindingId, $weekday, $operator, $storeId) {
+    vfExpectException(function () use ($scheduleServices, $bindingId, $weekday, $operator, $staffInfo) {
         $scheduleServices->saveScheduleRule([
             'store_service_id' => $bindingId,
             'weekday' => $weekday,
@@ -256,8 +310,22 @@ function vfRunServiceAppointmentFlow(callable $assert, array &$notes): void
             'slot_interval_minutes' => 60,
             'slot_capacity' => 1,
             'status' => 'active',
-        ], $operator, ['level' => 1, 'store_id' => $storeId, 'yfth_store_role_code' => 'store_staff']);
+        ], $operator, $staffInfo);
     }, 'store_staff_schedule_rejected', $assert);
+    vfExpectException(function () use ($scheduleServices, $bindingId, $weekday, $operator, $noScopeInfo, $storeId) {
+        $unsafeInfo = $noScopeInfo;
+        $unsafeInfo['store_id'] = $storeId;
+        $unsafeInfo['yfth_store_role_code'] = 'store_manager';
+        $scheduleServices->saveScheduleRule([
+            'store_service_id' => $bindingId,
+            'weekday' => $weekday,
+            'start_minute' => 780,
+            'end_minute' => 840,
+            'slot_interval_minutes' => 60,
+            'slot_capacity' => 1,
+            'status' => 'active',
+        ], $operator, $unsafeInfo);
+    }, 'client_injected_store_scope_rejected', $assert);
 
     /** @var ServiceAppointmentQueryServices $queryServices */
     $queryServices = app()->make(ServiceAppointmentQueryServices::class);
@@ -271,12 +339,12 @@ function vfRunServiceAppointmentFlow(callable $assert, array &$notes): void
         'date_type' => 'closed',
         'reason' => 'real_flow_closed',
         'status' => 'active',
-    ], $operator, $admin);
+    ], $operator, $managerInfo);
     $closedSlots = $queryServices->daySlots($projectId, ['store_id' => $storeId, 'date' => vfDateText($serviceDate)]);
     $assert($closedSlots['status'] === 'empty' && $closedSlots['reason'] === 'special_day_closed', 'special_day_closed_filters_slots');
-    $scheduleServices->disableSpecialDay((int)$closed->id, 'continue_real_flow', $operator, $admin);
+    $scheduleServices->disableSpecialDay((int)$closed->id, 'continue_real_flow', $operator, $managerInfo);
 
-    vfExpectException(function () use ($scheduleServices, $bindingId, $serviceDate, $operator, $admin) {
+    vfExpectException(function () use ($scheduleServices, $bindingId, $serviceDate, $operator, $managerInfo) {
         $scheduleServices->saveSpecialDay([
             'store_service_id' => $bindingId,
             'service_date' => vfDateText($serviceDate),
@@ -285,7 +353,7 @@ function vfRunServiceAppointmentFlow(callable $assert, array &$notes): void
             'end_minute' => 660,
             'slot_capacity' => 2,
             'status' => 'active',
-        ], $operator, $admin);
+        ], $operator, $managerInfo);
     }, 'extra_overlapping_regular_schedule_rejected', $assert);
 
     $extra = $scheduleServices->saveSpecialDay([
@@ -297,7 +365,7 @@ function vfRunServiceAppointmentFlow(callable $assert, array &$notes): void
         'slot_capacity' => 2,
         'reason' => 'real_flow_extra',
         'status' => 'active',
-    ], $operator, $admin);
+    ], $operator, $managerInfo);
     $assert((int)$extra->id > 0, 'special_extra_created');
     $scheduleServices->saveSpecialDay([
         'store_service_id' => $bindingId,
@@ -308,7 +376,7 @@ function vfRunServiceAppointmentFlow(callable $assert, array &$notes): void
         'slot_capacity' => 5,
         'reason' => 'real_flow_capacity',
         'status' => 'active',
-    ], $operator, $admin);
+    ], $operator, $managerInfo);
     $overlaySlots = $queryServices->daySlots($projectId, ['store_id' => $storeId, 'date' => vfDateText($serviceDate)]);
     $assert($overlaySlots['status'] === 'ok' && count($overlaySlots['slots']) === 4, 'special_extra_adds_slot');
     $assert((int)$overlaySlots['slots'][0]['remaining_capacity'] === 5, 'capacity_override_applied');
@@ -323,8 +391,8 @@ function vfRunServiceAppointmentFlow(callable $assert, array &$notes): void
         'default_capacity' => 1,
         'timezone' => 'Asia/Shanghai',
         'status' => 'active',
-    ], $operator, $admin);
-    vfExpectException(function () use ($scheduleServices, $binding2, $weekday, $operator, $storeId) {
+    ], $operator, $hqInfo);
+    vfExpectException(function () use ($scheduleServices, $binding2, $weekday, $operator, $managerInfo) {
         $scheduleServices->saveScheduleRule([
             'store_service_id' => (int)$binding2->id,
             'weekday' => $weekday,
@@ -333,14 +401,33 @@ function vfRunServiceAppointmentFlow(callable $assert, array &$notes): void
             'slot_interval_minutes' => 60,
             'slot_capacity' => 1,
             'status' => 'active',
-        ], $operator, ['level' => 1, 'store_id' => $storeId, 'yfth_store_role_code' => 'store_manager']);
+        ], $operator, $managerInfo);
     }, 'cross_store_manager_rejected', $assert);
 
-    $storeServiceServices->disableStoreService($bindingId, 'real_flow_disable_binding', $operator, $admin);
+    foreach (['20260231', '2026-02-31', '20261301', '20260000', '20260229'] as $invalidDate) {
+        vfExpectException(function () use ($queryServices, $projectId, $storeId, $invalidDate) {
+            $queryServices->daySlots($projectId, ['store_id' => $storeId, 'date' => $invalidDate]);
+        }, 'invalid_service_date_rejected:' . $invalidDate, $assert);
+    }
+    $leapDay = $queryServices->daySlots($projectId, ['store_id' => $storeId, 'date' => '20280229']);
+    $assert(in_array($leapDay['status'], ['ok', 'empty'], true), 'valid_leap_day_accepted');
+
+    $publicDetail = $queryServices->projectDetail($projectId);
+    $forbiddenPublicKeys = ['created_uid', 'updated_uid', 'disabled_uid', 'close_reason', 'add_time', 'update_time', 'required_benefit_template_ids'];
+    $leakedKeys = array_intersect($forbiddenPublicKeys, array_keys($publicDetail['project'] ?? []));
+    $assert($publicDetail['status'] === 'ok' && !$leakedKeys, 'public_project_detail_has_no_backend_fields');
+
+    Db::name('system_store')->where('id', $storeId)->update(['is_show' => 0]);
+    vfExpectException(function () use ($scheduleServices, $bindingId, $managerInfo) {
+        $scheduleServices->previewSlots(['store_service_id' => $bindingId, 'date' => '2028-02-29'], $managerInfo);
+    }, 'stopped_store_cannot_configure_schedule', $assert);
+    Db::name('system_store')->where('id', $storeId)->update(['is_show' => 1]);
+
+    $storeServiceServices->disableStoreService($bindingId, 'real_flow_disable_binding', $operator, $hqInfo);
     $disabledBindingSlots = $queryServices->daySlots($projectId, ['store_id' => $storeId, 'date' => vfDateText($serviceDate)]);
     $assert($disabledBindingSlots['status'] === 'unavailable' && $disabledBindingSlots['reason'] === 'store_service_not_available', 'disabled_store_service_filters_public_slots');
 
-    $projectServices->disableProject($projectId, 'real_flow_disable_project', $operator, $admin);
+    $projectServices->disableProject($projectId, 'real_flow_disable_project', $operator, $hqInfo);
     $disabledProject = $queryServices->projectDetail($projectId);
     $assert($disabledProject['status'] === 'unavailable' && $disabledProject['reason'] === 'service_project_not_active', 'disabled_project_filters_public_detail');
 
@@ -384,6 +471,63 @@ function vfGrantCapability(int $storeId, string $capability, string $runId): voi
         'add_time' => time(),
         'update_time' => time(),
     ]);
+}
+
+function vfCreateAdmin(string $runId, string $label, int $level): array
+{
+    $pwd = password_hash('yfth-' . $runId . '-' . $label, PASSWORD_BCRYPT);
+    $id = (int)Db::name('system_admin')->insertGetId([
+        'account' => substr('yfth_' . strtolower($label) . '_' . strtolower($runId), 0, 32),
+        'head_pic' => '',
+        'pwd' => $pwd,
+        'real_name' => substr('YFTH ' . $label, 0, 16),
+        'roles' => '',
+        'last_ip' => '127.0.0.1',
+        'last_time' => 0,
+        'add_time' => time(),
+        'login_count' => 0,
+        'level' => $level,
+        'status' => 1,
+        'division_id' => 0,
+        'is_del' => 0,
+    ]);
+    return ['id' => $id, 'pwd' => $pwd];
+}
+
+function vfGrantAdminScope(int $adminId, int $storeId, string $roleCode, string $runId): void
+{
+    Db::name('yfth_admin_store_scope')->insert([
+        'admin_id' => $adminId,
+        'store_id' => $storeId,
+        'role_code' => $roleCode,
+        'permission_scope' => json_encode(['run_id' => $runId], JSON_UNESCAPED_UNICODE),
+        'status' => YfthConstants::STATUS_ACTIVE,
+        'start_time' => 0,
+        'end_time' => 0,
+        'created_uid' => $adminId,
+        'updated_uid' => $adminId,
+        'disabled_uid' => 0,
+        'disabled_time' => 0,
+        'close_reason' => '',
+        'active_key' => $adminId . ':' . $storeId . ':' . $roleCode,
+        'add_time' => time(),
+        'update_time' => time(),
+    ]);
+}
+
+function vfAdminInfoFromToken(int $adminId, string $pwdHash): array
+{
+    /** @var SystemAdminServices $adminServices */
+    $adminServices = app()->make(SystemAdminServices::class);
+    $tokenInfo = $adminServices->createToken($adminId, 'admin', $pwdHash);
+    $token = (string)($tokenInfo['token'] ?? '');
+    $request = (new Request())->withGet(['token' => $token]);
+    $adminInfo = [];
+    app()->make(AdminAuthTokenMiddleware::class)->handle($request, function ($request) use (&$adminInfo) {
+        $adminInfo = $request->adminInfo();
+        return true;
+    });
+    return $adminInfo;
 }
 
 function vfFutureDateInt(int $days): int

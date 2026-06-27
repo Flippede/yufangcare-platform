@@ -27,6 +27,8 @@ Not implemented in this round:
 
 `yfth_store_service` stores which store can provide which service project. It records store-specific display text, actual duration, confirmation mode, booking enabled flag, advance booking window, reserved cancel deadline, default capacity, timezone, status, and a nullable `active_key` unique constraint for one active binding per store and project.
 
+`yfth_admin_store_scope` stores backend administrator YFTH business scope resolved from the CRMEB admin token chain. `store_id = 0` with `role_code = headquarter_operator` is headquarters scope; store-scoped roles use active `system_store.id` with `franchisee`, `store_manager`, or `store_staff`. The service appointment write path no longer trusts client-injected `store_id`, `store_ids`, or `yfth_store_role_code` fields.
+
 `yfth_store_service_schedule_rule` stores active weekly service windows by ISO weekday. Overlap is blocked in the service layer and exact duplicate active rules are guarded by `active_key`.
 
 `yfth_store_service_special_day` stores date-level exceptions:
@@ -46,6 +48,7 @@ The admin and public APIs use the following service layer classes:
 - `StoreServiceScheduleServices` for weekly schedule rules, special-day rules, conflict checks, and admin slot preview.
 - `ServiceAppointmentQueryServices` for public read-only service, store, date, and slot queries.
 - `ServiceAppointmentBaseServices` for shared date, timezone, permission, and audit helpers.
+- `AdminStoreContextServices` for resolving backend admin headquarters/store scope from `yfth_admin_store_scope`.
 
 ## Slot Strategy
 
@@ -69,10 +72,19 @@ V1 does not support cross-day service windows. The service layer rejects ranges 
 CRMEB admin menu/API permission remains the first gate. Service-layer checks add store-scope constraints from server-side `adminInfo`:
 
 - Headquarters admins can manage global service projects and store authorizations.
-- Store managers can manage schedules and special days only for their own store when store scope is present.
-- Store staff cannot configure services, schedules, or capacity.
+- `AdminAuthTokenMiddleware` enriches `adminInfo` through `AdminStoreContextServices` after `AdminAuthServices::parseToken()`.
+- Store managers can manage schedules and special days only for their own active store when a server-side scope row is present.
+- Store staff cannot configure service projects, store authorizations, schedules, or capacity even if menu/API permission is misconfigured.
+- Non-super administrators without `yfth_admin_store_scope` rows cannot gain store write access by sending `store_id` or role-like fields from the client.
+- Stopped or deleted stores fail write-scope checks and cannot be configured by store-scoped users.
 
 Public APIs do not trust client `store_id` alone. They verify active store state, active service project, active store service authorization, appointment enabled flag, and the store `reservation_service` capability.
+
+Public project detail responses use the `ServiceProjectServices::publicProjectRow()` whitelist. Backend maintenance fields such as creator/updater/disabled columns, timestamps, close reason, and raw benefit-template id storage are not exposed.
+
+Date input accepts only real calendar dates in `YYYY-MM-DD` or `YYYYMMDD` form. Invalid dates such as `20260231`, `2026-02-31`, `20261301`, `20260000`, and non-leap `20260229` are rejected; leap day `20280229` is accepted.
+
+Store-service authorization identity is immutable after creation. Updating `store_id` or `service_project_id` on an existing `yfth_store_service` row is rejected; changes requiring a different store/project pair must create a new authorization record and preserve history.
 
 ## Audit
 
@@ -96,3 +108,14 @@ Appointment creation should reuse:
 - `yfth_store_service.default_capacity`, `advance_min_minutes`, and `advance_max_days`
 
 The next round should add a real appointment table and transactional occupancy/locking instead of reusing order remarks, stock, balance, points, or commission fields.
+
+## P1 Hardening On 2026-06-27
+
+- Added backend admin scope migration/table: `yfth_admin_store_scope`.
+- Added `YfthAdminStoreScope`, `YfthAdminStoreScopeDao`, and `AdminStoreContextServices`.
+- `AdminAuthTokenMiddleware` now enriches real token-derived admin info with YFTH headquarters/store context.
+- Service appointment writes require explicit server-side headquarters scope, super admin level, or active store-manager/franchisee scope for the target store.
+- Store staff and no-scope administrators are rejected at service-layer write boundaries.
+- Public service project detail uses a strict whitelist.
+- Service date parsing now performs real calendar validation for both numeric and dashed formats.
+- No appointment creation, check-in, dynamic code, writeoff, benefit locking, or paid service order table was introduced.

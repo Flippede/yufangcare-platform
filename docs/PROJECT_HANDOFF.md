@@ -247,3 +247,18 @@
 - 下一轮“预约创建、取消、改期和权益锁定”应复用：`ServiceAppointmentQueryServices::daySlots()` / `slotsForBinding()`、`StoreServiceAppointmentServices::activeBinding()`、`StoreServiceScheduleServices` 的冲突规则，以及 `yfth_store_service` 的容量与提前预约配置。
 - 不得重复开发的稳定能力：5980 套餐购买、CRMEB 订单/支付/退款、成交快照、权益计划、激活补偿、订单异常恢复、后台权限强校验、门店能力/资质扩展点和 YFTH 审计能力。
 - 已知限制：V1 不支持跨日服务时段；特殊关闭按整日关闭处理；没有真实预约占用表，因此无并发扣减；服务项目的权益模板范围先以服务类 benefit template id 列表表达，后续如范围复杂化可拆独立关系表。
+
+## Current Fact Snapshot - 2026-06-27 Service Appointment P1 Hardening
+
+- Current branch: `feature/yfth-service-appointment-writeoff-v1`.
+- Stable main remains: `7413627250bd057474fd2a4ea04068fae5f2ec9c`.
+- Current latest commit: this P1 hardening commit; use Git HEAD on this branch after commit.
+- Current stage: service project, store service authorization, weekly schedule rules, special-day rules, and read-only slot query foundation are complete; next round remains appointment creation, cancellation, reschedule, and benefit locking.
+- Backend service appointment writes now resolve headquarters/store scope from real CRMEB admin tokens through `AdminAuthTokenMiddleware`, `AdminStoreContextServices`, and `yfth_admin_store_scope`.
+- Client-injected `store_id`, `store_ids`, or role-like fields are not trusted for store write permission.
+- Store managers/franchisees can write only scoped active-store schedules/special days; store staff and no-scope admins cannot configure service projects, store authorization, schedules, or capacity.
+- Strict service date parsing rejects invalid `YYYYMMDD` and `YYYY-MM-DD` calendar dates, including non-leap `20260229`, and accepts leap day `20280229`.
+- Existing `yfth_store_service` identity is immutable after creation: `store_id` and `service_project_id` cannot be changed on update.
+- Public service project detail uses a whitelist and does not expose backend maintenance fields.
+- Frozen modules: no appointment creation, benefit lock/release, check-in, dynamic code, writeoff, paid service order, notification, reward, delivery, settlement, production deployment, or production database operation was started in this round.
+- Push status: this P1 round is local only unless a later operator explicitly pushes the feature branch.

@@ -311,17 +311,7 @@ class StoreServiceScheduleServices extends ServiceAppointmentBaseServices
 
     private function applyAdminStoreFilter(array $where, array $adminInfo): array
     {
-        $storeIds = $this->adminStoreIds($adminInfo);
-        if (!$storeIds) {
-            return $where;
-        }
-        if (!empty($where['store_id']) && !in_array((int)$where['store_id'], $storeIds, true)) {
-            throw new AdminException('store_scope_forbidden');
-        }
-        if (empty($where['store_id'])) {
-            $where['store_id'] = $storeIds;
-        }
-        return $where;
+        return app()->make(AdminStoreContextServices::class)->applyStoreFilter($where, $adminInfo);
     }
 
     private function formatScheduleRuleRow(array $row): array

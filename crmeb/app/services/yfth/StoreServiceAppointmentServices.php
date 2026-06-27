@@ -31,6 +31,9 @@ class StoreServiceAppointmentServices extends ServiceAppointmentBaseServices
     {
         $id = (int)($data['id'] ?? 0);
         $before = $id ? $this->dao->get($id) : null;
+        if ($id > 0 && !$before) {
+            throw new AdminException('store_service_not_found');
+        }
         unset($data['id']);
         $data = $this->normalizeStoreService($data, $id, $before ? $before->toArray() : [], $operatorUid, $adminInfo);
         return $this->transaction(function () use ($id, $data, $before, $operatorUid) {
@@ -104,6 +107,11 @@ class StoreServiceAppointmentServices extends ServiceAppointmentBaseServices
         if ($data['store_id'] <= 0 || $data['service_project_id'] <= 0) {
             throw new AdminException('store_and_service_project_required');
         }
+        if ($id > 0) {
+            if ((int)($before['store_id'] ?? 0) !== $data['store_id'] || (int)($before['service_project_id'] ?? 0) !== $data['service_project_id']) {
+                throw new AdminException('store_service_identity_immutable');
+            }
+        }
         $this->assertStoreConfigScope($adminInfo, $data['store_id']);
         /** @var StoreAccessServices $storeAccess */
         $storeAccess = app()->make(StoreAccessServices::class);
@@ -166,17 +174,7 @@ class StoreServiceAppointmentServices extends ServiceAppointmentBaseServices
 
     private function applyAdminStoreFilter(array $where, array $adminInfo): array
     {
-        $storeIds = $this->adminStoreIds($adminInfo);
-        if (!$storeIds) {
-            return $where;
-        }
-        if (!empty($where['store_id']) && !in_array((int)$where['store_id'], $storeIds, true)) {
-            throw new AdminException('store_scope_forbidden');
-        }
-        if (empty($where['store_id'])) {
-            $where['store_id'] = $storeIds;
-        }
-        return $where;
+        return app()->make(AdminStoreContextServices::class)->applyStoreFilter($where, $adminInfo);
     }
 
     public function formatStoreServiceRow(array $row): array
