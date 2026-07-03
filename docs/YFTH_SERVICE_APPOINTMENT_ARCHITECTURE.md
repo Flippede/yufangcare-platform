@@ -131,6 +131,8 @@ The next round should add check-in, dynamic code, writeoff, and final benefit co
 
 ## P1 Hardening On 2026-06-27
 
+This section is historical context for the pre-booking hardening round; Booking V1 status is recorded above.
+
 - Added backend admin scope migration/table: `yfth_admin_store_scope`.
 - Added `YfthAdminStoreScope`, `YfthAdminStoreScopeDao`, and `AdminStoreContextServices`.
 - `AdminAuthTokenMiddleware` now enriches real token-derived admin info with YFTH headquarters/store context.

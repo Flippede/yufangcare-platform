@@ -5,12 +5,12 @@
 - 本地路径：`C:\Users\zhangxu\Desktop\御方通和\yufangcare-platform`
 - GitHub 仓库：`https://github.com/Flippede/yufangcare-platform.git`
 - 当前分支：`feature/yfth-service-appointment-writeoff-v1`
-- 当前最新提交：以本文件所在分支的 Git HEAD 为准；本轮事实修正完成 commit 见开发报告。
+- 当前最新提交：以本文件所在分支的 Git HEAD 为准；Booking V1 状态修正完成 commit 见开发报告。
 - 当前稳定 main：`7413627250bd057474fd2a4ea04068fae5f2ec9c`
 - 本轮开始基线：`7413627250bd057474fd2a4ea04068fae5f2ec9c`
-- 当前开发阶段：服务项目、门店服务授权、排班和可预约时段基础域已经完成；下一轮为预约创建、取消、改期和权益锁定。
+- 当前开发阶段：服务项目、门店服务授权、周排班和特殊日期、可预约时段查询、预约创建、自动确认、人工确认、拒绝、取消、同门店同项目改期、真实容量锁定/占用、5980 服务权益锁定/释放、预约事件时间线、用户端最小真实页面和后台预约管理已经完成；下一步为 Booking V1 只读架构审核。
 - 当前工作区和推送状态：本轮事实修正提交后工作区应保持干净；功能分支暂未推送远端。
-- 当前禁止事项和冻结模块：不得在本阶段开发预约创建、权益锁定、签到、动态码、扫码核销、独立付费服务订单、消息通知、推荐奖励、配送或加盟结算；不得修改 5980 套餐支付激活、CRMEB 订单/支付/退款、后台权限核心流程或生产部署配置。
+- 当前禁止事项和冻结模块：不得在本阶段开发到店签到、动态二维码/数字码、扫码核销、服务权益最终消耗、服务完成/爽约处理、签到与核销记录、独立付费服务订单、消息通知、推荐奖励、配送、库存补货、产品额度、加盟合同、真实分账或生产部署；不得修改 5980 套餐支付激活、CRMEB 订单/支付/退款、后台权限核心流程或生产部署配置。
 - 产品文档目录：`C:\Users\zhangxu\Desktop\御方通和\yufangcare-platform\项目文档`
 - 完整产品依据：`御方通和加盟小程序项目需求与产品设计文档_V1.0.docx`
 
@@ -18,7 +18,7 @@
 
 在 CRMEB 成熟商城和后台能力基础上，开发御方通和加盟 APP / 微信小程序，覆盖公共用户端、C端家庭康养会员、B端加盟商/门店工作台、A端服务导师、总部 Web 管理后台、商品商城、5980 家庭康养套餐、十个月权益、预约核销、加盟经营、推荐关系、奖励台账、内容活动、报表和审计。
 
-当前阶段目标是完成服务项目、门店服务授权、排班规则、特殊日期规则和只读可预约时段查询的基础域收口；不得把尚未实现的预约创建、权益锁定、签到、扫码核销、配送履约、奖励台账、库存补货或真实分账执行误认为已完成。
+当前阶段目标是完成服务预约 Booking V1 收口：服务项目、门店服务授权、排班规则、特殊日期规则、可预约时段查询、预约创建、自动确认、门店人工确认/拒绝、用户取消、门店/总部取消、同门店同项目改期、真实容量锁定/占用、5980 套餐具体服务权益锁定/释放、预约事件时间线、后台预约管理和用户端最小真实页面均已落地。不得把尚未实现的签到、动态码、扫码核销、服务权益最终消耗、独立付费服务订单、配送履约、奖励台账、库存补货或真实分账执行误认为已完成。
 
 ## 2. 架构概览
 
@@ -45,28 +45,32 @@
 - 门店档案、店员、门店核销订单。
 - 文章、图文、页面装修、客服、消息、短信、文件上传。
 - 队列、定时任务、Workerman 长连接、数据库备份、文件校验。
+- 御方通和业务基础域、5980 套餐实例、十个月权益计划、真实 CRMEB 下单/支付/激活闭环、成交快照、退款生命周期、激活补偿、订单异常恢复和后台敏感操作权限校验。
+- 服务项目定义、门店服务授权、周排班、特殊日期、可预约时段查询、预约创建、自动确认、门店人工确认、门店拒绝、用户取消、门店/总部取消、同门店同服务项目改期、真实时段容量锁定与占用、5980 套餐具体服务权益锁定与释放、预约事件时间线。
+- 用户端预约创建、列表、详情、取消和改期最小真实页面；后台预约列表、详情、确认、拒绝和取消；真实后台 Token 门店权限；统一审计与幂等；MySQL 8.0.46 migration run、rollback、rerun 和真实预约流程验证。
 
 ## 4. 当前未完成模块
 
 当前仍未完成或仅预留边界的御方通和专属模块：
 
 - 康养中心底部导航和页面结构。
-- 预约创建与状态机。
-- 预约确认、取消和改期。
-- 真实容量锁定、占用和释放。
-- 会员服务权益锁定与恢复。
 - 到店签到。
-- 动态二维码和数字码。
-- 扫码核销与重复核销保护。
-- 服务履约记录。
+- 动态二维码。
+- 动态数字码。
+- 扫码核销。
+- 服务权益最终消耗。
+- 服务完成状态操作。
+- 爽约处理。
+- 签到与核销记录。
 - 独立付费服务订单。
-- 消息提醒。
-- 对应的小程序正式页面。
-- B端门店经营工作台、客户归属、经营待办。
-- 加盟申请、合同、筹备任务、开店验收。
+- 微信订阅消息和短信提醒。
+- 更完整的门店工作台、客户归属和经营待办。
+- 加盟申请、加盟合同、筹备任务和开店验收。
 - 产品额度/返货额度台账。
 - 服务导师线索、邀约、活动和帮扶任务。
 - 只读奖励台账、规则版本、观察期、有效新客校验和冲正。
+- 推荐、奖励、配送、库存补货、产品额度、加盟合同和真实分账。
+- 生产部署和生产数据库迁移。
 
 ## 5. 冻结模块
 
@@ -92,14 +96,15 @@
 
 ## 7. 当前开发阶段
 
-阶段：服务项目与门店预约时段基础域 V1 已完成，当前只进行交接文档与审计事实收口。
+阶段：预约创建、确认、取消、改期与服务权益锁定 Booking V1 已完成，当前只进行交接文档当前状态收口。
 
 本轮变化：
 
-- 服务项目定义、门店服务授权、周排班规则和特殊日期规则已经通过迁移、服务层、后台 API/页面和只读公开 API 落地。
-- 时段采用“周规则实时计算 + 特殊日期覆盖”，当前没有真实预约占用表，接口中的 `occupied_count` 和 `locked_count` 均为 0，`remaining_capacity` 基于配置容量返回。
-- 审计统一使用 `AuditEventServices::recordSafely()` 写入 `yfth_audit_event`，业务域为 `yfth_service_appointment`；没有使用 `yfth_sensitive_operation_log`，也没有拆分写入第二套审计表。
-- 当前不支持跨日时段，不实现预约提交、确认、取消、改期、权益锁定、签到、动态码或扫码核销。
+- 服务项目定义、门店服务授权、周排班规则、特殊日期规则、只读公开 API 和后台配置页面已经落地。
+- Booking V1 已新增真实预约、可锁定时段实例、服务权益锁和预约事件时间线；支持用户创建、自动确认、人工确认、门店拒绝、用户取消、门店/总部取消、同门店同服务项目改期。
+- 时段采用“周规则实时计算 + 特殊日期覆盖 + 预约写入时创建/复用锁定实例”，公开时段查询会叠加 `occupied_count`、`locked_count` 和 `remaining_capacity` 的真实配置内余量。
+- 审计统一使用 `AuditEventServices::recordSafely()` 写入 `yfth_audit_event`，业务域为 `yfth_service_appointment`；预约状态时间线写入 `yfth_service_appointment_event`；没有使用 `yfth_sensitive_operation_log`，也没有拆分写入第二套审计表。
+- 当前不支持跨日时段；尚未实现到店签到、动态二维码/数字码、扫码核销、服务权益最终消耗、服务完成状态操作、爽约处理、独立付费服务订单或消息提醒。
 
 历史安全治理记录仍需保留，用于生产切换上下文：
 
@@ -117,18 +122,18 @@
 
 ## 8. 下一步建议
 
-当前下一步不应合并 `main` 或部署生产。建议在当前基础域通过审核后，另起受控任务进入“预约创建、取消、改期和权益锁定 V1”。
+当前下一步不应合并 `main` 或部署生产。建议对预约创建、确认、取消、改期、容量锁定和权益锁定 V1 进行只读架构审核；审核通过后进入“到店签到、动态二维码/数字码与扫码核销 V1”。
 
 生产服务器仍需保持干净克隆和凭据轮换要求：正式切换前应确认 GitHub Deploy Key 或受控 SSH 凭据可用，并确认生产 `.env`、微信支付证书、运行时 PEM 和前端环境变量均不进入 Git。
 
-后续开发建议按业务风险顺序推进：预约创建/权益锁定、签到/动态核销、权益领取配送履约、门店工作台、推荐关系与只读奖励台账，再进入库存补货、产品额度、加盟合同和真实分账执行。
+后续开发建议按业务风险顺序推进：Booking V1 架构审核、签到/动态核销、服务权益最终消耗、权益领取配送履约、门店工作台、推荐关系与只读奖励台账，再进入库存补货、产品额度、加盟合同和真实分账执行。
 
 建议先明确：
 
 - 新增业务表和迁移方式。
 - 身份模型、门店隔离和当前身份切换。
 - 5980 套餐实例、权益计划和权益状态机。
-- 预约、签到、权益核销与订单核销的边界。
+- 预约、签到、权益核销、服务权益最终消耗与订单核销的边界。
 - 推荐事件、规则版本、观察期、只读台账和冲正。
 - 支付成功、退款成功、订单取消后的业务事件处理。
 
@@ -234,19 +239,19 @@
 ## 17. 2026-06-26 Service Appointment Domain V1 / 服务项目与门店预约时段基础域 V1
 
 - 当前开发分支：`feature/yfth-service-appointment-writeoff-v1`；基于 `main` 的 `7413627250bd057474fd2a4ea04068fae5f2ec9c` 开始。
-- 本轮新增服务项目、门店服务授权、周排班规则、特殊日期规则和只读可预约时段查询；没有实现预约提交、确认/取消/改期、签到、动态码、扫码核销、独立付费服务订单、消息通知或推荐奖励。
+- 本历史阶段新增服务项目、门店服务授权、周排班规则、特殊日期规则和只读可预约时段查询；当时没有实现预约提交、确认/取消/改期、签到、动态码、扫码核销、独立付费服务订单、消息通知或推荐奖励。该段为 2026-06-26 历史记录，不代表当前 Booking V1 状态。
 - 新增迁移：`20260626130000_create_yfth_service_appointment_tables.php` 和 `20260626130010_seed_yfth_service_appointment_menus.php`。
 - 新增表：`yfth_service_project`、`yfth_store_service`、`yfth_store_service_schedule_rule`、`yfth_store_service_special_day`。服务项目保持独立业务对象，不复用普通商品；门店服务授权通过 `store_id + service_project_id` 的 active key 防重复；周规则和特殊日期均保留历史停用记录。
-- 时段方案：V1 采用“周规则实时计算 + 特殊日期覆盖”，不预生成 slot 表，也不写虚假的已预约人数。接口返回 `occupied_count = 0`、`locked_count = 0`、`remaining_capacity = capacity`，供下一轮真实预约占用接入。
+- 历史时段方案：基础域 V1 采用“周规则实时计算 + 特殊日期覆盖”，当时不预生成 slot 表，也不写虚假的已预约人数。Booking V1 已在预约写入时创建/复用 `yfth_service_appointment_slot` 并叠加真实锁定/占用。
 - 权限边界：后台 API 继续走 CRMEB 菜单/API 权限；服务层再按服务端 `adminInfo` 的门店范围校验。总部可维护服务项目和门店授权；店长可在本店范围维护排班和特殊日期；店员不能配置服务项目、门店服务、排班或容量。
 - 门店可用性：只读查询会校验门店存在且启用、门店拥有 `reservation_service` 能力、服务项目 active、门店服务授权 active 且 appointment enabled。当前未建设完整资质中心，继续复用既有 `StoreCapabilityServices` 作为扩展点，不把资质硬编码为永远通过。
 - 后台入口：`template/admin/src/pages/yfth/serviceAppointment/index.vue`，支持服务项目、门店服务授权、排班规则、特殊日期和时段预览。
-- 小程序端：仅新增 `template/uni-app/api/yfth.js` 的只读 API 封装，未创建静态页面，避免在预约提交与权益锁定前制作假交互。
+- 小程序端历史状态：基础域 V1 仅新增 `template/uni-app/api/yfth.js` 的只读 API 封装；Booking V1 已新增预约创建、列表、详情、取消和改期最小真实页面。
 - 新增只读公开接口：`yfth/service/project`、`yfth/service/project/:id`、`yfth/service/project/:id/stores`、`yfth/service/project/:id/dates`、`yfth/service/project/:id/slots`。
 - 审计：服务项目、门店授权、排班规则和特殊日期的新增、更新、停用均写入 `yfth_audit_event`，业务域为 `yfth_service_appointment`。
-- 下一轮“预约创建、取消、改期和权益锁定”应复用：`ServiceAppointmentQueryServices::daySlots()` / `slotsForBinding()`、`StoreServiceAppointmentServices::activeBinding()`、`StoreServiceScheduleServices` 的冲突规则，以及 `yfth_store_service` 的容量与提前预约配置。
+- 历史下一轮建议：基础域 V1 后续“预约创建、取消、改期和权益锁定”应复用查询和绑定服务；该能力已由 Booking V1 完成。当前下一轮应复用 `ServiceAppointmentBookingServices`、`ServiceAppointmentQueryServices`、`StoreServiceAppointmentServices`、`yfth_service_appointment`、`yfth_service_appointment_slot` 和 `yfth_service_benefit_lock` 进入签到、动态码、扫码核销和最终权益消耗。
 - 不得重复开发的稳定能力：5980 套餐购买、CRMEB 订单/支付/退款、成交快照、权益计划、激活补偿、订单异常恢复、后台权限强校验、门店能力/资质扩展点和 YFTH 审计能力。
-- 已知限制：V1 不支持跨日服务时段；特殊关闭按整日关闭处理；没有真实预约占用表，因此无并发扣减；服务项目的权益模板范围先以服务类 benefit template id 列表表达，后续如范围复杂化可拆独立关系表。
+- 已知限制：当前不支持跨日服务时段；特殊关闭按整日关闭处理；Booking V1 已有真实预约、时段占用和权益锁，但尚未实现签到、核销、服务完成、爽约或最终权益消耗；服务项目的权益模板范围先以服务类 benefit template id 列表表达，后续如范围复杂化可拆独立关系表。
 
 ## Current Fact Snapshot - 2026-06-27 Service Appointment P1 Hardening
 
@@ -270,6 +275,7 @@
 - Start commit for this round: `7a3a8ef64bb193e4a52fc623e4e877b1c247c595`.
 - Current latest commit: this booking V1 commit; use Git HEAD on this branch after commit.
 - Current stage: service project, store service authorization, weekly schedule/special-day slot foundation, appointment creation, manual confirm, reject, cancel, reschedule, true slot capacity locking, and 5980 service-benefit locking are implemented on the feature branch.
+- Completed Booking V1 capabilities include auto confirm, store/headquarters cancel, appointment event timeline, real backend token store permission, unified audit/idempotency, user appointment create/list/detail/cancel/reschedule pages, admin appointment list/detail/confirm/reject/cancel page, and MySQL 8.0.46 migration run/rollback/rerun plus real booking flow validation.
 - New tables in this round: `yfth_service_appointment`, `yfth_service_appointment_slot`, `yfth_service_benefit_lock`, and `yfth_service_appointment_event`.
 - Slot strategy remains `weekly rule realtime calculation + special-day overlay`; booking writes create/reuse lockable slot instances only for selected slots.
 - User APIs/pages now cover available service benefits, create appointment, my appointment list, detail, cancel, reschedule-slot query, and reschedule submission.
