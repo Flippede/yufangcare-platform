@@ -5,6 +5,7 @@ namespace app\api\controller\v1\yfth;
 use app\Request;
 use app\services\yfth\ServiceAppointmentBookingServices;
 use app\services\yfth\ServiceAppointmentQueryServices;
+use app\services\yfth\ServiceAppointmentWriteoffServices;
 
 class ServiceAppointmentController
 {
@@ -105,5 +106,19 @@ class ServiceAppointmentController
         ]);
         $data['idempotency_key'] = $data['idempotency_key'] ?: (string)$request->header('Idempotency-Key', '');
         return app('json')->success($services->rescheduleByUser((int)$request->uid(), (int)$id, $data));
+    }
+
+    public function codeStatus(Request $request, ServiceAppointmentWriteoffServices $services, $id)
+    {
+        return app('json')->success($services->userCodeStatus((int)$request->uid(), (int)$id));
+    }
+
+    public function generateCode(Request $request, ServiceAppointmentWriteoffServices $services, $id)
+    {
+        $data = $request->postMore([
+            ['idempotency_key', ''],
+        ]);
+        $data['idempotency_key'] = $data['idempotency_key'] ?: (string)$request->header('Idempotency-Key', '');
+        return app('json')->success($services->generateUserCode((int)$request->uid(), (int)$id, $data));
     }
 }

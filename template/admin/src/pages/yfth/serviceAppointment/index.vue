@@ -159,6 +159,7 @@
               <el-option label="Confirmed" value="confirmed" />
               <el-option label="Rejected" value="rejected" />
               <el-option label="Cancelled" value="cancelled" />
+              <el-option label="Completed" value="completed" />
             </el-select>
             <el-button type="primary" icon="el-icon-search" @click="search('appointment')">Search</el-button>
           </div>
@@ -173,7 +174,11 @@
             </el-table-column>
             <el-table-column prop="status" label="Status" width="130" />
             <el-table-column prop="confirm_mode" label="Confirm" width="110" />
-            <el-table-column label="Actions" width="260" fixed="right">
+            <el-table-column prop="writeoff_method" label="Writeoff" width="120" />
+            <el-table-column prop="writeoff_at" label="Writeoff Time" width="130">
+              <template slot-scope="scope">{{ scope.row.writeoff_at || '-' }}</template>
+            </el-table-column>
+            <el-table-column label="Actions" width="330" fixed="right">
               <template slot-scope="scope">
                 <el-button type="text" icon="el-icon-view" @click="openAppointment(scope.row)">Detail</el-button>
                 <el-button
@@ -197,6 +202,42 @@
                   @click="operateAppointment(scope.row, 'cancel')"
                   >Cancel</el-button
                 >
+                <el-button
+                  v-if="scope.row.status === 'confirmed'"
+                  type="text"
+                  icon="el-icon-finished"
+                  @click="exceptionWriteoff(scope.row)"
+                  >Exception</el-button
+                >
+              </template>
+            </el-table-column>
+          </el-table>
+        </el-tab-pane>
+
+        <el-tab-pane label="Writeoffs" name="writeoff">
+          <div class="toolbar">
+            <el-input v-model="filters.writeoff.store_id" clearable placeholder="Store ID" class="w120" />
+            <el-input v-model="filters.writeoff.appointment_id" clearable placeholder="Appointment ID" class="w160" />
+            <el-input v-model="filters.writeoff.uid" clearable placeholder="User ID" class="w120" />
+            <el-select v-model="filters.writeoff.writeoff_method" clearable placeholder="Method" class="w170">
+              <el-option label="QR" value="qr_code" />
+              <el-option label="Digital" value="digital_code" />
+              <el-option label="Exception" value="headquarter_exception" />
+            </el-select>
+            <el-button type="primary" icon="el-icon-search" @click="search('writeoff')">Search</el-button>
+          </div>
+          <el-table v-loading="loading.writeoff" :data="lists.writeoff" border>
+            <el-table-column prop="writeoff_no" label="No." min-width="170" />
+            <el-table-column prop="appointment_id" label="Appointment" width="110" />
+            <el-table-column prop="uid" label="User" width="90" />
+            <el-table-column prop="store_id" label="Store" width="90" />
+            <el-table-column prop="writeoff_method" label="Method" width="150" />
+            <el-table-column prop="operator_role_code" label="Role" width="150" />
+            <el-table-column prop="writeoff_time" label="Time" width="130" />
+            <el-table-column prop="status" label="Status" width="110" />
+            <el-table-column label="Actions" width="100" fixed="right">
+              <template slot-scope="scope">
+                <el-button type="text" icon="el-icon-view" @click="openWriteoff(scope.row)">Detail</el-button>
               </template>
             </el-table-column>
           </el-table>
@@ -420,9 +461,14 @@
           >
           <el-col :span="12"><el-form-item label="Confirm Mode">{{ appointmentDetail.confirm_mode }}</el-form-item></el-col>
           <el-col :span="12"><el-form-item label="Reschedules">{{ appointmentDetail.reschedule_count }}</el-form-item></el-col>
+          <el-col :span="12"><el-form-item label="Writeoff Method">{{ appointmentDetail.writeoff_method }}</el-form-item></el-col>
+          <el-col :span="12"><el-form-item label="Writeoff At">{{ appointmentDetail.writeoff_at }}</el-form-item></el-col>
           <el-col :span="24"><el-form-item label="Note">{{ appointmentDetail.user_note }}</el-form-item></el-col>
           <el-col :span="24"><el-form-item label="Cancel Reason">{{ appointmentDetail.cancel_reason }}</el-form-item></el-col>
           <el-col :span="24"><el-form-item label="Reject Reason">{{ appointmentDetail.reject_reason }}</el-form-item></el-col>
+          <el-col :span="24"
+            ><el-form-item label="Writeoff Result">{{ formatWriteoffResult(appointmentDetail.writeoff_result) }}</el-form-item></el-col
+          >
         </el-row>
       </el-form>
       <el-table :data="appointmentDetail.events || []" border class="event-table">
@@ -436,6 +482,25 @@
         <el-button @click="dialogs.appointment = false">Close</el-button>
       </span>
     </el-dialog>
+
+    <el-dialog :visible.sync="dialogs.writeoff" title="Writeoff Detail" width="720px">
+      <el-form v-if="writeoffDetail.id" label-width="150px" class="detail-form">
+        <el-row>
+          <el-col :span="12"><el-form-item label="No.">{{ writeoffDetail.writeoff_no }}</el-form-item></el-col>
+          <el-col :span="12"><el-form-item label="Status">{{ writeoffDetail.status }}</el-form-item></el-col>
+          <el-col :span="12"><el-form-item label="Appointment">{{ writeoffDetail.appointment_id }}</el-form-item></el-col>
+          <el-col :span="12"><el-form-item label="Method">{{ writeoffDetail.writeoff_method }}</el-form-item></el-col>
+          <el-col :span="12"><el-form-item label="Operator">{{ writeoffDetail.operator_id }}</el-form-item></el-col>
+          <el-col :span="12"><el-form-item label="Role">{{ writeoffDetail.operator_role_code }}</el-form-item></el-col>
+          <el-col :span="12"><el-form-item label="Store">{{ writeoffDetail.store_id }}</el-form-item></el-col>
+          <el-col :span="12"><el-form-item label="Time">{{ writeoffDetail.writeoff_time }}</el-form-item></el-col>
+        </el-row>
+      </el-form>
+      <pre class="json-preview">{{ writeoffDetail.snapshot }}</pre>
+      <span slot="footer">
+        <el-button @click="dialogs.writeoff = false">Close</el-button>
+      </span>
+    </el-dialog>
   </div>
 </template>
 
@@ -447,6 +512,7 @@ import {
   yfthServiceAppointmentCancel,
   yfthServiceAppointmentConfirm,
   yfthServiceAppointmentDetail,
+  yfthServiceAppointmentExceptionWriteoff,
   yfthServiceAppointmentList,
   yfthServiceAppointmentReject,
   yfthServiceScheduleRuleDisable,
@@ -456,6 +522,8 @@ import {
   yfthServiceSpecialDayDisable,
   yfthServiceSpecialDayList,
   yfthServiceSpecialDaySave,
+  yfthServiceWriteoffDetail,
+  yfthServiceWriteoffList,
   yfthStoreServiceDisable,
   yfthStoreServiceList,
   yfthStoreServiceSave,
@@ -474,6 +542,7 @@ const emptyFilters = () => ({
     status: '',
   },
   appointment: { store_id: '', service_project_id: '', uid: '', service_date: '', status: '' },
+  writeoff: { store_id: '', appointment_id: '', uid: '', status: '', writeoff_method: '' },
 });
 
 export default {
@@ -488,6 +557,7 @@ export default {
         schedule: [],
         specialDay: [],
         appointment: [],
+        writeoff: [],
       },
       loading: {
         project: false,
@@ -495,6 +565,7 @@ export default {
         schedule: false,
         specialDay: false,
         appointment: false,
+        writeoff: false,
       },
       pages: {
         project: 1,
@@ -502,6 +573,7 @@ export default {
         schedule: 1,
         specialDay: 1,
         appointment: 1,
+        writeoff: 1,
       },
       limits: {
         project: 15,
@@ -509,6 +581,7 @@ export default {
         schedule: 15,
         specialDay: 15,
         appointment: 15,
+        writeoff: 15,
       },
       totals: {
         project: 0,
@@ -516,6 +589,7 @@ export default {
         schedule: 0,
         specialDay: 0,
         appointment: 0,
+        writeoff: 0,
       },
       dialogs: {
         project: false,
@@ -523,6 +597,7 @@ export default {
         schedule: false,
         specialDay: false,
         appointment: false,
+        writeoff: false,
       },
       forms: {
         project: {},
@@ -538,6 +613,7 @@ export default {
       previewLoading: false,
       previewRows: [],
       appointmentDetail: {},
+      writeoffDetail: {},
       weekdayOptions: [
         { label: 'Mon', value: 1 },
         { label: 'Tue', value: 2 },
@@ -560,6 +636,7 @@ export default {
         schedule: yfthServiceScheduleRuleList,
         specialDay: yfthServiceSpecialDayList,
         appointment: yfthServiceAppointmentList,
+        writeoff: yfthServiceWriteoffList,
       };
     },
     fetchList(tab) {
@@ -746,6 +823,29 @@ export default {
       yfthServiceAppointmentDetail(row.id).then((res) => {
         this.appointmentDetail = res.data || {};
         this.dialogs.appointment = true;
+      });
+    },
+    openWriteoff(row) {
+      yfthServiceWriteoffDetail(row.id).then((res) => {
+        this.writeoffDetail = (res.data && res.data.record) || {};
+        this.dialogs.writeoff = true;
+      });
+    },
+    formatWriteoffResult(result) {
+      if (!result || !result.status || result.status === 'none') return '-';
+      return result.record ? `${result.status} / ${result.record.writeoff_no || ''}` : result.status;
+    },
+    exceptionWriteoff(row) {
+      this.$prompt('Reason', 'Exception Writeoff', {
+        confirmButtonText: 'Submit',
+        cancelButtonText: 'Cancel',
+        inputValue: 'headquarter_exception_writeoff',
+      }).then(({ value }) => {
+        yfthServiceAppointmentExceptionWriteoff(row.id, { reason: value || 'headquarter_exception_writeoff' }).then(() => {
+          this.$message.success('Written off');
+          this.fetchList('appointment');
+          this.fetchList('writeoff');
+        });
       });
     },
     operateAppointment(row, action) {

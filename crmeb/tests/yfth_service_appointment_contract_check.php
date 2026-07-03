@@ -22,6 +22,8 @@ foreach ([
     'database/migrations/20260626130010_seed_yfth_service_appointment_menus.php',
     'database/migrations/20260703100000_create_yfth_service_appointment_booking_tables.php',
     'database/migrations/20260703100010_seed_yfth_service_appointment_booking_menus.php',
+    'database/migrations/20260703120000_create_yfth_service_writeoff_tables.php',
+    'database/migrations/20260703120010_seed_yfth_service_writeoff_menus.php',
     'database/migrations/20260627100000_create_yfth_admin_store_scope.php',
     'app/model/yfth/YfthAdminStoreScope.php',
     'app/dao/yfth/YfthAdminStoreScopeDao.php',
@@ -31,14 +33,20 @@ foreach ([
     'app/services/yfth/StoreServiceScheduleServices.php',
     'app/services/yfth/ServiceAppointmentQueryServices.php',
     'app/services/yfth/ServiceAppointmentBookingServices.php',
+    'app/services/yfth/ServiceAppointmentWriteoffServices.php',
+    'app/services/yfth/ServiceBenefitConsumptionServices.php',
     'app/model/yfth/YfthServiceAppointment.php',
     'app/model/yfth/YfthServiceAppointmentSlot.php',
     'app/model/yfth/YfthServiceBenefitLock.php',
     'app/model/yfth/YfthServiceAppointmentEvent.php',
+    'app/model/yfth/YfthServiceDynamicCode.php',
+    'app/model/yfth/YfthServiceWriteoffRecord.php',
     'app/dao/yfth/YfthServiceAppointmentDao.php',
     'app/dao/yfth/YfthServiceAppointmentSlotDao.php',
     'app/dao/yfth/YfthServiceBenefitLockDao.php',
     'app/dao/yfth/YfthServiceAppointmentEventDao.php',
+    'app/dao/yfth/YfthServiceDynamicCodeDao.php',
+    'app/dao/yfth/YfthServiceWriteoffRecordDao.php',
     'app/adminapi/controller/v1/yfth/ServiceAppointment.php',
     'app/api/controller/v1/yfth/ServiceAppointmentController.php',
     'app/api/route/yfth_service.php',
@@ -113,6 +121,35 @@ foreach ([
     $assert(strpos($bookingMenu, $needle) !== false, 'booking_menu_permission_exists:' . $needle);
 }
 
+$writeoffMigration = $read('database/migrations/20260703120000_create_yfth_service_writeoff_tables.php');
+foreach ([
+    'yfth_service_dynamic_code',
+    'yfth_service_writeoff_record',
+    'token_hash',
+    'digital_code_hash',
+    'uniq_yfth_svc_code_active',
+    'uniq_yfth_svc_writeoff_active',
+    'check_in_at',
+    'writeoff_at',
+    'completed_at',
+    'consumed_time',
+] as $needle) {
+    $assert(strpos($writeoffMigration, $needle) !== false, 'writeoff_migration_contains:' . $needle);
+}
+
+$writeoffMenu = $read('database/migrations/20260703120010_seed_yfth_service_writeoff_menus.php');
+foreach ([
+    'yfth-service-writeoff-list',
+    'yfth-service-writeoff-detail',
+    'yfth-service-writeoff-precheck',
+    'yfth-service-writeoff-token',
+    'yfth-service-writeoff-digital',
+    'yfth-service-writeoff-result',
+    'yfth-service-writeoff-exception',
+] as $needle) {
+    $assert(strpos($writeoffMenu, $needle) !== false, 'writeoff_menu_permission_exists:' . $needle);
+}
+
 $adminController = $read('app/adminapi/controller/v1/yfth/ServiceAppointment.php');
 foreach ([
     "assertAdminApiAuth('yfth/service_appointment/project/save', 'POST')",
@@ -123,6 +160,9 @@ foreach ([
     "assertAdminApiAuth('yfth/service_appointment/appointment/<id>/confirm', 'POST')",
     "assertAdminApiAuth('yfth/service_appointment/appointment/<id>/reject', 'POST')",
     "assertAdminApiAuth('yfth/service_appointment/appointment/<id>/cancel', 'POST')",
+    "assertAdminApiAuth('yfth/service_appointment/writeoff/token', 'POST')",
+    "assertAdminApiAuth('yfth/service_appointment/writeoff/digital', 'POST')",
+    "assertAdminApiAuth('yfth/service_appointment/appointment/<id>/exception_writeoff', 'POST')",
 ] as $needle) {
     $assert(strpos($adminController, $needle) !== false, 'controller_forces_api_auth:' . $needle);
 }
@@ -137,10 +177,45 @@ foreach ([
     'cancelled',
     'lockBenefitItem',
     'getOrCreateSlotLocked',
+    'ensureSlotExists',
+    'lockSlotPairById',
+    'runWithDeadlockRetry',
+    'formatPublicAppointment',
+    'publicDetailPayload',
     'activeBenefitLockExists',
     'recordServiceAudit',
 ] as $needle) {
     $assert(strpos($bookingService, $needle) !== false, 'booking_service_contains:' . $needle);
+}
+
+$writeoffService = $read('app/services/yfth/ServiceAppointmentWriteoffServices.php');
+foreach ([
+    'CODE_TTL_SECONDS',
+    'WINDOW_BEFORE_SECONDS',
+    'WINDOW_AFTER_SECONDS',
+    'hashSecret',
+    'invalidateActiveCodes',
+    'assertAdminCanWriteoff',
+    'store_staff',
+    'headquarter_exception',
+    'checked_in',
+    'benefit_written_off',
+    'completed',
+    'ServiceBenefitConsumptionServices',
+    'already_written_off',
+] as $needle) {
+    $assert(strpos($writeoffService, $needle) !== false, 'writeoff_service_contains:' . $needle);
+}
+
+$consumptionService = $read('app/services/yfth/ServiceBenefitConsumptionServices.php');
+foreach ([
+    "assertTransition('item'",
+    "'status' => 'used'",
+    "'fulfillment_status' => 'service_writeoff'",
+    'fulfilled_item_count',
+    'fulfilled_count',
+] as $needle) {
+    $assert(strpos($consumptionService, $needle) !== false, 'consumption_service_contains:' . $needle);
 }
 
 $middleware = $read('app/adminapi/middleware/AdminAuthTokenMiddleware.php');
@@ -201,6 +276,8 @@ foreach ([
     'yfth/service/appointment/benefits',
     'yfth/service/appointment/:id/cancel',
     'yfth/service/appointment/:id/reschedule',
+    'yfth/service/appointment/:id/code_status',
+    'yfth/service/appointment/:id/code',
 ] as $needle) {
     $assert(strpos($apiRoute, $needle) !== false, 'public_route_contains:' . $needle);
 }
@@ -218,15 +295,33 @@ foreach ([
     'yfthServiceAppointmentConfirm',
     'yfthServiceAppointmentReject',
     'yfthServiceAppointmentCancel',
+    'yfthServiceWriteoffList',
+    'yfthServiceWriteoffDetail',
+    'yfthServiceAppointmentExceptionWriteoff',
 ] as $needle) {
     $assert(strpos($adminApi, $needle) !== false, 'admin_api_contains:' . $needle);
 }
 $assert(strpos($adminPage, 'Slot Preview') !== false, 'admin_page_has_slot_preview');
 $assert(strpos($adminPage, 'Appointments') !== false, 'admin_page_has_appointment_tab');
+$assert(strpos($adminPage, 'Writeoffs') !== false, 'admin_page_has_writeoff_tab');
 $assert(strpos($uniApi, 'getYfthServiceDaySlots') !== false, 'uni_api_has_readonly_slots');
 $assert(strpos($uniApi, 'createYfthServiceAppointment') !== false, 'uni_api_has_real_appointment_create');
+$assert(strpos($uniApi, 'generateYfthAppointmentCode') !== false, 'uni_api_has_dynamic_code_generate');
 $assert(is_file($projectRoot . DIRECTORY_SEPARATOR . 'template/uni-app/pages/yfth/appointment/create.vue'), 'uni_page_create_exists');
 $assert(is_file($projectRoot . DIRECTORY_SEPARATOR . 'template/uni-app/pages/yfth/appointment/detail.vue'), 'uni_page_detail_exists');
+$assert(is_file($projectRoot . DIRECTORY_SEPARATOR . 'template/uni-app/pages/admin/yfth_writeoff/index.vue'), 'uni_page_store_writeoff_exists');
+$uniAdminApi = (string)file_get_contents($projectRoot . DIRECTORY_SEPARATOR . 'template/uni-app/api/yfth_admin.js');
+$uniWriteoffPage = (string)file_get_contents($projectRoot . DIRECTORY_SEPARATOR . 'template/uni-app/pages/admin/yfth_writeoff/index.vue');
+foreach ([
+    '/adminapi/',
+    'precheckYfthServiceWriteoff',
+    'writeoffYfthServiceByToken',
+    'writeoffYfthServiceByDigital',
+] as $needle) {
+    $assert(strpos($uniAdminApi, $needle) !== false, 'uni_admin_api_contains:' . $needle);
+}
+$assert(strpos($uniWriteoffPage, 'uni.scanCode') !== false, 'uni_writeoff_page_uses_scan_code');
+$assert(strpos($uniWriteoffPage, 'Confirm Writeoff') !== false, 'uni_writeoff_page_has_confirm');
 
 $handoff = (string)file_get_contents($projectRoot . DIRECTORY_SEPARATOR . 'docs/PROJECT_HANDOFF.md');
 $assert(strpos($handoff, 'Service Appointment Domain V1') !== false || strpos($handoff, '服务项目与门店预约时段基础域 V1') !== false, 'handoff_mentions_service_appointment');

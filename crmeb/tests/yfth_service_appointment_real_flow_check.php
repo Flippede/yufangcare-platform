@@ -7,6 +7,7 @@ use app\services\yfth\AdminStoreContextServices;
 use app\services\yfth\BenefitTemplateServices;
 use app\services\yfth\ServiceAppointmentBookingServices;
 use app\services\yfth\ServiceAppointmentQueryServices;
+use app\services\yfth\ServiceAppointmentWriteoffServices;
 use app\services\yfth\ServiceProjectServices;
 use app\services\yfth\StoreServiceAppointmentServices;
 use app\services\yfth\StoreServiceScheduleServices;
@@ -82,6 +83,8 @@ foreach ([
     'yfth_store_service_schedule_rule',
     'yfth_store_service_special_day',
     'yfth_admin_store_scope',
+    'yfth_service_dynamic_code',
+    'yfth_service_writeoff_record',
 ] as $table) {
     $fullTable = $prefix . $table;
     $rows = $query('SELECT COUNT(*) AS cnt FROM information_schema.TABLES WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?', [$database, $fullTable]);
@@ -96,6 +99,9 @@ foreach ([
     [$prefix . 'yfth_store_service_special_day', 'idx_yfth_svc_day_binding_date'],
     [$prefix . 'yfth_admin_store_scope', 'uniq_yfth_admin_scope_active'],
     [$prefix . 'yfth_admin_store_scope', 'idx_yfth_admin_scope_admin_role'],
+    [$prefix . 'yfth_service_dynamic_code', 'uniq_yfth_svc_code_active'],
+    [$prefix . 'yfth_service_writeoff_record', 'uniq_yfth_svc_writeoff_active'],
+    [$prefix . 'yfth_service_writeoff_record', 'idx_yfth_svc_writeoff_store_time'],
 ] as $index) {
     $rows = $query('SELECT COUNT(*) AS cnt FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND INDEX_NAME = ?', [$database, $index[0], $index[1]]);
     $assert((int)($rows[0]['cnt'] ?? 0) > 0, 'real_index_exists:' . $index[0] . '.' . $index[1]);
@@ -106,6 +112,7 @@ foreach ([
     StoreServiceAppointmentServices::class,
     StoreServiceScheduleServices::class,
     ServiceAppointmentQueryServices::class,
+    ServiceAppointmentWriteoffServices::class,
     AdminStoreContextServices::class,
 ] as $class) {
     try {
@@ -446,6 +453,83 @@ function vfRunServiceAppointmentFlow(callable $assert, array &$notes): void
     $assert($auto['appointment']['status'] === ServiceAppointmentBookingServices::STATUS_CONFIRMED, 'auto_confirm_create_confirmed');
     $slotAfterAuto = vfSlotRow((int)$auto['appointment']['slot_id']);
     $assert((int)$slotAfterAuto['occupied_count'] >= 1, 'auto_confirm_occupies_capacity');
+
+    /** @var ServiceAppointmentWriteoffServices $writeoffServices */
+    $writeoffServices = app()->make(ServiceAppointmentWriteoffServices::class);
+    $appointmentBId = (int)$auto['appointment']['id'];
+    $now = time();
+    Db::name('yfth_service_appointment')->where('id', $appointmentBId)->update([
+        'service_date' => (int)date('Ymd', $now),
+        'start_time' => $now - 600,
+        'end_time' => $now + 1800,
+        'start_minute' => max(0, (int)date('H', $now) * 60 + (int)date('i', $now) - 10),
+        'end_minute' => min(1440, (int)date('H', $now) * 60 + (int)date('i', $now) + 30),
+        'update_time' => $now,
+    ]);
+    $publicAppointment = $bookingServices->userDetail($uid, $appointmentBId);
+    $forbiddenUserKeys = ['events', 'benefit_lock', 'request_id', 'idempotency_key', 'confirm_operator_id', 'store_snapshot', 'service_snapshot', 'benefit_snapshot'];
+    $leakedUserKeys = array_intersect($forbiddenUserKeys, array_keys($publicAppointment));
+    $assert(!$leakedUserKeys && isset($publicAppointment['timeline']), 'user_appointment_detail_is_whitelisted');
+    $assert(($publicAppointment['dynamic_code']['can_generate'] ?? false) === true, 'public_detail_dynamic_code_available_in_window');
+
+    $firstCode = $writeoffServices->generateUserCode($uid, $appointmentBId, ['idempotency_key' => 'code-first-' . $runId]);
+    $secondCode = $writeoffServices->generateUserCode($uid, $appointmentBId, ['idempotency_key' => 'code-second-' . $runId]);
+    $assert(!empty($secondCode['code']['qr_token']) && !empty($secondCode['code']['digital_code']), 'dynamic_code_returns_plaintext_once');
+    $storedPlaintextCount = Db::name('yfth_service_dynamic_code')
+        ->where('appointment_id', $appointmentBId)
+        ->where(function ($query) use ($secondCode) {
+            $query->where('token_hash', (string)$secondCode['code']['qr_token'])->whereOr('digital_code_hash', (string)$secondCode['code']['digital_code']);
+        })
+        ->count();
+    $assert((int)$storedPlaintextCount === 0, 'dynamic_code_plaintext_not_persisted');
+    $invalidatedCount = Db::name('yfth_service_dynamic_code')
+        ->where('appointment_id', $appointmentBId)
+        ->where('status', 'invalidated')
+        ->count();
+    $assert((int)$invalidatedCount >= 1, 'dynamic_code_refresh_invalidates_old_code');
+    vfExpectException(function () use ($writeoffServices, $firstCode, $staffInfo) {
+        $writeoffServices->precheckByToken((string)$firstCode['code']['qr_token'], $staffInfo);
+    }, 'old_dynamic_code_rejected_after_refresh', $assert);
+    vfExpectException(function () use ($writeoffServices, $secondCode, $noScopeInfo) {
+        $writeoffServices->precheckByToken((string)$secondCode['code']['qr_token'], $noScopeInfo);
+    }, 'noscope_staff_writeoff_rejected', $assert);
+
+    $precheck = $writeoffServices->precheckByToken((string)$secondCode['code']['qr_token'], $staffInfo);
+    $assert($precheck['status'] === 'ok' && (int)$precheck['appointment']['id'] === $appointmentBId, 'store_staff_precheck_allowed_same_store');
+    $writeoff = $writeoffServices->writeoffByToken((string)$secondCode['code']['qr_token'], $staffInfo, ['idempotency_key' => 'writeoff-qr-' . $runId]);
+    $assert($writeoff['status'] === 'ok', 'store_staff_qr_writeoff_succeeds');
+    $writtenAppointment = Db::name('yfth_service_appointment')->where('id', $appointmentBId)->find();
+    $writtenLock = Db::name('yfth_service_benefit_lock')->where('appointment_id', $appointmentBId)->find();
+    $writtenItem = Db::name('yfth_benefit_item')->where('id', $benefitB['item_id'])->find();
+    $assert($writtenAppointment['status'] === ServiceAppointmentBookingServices::STATUS_COMPLETED && (int)$writtenAppointment['writeoff_id'] > 0, 'writeoff_marks_appointment_completed');
+    $assert($writtenLock['status'] === 'consumed' && $writtenLock['consume_status'] === 'consumed', 'writeoff_consumes_benefit_lock');
+    $assert($writtenItem['status'] === 'used' && $writtenItem['fulfillment_status'] === 'service_writeoff', 'writeoff_marks_benefit_item_used');
+    $repeat = $writeoffServices->writeoffByToken((string)$secondCode['code']['qr_token'], $staffInfo, ['idempotency_key' => 'writeoff-qr-repeat-' . $runId]);
+    $assert($repeat['status'] === 'already_written_off' || $repeat['status'] === 'ok', 'repeat_writeoff_is_idempotent_or_already_done');
+    $recordCount = Db::name('yfth_service_writeoff_record')->where('appointment_id', $appointmentBId)->where('status', 'succeeded')->count();
+    $assert((int)$recordCount === 1, 'repeat_writeoff_does_not_duplicate_record');
+    $writeoffEventCount = Db::name('yfth_service_appointment_event')->where('appointment_id', $appointmentBId)->whereIn('event_type', ['checked_in', 'benefit_written_off', 'completed'])->count();
+    $assert((int)$writeoffEventCount === 3, 'writeoff_records_checkin_benefit_completed_events');
+
+    $benefitC = vfCreateServiceBenefitFixture($uid, $storeId, (int)$serviceBenefit->id, $runId, 3);
+    $digital = $bookingServices->createAppointment($uid, [
+        'store_id' => $storeId,
+        'service_project_id' => $projectId,
+        'benefit_item_id' => $benefitC['item_id'],
+        'date' => vfDateText($serviceDate),
+        'start_minute' => 780,
+        'idempotency_key' => 'create-c-' . $runId,
+    ]);
+    $appointmentCId = (int)$digital['appointment']['id'];
+    Db::name('yfth_service_appointment')->where('id', $appointmentCId)->update([
+        'service_date' => (int)date('Ymd', $now),
+        'start_time' => $now - 600,
+        'end_time' => $now + 1800,
+        'update_time' => $now,
+    ]);
+    $digitalCode = $writeoffServices->generateUserCode($uid, $appointmentCId, ['idempotency_key' => 'code-digital-' . $runId]);
+    $digitalWriteoff = $writeoffServices->writeoffByDigital((string)$digitalCode['code']['digital_code'], $managerInfo, ['idempotency_key' => 'writeoff-digital-' . $runId]);
+    $assert($digitalWriteoff['status'] === 'ok', 'store_manager_digital_writeoff_succeeds');
 
     $eventCount = Db::name('yfth_service_appointment_event')->where('appointment_id', (int)$appointmentA['id'])->count();
     $assert((int)$eventCount >= 4, 'appointment_events_record_create_confirm_reschedule_cancel');

@@ -131,7 +131,7 @@ class ServiceAppointmentBookingServices extends ServiceAppointmentBaseServices
             'store_id' => (int)($where['store_id'] ?? 0) ?: '',
         ]);
         return $this->pageList($filter, '*', 'service_date desc,start_minute desc,id desc', function ($row) {
-            return $this->formatAppointment($row);
+            return $this->formatPublicAppointment($row, false);
         });
     }
 
@@ -141,7 +141,7 @@ class ServiceAppointmentBookingServices extends ServiceAppointmentBaseServices
         if ((int)$row['uid'] !== $uid) {
             throw new ApiException('appointment_forbidden');
         }
-        return $this->detailPayload($row);
+        return $this->publicDetailPayload($row);
     }
 
     public function cancelByUser(int $uid, int $appointmentId, string $reason, array $data = []): array
@@ -178,7 +178,8 @@ class ServiceAppointmentBookingServices extends ServiceAppointmentBaseServices
     {
         $key = $this->writeKey('user_reschedule', $uid, $appointmentId, $data);
         return $this->runIdempotent('user_reschedule', $key, ['uid' => $uid, 'id' => $appointmentId, 'data' => $data], (string)$appointmentId, function ($requestId) use ($uid, $appointmentId, $data) {
-            return $this->transaction(function () use ($uid, $appointmentId, $data, $requestId) {
+            return $this->runWithDeadlockRetry(function () use ($uid, $appointmentId, $data, $requestId) {
+                return $this->transaction(function () use ($uid, $appointmentId, $data, $requestId) {
                 $row = $this->lockAppointment($appointmentId);
                 if ((int)$row['uid'] !== $uid) {
                     throw new ApiException('appointment_forbidden');
@@ -193,13 +194,14 @@ class ServiceAppointmentBookingServices extends ServiceAppointmentBaseServices
                     'date' => $data['date'] ?? '',
                     'start_minute' => $data['start_minute'] ?? 0,
                 ], false);
-                $newSlot = $this->getOrCreateSlotLocked($context['binding'], $context['slot_data']);
-                if ((int)$newSlot['id'] === (int)$row['slot_id']) {
+                $newSlotId = $this->ensureSlotExists($context['binding'], $context['slot_data']);
+                if ((int)$newSlotId === (int)$row['slot_id']) {
                     return ['status' => 'ok', 'appointment' => $this->formatAppointment($row), 'unchanged' => true];
                 }
+                [$oldSlot, $newSlot] = $this->lockSlotPairById((int)$row['slot_id'], $newSlotId);
+                $this->refreshSlotCapacityIfIdle($newSlot, $context['slot_data']);
                 $this->assertSlotCanHold($newSlot);
                 $this->increaseSlot($newSlot, (string)$row['status']);
-                $oldSlot = $this->lockSlotById((int)$row['slot_id']);
                 $this->decreaseSlot($oldSlot, (string)$row['status']);
                 $before = $row;
                 $update = [
@@ -223,6 +225,7 @@ class ServiceAppointmentBookingServices extends ServiceAppointmentBaseServices
                 $this->recordEvent((int)$row['id'], 'reschedule', (string)$before['status'], (string)$after['status'], 'user', $uid, (int)$row['store_id'], $before, $after, trim((string)($data['reason'] ?? 'user_reschedule')), $requestId);
                 $this->recordServiceAudit('appointment', (string)$row['id'], 'reschedule', $before, $after, $uid, 'user', (int)$row['store_id'], trim((string)($data['reason'] ?? 'user_reschedule')), $requestId);
                 return ['status' => 'ok', 'appointment' => $this->formatAppointment($after)];
+                });
             });
         });
     }
@@ -448,6 +451,66 @@ class ServiceAppointmentBookingServices extends ServiceAppointmentBaseServices
         return $row;
     }
 
+    private function ensureSlotExists(array $binding, array $slotData): int
+    {
+        /** @var YfthServiceAppointmentSlotDao $slotDao */
+        $slotDao = app()->make(YfthServiceAppointmentSlotDao::class);
+        $slotKey = $this->slotKey((int)$binding['id'], (int)$slotData['service_date'], (int)$slotData['start_minute'], (int)$slotData['end_minute']);
+        $slot = $slotDao->search([])->where('slot_key', $slotKey)->find();
+        if ($slot) {
+            return (int)$slot['id'];
+        }
+        try {
+            $created = $slotDao->save($this->withTimestamps([
+                'store_id' => (int)$binding['store_id'],
+                'store_service_id' => (int)$binding['id'],
+                'service_project_id' => (int)$binding['service_project_id'],
+                'service_date' => (int)$slotData['service_date'],
+                'start_minute' => (int)$slotData['start_minute'],
+                'end_minute' => (int)$slotData['end_minute'],
+                'start_time' => (int)$slotData['start_timestamp'],
+                'end_time' => (int)$slotData['end_timestamp'],
+                'capacity' => (int)$slotData['capacity'],
+                'locked_count' => 0,
+                'occupied_count' => 0,
+                'status' => (int)$slotData['capacity'] > 0 ? 'available' : 'closed',
+                'slot_key' => $slotKey,
+            ], true));
+            return (int)$created->id;
+        } catch (\Throwable $e) {
+            if (!$this->isUniqueConflict($e)) {
+                throw $e;
+            }
+            $slot = $slotDao->search([])->where('slot_key', $slotKey)->find();
+            return (int)$this->requireRow($slot, 'appointment_slot_not_found')['id'];
+        }
+    }
+
+    private function lockSlotPairById(int $oldSlotId, int $newSlotId): array
+    {
+        $ids = [$oldSlotId, $newSlotId];
+        sort($ids, SORT_NUMERIC);
+        $locked = [];
+        foreach ($ids as $id) {
+            $locked[$id] = $this->lockSlotById($id);
+        }
+        return [$locked[$oldSlotId], $locked[$newSlotId]];
+    }
+
+    private function refreshSlotCapacityIfIdle(array &$slot, array $slotData): void
+    {
+        $capacity = (int)$slotData['capacity'];
+        if ((int)$slot['capacity'] === $capacity || (int)$slot['locked_count'] !== 0 || (int)$slot['occupied_count'] !== 0) {
+            return;
+        }
+        app()->make(YfthServiceAppointmentSlotDao::class)->update((int)$slot['id'], [
+            'capacity' => $capacity,
+            'status' => $capacity > 0 ? 'available' : 'closed',
+            'update_time' => time(),
+        ]);
+        $slot = $this->lockSlotById((int)$slot['id']);
+    }
+
     private function assertSlotCanHold(array $slot): void
     {
         if ((string)$slot['status'] === 'closed') {
@@ -582,6 +645,23 @@ class ServiceAppointmentBookingServices extends ServiceAppointmentBaseServices
         if ($payload['benefit_lock'] && !is_array($payload['benefit_lock'])) {
             $payload['benefit_lock'] = $payload['benefit_lock']->toArray();
         }
+        $payload['writeoff_result'] = app()->make(ServiceAppointmentWriteoffServices::class)->writeoffResultForAppointment((int)$row['id']);
+        return $payload;
+    }
+
+    private function publicDetailPayload(array $row): array
+    {
+        $payload = $this->formatPublicAppointment($row, true);
+        $events = app()->make(YfthServiceAppointmentEventDao::class)->selectList(['appointment_id' => (int)$row['id']], '*', 0, 0, 'id asc', [], false)->toArray();
+        $payload['timeline'] = array_map(function ($event) {
+            return [
+                'event_type' => (string)$event['event_type'],
+                'from_status' => (string)$event['from_status'],
+                'to_status' => (string)$event['to_status'],
+                'reason' => (string)$event['reason'],
+                'add_time' => (int)$event['add_time'],
+            ];
+        }, $events);
         return $payload;
     }
 
@@ -594,6 +674,57 @@ class ServiceAppointmentBookingServices extends ServiceAppointmentBaseServices
         $row['service_snapshot'] = $this->jsonDecode($row['service_snapshot'] ?? '');
         $row['benefit_snapshot'] = $this->jsonDecode($row['benefit_snapshot'] ?? '');
         return $row;
+    }
+
+    private function formatPublicAppointment(array $row, bool $detail): array
+    {
+        $store = $this->jsonDecode($row['store_snapshot'] ?? '');
+        $service = $this->jsonDecode($row['service_snapshot'] ?? '');
+        $benefit = $this->jsonDecode($row['benefit_snapshot'] ?? '');
+        $status = (string)$row['status'];
+        $writeoff = app()->make(ServiceAppointmentWriteoffServices::class);
+        $payload = [
+            'id' => (int)$row['id'],
+            'appointment_no' => (string)$row['appointment_no'],
+            'status' => $status,
+            'store' => [
+                'id' => (int)$row['store_id'],
+                'name' => (string)($store['name'] ?? $store['store_name'] ?? ''),
+            ],
+            'service_project' => [
+                'id' => (int)$row['service_project_id'],
+                'name' => (string)($service['project']['service_name'] ?? $service['project']['name'] ?? ''),
+            ],
+            'schedule' => [
+                'date' => $this->serviceDateText((int)$row['service_date']),
+                'start_time' => $this->minuteText((int)$row['start_minute']),
+                'end_time' => $this->minuteText((int)$row['end_minute']),
+                'start_timestamp' => (int)$row['start_time'],
+                'end_timestamp' => (int)$row['end_time'],
+            ],
+            'benefit' => [
+                'name' => (string)($benefit['benefit_name'] ?? ''),
+                'type' => (string)($benefit['benefit_type'] ?? 'service'),
+            ],
+            'actions' => [
+                'can_cancel' => in_array($status, [self::STATUS_PENDING, self::STATUS_CONFIRMED], true),
+                'can_reschedule' => in_array($status, [self::STATUS_PENDING, self::STATUS_CONFIRMED], true),
+                'can_generate_dynamic_code' => false,
+            ],
+            'dynamic_code' => $writeoff->codeAvailabilityForAppointment($row),
+            'writeoff_result' => $writeoff->writeoffResultForAppointment((int)$row['id']),
+        ];
+        $payload['actions']['can_generate_dynamic_code'] = (bool)$payload['dynamic_code']['can_generate'];
+        if ($detail) {
+            $payload['user_note'] = (string)($row['user_note'] ?? '');
+            $payload['confirm_mode'] = (string)($row['confirm_mode'] ?? '');
+            $payload['cancel_reason'] = (string)($row['cancel_reason'] ?? '');
+            $payload['reject_reason'] = (string)($row['reject_reason'] ?? '');
+            $payload['check_in_at'] = (int)($row['check_in_at'] ?? 0);
+            $payload['writeoff_at'] = (int)($row['writeoff_at'] ?? 0);
+            $payload['completed_at'] = (int)($row['completed_at'] ?? 0);
+        }
+        return $payload;
     }
 
     private function recordEvent(int $appointmentId, string $eventType, string $fromStatus, string $toStatus, string $operatorType, int $operatorId, int $storeId, array $before, array $after, string $reason, string $requestId): void
@@ -643,6 +774,31 @@ class ServiceAppointmentBookingServices extends ServiceAppointmentBaseServices
             $idempotency->fail($recordId, $e->getMessage());
             throw $e;
         }
+    }
+
+    private function runWithDeadlockRetry(callable $callback, int $maxAttempts = 3): array
+    {
+        $attempt = 0;
+        beginning:
+        $attempt++;
+        try {
+            return $callback();
+        } catch (\Throwable $e) {
+            if ($attempt >= $maxAttempts || !$this->isDeadlockOrLockTimeout($e)) {
+                throw $e;
+            }
+            usleep(50000 * $attempt);
+            goto beginning;
+        }
+    }
+
+    private function isDeadlockOrLockTimeout(\Throwable $e): bool
+    {
+        $message = strtolower($e->getMessage());
+        return strpos($message, 'deadlock') !== false
+            || strpos($message, 'lock wait timeout') !== false
+            || strpos($message, '1213') !== false
+            || strpos($message, '1205') !== false;
     }
 
     private function writeKey(string $action, int $operatorId, int $objectId, array $data): string

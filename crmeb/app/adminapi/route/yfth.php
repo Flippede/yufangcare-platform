@@ -63,6 +63,13 @@ Route::group('yfth', function () {
         Route::post('appointment/:id/confirm', 'v1.yfth.ServiceAppointment/appointmentConfirm')->option(['real_name' => 'YFTH service appointment confirm']);
         Route::post('appointment/:id/reject', 'v1.yfth.ServiceAppointment/appointmentReject')->option(['real_name' => 'YFTH service appointment reject']);
         Route::post('appointment/:id/cancel', 'v1.yfth.ServiceAppointment/appointmentCancel')->option(['real_name' => 'YFTH service appointment admin cancel']);
+        Route::get('writeoff', 'v1.yfth.ServiceAppointment/writeoffList')->option(['real_name' => 'YFTH service writeoff list']);
+        Route::get('writeoff/record/:id', 'v1.yfth.ServiceAppointment/writeoffDetail')->option(['real_name' => 'YFTH service writeoff detail']);
+        Route::post('writeoff/precheck', 'v1.yfth.ServiceAppointment/writeoffPrecheck')->option(['real_name' => 'YFTH service writeoff precheck']);
+        Route::post('writeoff/token', 'v1.yfth.ServiceAppointment/writeoffToken')->option(['real_name' => 'YFTH service QR writeoff']);
+        Route::post('writeoff/digital', 'v1.yfth.ServiceAppointment/writeoffDigital')->option(['real_name' => 'YFTH service digital writeoff']);
+        Route::get('writeoff/:id', 'v1.yfth.ServiceAppointment/writeoffResult')->option(['real_name' => 'YFTH service writeoff result']);
+        Route::post('appointment/:id/exception_writeoff', 'v1.yfth.ServiceAppointment/appointmentExceptionWriteoff')->option(['real_name' => 'YFTH service exception writeoff']);
     })->option(['parent' => 'yfth', 'cate_name' => 'YFTH service appointment']);
 })->middleware([
     \app\http\middleware\AllowOriginMiddleware::class,

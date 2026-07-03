@@ -420,3 +420,33 @@ export function yfthServiceAppointmentCancel(id, data) {
     data,
   });
 }
+
+export function yfthServiceWriteoffList(params) {
+  return request({
+    url: 'yfth/service_appointment/writeoff',
+    method: 'get',
+    params,
+  });
+}
+
+export function yfthServiceWriteoffDetail(id) {
+  return request({
+    url: `yfth/service_appointment/writeoff/record/${id}`,
+    method: 'get',
+  });
+}
+
+export function yfthServiceWriteoffResult(id) {
+  return request({
+    url: `yfth/service_appointment/writeoff/${id}`,
+    method: 'get',
+  });
+}
+
+export function yfthServiceAppointmentExceptionWriteoff(id, data) {
+  return request({
+    url: `yfth/service_appointment/appointment/${id}/exception_writeoff`,
+    method: 'post',
+    data,
+  });
+}

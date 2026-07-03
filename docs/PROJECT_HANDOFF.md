@@ -5,12 +5,12 @@
 - 本地路径：`C:\Users\zhangxu\Desktop\御方通和\yufangcare-platform`
 - GitHub 仓库：`https://github.com/Flippede/yufangcare-platform.git`
 - 当前分支：`feature/yfth-service-appointment-writeoff-v1`
-- 当前最新提交：以本文件所在分支的 Git HEAD 为准；Booking V1 状态修正完成 commit 见开发报告。
+- 当前最新提交：以本文件所在分支的 Git HEAD 为准；到店签到、动态码与服务权益核销 V1 完成 commit 见开发报告。
 - 当前稳定 main：`7413627250bd057474fd2a4ea04068fae5f2ec9c`
 - 本轮开始基线：`7413627250bd057474fd2a4ea04068fae5f2ec9c`
-- 当前开发阶段：服务项目、门店服务授权、周排班和特殊日期、可预约时段查询、预约创建、自动确认、人工确认、拒绝、取消、同门店同项目改期、真实容量锁定/占用、5980 服务权益锁定/释放、预约事件时间线、用户端最小真实页面和后台预约管理已经完成；下一步为 Booking V1 只读架构审核。
-- 当前工作区和推送状态：本轮事实修正提交后工作区应保持干净；功能分支暂未推送远端。
-- 当前禁止事项和冻结模块：不得在本阶段开发到店签到、动态二维码/数字码、扫码核销、服务权益最终消耗、服务完成/爽约处理、签到与核销记录、独立付费服务订单、消息通知、推荐奖励、配送、库存补货、产品额度、加盟合同、真实分账或生产部署；不得修改 5980 套餐支付激活、CRMEB 订单/支付/退款、后台权限核心流程或生产部署配置。
+- 当前开发阶段：服务项目、门店服务授权、周排班和特殊日期、可预约时段查询、预约创建、自动确认、人工确认、拒绝、取消、同门店同项目改期、真实容量锁定/占用、5980 服务权益锁定/释放、预约事件时间线、到店签到、动态二维码/数字码、扫码/输码核销、服务权益最终消耗、核销记录和服务完成状态已经在功能分支完成；下一步为签到与动态核销 V1 只读架构审核。
+- 当前工作区和推送状态：本轮开发提交后工作区应保持干净；功能分支暂未推送远端。
+- 当前禁止事项和冻结模块：不得在本阶段开发核销撤销/反冲、权益恢复、评价、自动爽约、提醒消息、独立付费服务订单、跨店核销、离线码、打印码、员工排班资源、家庭成员预约、推荐奖励、配送、库存补货、产品额度、加盟合同、真实分账或生产部署；不得修改 5980 套餐支付激活、CRMEB 订单/支付/退款、后台权限核心流程或生产部署配置。
 - 产品文档目录：`C:\Users\zhangxu\Desktop\御方通和\yufangcare-platform\项目文档`
 - 完整产品依据：`御方通和加盟小程序项目需求与产品设计文档_V1.0.docx`
 
@@ -18,7 +18,7 @@
 
 在 CRMEB 成熟商城和后台能力基础上，开发御方通和加盟 APP / 微信小程序，覆盖公共用户端、C端家庭康养会员、B端加盟商/门店工作台、A端服务导师、总部 Web 管理后台、商品商城、5980 家庭康养套餐、十个月权益、预约核销、加盟经营、推荐关系、奖励台账、内容活动、报表和审计。
 
-当前阶段目标是完成服务预约 Booking V1 收口：服务项目、门店服务授权、排班规则、特殊日期规则、可预约时段查询、预约创建、自动确认、门店人工确认/拒绝、用户取消、门店/总部取消、同门店同项目改期、真实容量锁定/占用、5980 套餐具体服务权益锁定/释放、预约事件时间线、后台预约管理和用户端最小真实页面均已落地。不得把尚未实现的签到、动态码、扫码核销、服务权益最终消耗、独立付费服务订单、配送履约、奖励台账、库存补货或真实分账执行误认为已完成。
+当前阶段目标是完成服务预约到店履约闭环 V1 收口：服务项目、门店服务授权、排班规则、特殊日期规则、可预约时段查询、预约创建、自动确认、门店人工确认/拒绝、用户取消、门店/总部取消、同门店同项目改期、真实容量锁定/占用、5980 套餐具体服务权益锁定/释放、预约事件时间线、用户动态二维码/数字码、同店店员/店长扫码或输码核销、总部例外核销、权益最终消耗、核销记录、审计和用户/后台/门店最小页面均已落地。不得把尚未实现的撤销反冲、权益恢复、评价、自动爽约、独立付费服务订单、配送履约、奖励台账、库存补货或真实分账执行误认为已完成。
 
 ## 2. 架构概览
 
@@ -48,20 +48,17 @@
 - 御方通和业务基础域、5980 套餐实例、十个月权益计划、真实 CRMEB 下单/支付/激活闭环、成交快照、退款生命周期、激活补偿、订单异常恢复和后台敏感操作权限校验。
 - 服务项目定义、门店服务授权、周排班、特殊日期、可预约时段查询、预约创建、自动确认、门店人工确认、门店拒绝、用户取消、门店/总部取消、同门店同服务项目改期、真实时段容量锁定与占用、5980 套餐具体服务权益锁定与释放、预约事件时间线。
 - 用户端预约创建、列表、详情、取消和改期最小真实页面；后台预约列表、详情、确认、拒绝和取消；真实后台 Token 门店权限；统一审计与幂等；MySQL 8.0.46 migration run、rollback、rerun 和真实预约流程验证。
+- 用户端动态二维码/数字码生成与刷新、动态码状态查询、门店扫码/输码预检与核销、同店店员/店长核销权限、总部例外核销、预约到店签到时间、服务核销时间、服务完成时间、5980 服务权益最终消耗、核销记录、核销事件时间线、统一审计和幂等防重复核销。
 
 ## 4. 当前未完成模块
 
 当前仍未完成或仅预留边界的御方通和专属模块：
 
 - 康养中心底部导航和页面结构。
-- 到店签到。
-- 动态二维码。
-- 动态数字码。
-- 扫码核销。
-- 服务权益最终消耗。
-- 服务完成状态操作。
-- 爽约处理。
-- 签到与核销记录。
+- 核销撤销/反冲和权益恢复。
+- 服务评价。
+- 自动爽约处理。
+- 独立服务完成/重开操作；当前核销成功会在同一事务内自动完成服务。
 - 独立付费服务订单。
 - 微信订阅消息和短信提醒。
 - 更完整的门店工作台、客户归属和经营待办。
@@ -96,15 +93,18 @@
 
 ## 7. 当前开发阶段
 
-阶段：预约创建、确认、取消、改期与服务权益锁定 Booking V1 已完成，当前只进行交接文档当前状态收口。
+阶段：到店签到、动态码与服务权益核销 V1 已完成，当前功能分支进入只读架构审核准备。
 
 本轮变化：
 
 - 服务项目定义、门店服务授权、周排班规则、特殊日期规则、只读公开 API 和后台配置页面已经落地。
 - Booking V1 已新增真实预约、可锁定时段实例、服务权益锁和预约事件时间线；支持用户创建、自动确认、人工确认、门店拒绝、用户取消、门店/总部取消、同门店同服务项目改期。
 - 时段采用“周规则实时计算 + 特殊日期覆盖 + 预约写入时创建/复用锁定实例”，公开时段查询会叠加 `occupied_count`、`locked_count` 和 `remaining_capacity` 的真实配置内余量。
+- 核销 V1 已新增动态码和核销记录模型；用户仅可在确认预约且处于到店窗口时生成二维码 token 与 6 位数字码，服务端只持久化哈希，刷新会废弃旧码。
+- 同店 `store_staff`、`store_manager`、`franchisee` 可核销本店预约；总部/超管只能通过显式例外核销入口处理异常。服务端按真实后台 token 和 `AdminStoreContextServices` 校验门店范围，不依赖前端传入 `store_id`。
+- 核销成功在一个事务内完成预约签到、服务权益最终消耗、权益锁 consumed、核销记录、动态码 used、预约 completed 和 `checked_in`/`benefit_written_off`/`completed` 事件写入；重复核销返回已核销结果，不重复扣减权益。
 - 审计统一使用 `AuditEventServices::recordSafely()` 写入 `yfth_audit_event`，业务域为 `yfth_service_appointment`；预约状态时间线写入 `yfth_service_appointment_event`；没有使用 `yfth_sensitive_operation_log`，也没有拆分写入第二套审计表。
-- 当前不支持跨日时段；尚未实现到店签到、动态二维码/数字码、扫码核销、服务权益最终消耗、服务完成状态操作、爽约处理、独立付费服务订单或消息提醒。
+- 当前不支持跨日时段；尚未实现核销撤销/反冲、权益恢复、服务评价、自动爽约处理、独立付费服务订单、消息提醒、跨店核销、离线码、打印码、员工排班资源或家庭成员预约。
 
 历史安全治理记录仍需保留，用于生产切换上下文：
 
@@ -122,11 +122,11 @@
 
 ## 8. 下一步建议
 
-当前下一步不应合并 `main` 或部署生产。建议对预约创建、确认、取消、改期、容量锁定和权益锁定 V1 进行只读架构审核；审核通过后进入“到店签到、动态二维码/数字码与扫码核销 V1”。
+当前下一步不应合并 `main` 或部署生产。建议对到店签到、动态二维码/数字码、扫码/输码核销、服务权益最终消耗和核销记录 V1 进行只读架构审核；审核通过后再进入“核销撤销/反冲、自动爽约、消息提醒或更完整门店工作台”的独立分支规划。
 
 生产服务器仍需保持干净克隆和凭据轮换要求：正式切换前应确认 GitHub Deploy Key 或受控 SSH 凭据可用，并确认生产 `.env`、微信支付证书、运行时 PEM 和前端环境变量均不进入 Git。
 
-后续开发建议按业务风险顺序推进：Booking V1 架构审核、签到/动态核销、服务权益最终消耗、权益领取配送履约、门店工作台、推荐关系与只读奖励台账，再进入库存补货、产品额度、加盟合同和真实分账执行。
+后续开发建议按业务风险顺序推进：签到/动态核销 V1 架构审核、核销异常反冲策略、自动爽约、消息提醒、更完整门店工作台、权益领取配送履约、推荐关系与只读奖励台账，再进入库存补货、产品额度、加盟合同和真实分账执行。
 
 建议先明确：
 
@@ -285,3 +285,21 @@
 - Frozen modules remain: check-in, dynamic QR/code, scan writeoff, final service consumption, no-show/completion operations, paid service order, messages, rewards, delivery, settlement, production deployment, and production database operations.
 - Next round should reuse `ServiceAppointmentBookingServices`, `ServiceAppointmentQueryServices`, `StoreServiceAppointmentServices`, `yfth_service_appointment`, `yfth_service_appointment_slot`, and `yfth_service_benefit_lock` to implement check-in, dynamic code, writeoff, and final benefit consumption.
 - Push status: this booking V1 round is local only unless a later operator explicitly pushes the feature branch.
+
+## Current Fact Snapshot - 2026-07-03 Service Check-in And Writeoff V1
+
+- Current branch: `feature/yfth-service-appointment-writeoff-v1`.
+- Stable main remains: `7413627250bd057474fd2a4ea04068fae5f2ec9c`.
+- Start commit for this round: `1db8fbc2fabd609e9fce8b4258b1639c9bbe1eec`.
+- Current latest commit: this check-in/writeoff V1 commit; use Git HEAD on this branch after commit.
+- Completed capabilities: user dynamic QR token and 6-digit digital code generation/refresh/status, hash-only code persistence, old-code invalidation, code expiry, store precheck, store QR writeoff, store digital writeoff, headquarters exception writeoff, same-store staff/manager/franchisee writeoff, appointment check-in/writeoff/completion timestamps, final service-benefit consumption, writeoff record list/detail, user writeoff result display, mobile store scan/input page, and admin writeoff status/record visibility.
+- New persistence: `yfth_service_dynamic_code`, `yfth_service_writeoff_record`, appointment writeoff columns, and benefit-lock consumed/writeoff columns.
+- Service classes added: `ServiceAppointmentWriteoffServices` and `ServiceBenefitConsumptionServices`; Booking V1 continues to own creation, confirmation, cancellation, reschedule, slot capacity, and service-benefit lock creation/release.
+- Dynamic code rules: only appointment owners can generate codes; appointments must be `confirmed`, uncompleted, within the default check-in window of 30 minutes before start to 120 minutes after end, and have an active service-benefit lock. QR tokens and numeric codes are returned only at generation time; stored values are SHA-256 hashes.
+- Writeoff transaction: locks appointment, dynamic code when present, benefit lock, benefit item and parent rows; then writes one successful writeoff record, marks the benefit item `used`, marks the benefit lock `consumed`, marks the appointment `completed`, records `checked_in`, `benefit_written_off`, and `completed` events, and records unified YFTH audit entries.
+- Repeat writeoff behavior: a completed appointment returns `already_written_off` or replayed idempotent result and does not create a second writeoff record or consume the benefit item again.
+- P2 hardening in this round: user appointment list/detail responses now use a whitelist and no longer expose raw `events`, raw `benefit_lock`, request ids, idempotency keys, snapshots, or backend operator fields; user reschedule now locks old/new slots by stable slot id order with finite deadlock retry.
+- Audit remains unified through `AuditEventServices::recordSafely()` into `yfth_audit_event`, business domain `yfth_service_appointment`; appointment history also writes `yfth_service_appointment_event`.
+- Frozen modules remain: writeoff reversal/refund recovery, service review, automatic no-show, notification messages, paid service order, cross-store/offline/printed codes, staff resource scheduling, family-member booking, rewards, delivery, inventory, settlement, production deployment, and production database operations.
+- Next step should be a read-only architecture audit for check-in, dynamic code, service writeoff, and final benefit consumption V1.
+- Push status: this check-in/writeoff V1 round is local only unless a later operator explicitly pushes the feature branch.

@@ -5,6 +5,7 @@ namespace app\adminapi\controller\v1\yfth;
 use app\adminapi\controller\AuthController;
 use app\services\system\admin\SystemRoleServices;
 use app\services\yfth\ServiceAppointmentBookingServices;
+use app\services\yfth\ServiceAppointmentWriteoffServices;
 use app\services\yfth\ServiceProjectServices;
 use app\services\yfth\StoreServiceAppointmentServices;
 use app\services\yfth\StoreServiceScheduleServices;
@@ -237,6 +238,76 @@ class ServiceAppointment extends AuthController
         ]);
         $data['idempotency_key'] = $data['idempotency_key'] ?: (string)$this->request->header('Idempotency-Key', '');
         return app('json')->success($services->cancelByAdmin((int)$id, (string)$data['reason'], (int)$this->adminId, $this->adminInfo ?: [], $data));
+    }
+
+    public function writeoffList(ServiceAppointmentWriteoffServices $services)
+    {
+        $this->assertAdminApiAuth('yfth/service_appointment/writeoff', 'GET');
+        return app('json')->success($services->adminList($this->request->getMore([
+            [['store_id', 'd'], 0],
+            [['appointment_id', 'd'], 0],
+            [['uid', 'd'], 0],
+            ['status', ''],
+            ['writeoff_method', ''],
+        ]), $this->adminInfo ?: []));
+    }
+
+    public function writeoffDetail(ServiceAppointmentWriteoffServices $services, $id)
+    {
+        $this->assertAdminApiAuth('yfth/service_appointment/writeoff/record/<id>', 'GET');
+        return app('json')->success($services->adminDetail((int)$id, $this->adminInfo ?: []));
+    }
+
+    public function writeoffPrecheck(ServiceAppointmentWriteoffServices $services)
+    {
+        $this->assertAdminApiAuth('yfth/service_appointment/writeoff/precheck', 'POST');
+        $data = $this->request->postMore([
+            ['qr_token', ''],
+            ['digital_code', ''],
+        ]);
+        if (trim((string)$data['qr_token']) !== '') {
+            return app('json')->success($services->precheckByToken((string)$data['qr_token'], $this->adminInfo ?: []));
+        }
+        return app('json')->success($services->precheckByDigital((string)$data['digital_code'], $this->adminInfo ?: []));
+    }
+
+    public function writeoffToken(ServiceAppointmentWriteoffServices $services)
+    {
+        $this->assertAdminApiAuth('yfth/service_appointment/writeoff/token', 'POST');
+        $data = $this->request->postMore([
+            ['qr_token', ''],
+            ['idempotency_key', ''],
+        ]);
+        $data['idempotency_key'] = $data['idempotency_key'] ?: (string)$this->request->header('Idempotency-Key', '');
+        return app('json')->success($services->writeoffByToken((string)$data['qr_token'], $this->adminInfo ?: [], $data));
+    }
+
+    public function writeoffDigital(ServiceAppointmentWriteoffServices $services)
+    {
+        $this->assertAdminApiAuth('yfth/service_appointment/writeoff/digital', 'POST');
+        $data = $this->request->postMore([
+            ['digital_code', ''],
+            ['idempotency_key', ''],
+        ]);
+        $data['idempotency_key'] = $data['idempotency_key'] ?: (string)$this->request->header('Idempotency-Key', '');
+        return app('json')->success($services->writeoffByDigital((string)$data['digital_code'], $this->adminInfo ?: [], $data));
+    }
+
+    public function writeoffResult(ServiceAppointmentWriteoffServices $services, $id)
+    {
+        $this->assertAdminApiAuth('yfth/service_appointment/writeoff/<id>', 'GET');
+        return app('json')->success($services->writeoffResultForAppointment((int)$id));
+    }
+
+    public function appointmentExceptionWriteoff(ServiceAppointmentWriteoffServices $services, $id)
+    {
+        $this->assertAdminApiAuth('yfth/service_appointment/appointment/<id>/exception_writeoff', 'POST');
+        $data = $this->request->postMore([
+            ['reason', ''],
+            ['idempotency_key', ''],
+        ]);
+        $data['idempotency_key'] = $data['idempotency_key'] ?: (string)$this->request->header('Idempotency-Key', '');
+        return app('json')->success($services->exceptionWriteoff((int)$id, $this->adminInfo ?: [], (string)$data['reason'], $data));
     }
 
     private function assertAdminApiAuth(string $rule, string $method): void

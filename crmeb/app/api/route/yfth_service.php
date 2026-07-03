@@ -21,6 +21,8 @@ Route::group(function () {
     Route::post('yfth/service/appointment/:id/cancel', 'v1.yfth.ServiceAppointmentController/cancel')->option(['real_name' => 'YFTH service appointment user cancel']);
     Route::get('yfth/service/appointment/:id/reschedule_slots', 'v1.yfth.ServiceAppointmentController/rescheduleSlots')->option(['real_name' => 'YFTH service appointment reschedule slots']);
     Route::post('yfth/service/appointment/:id/reschedule', 'v1.yfth.ServiceAppointmentController/reschedule')->option(['real_name' => 'YFTH service appointment reschedule']);
+    Route::get('yfth/service/appointment/:id/code_status', 'v1.yfth.ServiceAppointmentController/codeStatus')->option(['real_name' => 'YFTH service appointment dynamic code status']);
+    Route::post('yfth/service/appointment/:id/code', 'v1.yfth.ServiceAppointmentController/generateCode')->option(['real_name' => 'YFTH service appointment dynamic code generate']);
 })->middleware(\app\http\middleware\AllowOriginMiddleware::class)
     ->middleware(\app\api\middleware\StationOpenMiddleware::class)
     ->middleware(\app\api\middleware\AuthTokenMiddleware::class)

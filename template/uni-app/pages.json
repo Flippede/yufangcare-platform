@@ -1376,6 +1376,17 @@
 							// #endif
 						}
 					}
+				},
+				{
+					"path": "yfth_writeoff/index",
+					"style": {
+						"navigationBarTitleText": "Service Writeoff",
+						"app-plus": {
+							"titleNView": {
+								"type": "default"
+							}
+						}
+					}
 				}
 			]
 		},

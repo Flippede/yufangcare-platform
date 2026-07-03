@@ -107,3 +107,11 @@ export function getYfthAppointmentRescheduleSlots(id, data) {
 export function rescheduleYfthServiceAppointment(id, data) {
 	return request.post('yfth/service/appointment/' + id + '/reschedule', data || {});
 }
+
+export function getYfthAppointmentCodeStatus(id) {
+	return request.get('yfth/service/appointment/' + id + '/code_status');
+}
+
+export function generateYfthAppointmentCode(id, data) {
+	return request.post('yfth/service/appointment/' + id + '/code', data || {});
+}

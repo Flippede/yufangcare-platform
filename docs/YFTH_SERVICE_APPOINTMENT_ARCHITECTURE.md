@@ -15,13 +15,17 @@ Implemented in this round:
 - User appointment creation, my-list/detail, cancellation, and reschedule APIs/pages.
 - Admin appointment list/detail, manual confirm, reject, and cancel APIs/page actions.
 - Transactional slot capacity instances and service-benefit locks for 5980 package service benefits.
+- User dynamic QR token and 6-digit digital writeoff code generation, refresh, and status query.
+- Store precheck, QR writeoff, digital-code writeoff, headquarters exception writeoff, and writeoff record list/detail.
+- Atomic check-in, final service-benefit consumption, writeoff record creation, appointment completion, event timeline, audit, and idempotent repeat handling.
 
 Not implemented in this round:
 
-- Check-in.
-- Dynamic QR/code writeoff.
+- Writeoff reversal, refund recovery, or undo.
+- Service review.
+- Automatic no-show processing.
 - Paid service order creation.
-- Notifications, rewards, delivery, inventory, or franchise settlement.
+- Notifications, rewards, delivery, inventory, family-member booking, staff resource scheduling, or franchise settlement.
 
 ## Data Model
 
@@ -45,7 +49,15 @@ Not implemented in this round:
 
 `yfth_service_benefit_lock` stores service-benefit locks independently from orders, balance, points, stock, commission, and order remarks. The nullable unique `active_key` prevents more than one active lock for the same concrete benefit item.
 
-`yfth_service_appointment_event` stores appointment status and slot-change history for create, confirm, reject, cancel, and reschedule operations. Check-in records, dynamic codes, and writeoff records remain future tables.
+`yfth_service_appointment_event` stores appointment status, slot-change, and writeoff history for create, confirm, reject, cancel, reschedule, `checked_in`, `benefit_written_off`, and `completed` operations.
+
+`yfth_service_dynamic_code` stores dynamic writeoff code records. It keeps only SHA-256 hashes for QR tokens and 6-digit numeric codes, status, issued/expire/used/invalidated times, attempt counters, operator metadata after use, request id, and a nullable unique `active_key` that permits only one active code per appointment.
+
+`yfth_service_writeoff_record` stores successful service writeoff records. It references appointment, user, store, service project, concrete package instance, plan, period, benefit item, benefit lock, optional dynamic code, writeoff method, operator, before/after statuses, writeoff time, idempotency key, request id, and sanitized snapshot. A nullable unique `active_key` prevents more than one successful writeoff for one appointment.
+
+`yfth_service_appointment` also records `check_in_at`, `writeoff_at`, `completed_at`, `writeoff_id`, `writeoff_store_id`, `writeoff_operator_id`, `writeoff_operator_type`, and `writeoff_method`.
+
+`yfth_service_benefit_lock` also records `writeoff_id`, `consumed_time`, and `consume_reason` when the locked service benefit is finally consumed.
 
 ## Service Classes
 
@@ -56,6 +68,8 @@ The admin and public APIs use the following service layer classes:
 - `StoreServiceScheduleServices` for weekly schedule rules, special-day rules, conflict checks, and admin slot preview.
 - `ServiceAppointmentQueryServices` for public read-only service, store, date, and slot queries.
 - `ServiceAppointmentBookingServices` for appointment creation, status transitions, slot capacity locking, benefit locking, idempotency, user operations, and admin operations.
+- `ServiceAppointmentWriteoffServices` for dynamic code generation, code status, store precheck, QR/digital/headquarters writeoff, writeoff record list/detail, completion transaction, events, audit, and idempotency.
+- `ServiceBenefitConsumptionServices` for final service benefit consumption. It locks and validates the benefit item, package instance, plan, and period, uses the package benefit state machine for `available -> used`, and updates fulfilled counters.
 - `ServiceAppointmentBaseServices` for shared date, timezone, permission, and audit helpers.
 - `AdminStoreContextServices` for resolving backend admin headquarters/store scope from `yfth_admin_store_scope`.
 
@@ -84,6 +98,8 @@ CRMEB admin menu/API permission remains the first gate. Service-layer checks add
 - `AdminAuthTokenMiddleware` enriches `adminInfo` through `AdminStoreContextServices` after `AdminAuthServices::parseToken()`.
 - Store managers can manage schedules and special days only for their own active store when a server-side scope row is present.
 - Store staff cannot configure service projects, store authorizations, schedules, or capacity even if menu/API permission is misconfigured.
+- Store staff, store managers, and franchisees can write off only appointments belonging to their own scoped active store.
+- Headquarters and super admins can use the explicit headquarters exception writeoff API for exception handling; they are not silently treated as same-store staff on normal code writeoff.
 - Non-super administrators without `yfth_admin_store_scope` rows cannot gain store write access by sending `store_id` or role-like fields from the client.
 - Stopped or deleted stores fail write-scope checks and cannot be configured by store-scoped users.
 
@@ -95,6 +111,31 @@ Date input accepts only real calendar dates in `YYYY-MM-DD` or `YYYYMMDD` form. 
 
 Store-service authorization identity is immutable after creation. Updating `store_id` or `service_project_id` on an existing `yfth_store_service` row is rejected; changes requiring a different store/project pair must create a new authorization record and preserve history.
 
+## Dynamic Code And Writeoff
+
+- Default check-in window is 30 minutes before appointment start to 120 minutes after appointment end.
+- Only the appointment owner can generate a dynamic code.
+- The appointment must be `confirmed`, uncompleted, uncancelled, unrejected, in the check-in window, and must have an active `yfth_service_benefit_lock`.
+- Code generation returns plaintext QR token and 6-digit code only once in the response. The database stores hashes only.
+- Refreshing a code invalidates previous active unused codes for the appointment.
+- Code TTL is 300 seconds. Expired, invalidated, used, or over-attempt digital codes cannot complete a non-completed appointment.
+- Numeric-code lookup prefers one active issued code; completed repeats are recognized through the locked appointment/writeoff record and return already-written-off rather than consuming again.
+
+Normal writeoff runs in one transaction:
+
+1. Lock appointment and dynamic code when applicable.
+2. Resolve real backend admin token scope through `AdminStoreContextServices`.
+3. Revalidate active store, appointment status, dynamic-code window, and active service-benefit lock.
+4. Create one `yfth_service_writeoff_record` guarded by appointment-level unique `active_key`.
+5. Lock benefit item, package instance, plan, and period.
+6. Mark the service benefit item `used` with `fulfillment_status = service_writeoff`.
+7. Mark the service benefit lock `consumed`.
+8. Mark the appointment `completed` and write `check_in_at`, `writeoff_at`, and `completed_at`.
+9. Mark the dynamic code `used`.
+10. Record `checked_in`, `benefit_written_off`, and `completed` events plus unified YFTH audit entries.
+
+No undo, reversal, refund recovery, review, auto no-show, offline code, printed code, or independent paid service order exists in this V1.
+
 ## Audit
 
 Service appointment operations reuse the unified YFTH foundation audit path:
@@ -104,21 +145,22 @@ Service appointment operations reuse the unified YFTH foundation audit path:
 - Business domain: `yfth_service_appointment`.
 - Shared helper: `ServiceAppointmentBaseServices::recordServiceAudit()`.
 
-The audited object types are `service_project`, `store_service`, `schedule_rule`, and `special_day`. Create, update, and disable operations record operator uid, role code, store id, object type, object id, action, before state, after state, reason, request id, ip, and timestamps through the existing audit table columns. The module does not write `yfth_sensitive_operation_log`, and there is no split where some service appointment changes go to a second audit table.
+The audited object types include `service_project`, `store_service`, `schedule_rule`, `special_day`, `appointment`, `dynamic_code`, and `writeoff_record`. Create, update, disable, booking transition, dynamic-code generation, and writeoff operations record operator uid, role code, store id, object type, object id, action, before state, after state, reason, request id, ip, and timestamps through the existing audit table columns. The module does not write `yfth_sensitive_operation_log`, and there is no split where some service appointment changes go to a second audit table.
 
 ## Reuse For Next Round
 
-Check-in and writeoff development should reuse:
+Further appointment and fulfillment development should reuse:
 
 - `ServiceAppointmentQueryServices::daySlots()`
 - `ServiceAppointmentQueryServices::slotsForBinding()`
 - `ServiceAppointmentBookingServices::adminDetail()`
+- `ServiceAppointmentWriteoffServices::writeoffResultForAppointment()`
 - `StoreServiceAppointmentServices::activeBinding()`
 - Schedule and special-day conflict rules in `StoreServiceScheduleServices`
-- `yfth_service_appointment`, `yfth_service_appointment_slot`, and `yfth_service_benefit_lock`
+- `yfth_service_appointment`, `yfth_service_appointment_slot`, `yfth_service_benefit_lock`, `yfth_service_dynamic_code`, and `yfth_service_writeoff_record`
 - `yfth_store_service.default_capacity`, `advance_min_minutes`, `advance_max_days`, and `cancel_deadline_minutes`
 
-The next round should add check-in, dynamic code, writeoff, and final benefit consumption records instead of reusing order remarks, stock, balance, points, or commission fields.
+Future rounds should add reversal/no-show/notification/paid-service-order behavior as separate modules instead of reusing order remarks, stock, balance, points, or commission fields.
 
 ## Booking V1 On 2026-07-03
 
@@ -127,7 +169,21 @@ The next round should add check-in, dynamic code, writeoff, and final benefit co
 - Writes use `yfth_idempotency_record` through `IdempotencyRecordServices` with business domain `yfth_service_appointment`.
 - Manual-confirm store services create `pending_confirm` appointments and lock capacity; admin confirm moves locked capacity to occupied. Auto-confirm store services create `confirmed` appointments and occupy capacity immediately.
 - User cancel, admin reject, admin cancel, and user reschedule release or move slot counters and release service-benefit locks where appropriate.
-- Reserved statuses `signed_in`, `completed`, and `no_show` exist only as future state names; no check-in, writeoff, completion, no-show, dynamic code, or paid service order operation is implemented.
+- Reserved statuses `signed_in` and `no_show` remain future state names. `completed` is now used by writeoff V1 after successful service writeoff and final benefit consumption.
+
+## Check-in And Writeoff V1 On 2026-07-03
+
+- Added writeoff migration: `20260703120000_create_yfth_service_writeoff_tables.php`.
+- Added menu permission migration: `20260703120010_seed_yfth_service_writeoff_menus.php`.
+- Added tables/models/DAOs: `yfth_service_dynamic_code` and `yfth_service_writeoff_record`.
+- Added writeoff fields to `yfth_service_appointment` and final consumption fields to `yfth_service_benefit_lock`.
+- Added user APIs: `GET yfth/service/appointment/:id/code_status` and `POST yfth/service/appointment/:id/code`.
+- Added admin APIs: writeoff list/detail, precheck, QR writeoff, digital writeoff, result query, and headquarters exception writeoff.
+- Added uni-app appointment detail dynamic code display with QR component, 6-digit code, countdown, refresh, and writeoff result.
+- Added uni-app store writeoff page with `uni.scanCode`, manual 6-digit code input, precheck, and confirm writeoff.
+- Added admin appointment/writeoff visibility for writeoff method, time, status, writeoff records, and headquarters exception writeoff.
+- User appointment list/detail output now uses a whitelist and no longer exposes raw events, raw benefit locks, request ids, idempotency keys, snapshots, or backend operator fields.
+- User reschedule now locks old/new slots in stable slot id order and retries deadlock/lock-wait timeout a finite number of times.
 
 ## P1 Hardening On 2026-06-27
 
