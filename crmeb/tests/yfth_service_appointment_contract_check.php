@@ -20,6 +20,8 @@ $read = function (string $path) use ($root): string {
 foreach ([
     'database/migrations/20260626130000_create_yfth_service_appointment_tables.php',
     'database/migrations/20260626130010_seed_yfth_service_appointment_menus.php',
+    'database/migrations/20260703100000_create_yfth_service_appointment_booking_tables.php',
+    'database/migrations/20260703100010_seed_yfth_service_appointment_booking_menus.php',
     'database/migrations/20260627100000_create_yfth_admin_store_scope.php',
     'app/model/yfth/YfthAdminStoreScope.php',
     'app/dao/yfth/YfthAdminStoreScopeDao.php',
@@ -28,11 +30,35 @@ foreach ([
     'app/services/yfth/StoreServiceAppointmentServices.php',
     'app/services/yfth/StoreServiceScheduleServices.php',
     'app/services/yfth/ServiceAppointmentQueryServices.php',
+    'app/services/yfth/ServiceAppointmentBookingServices.php',
+    'app/model/yfth/YfthServiceAppointment.php',
+    'app/model/yfth/YfthServiceAppointmentSlot.php',
+    'app/model/yfth/YfthServiceBenefitLock.php',
+    'app/model/yfth/YfthServiceAppointmentEvent.php',
+    'app/dao/yfth/YfthServiceAppointmentDao.php',
+    'app/dao/yfth/YfthServiceAppointmentSlotDao.php',
+    'app/dao/yfth/YfthServiceBenefitLockDao.php',
+    'app/dao/yfth/YfthServiceAppointmentEventDao.php',
     'app/adminapi/controller/v1/yfth/ServiceAppointment.php',
     'app/api/controller/v1/yfth/ServiceAppointmentController.php',
     'app/api/route/yfth_service.php',
 ] as $file) {
     $assert(is_file($root . DIRECTORY_SEPARATOR . $file), 'file_exists:' . $file);
+}
+
+$bookingMigration = $read('database/migrations/20260703100000_create_yfth_service_appointment_booking_tables.php');
+foreach ([
+    'yfth_service_appointment',
+    'yfth_service_appointment_slot',
+    'yfth_service_benefit_lock',
+    'yfth_service_appointment_event',
+    'uniq_yfth_svc_appt_no',
+    'uniq_yfth_svc_appt_slot_key',
+    'uniq_yfth_svc_benefit_active',
+    'idx_yfth_svc_appt_store_status_date',
+    'idx_yfth_svc_slot_binding_date',
+] as $needle) {
+    $assert(strpos($bookingMigration, $needle) !== false, 'booking_migration_contains:' . $needle);
 }
 
 $adminScopeMigration = $read('database/migrations/20260627100000_create_yfth_admin_store_scope.php');
@@ -76,14 +102,45 @@ foreach ([
     $assert(strpos($menu, $needle) !== false, 'menu_permission_exists:' . $needle);
 }
 
+$bookingMenu = $read('database/migrations/20260703100010_seed_yfth_service_appointment_booking_menus.php');
+foreach ([
+    'yfth-service-appointment-booking-list',
+    'yfth-service-appointment-booking-detail',
+    'yfth-service-appointment-booking-confirm',
+    'yfth-service-appointment-booking-reject',
+    'yfth-service-appointment-booking-cancel',
+] as $needle) {
+    $assert(strpos($bookingMenu, $needle) !== false, 'booking_menu_permission_exists:' . $needle);
+}
+
 $adminController = $read('app/adminapi/controller/v1/yfth/ServiceAppointment.php');
 foreach ([
     "assertAdminApiAuth('yfth/service_appointment/project/save', 'POST')",
     "assertAdminApiAuth('yfth/service_appointment/store_service/save', 'POST')",
     "assertAdminApiAuth('yfth/service_appointment/schedule_rule/save', 'POST')",
     "assertAdminApiAuth('yfth/service_appointment/special_day/save', 'POST')",
+    "assertAdminApiAuth('yfth/service_appointment/appointment', 'GET')",
+    "assertAdminApiAuth('yfth/service_appointment/appointment/<id>/confirm', 'POST')",
+    "assertAdminApiAuth('yfth/service_appointment/appointment/<id>/reject', 'POST')",
+    "assertAdminApiAuth('yfth/service_appointment/appointment/<id>/cancel', 'POST')",
 ] as $needle) {
     $assert(strpos($adminController, $needle) !== false, 'controller_forces_api_auth:' . $needle);
+}
+
+$bookingService = $read('app/services/yfth/ServiceAppointmentBookingServices.php');
+foreach ([
+    'IdempotencyRecordServices',
+    'self::DOMAIN',
+    'pending_confirm',
+    'confirmed',
+    'rejected',
+    'cancelled',
+    'lockBenefitItem',
+    'getOrCreateSlotLocked',
+    'activeBenefitLockExists',
+    'recordServiceAudit',
+] as $needle) {
+    $assert(strpos($bookingService, $needle) !== false, 'booking_service_contains:' . $needle);
 }
 
 $middleware = $read('app/adminapi/middleware/AdminAuthTokenMiddleware.php');
@@ -113,6 +170,7 @@ foreach ([
     'occupied_count',
     'locked_count',
     'remaining_capacity',
+    'applyPersistedCapacity',
     'store_capability_unavailable',
     'special_day_closed',
     'publicProjectRow',
@@ -140,6 +198,9 @@ foreach ([
     'yfth/service/project/:id/dates',
     'yfth/service/project/:id/slots',
     'AuthTokenMiddleware::class, false',
+    'yfth/service/appointment/benefits',
+    'yfth/service/appointment/:id/cancel',
+    'yfth/service/appointment/:id/reschedule',
 ] as $needle) {
     $assert(strpos($apiRoute, $needle) !== false, 'public_route_contains:' . $needle);
 }
@@ -153,12 +214,19 @@ foreach ([
     'yfthServiceScheduleRuleSave',
     'yfthServiceSpecialDaySave',
     'yfthServiceSlotPreview',
+    'yfthServiceAppointmentList',
+    'yfthServiceAppointmentConfirm',
+    'yfthServiceAppointmentReject',
+    'yfthServiceAppointmentCancel',
 ] as $needle) {
     $assert(strpos($adminApi, $needle) !== false, 'admin_api_contains:' . $needle);
 }
 $assert(strpos($adminPage, 'Slot Preview') !== false, 'admin_page_has_slot_preview');
+$assert(strpos($adminPage, 'Appointments') !== false, 'admin_page_has_appointment_tab');
 $assert(strpos($uniApi, 'getYfthServiceDaySlots') !== false, 'uni_api_has_readonly_slots');
-$assert(strpos($uniApi, 'createYfthService') === false, 'uni_api_has_no_appointment_create');
+$assert(strpos($uniApi, 'createYfthServiceAppointment') !== false, 'uni_api_has_real_appointment_create');
+$assert(is_file($projectRoot . DIRECTORY_SEPARATOR . 'template/uni-app/pages/yfth/appointment/create.vue'), 'uni_page_create_exists');
+$assert(is_file($projectRoot . DIRECTORY_SEPARATOR . 'template/uni-app/pages/yfth/appointment/detail.vue'), 'uni_page_detail_exists');
 
 $handoff = (string)file_get_contents($projectRoot . DIRECTORY_SEPARATOR . 'docs/PROJECT_HANDOFF.md');
 $assert(strpos($handoff, 'Service Appointment Domain V1') !== false || strpos($handoff, '服务项目与门店预约时段基础域 V1') !== false, 'handoff_mentions_service_appointment');

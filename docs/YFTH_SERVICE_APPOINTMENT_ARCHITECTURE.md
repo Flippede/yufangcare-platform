@@ -12,11 +12,13 @@ Implemented in this round:
 - Special date close, extra slot, and capacity override rules.
 - Admin configuration APIs and page.
 - Public read-only APIs for service projects, available stores, dates, and slots.
+- User appointment creation, my-list/detail, cancellation, and reschedule APIs/pages.
+- Admin appointment list/detail, manual confirm, reject, and cancel APIs/page actions.
+- Transactional slot capacity instances and service-benefit locks for 5980 package service benefits.
 
 Not implemented in this round:
 
-- Appointment creation, confirmation, cancellation, reschedule, or check-in.
-- Benefit locking or release.
+- Check-in.
 - Dynamic QR/code writeoff.
 - Paid service order creation.
 - Notifications, rewards, delivery, inventory, or franchise settlement.
@@ -37,7 +39,13 @@ Not implemented in this round:
 - `extra`: an extra non-overlapping service window.
 - `capacity_override`: capacity overlay for calculated slots.
 
-There is no real appointment occupancy table in V1. Appointment rows, service benefit locks, check-in records, dynamic codes, and writeoff records must be introduced in later rounds instead of being stored in order remarks, stock, balance, points, commission, or generic JSON fields.
+`yfth_service_appointment` stores user-created appointments. It references the user, store, store service, service project, concrete 5980 package instance, benefit plan, benefit period, benefit item, slot snapshot, status, confirm mode, source type, user note, cancellation/rejection/confirmation operator fields, idempotency key, request id, and store/service/benefit snapshots.
+
+`yfth_service_appointment_slot` stores lockable capacity instances created on demand from the realtime schedule result. The unique `slot_key` is `store_service_id + service_date + start_minute + end_minute`; `locked_count` represents pending manual confirmations and `occupied_count` represents confirmed appointments.
+
+`yfth_service_benefit_lock` stores service-benefit locks independently from orders, balance, points, stock, commission, and order remarks. The nullable unique `active_key` prevents more than one active lock for the same concrete benefit item.
+
+`yfth_service_appointment_event` stores appointment status and slot-change history for create, confirm, reject, cancel, and reschedule operations. Check-in records, dynamic codes, and writeoff records remain future tables.
 
 ## Service Classes
 
@@ -47,12 +55,13 @@ The admin and public APIs use the following service layer classes:
 - `StoreServiceAppointmentServices` for store service authorization and active binding lookup.
 - `StoreServiceScheduleServices` for weekly schedule rules, special-day rules, conflict checks, and admin slot preview.
 - `ServiceAppointmentQueryServices` for public read-only service, store, date, and slot queries.
+- `ServiceAppointmentBookingServices` for appointment creation, status transitions, slot capacity locking, benefit locking, idempotency, user operations, and admin operations.
 - `ServiceAppointmentBaseServices` for shared date, timezone, permission, and audit helpers.
 - `AdminStoreContextServices` for resolving backend admin headquarters/store scope from `yfth_admin_store_scope`.
 
 ## Slot Strategy
 
-V1 uses realtime calculation from weekly rules plus special-day overlays. No slot instance table is generated yet because there is no real appointment occupancy in this round.
+V1 keeps realtime calculation from weekly rules plus special-day overlays as the source of truth for available time windows. When a user creates or reschedules an appointment, the booking service revalidates the realtime result and creates or reuses one `yfth_service_appointment_slot` row for the selected slot.
 
 Public slot responses include:
 
@@ -63,7 +72,7 @@ Public slot responses include:
 - `capacity_source`
 - `slot_generation_mode = rule_realtime_with_special_day_overlay`
 
-`occupied_count` and `locked_count` intentionally remain `0` until the next appointment-creation round introduces real records and transactional occupancy.
+`occupied_count` and `locked_count` are `0` before any booking exists. Once appointments are created, public slot responses overlay persisted slot counts and return true remaining capacity. Pending manual appointments increment `locked_count`; confirmed appointments increment `occupied_count`. Cancellation, rejection, and reschedule release the old counter.
 
 V1 does not support cross-day service windows. The service layer rejects ranges where the end minute is not within the same service date boundary.
 
@@ -99,15 +108,26 @@ The audited object types are `service_project`, `store_service`, `schedule_rule`
 
 ## Reuse For Next Round
 
-Appointment creation should reuse:
+Check-in and writeoff development should reuse:
 
 - `ServiceAppointmentQueryServices::daySlots()`
 - `ServiceAppointmentQueryServices::slotsForBinding()`
+- `ServiceAppointmentBookingServices::adminDetail()`
 - `StoreServiceAppointmentServices::activeBinding()`
 - Schedule and special-day conflict rules in `StoreServiceScheduleServices`
-- `yfth_store_service.default_capacity`, `advance_min_minutes`, and `advance_max_days`
+- `yfth_service_appointment`, `yfth_service_appointment_slot`, and `yfth_service_benefit_lock`
+- `yfth_store_service.default_capacity`, `advance_min_minutes`, `advance_max_days`, and `cancel_deadline_minutes`
 
-The next round should add a real appointment table and transactional occupancy/locking instead of reusing order remarks, stock, balance, points, or commission fields.
+The next round should add check-in, dynamic code, writeoff, and final benefit consumption records instead of reusing order remarks, stock, balance, points, or commission fields.
+
+## Booking V1 On 2026-07-03
+
+- Added booking tables: `yfth_service_appointment`, `yfth_service_appointment_slot`, `yfth_service_benefit_lock`, and `yfth_service_appointment_event`.
+- Creation supports only concrete service-type 5980 benefit items. Product benefits, unavailable/expired/refunded/used/locked items, disabled projects, disabled store bindings, inactive stores, stores without `reservation_service`, invalid dates, and full slots are rejected.
+- Writes use `yfth_idempotency_record` through `IdempotencyRecordServices` with business domain `yfth_service_appointment`.
+- Manual-confirm store services create `pending_confirm` appointments and lock capacity; admin confirm moves locked capacity to occupied. Auto-confirm store services create `confirmed` appointments and occupy capacity immediately.
+- User cancel, admin reject, admin cancel, and user reschedule release or move slot counters and release service-benefit locks where appropriate.
+- Reserved statuses `signed_in`, `completed`, and `no_show` exist only as future state names; no check-in, writeoff, completion, no-show, dynamic code, or paid service order operation is implemented.
 
 ## P1 Hardening On 2026-06-27
 

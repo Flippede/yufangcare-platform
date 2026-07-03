@@ -138,6 +138,70 @@
           </el-table>
         </el-tab-pane>
 
+        <el-tab-pane label="Appointments" name="appointment">
+          <div class="toolbar">
+            <el-input v-model="filters.appointment.store_id" clearable placeholder="Store ID" class="w120" />
+            <el-input v-model="filters.appointment.uid" clearable placeholder="User ID" class="w120" />
+            <el-input
+              v-model="filters.appointment.service_project_id"
+              clearable
+              placeholder="Project ID"
+              class="w120"
+            />
+            <el-date-picker
+              v-model="filters.appointment.service_date"
+              value-format="yyyy-MM-dd"
+              placeholder="Date"
+              class="w160"
+            />
+            <el-select v-model="filters.appointment.status" clearable placeholder="Status" class="w170">
+              <el-option label="Pending" value="pending_confirm" />
+              <el-option label="Confirmed" value="confirmed" />
+              <el-option label="Rejected" value="rejected" />
+              <el-option label="Cancelled" value="cancelled" />
+            </el-select>
+            <el-button type="primary" icon="el-icon-search" @click="search('appointment')">Search</el-button>
+          </div>
+          <el-table v-loading="loading.appointment" :data="lists.appointment" border>
+            <el-table-column prop="appointment_no" label="No." min-width="170" />
+            <el-table-column prop="uid" label="User" width="90" />
+            <el-table-column prop="store_id" label="Store" width="90" />
+            <el-table-column prop="service_project_id" label="Project" width="100" />
+            <el-table-column prop="date_text" label="Date" width="120" />
+            <el-table-column label="Slot" width="120">
+              <template slot-scope="scope">{{ scope.row.start_time_text }}-{{ scope.row.end_time_text }}</template>
+            </el-table-column>
+            <el-table-column prop="status" label="Status" width="130" />
+            <el-table-column prop="confirm_mode" label="Confirm" width="110" />
+            <el-table-column label="Actions" width="260" fixed="right">
+              <template slot-scope="scope">
+                <el-button type="text" icon="el-icon-view" @click="openAppointment(scope.row)">Detail</el-button>
+                <el-button
+                  v-if="scope.row.status === 'pending_confirm'"
+                  type="text"
+                  icon="el-icon-check"
+                  @click="operateAppointment(scope.row, 'confirm')"
+                  >Confirm</el-button
+                >
+                <el-button
+                  v-if="scope.row.status === 'pending_confirm'"
+                  type="text"
+                  icon="el-icon-close"
+                  @click="operateAppointment(scope.row, 'reject')"
+                  >Reject</el-button
+                >
+                <el-button
+                  v-if="['pending_confirm', 'confirmed'].includes(scope.row.status)"
+                  type="text"
+                  icon="el-icon-remove-outline"
+                  @click="operateAppointment(scope.row, 'cancel')"
+                  >Cancel</el-button
+                >
+              </template>
+            </el-table-column>
+          </el-table>
+        </el-tab-pane>
+
         <el-tab-pane label="Slot Preview" name="preview">
           <div class="toolbar">
             <el-input v-model="previewFilters.store_service_id" clearable placeholder="Store Service ID" class="w160" />
@@ -336,6 +400,42 @@
         <el-button type="primary" @click="saveSpecialDay">Save</el-button>
       </span>
     </el-dialog>
+
+    <el-dialog :visible.sync="dialogs.appointment" title="Appointment Detail" width="760px">
+      <el-form v-if="appointmentDetail.id" label-width="130px" class="detail-form">
+        <el-row>
+          <el-col :span="12"><el-form-item label="No.">{{ appointmentDetail.appointment_no }}</el-form-item></el-col>
+          <el-col :span="12"><el-form-item label="Status">{{ appointmentDetail.status }}</el-form-item></el-col>
+          <el-col :span="12"><el-form-item label="User">{{ appointmentDetail.uid }}</el-form-item></el-col>
+          <el-col :span="12"><el-form-item label="Store">{{ appointmentDetail.store_id }}</el-form-item></el-col>
+          <el-col :span="12"
+            ><el-form-item label="Project">{{ appointmentDetail.service_project_id }}</el-form-item></el-col
+          >
+          <el-col :span="12"><el-form-item label="Benefit">{{ appointmentDetail.benefit_item_id }}</el-form-item></el-col>
+          <el-col :span="12"><el-form-item label="Date">{{ appointmentDetail.date_text }}</el-form-item></el-col>
+          <el-col :span="12"
+            ><el-form-item label="Slot"
+              >{{ appointmentDetail.start_time_text }}-{{ appointmentDetail.end_time_text }}</el-form-item
+            ></el-col
+          >
+          <el-col :span="12"><el-form-item label="Confirm Mode">{{ appointmentDetail.confirm_mode }}</el-form-item></el-col>
+          <el-col :span="12"><el-form-item label="Reschedules">{{ appointmentDetail.reschedule_count }}</el-form-item></el-col>
+          <el-col :span="24"><el-form-item label="Note">{{ appointmentDetail.user_note }}</el-form-item></el-col>
+          <el-col :span="24"><el-form-item label="Cancel Reason">{{ appointmentDetail.cancel_reason }}</el-form-item></el-col>
+          <el-col :span="24"><el-form-item label="Reject Reason">{{ appointmentDetail.reject_reason }}</el-form-item></el-col>
+        </el-row>
+      </el-form>
+      <el-table :data="appointmentDetail.events || []" border class="event-table">
+        <el-table-column prop="event_type" label="Event" width="130" />
+        <el-table-column prop="from_status" label="From" width="130" />
+        <el-table-column prop="to_status" label="To" width="130" />
+        <el-table-column prop="operator_type" label="Operator" width="110" />
+        <el-table-column prop="reason" label="Reason" min-width="180" />
+      </el-table>
+      <span slot="footer">
+        <el-button @click="dialogs.appointment = false">Close</el-button>
+      </span>
+    </el-dialog>
   </div>
 </template>
 
@@ -344,6 +444,11 @@ import {
   yfthServiceProjectDisable,
   yfthServiceProjectList,
   yfthServiceProjectSave,
+  yfthServiceAppointmentCancel,
+  yfthServiceAppointmentConfirm,
+  yfthServiceAppointmentDetail,
+  yfthServiceAppointmentList,
+  yfthServiceAppointmentReject,
   yfthServiceScheduleRuleDisable,
   yfthServiceScheduleRuleList,
   yfthServiceScheduleRuleSave,
@@ -368,6 +473,7 @@ const emptyFilters = () => ({
     date_type: '',
     status: '',
   },
+  appointment: { store_id: '', service_project_id: '', uid: '', service_date: '', status: '' },
 });
 
 export default {
@@ -381,36 +487,42 @@ export default {
         storeService: [],
         schedule: [],
         specialDay: [],
+        appointment: [],
       },
       loading: {
         project: false,
         storeService: false,
         schedule: false,
         specialDay: false,
+        appointment: false,
       },
       pages: {
         project: 1,
         storeService: 1,
         schedule: 1,
         specialDay: 1,
+        appointment: 1,
       },
       limits: {
         project: 15,
         storeService: 15,
         schedule: 15,
         specialDay: 15,
+        appointment: 15,
       },
       totals: {
         project: 0,
         storeService: 0,
         schedule: 0,
         specialDay: 0,
+        appointment: 0,
       },
       dialogs: {
         project: false,
         storeService: false,
         schedule: false,
         specialDay: false,
+        appointment: false,
       },
       forms: {
         project: {},
@@ -425,6 +537,7 @@ export default {
       },
       previewLoading: false,
       previewRows: [],
+      appointmentDetail: {},
       weekdayOptions: [
         { label: 'Mon', value: 1 },
         { label: 'Tue', value: 2 },
@@ -446,6 +559,7 @@ export default {
         storeService: yfthStoreServiceList,
         schedule: yfthServiceScheduleRuleList,
         specialDay: yfthServiceSpecialDayList,
+        appointment: yfthServiceAppointmentList,
       };
     },
     fetchList(tab) {
@@ -628,6 +742,32 @@ export default {
           this.previewLoading = false;
         });
     },
+    openAppointment(row) {
+      yfthServiceAppointmentDetail(row.id).then((res) => {
+        this.appointmentDetail = res.data || {};
+        this.dialogs.appointment = true;
+      });
+    },
+    operateAppointment(row, action) {
+      const actionMap = {
+        confirm: { api: yfthServiceAppointmentConfirm, text: 'Confirm this appointment?' },
+        reject: { api: yfthServiceAppointmentReject, text: 'Reject this appointment?' },
+        cancel: { api: yfthServiceAppointmentCancel, text: 'Cancel this appointment?' },
+      };
+      const config = actionMap[action];
+      if (!config) return;
+      this.$prompt('Reason', 'Confirm', {
+        confirmButtonText: 'Submit',
+        cancelButtonText: 'Cancel',
+        inputValue: action,
+        inputPlaceholder: config.text,
+      }).then(({ value }) => {
+        config.api(row.id, { reason: value || action }).then(() => {
+          this.$message.success('Updated');
+          this.fetchList('appointment');
+        });
+      });
+    },
   },
 };
 </script>
@@ -663,5 +803,9 @@ export default {
 
 .yfth-service-appointment .slot-tag {
   margin: 2px 4px 2px 0;
+}
+
+.yfth-service-appointment .event-table {
+  margin-top: 12px;
 }
 </style>

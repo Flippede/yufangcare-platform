@@ -262,3 +262,20 @@
 - Public service project detail uses a whitelist and does not expose backend maintenance fields.
 - Frozen modules: no appointment creation, benefit lock/release, check-in, dynamic code, writeoff, paid service order, notification, reward, delivery, settlement, production deployment, or production database operation was started in this round.
 - Push status: this P1 round is local only unless a later operator explicitly pushes the feature branch.
+
+## Current Fact Snapshot - 2026-07-03 Service Appointment Booking V1
+
+- Current branch: `feature/yfth-service-appointment-writeoff-v1`.
+- Stable main remains: `7413627250bd057474fd2a4ea04068fae5f2ec9c`.
+- Start commit for this round: `7a3a8ef64bb193e4a52fc623e4e877b1c247c595`.
+- Current latest commit: this booking V1 commit; use Git HEAD on this branch after commit.
+- Current stage: service project, store service authorization, weekly schedule/special-day slot foundation, appointment creation, manual confirm, reject, cancel, reschedule, true slot capacity locking, and 5980 service-benefit locking are implemented on the feature branch.
+- New tables in this round: `yfth_service_appointment`, `yfth_service_appointment_slot`, `yfth_service_benefit_lock`, and `yfth_service_appointment_event`.
+- Slot strategy remains `weekly rule realtime calculation + special-day overlay`; booking writes create/reuse lockable slot instances only for selected slots.
+- User APIs/pages now cover available service benefits, create appointment, my appointment list, detail, cancel, reschedule-slot query, and reschedule submission.
+- Admin APIs/page now cover appointment list/detail, pending appointment confirmation, rejection, and cancellation.
+- Audit remains unified through `AuditEventServices::recordSafely()` into `yfth_audit_event`, business domain `yfth_service_appointment`; appointment history also writes `yfth_service_appointment_event`.
+- Idempotency uses existing `yfth_idempotency_record` via `IdempotencyRecordServices`.
+- Frozen modules remain: check-in, dynamic QR/code, scan writeoff, final service consumption, no-show/completion operations, paid service order, messages, rewards, delivery, settlement, production deployment, and production database operations.
+- Next round should reuse `ServiceAppointmentBookingServices`, `ServiceAppointmentQueryServices`, `StoreServiceAppointmentServices`, `yfth_service_appointment`, `yfth_service_appointment_slot`, and `yfth_service_benefit_lock` to implement check-in, dynamic code, writeoff, and final benefit consumption.
+- Push status: this booking V1 round is local only unless a later operator explicitly pushes the feature branch.

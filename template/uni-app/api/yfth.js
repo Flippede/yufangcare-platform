@@ -79,3 +79,31 @@ export function getYfthServiceAvailableDates(id, data) {
 export function getYfthServiceDaySlots(id, data) {
 	return request.get('yfth/service/project/' + id + '/slots', data || {}, { noAuth: true });
 }
+
+export function getYfthAppointmentBenefits(data) {
+	return request.get('yfth/service/appointment/benefits', data || {});
+}
+
+export function createYfthServiceAppointment(data) {
+	return request.post('yfth/service/appointment', data || {});
+}
+
+export function getYfthMyAppointments(data) {
+	return request.get('yfth/service/appointment/my', data || {});
+}
+
+export function getYfthAppointmentDetail(id) {
+	return request.get('yfth/service/appointment/' + id);
+}
+
+export function cancelYfthServiceAppointment(id, data) {
+	return request.post('yfth/service/appointment/' + id + '/cancel', data || {});
+}
+
+export function getYfthAppointmentRescheduleSlots(id, data) {
+	return request.get('yfth/service/appointment/' + id + '/reschedule_slots', data || {});
+}
+
+export function rescheduleYfthServiceAppointment(id, data) {
+	return request.post('yfth/service/appointment/' + id + '/reschedule', data || {});
+}

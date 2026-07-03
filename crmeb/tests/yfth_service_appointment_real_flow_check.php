@@ -5,6 +5,7 @@ use app\adminapi\middleware\AdminAuthTokenMiddleware;
 use app\services\system\admin\SystemAdminServices;
 use app\services\yfth\AdminStoreContextServices;
 use app\services\yfth\BenefitTemplateServices;
+use app\services\yfth\ServiceAppointmentBookingServices;
 use app\services\yfth\ServiceAppointmentQueryServices;
 use app\services\yfth\ServiceProjectServices;
 use app\services\yfth\StoreServiceAppointmentServices;
@@ -381,6 +382,74 @@ function vfRunServiceAppointmentFlow(callable $assert, array &$notes): void
     $assert($overlaySlots['status'] === 'ok' && count($overlaySlots['slots']) === 4, 'special_extra_adds_slot');
     $assert((int)$overlaySlots['slots'][0]['remaining_capacity'] === 5, 'capacity_override_applied');
 
+    $uid = vfCreateUser($runId);
+    $benefitA = vfCreateServiceBenefitFixture($uid, $storeId, (int)$serviceBenefit->id, $runId, 1);
+    /** @var ServiceAppointmentBookingServices $bookingServices */
+    $bookingServices = app()->make(ServiceAppointmentBookingServices::class);
+    $availableBenefits = $bookingServices->availableBenefits($uid, ['service_project_id' => $projectId]);
+    $assert((int)$availableBenefits['count'] >= 1, 'available_service_benefits_listed');
+
+    $created = $bookingServices->createAppointment($uid, [
+        'store_id' => $storeId,
+        'service_project_id' => $projectId,
+        'benefit_item_id' => $benefitA['item_id'],
+        'date' => vfDateText($serviceDate),
+        'start_minute' => 540,
+        'user_note' => 'real flow appointment',
+        'idempotency_key' => 'create-a-' . $runId,
+    ]);
+    $appointmentA = $created['appointment'];
+    $assert($appointmentA['status'] === ServiceAppointmentBookingServices::STATUS_PENDING, 'manual_create_pending_confirm');
+    $slotAfterCreate = vfSlotRow((int)$appointmentA['slot_id']);
+    $assert((int)$slotAfterCreate['locked_count'] === 1 && (int)$slotAfterCreate['occupied_count'] === 0, 'pending_create_locks_capacity');
+    $assert(vfActiveBenefitLockCount($benefitA['item_id']) === 1, 'pending_create_locks_benefit_item');
+    vfExpectException(function () use ($bookingServices, $uid, $storeId, $projectId, $benefitA, $serviceDate, $runId) {
+        $bookingServices->createAppointment($uid, [
+            'store_id' => $storeId,
+            'service_project_id' => $projectId,
+            'benefit_item_id' => $benefitA['item_id'],
+            'date' => vfDateText($serviceDate),
+            'start_minute' => 600,
+            'idempotency_key' => 'create-duplicate-benefit-' . $runId,
+        ]);
+    }, 'duplicate_active_benefit_lock_rejected', $assert);
+
+    $confirmed = $bookingServices->confirmByAdmin((int)$appointmentA['id'], 'real_flow_confirm', $operator, $managerInfo, ['idempotency_key' => 'confirm-a-' . $runId]);
+    $appointmentA = $confirmed['appointment'];
+    $slotAfterConfirm = vfSlotRow((int)$appointmentA['slot_id']);
+    $assert($appointmentA['status'] === ServiceAppointmentBookingServices::STATUS_CONFIRMED, 'manual_confirm_transitions_confirmed');
+    $assert((int)$slotAfterConfirm['locked_count'] === 0 && (int)$slotAfterConfirm['occupied_count'] === 1, 'confirm_moves_locked_to_occupied');
+
+    $rescheduled = $bookingServices->rescheduleByUser($uid, (int)$appointmentA['id'], [
+        'date' => vfDateText($serviceDate),
+        'start_minute' => 600,
+        'reason' => 'real_flow_reschedule',
+        'idempotency_key' => 'reschedule-a-' . $runId,
+    ]);
+    $appointmentA = $rescheduled['appointment'];
+    $assert((int)$appointmentA['start_minute'] === 600 && (int)$appointmentA['reschedule_count'] === 1, 'user_reschedule_updates_slot');
+    $cancelled = $bookingServices->cancelByUser($uid, (int)$appointmentA['id'], 'real_flow_user_cancel', ['idempotency_key' => 'cancel-a-' . $runId]);
+    $appointmentA = $cancelled['appointment'];
+    $assert($appointmentA['status'] === ServiceAppointmentBookingServices::STATUS_CANCELLED, 'user_cancel_transitions_cancelled');
+    $assert(vfActiveBenefitLockCount($benefitA['item_id']) === 0, 'cancel_releases_benefit_lock');
+
+    Db::name('yfth_store_service')->where('id', $bindingId)->update(['requires_confirmation' => 0, 'update_time' => time()]);
+    $benefitB = vfCreateServiceBenefitFixture($uid, $storeId, (int)$serviceBenefit->id, $runId, 2);
+    $auto = $bookingServices->createAppointment($uid, [
+        'store_id' => $storeId,
+        'service_project_id' => $projectId,
+        'benefit_item_id' => $benefitB['item_id'],
+        'date' => vfDateText($serviceDate),
+        'start_minute' => 660,
+        'idempotency_key' => 'create-b-' . $runId,
+    ]);
+    $assert($auto['appointment']['status'] === ServiceAppointmentBookingServices::STATUS_CONFIRMED, 'auto_confirm_create_confirmed');
+    $slotAfterAuto = vfSlotRow((int)$auto['appointment']['slot_id']);
+    $assert((int)$slotAfterAuto['occupied_count'] >= 1, 'auto_confirm_occupies_capacity');
+
+    $eventCount = Db::name('yfth_service_appointment_event')->where('appointment_id', (int)$appointmentA['id'])->count();
+    $assert((int)$eventCount >= 4, 'appointment_events_record_create_confirm_reschedule_cancel');
+
     $binding2 = $storeServiceServices->saveStoreService([
         'store_id' => $store2Id,
         'service_project_id' => $projectId,
@@ -454,6 +523,122 @@ function vfCreateStore(string $runId): int
         'is_show' => 1,
         'is_del' => 0,
     ]);
+}
+
+function vfCreateUser(string $runId): int
+{
+    $now = time();
+    $phone = '131' . str_pad((string)(abs(crc32('svc-user-' . $runId)) % 100000000), 8, '0', STR_PAD_LEFT);
+    return (int)Db::name('user')->insertGetId([
+        'account' => 'sa' . substr(strtolower($runId), 0, 20),
+        'pwd' => md5($runId),
+        'real_name' => 'YFTH Appointment Flow',
+        'nickname' => 'YFTH Appointment ' . $runId,
+        'avatar' => '',
+        'phone' => $phone,
+        'add_time' => $now,
+        'add_ip' => '127.0.0.1',
+        'last_time' => $now,
+        'last_ip' => '127.0.0.1',
+        'user_type' => 'h5',
+        'login_type' => 'h5',
+        'status' => 1,
+        'uniqid' => md5('yfth-service-appointment-' . $runId),
+    ]);
+}
+
+function vfCreateServiceBenefitFixture(int $uid, int $storeId, int $benefitTemplateId, string $runId, int $index): array
+{
+    $now = time();
+    $baseId = 700000000 + (abs(crc32($runId . ':' . $index)) % 100000000);
+    $instanceId = (int)Db::name('yfth_package_instance')->insertGetId([
+        'instance_no' => 'SAINST' . $runId . $index,
+        'purchase_id' => $baseId,
+        'uid' => $uid,
+        'store_id' => $storeId,
+        'template_id' => 1,
+        'rule_version_id' => 1,
+        'order_id' => $baseId + 1,
+        'order_sn' => 'SAORDER' . $runId . $index,
+        'plan_id' => 0,
+        'status' => 'active',
+        'refund_status' => 'none',
+        'fulfilled_count' => 0,
+        'start_time' => $now - 86400,
+        'end_time' => $now + 86400 * 60,
+        'activated_time' => $now,
+        'close_reason' => '',
+        'rule_snapshot' => '',
+        'store_snapshot' => '',
+        'add_time' => $now,
+        'update_time' => $now,
+    ]);
+    $planId = (int)Db::name('yfth_benefit_plan')->insertGetId([
+        'plan_no' => 'SAPLAN' . $runId . $index,
+        'package_instance_id' => $instanceId,
+        'uid' => $uid,
+        'store_id' => $storeId,
+        'template_id' => 1,
+        'rule_version_id' => 1,
+        'month_count' => 10,
+        'status' => 'active',
+        'start_time' => $now - 86400,
+        'end_time' => $now + 86400 * 60,
+        'opened_month_no' => 1,
+        'add_time' => $now,
+        'update_time' => $now,
+    ]);
+    Db::name('yfth_package_instance')->where('id', $instanceId)->update(['plan_id' => $planId]);
+    $periodId = (int)Db::name('yfth_benefit_period')->insertGetId([
+        'plan_id' => $planId,
+        'package_instance_id' => $instanceId,
+        'uid' => $uid,
+        'store_id' => $storeId,
+        'month_no' => 1,
+        'period_code' => 'SAPERIOD' . $runId . $index,
+        'period_start_time' => $now - 86400,
+        'period_end_time' => $now + 86400 * 30,
+        'open_at' => $now - 86400,
+        'expire_at' => $now + 86400 * 30,
+        'status' => 'available',
+        'total_item_count' => 1,
+        'fulfilled_item_count' => 0,
+        'add_time' => $now,
+        'update_time' => $now,
+    ]);
+    $itemId = (int)Db::name('yfth_benefit_item')->insertGetId([
+        'plan_id' => $planId,
+        'period_id' => $periodId,
+        'package_instance_id' => $instanceId,
+        'uid' => $uid,
+        'store_id' => $storeId,
+        'month_no' => 1,
+        'benefit_template_id' => $benefitTemplateId,
+        'benefit_code' => 'SVCBEN' . $runId,
+        'benefit_name' => 'Service Benefit ' . $runId,
+        'benefit_type' => 'service',
+        'quantity_total' => '1.00',
+        'quantity_available' => '1.00',
+        'quantity_used' => '0.00',
+        'available_time' => $now - 3600,
+        'expire_time' => $now + 86400 * 30,
+        'status' => 'available',
+        'fulfillment_status' => 'none',
+        'source_rule_id' => 900000 + $index,
+        'add_time' => $now,
+        'update_time' => $now,
+    ]);
+    return ['instance_id' => $instanceId, 'plan_id' => $planId, 'period_id' => $periodId, 'item_id' => $itemId];
+}
+
+function vfSlotRow(int $slotId): array
+{
+    return Db::name('yfth_service_appointment_slot')->where('id', $slotId)->find() ?: [];
+}
+
+function vfActiveBenefitLockCount(int $benefitItemId): int
+{
+    return (int)Db::name('yfth_service_benefit_lock')->where('benefit_item_id', $benefitItemId)->where('status', 'locked')->count();
 }
 
 function vfGrantCapability(int $storeId, string $capability, string $runId): void

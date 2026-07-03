@@ -58,6 +58,11 @@ Route::group('yfth', function () {
         Route::post('special_day/save', 'v1.yfth.ServiceAppointment/specialDaySave')->option(['real_name' => 'YFTH service special day save']);
         Route::post('special_day/disable', 'v1.yfth.ServiceAppointment/specialDayDisable')->option(['real_name' => 'YFTH service special day disable']);
         Route::get('slot_preview', 'v1.yfth.ServiceAppointment/slotPreview')->option(['real_name' => 'YFTH service slot preview']);
+        Route::get('appointment', 'v1.yfth.ServiceAppointment/appointmentList')->option(['real_name' => 'YFTH service appointment list']);
+        Route::get('appointment/:id', 'v1.yfth.ServiceAppointment/appointmentDetail')->option(['real_name' => 'YFTH service appointment detail']);
+        Route::post('appointment/:id/confirm', 'v1.yfth.ServiceAppointment/appointmentConfirm')->option(['real_name' => 'YFTH service appointment confirm']);
+        Route::post('appointment/:id/reject', 'v1.yfth.ServiceAppointment/appointmentReject')->option(['real_name' => 'YFTH service appointment reject']);
+        Route::post('appointment/:id/cancel', 'v1.yfth.ServiceAppointment/appointmentCancel')->option(['real_name' => 'YFTH service appointment admin cancel']);
     })->option(['parent' => 'yfth', 'cate_name' => 'YFTH service appointment']);
 })->middleware([
     \app\http\middleware\AllowOriginMiddleware::class,

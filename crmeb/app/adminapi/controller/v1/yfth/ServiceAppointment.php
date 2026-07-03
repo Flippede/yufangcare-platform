@@ -4,6 +4,7 @@ namespace app\adminapi\controller\v1\yfth;
 
 use app\adminapi\controller\AuthController;
 use app\services\system\admin\SystemRoleServices;
+use app\services\yfth\ServiceAppointmentBookingServices;
 use app\services\yfth\ServiceProjectServices;
 use app\services\yfth\StoreServiceAppointmentServices;
 use app\services\yfth\StoreServiceScheduleServices;
@@ -185,6 +186,57 @@ class ServiceAppointment extends AuthController
             ['start_date', ''],
             ['end_date', ''],
         ]), $this->adminInfo ?: []));
+    }
+
+    public function appointmentList(ServiceAppointmentBookingServices $services)
+    {
+        $this->assertAdminApiAuth('yfth/service_appointment/appointment', 'GET');
+        return app('json')->success($services->adminList($this->request->getMore([
+            [['store_id', 'd'], 0],
+            [['service_project_id', 'd'], 0],
+            [['uid', 'd'], 0],
+            ['status', ''],
+            ['service_date', ''],
+        ]), $this->adminInfo ?: []));
+    }
+
+    public function appointmentDetail(ServiceAppointmentBookingServices $services, $id)
+    {
+        $this->assertAdminApiAuth('yfth/service_appointment/appointment/<id>', 'GET');
+        return app('json')->success($services->adminDetail((int)$id, $this->adminInfo ?: []));
+    }
+
+    public function appointmentConfirm(ServiceAppointmentBookingServices $services, $id)
+    {
+        $this->assertAdminApiAuth('yfth/service_appointment/appointment/<id>/confirm', 'POST');
+        $data = $this->request->postMore([
+            ['reason', ''],
+            ['idempotency_key', ''],
+        ]);
+        $data['idempotency_key'] = $data['idempotency_key'] ?: (string)$this->request->header('Idempotency-Key', '');
+        return app('json')->success($services->confirmByAdmin((int)$id, (string)$data['reason'], (int)$this->adminId, $this->adminInfo ?: [], $data));
+    }
+
+    public function appointmentReject(ServiceAppointmentBookingServices $services, $id)
+    {
+        $this->assertAdminApiAuth('yfth/service_appointment/appointment/<id>/reject', 'POST');
+        $data = $this->request->postMore([
+            ['reason', ''],
+            ['idempotency_key', ''],
+        ]);
+        $data['idempotency_key'] = $data['idempotency_key'] ?: (string)$this->request->header('Idempotency-Key', '');
+        return app('json')->success($services->rejectByAdmin((int)$id, (string)$data['reason'], (int)$this->adminId, $this->adminInfo ?: [], $data));
+    }
+
+    public function appointmentCancel(ServiceAppointmentBookingServices $services, $id)
+    {
+        $this->assertAdminApiAuth('yfth/service_appointment/appointment/<id>/cancel', 'POST');
+        $data = $this->request->postMore([
+            ['reason', ''],
+            ['idempotency_key', ''],
+        ]);
+        $data['idempotency_key'] = $data['idempotency_key'] ?: (string)$this->request->header('Idempotency-Key', '');
+        return app('json')->success($services->cancelByAdmin((int)$id, (string)$data['reason'], (int)$this->adminId, $this->adminInfo ?: [], $data));
     }
 
     private function assertAdminApiAuth(string $rule, string $method): void

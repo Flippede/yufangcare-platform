@@ -119,6 +119,24 @@
 					"style": {
 						"navigationBarTitleText": "当月权益"
 					}
+				},
+				{
+					"path": "appointment/list",
+					"style": {
+						"navigationBarTitleText": "Service Appointments"
+					}
+				},
+				{
+					"path": "appointment/create",
+					"style": {
+						"navigationBarTitleText": "Create Appointment"
+					}
+				},
+				{
+					"path": "appointment/detail",
+					"style": {
+						"navigationBarTitleText": "Appointment Detail"
+					}
 				}
 			]
 		}, {

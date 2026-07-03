@@ -381,3 +381,42 @@ export function yfthServiceSlotPreview(params) {
     params,
   });
 }
+
+export function yfthServiceAppointmentList(params) {
+  return request({
+    url: 'yfth/service_appointment/appointment',
+    method: 'get',
+    params,
+  });
+}
+
+export function yfthServiceAppointmentDetail(id) {
+  return request({
+    url: `yfth/service_appointment/appointment/${id}`,
+    method: 'get',
+  });
+}
+
+export function yfthServiceAppointmentConfirm(id, data) {
+  return request({
+    url: `yfth/service_appointment/appointment/${id}/confirm`,
+    method: 'post',
+    data,
+  });
+}
+
+export function yfthServiceAppointmentReject(id, data) {
+  return request({
+    url: `yfth/service_appointment/appointment/${id}/reject`,
+    method: 'post',
+    data,
+  });
+}
+
+export function yfthServiceAppointmentCancel(id, data) {
+  return request({
+    url: `yfth/service_appointment/appointment/${id}/cancel`,
+    method: 'post',
+    data,
+  });
+}

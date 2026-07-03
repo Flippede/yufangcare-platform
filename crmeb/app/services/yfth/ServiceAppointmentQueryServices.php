@@ -3,6 +3,7 @@
 namespace app\services\yfth;
 
 use app\dao\yfth\YfthServiceProjectDao;
+use app\dao\yfth\YfthServiceAppointmentSlotDao;
 use app\dao\yfth\YfthStoreServiceScheduleRuleDao;
 use app\dao\yfth\YfthStoreServiceSpecialDayDao;
 use DateTimeImmutable;
@@ -170,10 +171,14 @@ class ServiceAppointmentQueryServices extends ServiceAppointmentBaseServices
 
         $slots = $this->dedupeSlots($slots);
         $slots = $this->applyCapacityOverrides($slots, $specialRows);
+        $slots = $this->applyPersistedCapacity($binding, $serviceDate, $slots);
         usort($slots, function ($a, $b) {
             return $a['start_minute'] <=> $b['start_minute'];
         });
         $total = array_sum(array_map('intval', array_column($slots, 'capacity')));
+        $occupied = array_sum(array_map('intval', array_column($slots, 'occupied_count')));
+        $locked = array_sum(array_map('intval', array_column($slots, 'locked_count')));
+        $remaining = array_sum(array_map('intval', array_column($slots, 'remaining_capacity')));
         $reason = '';
         if (!$slots) {
             $reason = $ruleRows || $this->hasSpecialExtra($specialRows) ? 'no_slot_in_advance_window' : 'no_schedule';
@@ -190,9 +195,9 @@ class ServiceAppointmentQueryServices extends ServiceAppointmentBaseServices
             'timezone' => $timezone,
             'slots' => $slots,
             'total_capacity' => $total,
-            'occupied_count' => 0,
-            'locked_count' => 0,
-            'remaining_capacity' => $total,
+            'occupied_count' => $occupied,
+            'locked_count' => $locked,
+            'remaining_capacity' => $remaining,
         ];
     }
 
@@ -320,6 +325,44 @@ class ServiceAppointmentQueryServices extends ServiceAppointmentBaseServices
                 $slot['capacity_source'] = 'special_capacity_override';
                 $slot['capacity_override_id'] = (int)$override['id'];
                 $slot['status'] = $capacity > 0 ? 'available' : 'closed';
+            }
+        }
+        unset($slot);
+        return $slots;
+    }
+
+    private function applyPersistedCapacity(array $binding, int $serviceDate, array $slots): array
+    {
+        if (!$slots) {
+            return $slots;
+        }
+        /** @var YfthServiceAppointmentSlotDao $slotDao */
+        $slotDao = app()->make(YfthServiceAppointmentSlotDao::class);
+        $rows = $slotDao->selectList([
+            'store_service_id' => (int)$binding['id'],
+            'service_date' => $serviceDate,
+        ], '*', 0, 0, 'start_minute asc,id asc', [], false)->toArray();
+        if (!$rows) {
+            return $slots;
+        }
+        $map = [];
+        foreach ($rows as $row) {
+            $map[(int)$row['start_minute'] . ':' . (int)$row['end_minute']] = $row;
+        }
+        foreach ($slots as &$slot) {
+            $key = (int)$slot['start_minute'] . ':' . (int)$slot['end_minute'];
+            if (empty($map[$key])) {
+                continue;
+            }
+            $persisted = $map[$key];
+            $slot['slot_instance_id'] = (int)$persisted['id'];
+            $slot['locked_count'] = (int)$persisted['locked_count'];
+            $slot['occupied_count'] = (int)$persisted['occupied_count'];
+            $slot['remaining_capacity'] = max(0, (int)$slot['capacity'] - (int)$persisted['locked_count'] - (int)$persisted['occupied_count']);
+            if ((string)$persisted['status'] === 'closed' || (int)$slot['capacity'] <= 0) {
+                $slot['status'] = 'closed';
+            } elseif ($slot['remaining_capacity'] <= 0) {
+                $slot['status'] = 'full';
             }
         }
         unset($slot);
