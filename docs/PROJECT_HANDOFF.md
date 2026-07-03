@@ -304,7 +304,7 @@
 - P2 hardening in this round: user appointment list/detail responses now use a whitelist and no longer expose raw `events`, raw `benefit_lock`, request ids, idempotency keys, snapshots, or backend operator fields; user reschedule now locks old/new slots by stable slot id order with finite deadlock retry.
 - Audit remains unified through `AuditEventServices::recordSafely()` into `yfth_audit_event`, business domain `yfth_service_appointment`; appointment history also writes `yfth_service_appointment_event`.
 - Frozen modules remain: writeoff reversal/refund recovery, service review, automatic no-show, notification messages, paid service order, cross-store/offline/printed codes, staff resource scheduling, family-member booking, rewards, delivery, inventory, settlement, production deployment, and production database operations.
-- Next step should be a read-only architecture audit for check-in, dynamic code, service writeoff, and final benefit consumption V1.
+- Current service appointment and dynamic writeoff V1 has passed final architecture review and is allowed to merge into `main`. The next business module must be selected separately by the project owner from the full product flow.
 - Push status: this check-in/writeoff V1 round is local only unless a later operator explicitly pushes the feature branch.
 
 ## Current Fact Snapshot - 2026-07-03 Digital Writeoff Code Hardening
@@ -320,5 +320,21 @@
 - Headquarters exception writeoff requires a non-empty service-side reason; missing, blank, or too-short reasons are rejected before any writeoff transaction. Valid reasons are written to the writeoff record, appointment events, and YFTH audit.
 - Added negative real-flow coverage for read-only precheck, cross-store true code, random-code equivalence, rate-limit boundary, same-store active-code unique constraint, different-store same-code allowance, and headquarters exception reason validation.
 - Still not implemented: writeoff reversal/refund recovery, automatic no-show, notification messages, paid service order, offline/printed codes, cross-store writeoff, production deployment, or production database migration.
-- Next step should be a targeted read-only architecture re-audit for the digital writeoff security hardening round.
+- Digital-code security hardening targeted review result: B, conditionally passed. The original digital-code P1 is closed; there are no current Blocker/P1 issues for service appointment and dynamic writeoff V1.
+- Service appointment and dynamic writeoff V1 is allowed to merge into `main`; the project may enter the next business module after merge, but the module must be selected separately by the project owner.
 - Push status: this hardening round is local only unless a later operator explicitly pushes the feature branch.
+
+## Current Fact Snapshot - 2026-07-03 Final Service Appointment And Writeoff V1 Closure
+
+- Current branch before merge: `feature/yfth-service-appointment-writeoff-v1`.
+- Stable main before merge: `7413627250bd057474fd2a4ea04068fae5f2ec9c`.
+- Final review conclusion: digital-code security hardening targeted review result is B, conditionally passed; the original digital-code P1 is closed; there are no current Blocker/P1 issues.
+- Merge readiness: service appointment and dynamic writeoff V1 is allowed to merge into `main`.
+- Completed stable capabilities: service project definition, store service authorization, weekly schedule and special days, available dates and slots, appointment creation, auto/manual confirmation, rejection, cancellation, same-store same-project reschedule, true capacity locking/occupation, 5980 service-benefit lock/release/final consumption, check-in, dynamic QR token, 6-digit digital writeoff code, same-store staff/manager/franchisee QR or digital writeoff, headquarters exception writeoff, appointment completion, writeoff records, events, unified audit, idempotency, and minimum real user/store/admin pages.
+- Validation basis: MySQL 8.0.46 migration run, rollback, rerun, and real-flow validation were completed in the feature branch before this final documentation closure.
+- Digital-code hardening facts: precheck is read-only; backend admin token and trusted store scope are resolved before numeric-code lookup; other-store real codes, random wrong codes, expired codes, and invalidated codes share safe error semantics; failure throttling is keyed by administrator, trusted store scope, IP, and business scene; failed attempts 1 through 5 execute, and the 6th request is temporarily limited; same-store active numeric codes are protected by `digital_active_key`; generation retries finite collisions; headquarters exception writeoff reason is required on the service side.
+- Non-blocking P2: expired digital codes may keep occupying `digital_active_key` until refresh or cleanup is triggered.
+- Non-blocking P2: when Cache/Redis has an exception, the digital-code entry fails closed, but the degraded response and operator experience can still be improved.
+- Non-blocking P3: no real wait-300-seconds TTL recovery test was executed; a future test can use injectable time or cache fake support.
+- Still not implemented: writeoff reversal/reversal accounting, benefit recovery, automatic no-show, service review, WeChat subscription messages, SMS reminders, independent paid service orders, fuller store workstation, delivery fulfillment, recommendation/reward ledger, inventory replenishment, product quota, franchise contracts, real settlement, production deployment, and production database migration.
+- Next state: current service appointment and dynamic writeoff V1 has passed final architecture review and is allowed to merge into `main`. The next business module must be determined separately by the project owner from the complete product flow.

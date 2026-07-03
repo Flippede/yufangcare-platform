@@ -168,6 +168,66 @@ Further appointment and fulfillment development should reuse:
 
 Future rounds should add reversal/no-show/notification/paid-service-order behavior as separate modules instead of reusing order remarks, stock, balance, points, or commission fields.
 
+## Final Review And Merge Readiness On 2026-07-03
+
+- Final review conclusion: digital-code security hardening targeted review result is B, conditionally passed.
+- The original digital-code P1 is closed. There are no current Blocker/P1 issues for service appointment and dynamic writeoff V1.
+- Service appointment and dynamic writeoff V1 is allowed to merge into `main`.
+- The project may enter the next business module after merge, but the next module must be selected separately by the project owner from the complete product flow.
+
+Completed stable capabilities include:
+
+- Service project definition.
+- Store service authorization.
+- Weekly schedule and special-day rules.
+- Available date and slot query.
+- Appointment creation.
+- Auto confirmation and manual confirmation.
+- Rejection, cancellation, and same-store same-project reschedule.
+- True slot capacity locking and occupation.
+- 5980 service-benefit lock, release, and final consumption.
+- Check-in.
+- Dynamic QR token.
+- 6-digit digital writeoff code.
+- Same-store staff, store manager, and franchisee QR/digital writeoff.
+- Headquarters exception writeoff.
+- Appointment completion.
+- Writeoff records, appointment events, unified audit, and idempotency.
+- Minimum real user, store, and admin pages.
+- MySQL 8.0.46 migration run, rollback, rerun, and real-flow validation.
+
+Digital-code hardening final facts:
+
+- Numeric-code precheck is read-only.
+- Backend admin token and trusted store scope are resolved before numeric-code lookup.
+- Other-store real codes, random wrong codes, expired codes, invalidated codes, and rate-limited requests use the same safe error semantics.
+- Failure throttling is keyed by administrator, trusted store scope, request IP, and writeoff scene.
+- Failed attempts 1 through 5 execute normally; the 6th request is temporarily limited.
+- Same-store active numeric-code uniqueness is enforced by `digital_active_key` and `uniq_yfth_svc_code_store_digital_active`.
+- Numeric-code generation retries finite same-store collisions.
+- Headquarters exception writeoff reason is required on the service side and is persisted to writeoff record, appointment event, and audit paths.
+
+Non-blocking follow-up items:
+
+- P2: expired digital codes may keep occupying `digital_active_key` until refresh or cleanup is triggered.
+- P2: when Cache/Redis has an exception, the digital-code entry fails closed, but the degraded response and operator experience can still be improved.
+- P3: no real wait-300-seconds TTL recovery test was executed; future tests can use injectable time or cache fake support.
+
+Still not implemented:
+
+- Writeoff reversal or reversal accounting.
+- Benefit recovery.
+- Automatic no-show.
+- Service review.
+- WeChat subscription messages and SMS reminders.
+- Independent paid service orders.
+- Fuller store workstation.
+- Delivery fulfillment.
+- Recommendation/reward ledger.
+- Inventory replenishment and product quota.
+- Franchise contracts and real settlement.
+- Production deployment and production database migration.
+
 ## Booking V1 On 2026-07-03
 
 - Added booking tables: `yfth_service_appointment`, `yfth_service_appointment_slot`, `yfth_service_benefit_lock`, and `yfth_service_appointment_event`.
