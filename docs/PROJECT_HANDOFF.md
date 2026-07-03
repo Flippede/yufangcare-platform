@@ -296,6 +296,9 @@
 - New persistence: `yfth_service_dynamic_code`, `yfth_service_writeoff_record`, appointment writeoff columns, and benefit-lock consumed/writeoff columns.
 - Service classes added: `ServiceAppointmentWriteoffServices` and `ServiceBenefitConsumptionServices`; Booking V1 continues to own creation, confirmation, cancellation, reschedule, slot capacity, and service-benefit lock creation/release.
 - Dynamic code rules: only appointment owners can generate codes; appointments must be `confirmed`, uncompleted, within the default check-in window of 30 minutes before start to 120 minutes after end, and have an active service-benefit lock. QR tokens and numeric codes are returned only at generation time; stored values are SHA-256 hashes.
+- Digital-code hardening: numeric-code precheck is read-only; numeric-code lookup first resolves real backend admin store scope and then searches only that trusted scope; random missing codes, other-store real codes, expired codes, invalidated codes, and rate-limited attempts share the same safe error semantics; failed numeric attempts are limited by administrator/store-scope/IP short-window counters instead of globally consuming a real code row.
+- Active same-store numeric code uniqueness is protected by `yfth_service_dynamic_code.digital_active_key` and `uniq_yfth_svc_code_store_digital_active`; code generation retries finite same-store numeric collisions and clears active keys on refresh, expiry, invalidation, and successful writeoff.
+- Headquarters exception writeoff now requires a service-side non-empty reason and persists it to writeoff record, appointment event, and unified YFTH audit paths.
 - Writeoff transaction: locks appointment, dynamic code when present, benefit lock, benefit item and parent rows; then writes one successful writeoff record, marks the benefit item `used`, marks the benefit lock `consumed`, marks the appointment `completed`, records `checked_in`, `benefit_written_off`, and `completed` events, and records unified YFTH audit entries.
 - Repeat writeoff behavior: a completed appointment returns `already_written_off` or replayed idempotent result and does not create a second writeoff record or consume the benefit item again.
 - P2 hardening in this round: user appointment list/detail responses now use a whitelist and no longer expose raw `events`, raw `benefit_lock`, request ids, idempotency keys, snapshots, or backend operator fields; user reschedule now locks old/new slots by stable slot id order with finite deadlock retry.
@@ -303,3 +306,19 @@
 - Frozen modules remain: writeoff reversal/refund recovery, service review, automatic no-show, notification messages, paid service order, cross-store/offline/printed codes, staff resource scheduling, family-member booking, rewards, delivery, inventory, settlement, production deployment, and production database operations.
 - Next step should be a read-only architecture audit for check-in, dynamic code, service writeoff, and final benefit consumption V1.
 - Push status: this check-in/writeoff V1 round is local only unless a later operator explicitly pushes the feature branch.
+
+## Current Fact Snapshot - 2026-07-03 Digital Writeoff Code Hardening
+
+- Current branch: `feature/yfth-service-appointment-writeoff-v1`.
+- Stable main remains: `7413627250bd057474fd2a4ea04068fae5f2ec9c`.
+- Start commit for this round: `25c6ac45aa3a41c197964c006bfa3ef60a888e07`.
+- Current latest commit: this digital-code hardening commit; use Git HEAD on this branch after commit.
+- Fixed security issues: digital-code precheck no longer mutates dynamic-code status or attempt counters; digital precheck/writeoff resolves trusted backend store scope before querying any numeric code; random missing codes and other-store real codes return the same safe error; cross-store input does not consume the real user's code attempts or state.
+- Brute-force protection now uses a short-lived request counter keyed by administrator id, trusted store scope, request IP, and digital writeoff scene. The first through configured maximum failed attempts are allowed to execute; the next request is temporarily limited with the same safe error semantics. Successful digital writeoff resets the counter.
+- Added persistence hardening: `20260703130000_harden_yfth_service_dynamic_codes.php` adds `digital_active_key`, `uniq_yfth_svc_code_store_digital_active`, `idx_yfth_svc_code_store_digital`, and writeoff-record `reason`.
+- Same-store active numeric collisions are blocked by the database and generation retries with a finite limit. The same 6-digit code may exist in different stores, but lookup is always restricted to the real operator scope.
+- Headquarters exception writeoff requires a non-empty service-side reason; missing, blank, or too-short reasons are rejected before any writeoff transaction. Valid reasons are written to the writeoff record, appointment events, and YFTH audit.
+- Added negative real-flow coverage for read-only precheck, cross-store true code, random-code equivalence, rate-limit boundary, same-store active-code unique constraint, different-store same-code allowance, and headquarters exception reason validation.
+- Still not implemented: writeoff reversal/refund recovery, automatic no-show, notification messages, paid service order, offline/printed codes, cross-store writeoff, production deployment, or production database migration.
+- Next step should be a targeted read-only architecture re-audit for the digital writeoff security hardening round.
+- Push status: this hardening round is local only unless a later operator explicitly pushes the feature branch.

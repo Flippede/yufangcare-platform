@@ -9,6 +9,7 @@ use app\dao\yfth\YfthServiceDynamicCodeDao;
 use app\dao\yfth\YfthServiceWriteoffRecordDao;
 use crmeb\exceptions\AdminException;
 use crmeb\exceptions\ApiException;
+use think\facade\Cache;
 
 class ServiceAppointmentWriteoffServices extends ServiceAppointmentBaseServices
 {
@@ -23,6 +24,9 @@ class ServiceAppointmentWriteoffServices extends ServiceAppointmentBaseServices
     private const WINDOW_BEFORE_SECONDS = 1800;
     private const WINDOW_AFTER_SECONDS = 7200;
     private const DIGITAL_MAX_ATTEMPTS = 5;
+    private const DIGITAL_RATE_LIMIT_TTL = 300;
+    private const DIGITAL_GENERATION_MAX_RETRIES = 10;
+    private const DIGITAL_SAFE_ERROR = 'digital_code_invalid_or_expired';
 
     public function __construct(YfthServiceWriteoffRecordDao $dao)
     {
@@ -60,22 +64,7 @@ class ServiceAppointmentWriteoffServices extends ServiceAppointmentBaseServices
                 }
                 $this->invalidateActiveCodes($appointmentId, $requestId);
 
-                $token = 'yfthsvc_' . bin2hex(random_bytes(24));
-                [$digital, $digitalHash] = $this->makeUniqueDigitalCode();
-                $now = time();
-                $code = app()->make(YfthServiceDynamicCodeDao::class)->save($this->withTimestamps([
-                    'appointment_id' => $appointmentId,
-                    'uid' => $uid,
-                    'store_id' => (int)$appointment['store_id'],
-                    'token_hash' => $this->hashSecret($token),
-                    'digital_code_hash' => $digitalHash,
-                    'status' => self::CODE_STATUS_ISSUED,
-                    'issued_time' => $now,
-                    'expire_time' => $now + self::CODE_TTL_SECONDS,
-                    'max_attempts' => self::DIGITAL_MAX_ATTEMPTS,
-                    'request_id' => $requestId,
-                    'active_key' => (string)$appointmentId,
-                ], true));
+                [$code, $token, $digital, $now] = $this->createDynamicCodeWithRetry($appointment, $uid, $requestId);
 
                 $codeId = (int)$code->id;
                 $this->recordServiceAudit('dynamic_code', (string)$codeId, 'generate', [], [
@@ -139,8 +128,16 @@ class ServiceAppointmentWriteoffServices extends ServiceAppointmentBaseServices
 
     public function precheckByDigital(string $digitalCode, array $adminInfo = []): array
     {
-        $code = $this->requireActiveCodeByDigital($digitalCode, false);
-        return $this->precheckCode($code, $adminInfo);
+        $scope = $this->resolveDigitalWriteoffScope($adminInfo);
+        $rateKey = $this->digitalRateLimitKey($scope);
+        $this->assertDigitalRateAllowed($rateKey);
+        try {
+            $code = $this->requireScopedDigitalCode($digitalCode, $scope, false, false);
+            return $this->precheckCode($code, $adminInfo);
+        } catch (\Throwable $e) {
+            $this->recordDigitalFailure($rateKey);
+            throw $this->safeDigitalException($e);
+        }
     }
 
     public function writeoffByToken(string $token, array $adminInfo = [], array $data = []): array
@@ -155,21 +152,32 @@ class ServiceAppointmentWriteoffServices extends ServiceAppointmentBaseServices
     public function writeoffByDigital(string $digitalCode, array $adminInfo = [], array $data = []): array
     {
         $adminId = (int)($adminInfo['id'] ?? 0);
+        $scope = $this->resolveDigitalWriteoffScope($adminInfo);
+        $rateKey = $this->digitalRateLimitKey($scope);
+        $this->assertDigitalRateAllowed($rateKey);
         $key = $this->writeKey('writeoff_digital', $adminId, 0, $data + ['digital_hash' => $this->hashSecret($digitalCode)]);
-        return $this->runIdempotent('writeoff_digital', $key, ['admin_id' => $adminId], '', function ($requestId) use ($digitalCode, $adminInfo, $key) {
-            return $this->performCodeWriteoff('', $digitalCode, self::METHOD_DIGITAL, $adminInfo, $key, $requestId);
-        });
+        try {
+            $result = $this->runIdempotent('writeoff_digital', $key, ['admin_id' => $adminId], '', function ($requestId) use ($digitalCode, $adminInfo, $key, $scope) {
+                return $this->performCodeWriteoff('', $digitalCode, self::METHOD_DIGITAL, $adminInfo, $key, $requestId, $scope);
+            });
+            $this->resetDigitalFailures($rateKey);
+            return $result;
+        } catch (\Throwable $e) {
+            $this->recordDigitalFailure($rateKey);
+            throw $this->safeDigitalException($e);
+        }
     }
 
     public function exceptionWriteoff(int $appointmentId, array $adminInfo = [], string $reason = '', array $data = []): array
     {
         $adminId = (int)($adminInfo['id'] ?? 0);
+        $reason = $this->normalizeExceptionReason($reason);
         $key = $this->writeKey('writeoff_exception', $adminId, $appointmentId, $data + ['reason' => $reason]);
         return $this->runIdempotent('writeoff_exception', $key, ['admin_id' => $adminId, 'appointment_id' => $appointmentId], (string)$appointmentId, function ($requestId) use ($appointmentId, $adminInfo, $key, $reason) {
             return $this->transaction(function () use ($appointmentId, $adminInfo, $key, $reason, $requestId) {
                 $this->assertHeadquarterWriteoff($adminInfo);
                 $appointment = $this->lockAppointment($appointmentId);
-                return $this->completeWriteoff($appointment, [], self::METHOD_EXCEPTION, $adminInfo, $key, $requestId, $reason ?: 'headquarter_exception_writeoff');
+                return $this->completeWriteoff($appointment, [], self::METHOD_EXCEPTION, $adminInfo, $key, $requestId, $reason);
             });
         });
     }
@@ -218,12 +226,12 @@ class ServiceAppointmentWriteoffServices extends ServiceAppointmentBaseServices
         ];
     }
 
-    private function performCodeWriteoff(string $token, string $digitalCode, string $method, array $adminInfo, string $idempotencyKey, string $requestId): array
+    private function performCodeWriteoff(string $token, string $digitalCode, string $method, array $adminInfo, string $idempotencyKey, string $requestId, array $digitalScope = []): array
     {
-        return $this->transaction(function () use ($token, $digitalCode, $method, $adminInfo, $idempotencyKey, $requestId) {
+        return $this->transaction(function () use ($token, $digitalCode, $method, $adminInfo, $idempotencyKey, $requestId, $digitalScope) {
             $code = $method === self::METHOD_QR
                 ? $this->requireActiveCodeByToken($token, true)
-                : $this->requireActiveCodeByDigital($digitalCode, true);
+                : $this->requireScopedDigitalCode($digitalCode, $digitalScope, true, true);
             $appointment = $this->lockAppointment((int)$code['appointment_id']);
             return $this->completeWriteoff($appointment, $code, $method, $adminInfo, $idempotencyKey, $requestId, 'service_writeoff');
         });
@@ -277,6 +285,7 @@ class ServiceAppointmentWriteoffServices extends ServiceAppointmentBaseServices
             'after_benefit_status' => 'consumed',
             'writeoff_time' => $now,
             'status' => 'succeeded',
+            'reason' => $reason,
             'idempotency_key' => $idempotencyKey,
             'request_id' => $requestId,
             'active_key' => (string)$appointment['id'],
@@ -319,6 +328,7 @@ class ServiceAppointmentWriteoffServices extends ServiceAppointmentBaseServices
                 'used_role_code' => $roleCode,
                 'used_writeoff_id' => $writeoffId,
                 'active_key' => null,
+                'digital_active_key' => null,
                 'update_time' => $now,
             ]);
         }
@@ -384,12 +394,10 @@ class ServiceAppointmentWriteoffServices extends ServiceAppointmentBaseServices
             app()->make(YfthServiceDynamicCodeDao::class)->update((int)$code['id'], [
                 'status' => self::CODE_STATUS_EXPIRED,
                 'active_key' => null,
+                'digital_active_key' => null,
                 'update_time' => time(),
             ]);
             throw new AdminException('dynamic_code_expired');
-        }
-        if ((int)$code['attempt_count'] >= (int)$code['max_attempts']) {
-            throw new AdminException('dynamic_code_attempts_exceeded');
         }
     }
 
@@ -431,38 +439,6 @@ class ServiceAppointmentWriteoffServices extends ServiceAppointmentBaseServices
         return $row;
     }
 
-    private function requireActiveCodeByDigital(string $digitalCode, bool $lock): array
-    {
-        $digitalCode = trim($digitalCode);
-        if (!preg_match('/^\d{6}$/', $digitalCode)) {
-            throw new AdminException('dynamic_digital_code_invalid');
-        }
-        $hash = $this->hashSecret($digitalCode);
-        $query = app()->make(YfthServiceDynamicCodeDao::class)->search([])
-            ->where('digital_code_hash', $hash)
-            ->whereIn('status', [self::CODE_STATUS_ISSUED, self::CODE_STATUS_USED, self::CODE_STATUS_EXPIRED]);
-        if ($lock) {
-            $query->lock(true);
-        }
-        $rows = $query->order('id desc')->select()->toArray();
-        $issued = array_values(array_filter($rows, function ($row) {
-            return (string)$row['status'] === self::CODE_STATUS_ISSUED && (string)($row['active_key'] ?? '') !== '';
-        }));
-        if (count($issued) === 1) {
-            $row = $issued[0];
-        } elseif (!$issued && count($rows) === 1) {
-            $row = $rows[0];
-        } else {
-            throw new AdminException($rows ? 'dynamic_code_ambiguous' : 'dynamic_code_invalid');
-        }
-        app()->make(YfthServiceDynamicCodeDao::class)->update((int)$row['id'], [
-            'attempt_count' => (int)$row['attempt_count'] + 1,
-            'update_time' => time(),
-        ]);
-        $row['attempt_count'] = (int)$row['attempt_count'] + 1;
-        return $row;
-    }
-
     private function invalidateActiveCodes(int $appointmentId, string $requestId): void
     {
         $rows = app()->make(YfthServiceDynamicCodeDao::class)->search([])
@@ -477,27 +453,177 @@ class ServiceAppointmentWriteoffServices extends ServiceAppointmentBaseServices
                 'status' => self::CODE_STATUS_INVALIDATED,
                 'invalidated_time' => time(),
                 'active_key' => null,
+                'digital_active_key' => null,
                 'request_id' => $requestId,
                 'update_time' => time(),
             ]);
         }
     }
 
-    private function makeUniqueDigitalCode(): array
+    private function createDynamicCodeWithRetry(array $appointment, int $uid, string $requestId): array
     {
-        for ($i = 0; $i < 10; $i++) {
+        $storeId = (int)$appointment['store_id'];
+        $appointmentId = (int)$appointment['id'];
+        $dao = app()->make(YfthServiceDynamicCodeDao::class);
+        for ($i = 0; $i < self::DIGITAL_GENERATION_MAX_RETRIES; $i++) {
+            $token = 'yfthsvc_' . bin2hex(random_bytes(24));
             $digital = str_pad((string)random_int(0, 999999), 6, '0', STR_PAD_LEFT);
             $hash = $this->hashSecret($digital);
-            $exists = app()->make(YfthServiceDynamicCodeDao::class)->search([])
-                ->where('digital_code_hash', $hash)
-                ->where('status', self::CODE_STATUS_ISSUED)
-                ->where('expire_time', '>', time())
-                ->count();
-            if (!$exists) {
-                return [$digital, $hash];
+            $now = time();
+            try {
+                $code = $dao->save($this->withTimestamps([
+                    'appointment_id' => $appointmentId,
+                    'uid' => $uid,
+                    'store_id' => $storeId,
+                    'token_hash' => $this->hashSecret($token),
+                    'digital_code_hash' => $hash,
+                    'status' => self::CODE_STATUS_ISSUED,
+                    'issued_time' => $now,
+                    'expire_time' => $now + self::CODE_TTL_SECONDS,
+                    'max_attempts' => self::DIGITAL_MAX_ATTEMPTS,
+                    'request_id' => $requestId,
+                    'active_key' => (string)$appointmentId,
+                    'digital_active_key' => $this->digitalActiveKey($storeId, $hash),
+                ], true));
+                return [$code, $token, $digital, $now];
+            } catch (\Throwable $e) {
+                if (!$this->isDuplicateKeyException($e)) {
+                    throw $e;
+                }
             }
         }
         throw new ApiException('dynamic_code_generation_failed');
+    }
+
+    private function requireScopedDigitalCode(string $digitalCode, array $scope, bool $lock, bool $includeUsedForCompletedReplay): array
+    {
+        $digitalCode = trim($digitalCode);
+        if (!preg_match('/^\d{6}$/', $digitalCode)) {
+            throw new AdminException(self::DIGITAL_SAFE_ERROR);
+        }
+        $storeIds = array_values(array_filter(array_map('intval', $scope['store_ids'] ?? [])));
+        if (!$storeIds) {
+            throw new AdminException(self::DIGITAL_SAFE_ERROR);
+        }
+        $hash = $this->hashSecret($digitalCode);
+        $query = app()->make(YfthServiceDynamicCodeDao::class)->search([])
+            ->where('digital_code_hash', $hash)
+            ->whereIn('store_id', $storeIds)
+            ->whereIn('status', $includeUsedForCompletedReplay ? [self::CODE_STATUS_ISSUED, self::CODE_STATUS_USED] : [self::CODE_STATUS_ISSUED]);
+        if ($lock) {
+            $query->lock(true);
+        }
+        $rows = $query->order('id desc')->select()->toArray();
+        $active = array_values(array_filter($rows, function ($row) {
+            return (string)$row['status'] === self::CODE_STATUS_ISSUED
+                && (string)($row['active_key'] ?? '') !== ''
+                && (string)($row['digital_active_key'] ?? '') !== ''
+                && (int)$row['expire_time'] > time();
+        }));
+        if (count($active) === 1) {
+            return $active[0];
+        }
+        $used = array_values(array_filter($rows, function ($row) {
+            return (string)$row['status'] === self::CODE_STATUS_USED;
+        }));
+        if ($includeUsedForCompletedReplay && !$active && count($rows) === 1 && count($used) === 1) {
+            return $used[0];
+        }
+        throw new AdminException(self::DIGITAL_SAFE_ERROR);
+    }
+
+    private function resolveDigitalWriteoffScope(array $adminInfo): array
+    {
+        $context = app()->make(AdminStoreContextServices::class)->resolve($adminInfo);
+        $storeIds = [];
+        foreach ((array)($context['store_scope_roles'] ?? []) as $storeId => $roles) {
+            if (array_intersect((array)$roles, ['store_manager', 'franchisee', 'store_staff'])) {
+                $storeIds[] = (int)$storeId;
+            }
+        }
+        $storeIds = array_values(array_unique(array_filter($storeIds)));
+        if (!$storeIds) {
+            if (!empty($context['is_headquarter_admin']) || !empty($context['is_super_admin'])) {
+                throw new AdminException('headquarter_exception_writeoff_required');
+            }
+            throw new AdminException('store_scope_forbidden');
+        }
+        return [
+            'admin_id' => (int)($context['admin_id'] ?? ($adminInfo['id'] ?? 0)),
+            'store_ids' => $storeIds,
+            'primary_role_code' => (string)($context['primary_role_code'] ?? ''),
+        ];
+    }
+
+    private function digitalRateLimitKey(array $scope): string
+    {
+        $storeKey = implode('-', array_values(array_filter(array_map('intval', $scope['store_ids'] ?? []))));
+        $ip = '';
+        try {
+            $ip = (string)request()->ip();
+        } catch (\Throwable $e) {
+            $ip = 'cli';
+        }
+        return 'yfth:writeoff:digital_attempt:' . (int)($scope['admin_id'] ?? 0) . ':' . $storeKey . ':' . hash('sha256', $ip);
+    }
+
+    private function assertDigitalRateAllowed(string $key): void
+    {
+        if ((int)Cache::get($key, 0) >= self::DIGITAL_MAX_ATTEMPTS) {
+            throw new AdminException(self::DIGITAL_SAFE_ERROR);
+        }
+    }
+
+    private function recordDigitalFailure(string $key): void
+    {
+        try {
+            $count = (int)Cache::inc($key);
+            if ($count <= 1) {
+                Cache::set($key, 1, self::DIGITAL_RATE_LIMIT_TTL);
+            }
+        } catch (\Throwable $e) {
+            $count = (int)Cache::get($key, 0) + 1;
+            Cache::set($key, $count, self::DIGITAL_RATE_LIMIT_TTL);
+        }
+    }
+
+    private function resetDigitalFailures(string $key): void
+    {
+        try {
+            Cache::delete($key);
+        } catch (\Throwable $e) {
+        }
+    }
+
+    private function safeDigitalException(\Throwable $e): AdminException
+    {
+        if ($e instanceof AdminException && in_array($e->getMessage(), ['store_scope_forbidden', 'headquarter_exception_writeoff_required'], true)) {
+            return $e;
+        }
+        return new AdminException(self::DIGITAL_SAFE_ERROR);
+    }
+
+    private function normalizeExceptionReason(string $reason): string
+    {
+        $reason = trim($reason);
+        if ($reason === '' || strlen($reason) < 2) {
+            throw new AdminException('exception_writeoff_reason_required');
+        }
+        if (function_exists('mb_strlen') ? mb_strlen($reason, 'UTF-8') > 200 : strlen($reason) > 200) {
+            throw new AdminException('exception_writeoff_reason_too_long');
+        }
+        return $reason;
+    }
+
+    private function digitalActiveKey(int $storeId, string $digitalHash): string
+    {
+        return $storeId . ':' . $digitalHash;
+    }
+
+    private function isDuplicateKeyException(\Throwable $e): bool
+    {
+        $message = $e->getMessage();
+        return strpos($message, 'Duplicate entry') !== false || strpos($message, '1062') !== false;
     }
 
     private function assertAdminCanWriteoff(array $adminInfo, int $storeId, bool $allowHeadquarter): string
@@ -607,6 +733,7 @@ class ServiceAppointmentWriteoffServices extends ServiceAppointmentBaseServices
             'operator_role_code' => (string)$row['operator_role_code'],
             'writeoff_time' => (int)$row['writeoff_time'],
             'status' => (string)$row['status'],
+            'reason' => (string)($row['reason'] ?? ''),
         ];
         if ($adminView) {
             $data['operator_id'] = (int)$row['operator_id'];

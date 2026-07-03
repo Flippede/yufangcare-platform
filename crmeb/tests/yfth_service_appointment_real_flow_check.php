@@ -100,6 +100,8 @@ foreach ([
     [$prefix . 'yfth_admin_store_scope', 'uniq_yfth_admin_scope_active'],
     [$prefix . 'yfth_admin_store_scope', 'idx_yfth_admin_scope_admin_role'],
     [$prefix . 'yfth_service_dynamic_code', 'uniq_yfth_svc_code_active'],
+    [$prefix . 'yfth_service_dynamic_code', 'uniq_yfth_svc_code_store_digital_active'],
+    [$prefix . 'yfth_service_dynamic_code', 'idx_yfth_svc_code_store_digital'],
     [$prefix . 'yfth_service_writeoff_record', 'uniq_yfth_svc_writeoff_active'],
     [$prefix . 'yfth_service_writeoff_record', 'idx_yfth_svc_writeoff_store_time'],
 ] as $index) {
@@ -169,11 +171,17 @@ function vfRunServiceAppointmentFlow(callable $assert, array &$notes): void
     vfGrantAdminScope($managerAdmin['id'], $storeId, 'store_manager', $runId);
     $staffAdmin = vfCreateAdmin($runId, 'staff', 1);
     vfGrantAdminScope($staffAdmin['id'], $storeId, 'store_staff', $runId);
+    $store2StaffAdmin = vfCreateAdmin($runId, 'staffb', 1);
+    vfGrantAdminScope($store2StaffAdmin['id'], $store2Id, 'store_staff', $runId);
+    $rateLimitAdmin = vfCreateAdmin($runId, 'limit', 1);
+    vfGrantAdminScope($rateLimitAdmin['id'], $store2Id, 'store_staff', $runId);
     $noScopeAdmin = vfCreateAdmin($runId, 'noscope', 1);
 
     $hqInfo = vfAdminInfoFromToken($hqAdmin['id'], $hqAdmin['pwd']);
     $managerInfo = vfAdminInfoFromToken($managerAdmin['id'], $managerAdmin['pwd']);
     $staffInfo = vfAdminInfoFromToken($staffAdmin['id'], $staffAdmin['pwd']);
+    $store2StaffInfo = vfAdminInfoFromToken($store2StaffAdmin['id'], $store2StaffAdmin['pwd']);
+    $rateLimitInfo = vfAdminInfoFromToken($rateLimitAdmin['id'], $rateLimitAdmin['pwd']);
     $noScopeInfo = vfAdminInfoFromToken($noScopeAdmin['id'], $noScopeAdmin['pwd']);
     $assert(!empty($hqInfo['yfth_admin_context']['is_headquarter_admin']), 'backend_token_resolves_headquarter_context');
     $assert(in_array($storeId, $managerInfo['yfth_store_ids'] ?? [], true), 'backend_token_resolves_manager_store_scope');
@@ -528,8 +536,117 @@ function vfRunServiceAppointmentFlow(callable $assert, array &$notes): void
         'update_time' => $now,
     ]);
     $digitalCode = $writeoffServices->generateUserCode($uid, $appointmentCId, ['idempotency_key' => 'code-digital-' . $runId]);
+    $digitalRowBeforePrecheck = Db::name('yfth_service_dynamic_code')->where('appointment_id', $appointmentCId)->where('status', 'issued')->find();
+    $assert(!empty($digitalRowBeforePrecheck['digital_active_key']), 'digital_code_has_store_scoped_active_key');
+    for ($i = 0; $i < 3; $i++) {
+        $precheckDigital = $writeoffServices->precheckByDigital((string)$digitalCode['code']['digital_code'], $managerInfo);
+        $assert($precheckDigital['status'] === 'ok', 'digital_precheck_readonly_ok_' . $i);
+    }
+    $digitalRowAfterPrecheck = Db::name('yfth_service_dynamic_code')->where('id', (int)$digitalRowBeforePrecheck['id'])->find();
+    $assert((int)$digitalRowAfterPrecheck['attempt_count'] === (int)$digitalRowBeforePrecheck['attempt_count'], 'digital_precheck_does_not_increment_attempts');
+    $assert($digitalRowAfterPrecheck['status'] === $digitalRowBeforePrecheck['status'] && $digitalRowAfterPrecheck['active_key'] === $digitalRowBeforePrecheck['active_key'], 'digital_precheck_does_not_change_code_state');
+    $duplicateRejected = false;
+    try {
+        Db::name('yfth_service_dynamic_code')->insert([
+            'appointment_id' => 999000,
+            'uid' => $uid,
+            'store_id' => $storeId,
+            'token_hash' => hash('sha256', 'duplicate-token-' . $runId),
+            'digital_code_hash' => $digitalRowBeforePrecheck['digital_code_hash'],
+            'status' => 'issued',
+            'issued_time' => time(),
+            'expire_time' => time() + 300,
+            'used_time' => 0,
+            'invalidated_time' => 0,
+            'attempt_count' => 0,
+            'max_attempts' => 5,
+            'used_admin_id' => 0,
+            'used_role_code' => '',
+            'used_writeoff_id' => 0,
+            'request_id' => 'duplicate-test',
+            'active_key' => 'duplicate-test-' . $runId,
+            'digital_active_key' => $digitalRowBeforePrecheck['digital_active_key'],
+            'add_time' => time(),
+            'update_time' => time(),
+        ]);
+    } catch (Throwable $e) {
+        $duplicateRejected = true;
+    }
+    $assert($duplicateRejected, 'same_store_active_digital_unique_constraint_rejects_duplicate');
+    Db::name('yfth_service_dynamic_code')->insert([
+        'appointment_id' => 999001,
+        'uid' => $uid,
+        'store_id' => $store2Id,
+        'token_hash' => hash('sha256', 'duplicate-token-store2-' . $runId),
+        'digital_code_hash' => $digitalRowBeforePrecheck['digital_code_hash'],
+        'status' => 'issued',
+        'issued_time' => time(),
+        'expire_time' => time() + 300,
+        'used_time' => 0,
+        'invalidated_time' => 0,
+        'attempt_count' => 0,
+        'max_attempts' => 5,
+        'used_admin_id' => 0,
+        'used_role_code' => '',
+        'used_writeoff_id' => 0,
+        'request_id' => 'duplicate-store2-test',
+        'active_key' => 'duplicate-store2-test-' . $runId,
+        'digital_active_key' => $store2Id . ':' . $digitalRowBeforePrecheck['digital_code_hash'],
+        'add_time' => time(),
+        'update_time' => time(),
+    ]);
+    $assert(true, 'different_store_same_digital_hash_allowed_by_unique_constraint');
+    $randomDigitalError = vfCaptureExceptionMessage(function () use ($writeoffServices, $store2StaffInfo) {
+        $writeoffServices->precheckByDigital('123456', $store2StaffInfo);
+    });
+    $crossStorePrecheckError = vfCaptureExceptionMessage(function () use ($writeoffServices, $digitalCode, $store2StaffInfo) {
+        $writeoffServices->precheckByDigital((string)$digitalCode['code']['digital_code'], $store2StaffInfo);
+    });
+    $crossStoreWriteoffError = vfCaptureExceptionMessage(function () use ($writeoffServices, $digitalCode, $store2StaffInfo, $runId) {
+        $writeoffServices->writeoffByDigital((string)$digitalCode['code']['digital_code'], $store2StaffInfo, ['idempotency_key' => 'cross-store-digital-' . $runId]);
+    });
+    $assert($randomDigitalError !== '' && $randomDigitalError === $crossStorePrecheckError && $crossStorePrecheckError === $crossStoreWriteoffError, 'random_and_cross_store_digital_errors_are_indistinguishable');
+    $digitalRowAfterCrossStore = Db::name('yfth_service_dynamic_code')->where('id', (int)$digitalRowBeforePrecheck['id'])->find();
+    $assert((int)$digitalRowAfterCrossStore['attempt_count'] === (int)$digitalRowBeforePrecheck['attempt_count'] && $digitalRowAfterCrossStore['status'] === 'issued', 'cross_store_real_code_does_not_consume_attempts_or_state');
+    for ($i = 1; $i <= 5; $i++) {
+        $message = vfCaptureExceptionMessage(function () use ($writeoffServices, $rateLimitInfo, $i) {
+            $writeoffServices->precheckByDigital(str_pad((string)(220000 + $i), 6, '0', STR_PAD_LEFT), $rateLimitInfo);
+        });
+        $assert($message === $randomDigitalError, 'digital_rate_limit_failure_allowed_' . $i);
+    }
+    $limitedMessage = vfCaptureExceptionMessage(function () use ($writeoffServices, $rateLimitInfo) {
+        $writeoffServices->precheckByDigital('229999', $rateLimitInfo);
+    });
+    $assert($limitedMessage === $randomDigitalError, 'digital_rate_limit_blocks_after_max_without_off_by_one');
     $digitalWriteoff = $writeoffServices->writeoffByDigital((string)$digitalCode['code']['digital_code'], $managerInfo, ['idempotency_key' => 'writeoff-digital-' . $runId]);
     $assert($digitalWriteoff['status'] === 'ok', 'store_manager_digital_writeoff_succeeds');
+    $digitalRowAfterWriteoff = Db::name('yfth_service_dynamic_code')->where('id', (int)$digitalRowBeforePrecheck['id'])->find();
+    $assert($digitalRowAfterWriteoff['status'] === 'used' && $digitalRowAfterWriteoff['digital_active_key'] === null, 'digital_writeoff_clears_active_key');
+
+    $benefitD = vfCreateServiceBenefitFixture($uid, $storeId, (int)$serviceBenefit->id, $runId, 4);
+    $exceptionAppointment = $bookingServices->createAppointment($uid, [
+        'store_id' => $storeId,
+        'service_project_id' => $projectId,
+        'benefit_item_id' => $benefitD['item_id'],
+        'date' => vfDateText($serviceDate),
+        'start_minute' => 600,
+        'idempotency_key' => 'create-d-' . $runId,
+    ]);
+    $appointmentDId = (int)$exceptionAppointment['appointment']['id'];
+    Db::name('yfth_service_appointment')->where('id', $appointmentDId)->update([
+        'service_date' => (int)date('Ymd', $now),
+        'start_time' => $now - 600,
+        'end_time' => $now + 1800,
+        'update_time' => $now,
+    ]);
+    vfExpectException(function () use ($writeoffServices, $appointmentDId, $hqInfo) {
+        $writeoffServices->exceptionWriteoff($appointmentDId, $hqInfo, ' ');
+    }, 'headquarter_exception_reason_required', $assert);
+    $exceptionWriteoff = $writeoffServices->exceptionWriteoff($appointmentDId, $hqInfo, 'manual exception verification', ['idempotency_key' => 'exception-writeoff-' . $runId]);
+    $assert($exceptionWriteoff['status'] === 'ok', 'headquarter_exception_writeoff_with_reason_succeeds');
+    $exceptionRecord = Db::name('yfth_service_writeoff_record')->where('appointment_id', $appointmentDId)->find();
+    $exceptionEvent = Db::name('yfth_service_appointment_event')->where('appointment_id', $appointmentDId)->where('event_type', 'completed')->find();
+    $assert((string)$exceptionRecord['reason'] === 'manual exception verification' && (string)$exceptionEvent['reason'] === 'manual exception verification', 'headquarter_exception_reason_persisted_to_record_and_event');
 
     $eventCount = Db::name('yfth_service_appointment_event')->where('appointment_id', (int)$appointmentA['id'])->count();
     $assert((int)$eventCount >= 4, 'appointment_events_record_create_confirm_reschedule_cancel');
@@ -823,4 +940,14 @@ function vfExpectException(callable $callback, string $message, callable $assert
     } catch (Throwable $e) {
         $assert(true, $message . ':' . $e->getMessage());
     }
+}
+
+function vfCaptureExceptionMessage(callable $callback): string
+{
+    try {
+        $callback();
+    } catch (Throwable $e) {
+        return $e->getMessage();
+    }
+    return '';
 }

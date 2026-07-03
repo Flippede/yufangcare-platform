@@ -51,9 +51,9 @@ Not implemented in this round:
 
 `yfth_service_appointment_event` stores appointment status, slot-change, and writeoff history for create, confirm, reject, cancel, reschedule, `checked_in`, `benefit_written_off`, and `completed` operations.
 
-`yfth_service_dynamic_code` stores dynamic writeoff code records. It keeps only SHA-256 hashes for QR tokens and 6-digit numeric codes, status, issued/expire/used/invalidated times, attempt counters, operator metadata after use, request id, and a nullable unique `active_key` that permits only one active code per appointment.
+`yfth_service_dynamic_code` stores dynamic writeoff code records. It keeps only SHA-256 hashes for QR tokens and 6-digit numeric codes, status, issued/expire/used/invalidated times, audit attempt counters, operator metadata after use, request id, a nullable unique `active_key` that permits only one active code per appointment, and a nullable unique `digital_active_key` that permits only one active identical numeric code in the same store.
 
-`yfth_service_writeoff_record` stores successful service writeoff records. It references appointment, user, store, service project, concrete package instance, plan, period, benefit item, benefit lock, optional dynamic code, writeoff method, operator, before/after statuses, writeoff time, idempotency key, request id, and sanitized snapshot. A nullable unique `active_key` prevents more than one successful writeoff for one appointment.
+`yfth_service_writeoff_record` stores successful service writeoff records. It references appointment, user, store, service project, concrete package instance, plan, period, benefit item, benefit lock, optional dynamic code, writeoff method, operator, before/after statuses, writeoff time, service-side reason, idempotency key, request id, and sanitized snapshot. A nullable unique `active_key` prevents more than one successful writeoff for one appointment.
 
 `yfth_service_appointment` also records `check_in_at`, `writeoff_at`, `completed_at`, `writeoff_id`, `writeoff_store_id`, `writeoff_operator_id`, `writeoff_operator_type`, and `writeoff_method`.
 
@@ -118,8 +118,14 @@ Store-service authorization identity is immutable after creation. Updating `stor
 - The appointment must be `confirmed`, uncompleted, uncancelled, unrejected, in the check-in window, and must have an active `yfth_service_benefit_lock`.
 - Code generation returns plaintext QR token and 6-digit code only once in the response. The database stores hashes only.
 - Refreshing a code invalidates previous active unused codes for the appointment.
-- Code TTL is 300 seconds. Expired, invalidated, used, or over-attempt digital codes cannot complete a non-completed appointment.
-- Numeric-code lookup prefers one active issued code; completed repeats are recognized through the locked appointment/writeoff record and return already-written-off rather than consuming again.
+- Code TTL is 300 seconds. Expired, invalidated, used, or out-of-scope digital codes cannot complete a non-completed appointment.
+- Numeric-code precheck is read-only. It does not increment `attempt_count`, change code status, invalidate codes, write appointments, consume benefit locks, or create writeoff records.
+- Numeric-code lookup first resolves the real backend administrator scope through `AdminStoreContextServices`, then searches only active unexpired issued codes inside that trusted store scope. Random missing codes, other-store real codes, expired codes, invalidated codes, and rate-limited requests return the same safe error semantics.
+- Numeric-code brute-force protection is request scoped instead of global-code scoped. The short-window key contains administrator id, trusted store scope, request IP, and the digital writeoff scene. Failed numeric precheck/writeoff requests increment this counter; successful writeoff clears it. The first through configured maximum failed requests execute normally, and the next request is temporarily limited.
+- `attempt_count` is retained only as an audit/statistics column and is not used to let one store consume another store's code attempts.
+- Code generation writes `digital_active_key = store_id + ':' + digital_code_hash` and relies on `uniq_yfth_svc_code_store_digital_active`. If a same-store numeric collision occurs, generation retries with a finite limit. The same numeric code may exist in different stores, but lookup never trusts client `store_id`.
+- Completed repeats are recognized through the locked appointment/writeoff record and return already-written-off rather than consuming again.
+- Headquarters exception writeoff requires a non-empty service-side reason. The reason is persisted to the writeoff record, appointment events, and unified YFTH audit.
 
 Normal writeoff runs in one transaction:
 
@@ -175,6 +181,7 @@ Future rounds should add reversal/no-show/notification/paid-service-order behavi
 
 - Added writeoff migration: `20260703120000_create_yfth_service_writeoff_tables.php`.
 - Added menu permission migration: `20260703120010_seed_yfth_service_writeoff_menus.php`.
+- Added digital-code hardening migration: `20260703130000_harden_yfth_service_dynamic_codes.php`.
 - Added tables/models/DAOs: `yfth_service_dynamic_code` and `yfth_service_writeoff_record`.
 - Added writeoff fields to `yfth_service_appointment` and final consumption fields to `yfth_service_benefit_lock`.
 - Added user APIs: `GET yfth/service/appointment/:id/code_status` and `POST yfth/service/appointment/:id/code`.

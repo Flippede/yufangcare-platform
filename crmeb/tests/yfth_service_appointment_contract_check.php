@@ -24,6 +24,7 @@ foreach ([
     'database/migrations/20260703100010_seed_yfth_service_appointment_booking_menus.php',
     'database/migrations/20260703120000_create_yfth_service_writeoff_tables.php',
     'database/migrations/20260703120010_seed_yfth_service_writeoff_menus.php',
+    'database/migrations/20260703130000_harden_yfth_service_dynamic_codes.php',
     'database/migrations/20260627100000_create_yfth_admin_store_scope.php',
     'app/model/yfth/YfthAdminStoreScope.php',
     'app/dao/yfth/YfthAdminStoreScopeDao.php',
@@ -137,6 +138,16 @@ foreach ([
     $assert(strpos($writeoffMigration, $needle) !== false, 'writeoff_migration_contains:' . $needle);
 }
 
+$writeoffHardeningMigration = $read('database/migrations/20260703130000_harden_yfth_service_dynamic_codes.php');
+foreach ([
+    'digital_active_key',
+    'uniq_yfth_svc_code_store_digital_active',
+    'idx_yfth_svc_code_store_digital',
+    'writeoff reason',
+] as $needle) {
+    $assert(strpos($writeoffHardeningMigration, $needle) !== false, 'writeoff_hardening_migration_contains:' . $needle);
+}
+
 $writeoffMenu = $read('database/migrations/20260703120010_seed_yfth_service_writeoff_menus.php');
 foreach ([
     'yfth-service-writeoff-list',
@@ -203,9 +214,17 @@ foreach ([
     'completed',
     'ServiceBenefitConsumptionServices',
     'already_written_off',
+    'resolveDigitalWriteoffScope',
+    'requireScopedDigitalCode',
+    'digital_active_key',
+    'DIGITAL_SAFE_ERROR',
+    'DIGITAL_RATE_LIMIT_TTL',
+    'normalizeExceptionReason',
 ] as $needle) {
     $assert(strpos($writeoffService, $needle) !== false, 'writeoff_service_contains:' . $needle);
 }
+$assert(strpos($writeoffService, 'function requireActiveCodeByDigital') === false, 'writeoff_service_removed_global_digital_lookup');
+$assert(strpos($writeoffService, "'attempt_count' => (int)$" . "row['attempt_count'] + 1") === false, 'writeoff_service_precheck_does_not_increment_attempt_count');
 
 $consumptionService = $read('app/services/yfth/ServiceBenefitConsumptionServices.php');
 foreach ([
