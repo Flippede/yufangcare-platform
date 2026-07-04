@@ -320,9 +320,9 @@ foreach ([
 ] as $needle) {
     $assert(strpos($adminApi, $needle) !== false, 'admin_api_contains:' . $needle);
 }
-$assert(strpos($adminPage, 'Slot Preview') !== false, 'admin_page_has_slot_preview');
-$assert(strpos($adminPage, 'Appointments') !== false, 'admin_page_has_appointment_tab');
-$assert(strpos($adminPage, 'Writeoffs') !== false, 'admin_page_has_writeoff_tab');
+$assert(strpos($adminPage, '时段预览') !== false, 'admin_page_has_slot_preview');
+$assert(strpos($adminPage, '预约管理') !== false, 'admin_page_has_appointment_tab');
+$assert(strpos($adminPage, '核销记录') !== false, 'admin_page_has_writeoff_tab');
 $assert(strpos($uniApi, 'getYfthServiceDaySlots') !== false, 'uni_api_has_readonly_slots');
 $assert(strpos($uniApi, 'createYfthServiceAppointment') !== false, 'uni_api_has_real_appointment_create');
 $assert(strpos($uniApi, 'generateYfthAppointmentCode') !== false, 'uni_api_has_dynamic_code_generate');

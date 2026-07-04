@@ -4,13 +4,13 @@
 - 当前代码基础：CRMEB 开源商城 PHP 版 v5.6 系列
 - 本地路径：`C:\Users\zhangxu\Desktop\御方通和\yufangcare-platform`
 - GitHub 仓库：`https://github.com/Flippede/yufangcare-platform.git`
-- 当前分支：`main`
-- 当前最新提交：以当前 `main` 的 Git HEAD 和 `origin/main` 实时值为准。
-- 当前稳定 main：以当前本地 `main` 实时值为准。
-- origin/main：以远端 `origin/main` 实时值为准。
+- 当前分支：`feature/yfth-hq-admin-productization-v1`
+- 当前最新提交：以当前功能分支 Git HEAD 为准。
+- 当前稳定 main：`f6ebce63d1afda54f416de41a3d2036669a0122d`
+- origin/main：`f6ebce63d1afda54f416de41a3d2036669a0122d`
 - 本轮开始基线：`7413627250bd057474fd2a4ea04068fae5f2ec9c`
-- 当前开发阶段：服务预约、容量锁定、5980 服务权益锁定与最终消耗、签到、动态码和核销 V1 已完成最终审核，并已通过 `git merge --ff-only` 合并、推送至 `main`。
-- 当前工作区和推送状态：`main` 与 `origin/main` 已同步，工作区干净；功能分支 `feature/yfth-service-appointment-writeoff-v1` 已保留。
+- 当前开发阶段：总部管理后台产品化 V1 验证与收口整改；当前分支尚未合并 `main`。
+- 当前工作区和推送状态：以 `git status`、当前功能分支 HEAD 和远端功能分支实时值为准；稳定 `main` 保持不变。
 - 当前禁止事项和冻结模块：不得在本阶段开发核销撤销/反冲、权益恢复、评价、自动爽约、提醒消息、独立付费服务订单、跨店核销、离线码、打印码、员工排班资源、家庭成员预约、推荐奖励、配送、库存补货、产品额度、加盟合同、真实分账或生产部署；不得修改 5980 套餐支付激活、CRMEB 订单/支付/退款、后台权限核心流程或生产部署配置。
 - 产品文档目录：`C:\Users\zhangxu\Desktop\御方通和\yufangcare-platform\项目文档`
 - 完整产品依据：`御方通和加盟小程序项目需求与产品设计文档_V1.0.docx`
@@ -19,12 +19,15 @@
 
 - 当前开发分支：`feature/yfth-hq-admin-productization-v1`。
 - 开始基线与稳定 `main`：`f6ebce63d1afda54f416de41a3d2036669a0122d`。
-- 本轮目标：仅产品化总部 Web 管理后台，统一品牌入口、总部工作台、YFTH 菜单结构、后台中文可见文案和正式后台静态构建产物。
-- 已新增只读后台接口：`GET home/yfth`，用于总部运营工作台真实统计和授权快捷入口；该接口不写业务数据，不触发预约、核销、支付、退款或权益状态变更。
-- 新增菜单迁移：`20260704110000_productize_yfth_hq_admin_menus.php`，只调整 YFTH 菜单名称和排序，保留 `unique_auth` 兼容性。
+- 本轮目标：仅产品化总部 Web 管理后台，统一品牌入口、总部工作台、总体后台一级菜单、YFTH 权限树、后台中文可见文案和正式后台静态构建产物状态。
+- 已新增并验证只读后台接口：`GET home/yfth`，用于总部运营工作台真实统计和授权快捷入口；该接口不写业务数据，不触发预约、核销、支付、退款或权益状态变更。后台公共中间件会按 CRMEB 既有机制写入 `system_log` 访问日志。
+- 新增菜单迁移：`20260704110000_productize_yfth_hq_admin_menus.php`，调整总部后台一级菜单、YFTH 根菜单、YFTH 子菜单和 YFTH API 权限树中文名称；保留 `unique_auth`、菜单 ID、角色规则兼容性，不删除、不重建权限。
 - 新增架构文档：`docs/YFTH_PRODUCT_SURFACE_ARCHITECTURE.md`。
+- 收口整改：`GET home/yfth` 增加今日成交金额卡片；缺失可选 `yfth_` 表时降级为 0，非 YFTH 表或非缺表数据库错误继续抛出，避免掩盖真实数据库异常。
+- 验证环境：便携 PHP 7.4.33 + 隔离 MySQL 8.0.46，临时库 `yfth_hq_admin_verify`，未复制生产 `.env`，未连接生产数据库或服务器。
+- 已执行验证：PHP 语法检查、`php think list`、迁移 run/rollback/rerun、`GET /adminapi/home/yfth` 未登录/超管/缺可选表降级、普通角色访问已登记 YFTH API 越权拦截、YFTH 权限菜单英文清理、`crmeb/tests/yfth_service_appointment_contract_check.php`、浏览器登录和服务预约页面加载验证。
 - 本轮继续冻结：CRMEB 登录鉴权、token、订单、支付、退款、商品库存主流程、5980 套餐激活主流程、服务预约/核销业务状态机、生产部署和生产数据库迁移。
-- 服务预约与动态核销 V1 最新管理后台生产构建产物将在本轮构建后刷新至 `crmeb/public/admin`，服务器后续无需执行 npm 构建即可加载相关后台页面。
+- 服务预约与动态核销 V1 最新管理后台生产构建产物已刷新至 `crmeb/public/admin`；本轮核对 `template/admin/dist` 与 `crmeb/public/admin` 均为 592 个文件、39,427,546 字节且无差异，服务器后续无需执行 npm 构建即可加载相关后台页面。
 
 ## 1. 项目目标
 

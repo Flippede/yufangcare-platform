@@ -158,6 +158,7 @@ class Common extends AuthController
             $this->workbenchCard('pending_confirm', '待门店确认', $this->safeCount('yfth_service_appointment', ['status' => 'pending_confirm']), '预约待处理'),
             $this->workbenchCard('today_writeoffs', '今日核销', $this->safeCountRange('yfth_service_writeoff_record', 'writeoff_time', $todayStart, $todayEnd, ['status' => 'succeeded']), '已完成履约'),
             $this->workbenchCard('today_orders', '今日商城订单', $this->safeCountRange('store_order', 'add_time', $todayStart, $todayEnd, ['is_del' => 0]), 'CRMEB订单'),
+            $this->workbenchCard('today_paid_amount', '今日成交金额', $this->safeSumRange('store_order', 'pay_time', $todayStart, $todayEnd, 'pay_price', ['paid' => 1, 'refund_status' => 0, 'pid' => 0, 'is_del' => 0]), '单位：元，按支付时间'),
         ];
 
         $todos = [
@@ -220,7 +221,7 @@ class Common extends AuthController
        return bcmul(bcdiv((bcsub($nowValue, $lastValue, 2)), $lastValue, 2), 100, 2);
     }
 
-    private function workbenchCard(string $key, string $title, int $value, string $desc): array
+    private function workbenchCard(string $key, string $title, $value, string $desc): array
     {
         return compact('key', 'title', 'value', 'desc');
     }
@@ -240,7 +241,10 @@ class Common extends AuthController
         try {
             return (int)Db::name($table)->where($where)->count();
         } catch (\Throwable $e) {
-            return 0;
+            if ($this->canFallbackMissingTable($table, $e)) {
+                return 0;
+            }
+            throw $e;
         }
     }
 
@@ -249,7 +253,10 @@ class Common extends AuthController
         try {
             return (int)Db::name($table)->where($where)->whereIn($field, $values)->count();
         } catch (\Throwable $e) {
-            return 0;
+            if ($this->canFallbackMissingTable($table, $e)) {
+                return 0;
+            }
+            throw $e;
         }
     }
 
@@ -258,8 +265,42 @@ class Common extends AuthController
         try {
             return (int)Db::name($table)->where($where)->whereBetween($field, [$start, $end])->count();
         } catch (\Throwable $e) {
-            return 0;
+            if ($this->canFallbackMissingTable($table, $e)) {
+                return 0;
+            }
+            throw $e;
         }
+    }
+
+    private function safeSumRange(string $table, string $field, int $start, int $end, string $sumField, array $where = []): string
+    {
+        try {
+            return (string)Db::name($table)->where($where)->whereBetween($field, [$start, $end])->sum($sumField);
+        } catch (\Throwable $e) {
+            if ($this->canFallbackMissingTable($table, $e)) {
+                return '0.00';
+            }
+            throw $e;
+        }
+    }
+
+    private function canFallbackMissingTable(string $table, \Throwable $e): bool
+    {
+        if (strpos($table, 'yfth_') !== 0) {
+            return false;
+        }
+        do {
+            $message = $e->getMessage();
+            $code = (string)$e->getCode();
+            if (in_array($code, ['42S02', '1146'], true)
+                || stripos($message, 'Base table or view not found') !== false
+                || stripos($message, "doesn't exist") !== false
+                || stripos($message, 'Unknown table') !== false) {
+                return true;
+            }
+            $e = $e->getPrevious();
+        } while ($e);
+        return false;
     }
 
 
