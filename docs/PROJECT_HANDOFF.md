@@ -5,9 +5,9 @@
 - 本地路径：`C:\Users\zhangxu\Desktop\御方通和\yufangcare-platform`
 - GitHub 仓库：`https://github.com/Flippede/yufangcare-platform.git`
 - 当前分支：`main`
-- 当前最新提交：`f9a0d963ac4c92120111983c9b489433f1ab0dca`
-- 当前稳定 main：`f9a0d963ac4c92120111983c9b489433f1ab0dca`
-- origin/main：`f9a0d963ac4c92120111983c9b489433f1ab0dca`
+- 当前最新提交：以当前 `main` 的 Git HEAD 和 `origin/main` 实时值为准。
+- 当前稳定 main：以当前本地 `main` 实时值为准。
+- origin/main：以远端 `origin/main` 实时值为准。
 - 本轮开始基线：`7413627250bd057474fd2a4ea04068fae5f2ec9c`
 - 当前开发阶段：服务预约、容量锁定、5980 服务权益锁定与最终消耗、签到、动态码和核销 V1 已完成最终审核，并已通过 `git merge --ff-only` 合并、推送至 `main`。
 - 当前工作区和推送状态：`main` 与 `origin/main` 已同步，工作区干净；功能分支 `feature/yfth-service-appointment-writeoff-v1` 已保留。
@@ -343,3 +343,4 @@
 - Still not implemented: writeoff reversal/reversal accounting, benefit recovery, automatic no-show, service review, WeChat subscription messages, SMS reminders, independent paid service orders, fuller store workstation, delivery fulfillment, recommendation/reward ledger, inventory replenishment, product quota, franchise contracts, real settlement, production deployment, and production database migration.
 - Next state: current service appointment and dynamic writeoff V1 has passed final architecture review and is already merged and pushed to `main`. The next business module must be determined separately by the project owner from the complete product flow.
 - Production status: no production deployment was performed, and no production database was connected during the merge closure.
+- Admin asset status: the latest service appointment and dynamic writeoff V1 admin production build has been refreshed into `crmeb/public/admin`, so later server updates can load the related admin pages without running npm build on the server.
