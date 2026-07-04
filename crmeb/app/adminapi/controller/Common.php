@@ -12,6 +12,7 @@ namespace app\adminapi\controller;
 
 use app\services\system\config\SystemConfigServices;
 use app\services\system\config\SystemConfigTabServices;
+use app\services\system\admin\SystemRoleServices;
 use app\services\system\SystemAuthServices;
 use app\services\order\StoreOrderServices;
 use app\services\product\product\StoreProductServices;
@@ -145,9 +146,12 @@ class Common extends AuthController
      */
     public function yfthWorkbench()
     {
+        $this->assertAdminApiAuth('home/yfth', 'GET');
+
         $todayStart = strtotime(date('Y-m-d'));
         $todayEnd = $todayStart + 86399;
         $todayYmd = (int)date('Ymd');
+        $todayPaidOrders = $this->safePaidOrderMetrics($todayStart, $todayEnd);
 
         $cards = [
             $this->workbenchCard('business_subjects', '经营主体', $this->safeCount('yfth_business_subject', ['status' => 'active']), '已启用主体'),
@@ -157,8 +161,8 @@ class Common extends AuthController
             $this->workbenchCard('today_appointments', '今日预约', $this->safeCount('yfth_service_appointment', ['service_date' => $todayYmd]), '按服务日期'),
             $this->workbenchCard('pending_confirm', '待门店确认', $this->safeCount('yfth_service_appointment', ['status' => 'pending_confirm']), '预约待处理'),
             $this->workbenchCard('today_writeoffs', '今日核销', $this->safeCountRange('yfth_service_writeoff_record', 'writeoff_time', $todayStart, $todayEnd, ['status' => 'succeeded']), '已完成履约'),
-            $this->workbenchCard('today_orders', '今日商城订单', $this->safeCountRange('store_order', 'add_time', $todayStart, $todayEnd, ['is_del' => 0]), 'CRMEB订单'),
-            $this->workbenchCard('today_paid_amount', '今日成交金额', $this->safeSumRange('store_order', 'pay_time', $todayStart, $todayEnd, 'pay_price', ['paid' => 1, 'refund_status' => 0, 'pid' => 0, 'is_del' => 0]), '单位：元，按支付时间'),
+            $this->workbenchCard('today_orders', '今日支付订单', $todayPaidOrders['count'], '已支付未退款主订单'),
+            $this->workbenchCard('today_paid_amount', '今日成交金额', $todayPaidOrders['amount'], '单位：元，按支付时间'),
         ];
 
         $todos = [
@@ -226,6 +230,13 @@ class Common extends AuthController
         return compact('key', 'title', 'value', 'desc');
     }
 
+    private function assertAdminApiAuth(string $rule, string $method): void
+    {
+        /** @var SystemRoleServices $roleServices */
+        $roleServices = app()->make(SystemRoleServices::class);
+        $roleServices->assertApiAuthForAdmin($this->adminInfo ?: [], $rule, $method);
+    }
+
     private function quickLink(string $title, string $path, array $auth, string $desc): array
     {
         return [
@@ -282,6 +293,27 @@ class Common extends AuthController
             }
             throw $e;
         }
+    }
+
+    private function safePaidOrderMetrics(int $start, int $end): array
+    {
+        $query = $this->paidOrderQuery($start, $end);
+        return [
+            'count' => (int)(clone $query)->count(),
+            'amount' => (string)(clone $query)->sum('pay_price'),
+        ];
+    }
+
+    private function paidOrderQuery(int $start, int $end)
+    {
+        return Db::name('store_order')
+            ->where([
+                'paid' => 1,
+                'refund_status' => 0,
+                'pid' => 0,
+                'is_del' => 0,
+            ])
+            ->whereBetween('pay_time', [$start, $end]);
     }
 
     private function canFallbackMissingTable(string $table, \Throwable $e): bool

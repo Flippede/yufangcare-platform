@@ -21,13 +21,20 @@
 - 开始基线与稳定 `main`：`f6ebce63d1afda54f416de41a3d2036669a0122d`。
 - 本轮目标：仅产品化总部 Web 管理后台，统一品牌入口、总部工作台、总体后台一级菜单、YFTH 权限树、后台中文可见文案和正式后台静态构建产物状态。
 - 已新增并验证只读后台接口：`GET home/yfth`，用于总部运营工作台真实统计和授权快捷入口；该接口不写业务数据，不触发预约、核销、支付、退款或权益状态变更。后台公共中间件会按 CRMEB 既有机制写入 `system_log` 访问日志。
+- P1 权限缺口已关闭：新增 API 权限 `yfth-hq-workbench-read`，显示名称“查看总部经营工作台”，`api_url = home/yfth`，`methods = GET`，`auth_type = 2`，父级为 `admin-home` 首页工作台；普通角色必须显式授权该权限，超管继续按既有机制自动拥有。
+- 服务端纵深校验已补齐：`Common::yfthWorkbench()` 在读取全局统计前调用 `SystemRoleServices::assertApiAuthForAdmin($this->adminInfo ?: [], 'home/yfth', 'GET')`，不信任前端入口、角色、门店或权限字段。
 - 新增菜单迁移：`20260704110000_productize_yfth_hq_admin_menus.php`，调整总部后台一级菜单、YFTH 根菜单、YFTH 子菜单和 YFTH API 权限树中文名称；保留 `unique_auth`、菜单 ID、角色规则兼容性，不删除、不重建权限。
+- 新增权限纠偏迁移：`20260704150000_add_yfth_hq_workbench_permission.php`，幂等插入/修复 `yfth-hq-workbench-read`，rollback 只移除本轮新增权限，rerun 后目标权限仍仅一条。
 - 新增架构文档：`docs/YFTH_PRODUCT_SURFACE_ARCHITECTURE.md`。
 - 收口整改：`GET home/yfth` 增加今日成交金额卡片；缺失可选 `yfth_` 表时降级为 0，非 YFTH 表或非缺表数据库错误继续抛出，避免掩盖真实数据库异常。
+- 统计口径整改：`today_orders` 卡片改为“今日支付订单”，与“今日成交金额”共用同一个 `store_order` 查询集合：`pay_time` 在当日、`paid = 1`、`refund_status = 0`、`pid = 0`、`is_del = 0`，数量统计 count，成交金额汇总 `pay_price`。
 - 验证环境：便携 PHP 7.4.33 + 隔离 MySQL 8.0.46，临时库 `yfth_hq_admin_verify`，未复制生产 `.env`，未连接生产数据库或服务器。
 - 已执行验证：PHP 语法检查、`php think list`、迁移 run/rollback/rerun、`GET /adminapi/home/yfth` 未登录/超管/缺可选表降级、普通角色访问已登记 YFTH API 越权拦截、YFTH 权限菜单英文清理、`crmeb/tests/yfth_service_appointment_contract_check.php`、浏览器登录和服务预约页面加载验证。
+- P1 追加验证：隔离库 `yfth_hq_p1_verify` 完整迁移 run 通过；`yfth-hq-workbench-read` 迁移前数量 0、run 后 1、rollback 后 0、rerun 后 1，重复数量 0；真实后台 token 验证未登录返回 `110003`，超管成功，无权限普通管理员返回 `100101`，有权限普通管理员成功，带门店范围但无总部工作台权限账号返回 `100101`。
+- 统计测试数据覆盖：已插入今天创建未支付、昨天创建今天支付、今天支付主订单、今天支付子订单、今天支付但退款状态非 0、已删除订单、正常今日支付订单；接口返回“今日支付订单”=3，“今日成交金额”=120，仅统计符合条件的主订单。
 - 本轮继续冻结：CRMEB 登录鉴权、token、订单、支付、退款、商品库存主流程、5980 套餐激活主流程、服务预约/核销业务状态机、生产部署和生产数据库迁移。
 - 服务预约与动态核销 V1 最新管理后台生产构建产物已刷新至 `crmeb/public/admin`；本轮核对 `template/admin/dist` 与 `crmeb/public/admin` 均为 592 个文件、39,427,546 字节且无差异，服务器后续无需执行 npm 构建即可加载相关后台页面。
+- 仍保留 P2：菜单自定义名称和排序覆盖策略仍可能受未来 CRMEB 菜单变更影响，暂不阻塞总部后台产品化 V1。
 
 ## 1. 项目目标
 
