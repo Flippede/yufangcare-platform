@@ -18,6 +18,8 @@ Route::group(function () {
     Route::get('backup/download', 'v1.system.SystemDatabackup/downloadFile')->option(['real_name' => '下载表备份记录']);
     //首页统计数据
     Route::get('home/header', 'Common/homeStatics')->option(['real_name' => '首页统计数据']);
+    //御方通和总部运营工作台
+    Route::get('home/yfth', 'Common/yfthWorkbench')->option(['real_name' => '御方通和总部运营工作台']);
     //首页订单图表
     Route::get('home/order', 'Common/orderChart')->option(['real_name' => '首页订单图表']);
     //首页用户图表

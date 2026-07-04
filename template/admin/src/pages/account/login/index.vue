@@ -68,9 +68,7 @@
     ></Verify>
     <div class="footer">
       <div class="pull-right" v-if="copyright">{{ copyright }}</div>
-      <div class="pull-right" v-else>
-        Copyright © 2014-2025 <a href="https://www.crmeb.com" target="_blank">{{ version }}</a>
-      </div>
+      <div class="pull-right" v-else>御方通和总部运营管理平台</div>
     </div>
   </div>
 </template>
@@ -141,9 +139,10 @@ export default {
       loginInfoApi()
         .then((res) => {
           const data = res.data || {};
-          document.title = `${data.site_name} - 登录`;
-          localStorage.setItem('ADMIN_TITLE', data.site_name || '');
-          this.$store.commit('setAdminTitle', data.site_name);
+          const siteName = data.site_name || '御方通和总部运营管理平台';
+          document.title = `${siteName} - 登录`;
+          localStorage.setItem('ADMIN_TITLE', siteName);
+          this.$store.commit('setAdminTitle', siteName);
           this.login_logo = data.login_logo || require('@/assets/images/logo.png');
           this.swiperList = data.slide && data.slide.length ? data.slide : [{ slide: this.defaultSwiperList }];
           this.key = data.key;

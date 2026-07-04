@@ -39,7 +39,7 @@ export default {
       name: `${pre}service_appointment`,
       meta: {
         auth: ['yfth-service-appointment-index'],
-        title: 'Service Appointment',
+        title: '服务预约与核销',
       },
       component: () => import('@/pages/yfth/serviceAppointment/index'),
     },

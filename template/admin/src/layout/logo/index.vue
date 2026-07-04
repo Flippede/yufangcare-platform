@@ -6,9 +6,11 @@
     @click="onThemeConfigChange"
   >
     <img v-if="maxLogo" class="layout-logo-medium-img" :src="maxLogo" />
+    <span v-else class="layout-logo-text">御方通和总部</span>
   </div>
   <div class="layout-logo-size" v-else v-db-click @click="onThemeConfigChange">
     <img v-if="minLogo" class="layout-logo-size-img" :src="minLogo" />
+    <span v-else class="layout-logo-size-text">御</span>
   </div>
 </template>
 
@@ -87,6 +89,12 @@ export default {
     position: relative;
     top: 2px;
   }
+
+  &-text {
+    font-size: 17px;
+    font-weight: 600;
+    color: #ffffff;
+  }
 }
 .layout-logo-size {
   width: 50px;
@@ -100,6 +108,13 @@ export default {
     height: 50px;
     margin: auto;
     animation: logoAnimation 0.3s ease-in-out;
+  }
+
+  &-text {
+    margin: auto;
+    font-size: 18px;
+    font-weight: 600;
+    color: #ffffff;
   }
 }
 </style>

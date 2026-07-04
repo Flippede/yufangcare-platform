@@ -20,6 +20,16 @@ export function headerApi() {
 }
 
 /**
+ * @description 御方通和总部运营工作台
+ */
+export function yfthWorkbenchApi() {
+  return request({
+    url: 'home/yfth',
+    method: 'get',
+  });
+}
+
+/**
  * @description 首页订单图表
  */
 export function orderApi(params) {

@@ -15,6 +15,17 @@
 - 产品文档目录：`C:\Users\zhangxu\Desktop\御方通和\yufangcare-platform\项目文档`
 - 完整产品依据：`御方通和加盟小程序项目需求与产品设计文档_V1.0.docx`
 
+## Current Fact Snapshot - 2026-07-04 HQ Admin Productization V1
+
+- 当前开发分支：`feature/yfth-hq-admin-productization-v1`。
+- 开始基线与稳定 `main`：`f6ebce63d1afda54f416de41a3d2036669a0122d`。
+- 本轮目标：仅产品化总部 Web 管理后台，统一品牌入口、总部工作台、YFTH 菜单结构、后台中文可见文案和正式后台静态构建产物。
+- 已新增只读后台接口：`GET home/yfth`，用于总部运营工作台真实统计和授权快捷入口；该接口不写业务数据，不触发预约、核销、支付、退款或权益状态变更。
+- 新增菜单迁移：`20260704110000_productize_yfth_hq_admin_menus.php`，只调整 YFTH 菜单名称和排序，保留 `unique_auth` 兼容性。
+- 新增架构文档：`docs/YFTH_PRODUCT_SURFACE_ARCHITECTURE.md`。
+- 本轮继续冻结：CRMEB 登录鉴权、token、订单、支付、退款、商品库存主流程、5980 套餐激活主流程、服务预约/核销业务状态机、生产部署和生产数据库迁移。
+- 服务预约与动态核销 V1 最新管理后台生产构建产物将在本轮构建后刷新至 `crmeb/public/admin`，服务器后续无需执行 npm 构建即可加载相关后台页面。
+
 ## 1. 项目目标
 
 在 CRMEB 成熟商城和后台能力基础上，开发御方通和加盟 APP / 微信小程序，覆盖公共用户端、C端家庭康养会员、B端加盟商/门店工作台、A端服务导师、总部 Web 管理后台、商品商城、5980 家庭康养套餐、十个月权益、预约核销、加盟经营、推荐关系、奖励台账、内容活动、报表和审计。

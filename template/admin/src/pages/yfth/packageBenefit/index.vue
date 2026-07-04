@@ -112,13 +112,13 @@
             <el-button type="primary" icon="el-icon-search" @click="loadPurchases">查询</el-button>
             <el-button icon="el-icon-refresh" @click="recoverActivation">扫描补偿</el-button>
             <el-button icon="el-icon-search" :loading="orphanScanning" @click="scanOrphans(false, false)"
-              >Orphan dry-run</el-button
+              >孤儿订单预检</el-button
             >
             <el-button icon="el-icon-close" :loading="orphanScanning" @click="confirmScanOrphans(true, false)"
-              >Close unpaid</el-button
+              >关闭未支付</el-button
             >
             <el-button icon="el-icon-refresh-right" :loading="orphanScanning" @click="confirmScanOrphans(false, true)"
-              >Recover paid</el-button
+              >恢复已支付</el-button
             >
           </div>
           <el-table v-loading="loading.purchase" :data="lists.purchase" border>
@@ -425,7 +425,7 @@ export default {
     },
     saveTemplate() {
       yfthPackageTemplateSave(this.forms.template).then(() => {
-        this.$message.success('Saved');
+        this.$message.success('已保存');
         this.dialogs.template = false;
         this.loadTemplates();
       });
@@ -436,7 +436,7 @@ export default {
     },
     saveRule() {
       yfthPackageRuleSave(this.forms.rule).then(() => {
-        this.$message.success('Saved');
+        this.$message.success('已保存');
         this.dialogs.rule = false;
         this.loadTemplates();
       });
@@ -453,7 +453,7 @@ export default {
     },
     saveBinding() {
       yfthPackageBindingSave(this.forms.binding).then(() => {
-        this.$message.success('Saved');
+        this.$message.success('已保存');
         this.dialogs.binding = false;
       });
     },
@@ -468,7 +468,7 @@ export default {
     },
     saveBenefitTemplate() {
       yfthBenefitTemplateSave(this.forms.benefitTemplate).then(() => {
-        this.$message.success('Saved');
+        this.$message.success('已保存');
         this.dialogs.benefitTemplate = false;
       });
     },
@@ -478,7 +478,7 @@ export default {
     },
     saveMonthlyRule() {
       yfthMonthlyRuleSave(this.forms.monthlyRule).then(() => {
-        this.$message.success('Saved');
+        this.$message.success('已保存');
         this.dialogs.monthlyRule = false;
         this.loadMonthlyRules();
       });
@@ -496,7 +496,7 @@ export default {
     },
     saveState() {
       yfthPackageInstanceLifecycle(this.stateTarget.id, this.forms.state).then(() => {
-        this.$message.success('Updated');
+        this.$message.success('已更新');
         this.dialogs.state = false;
         this.loadInstances();
       });
@@ -504,22 +504,22 @@ export default {
     openDuePeriods() {
       yfthOpenDuePeriods({ limit: 100 }).then((res) => {
         const data = res.data || {};
-        this.$message.success(`Opened ${data.opened || 0}, expired ${data.expired || 0}`);
+        this.$message.success(`已开放 ${data.opened || 0}，已过期 ${data.expired || 0}`);
         this.loadInstances();
       });
     },
     recoverActivation() {
       yfthPackageActivationRecover({ limit: 50 }).then((res) => {
         const data = res.data || {};
-        this.$message.success(`Activated ${data.activated || 0}, failed ${data.failed || 0}`);
+        this.$message.success(`已激活 ${data.activated || 0}，失败 ${data.failed || 0}`);
         this.loadPurchases();
       });
     },
     confirmScanOrphans(closeUnpaid, recoverPaid) {
-      this.$confirm('Confirm controlled orphan order action?', 'Confirm', {
+      this.$confirm('确认执行受控孤儿订单处理？', '确认操作', {
         type: 'warning',
-        confirmButtonText: 'Confirm',
-        cancelButtonText: 'Cancel',
+        confirmButtonText: '确认',
+        cancelButtonText: '取消',
       }).then(() => this.scanOrphans(closeUnpaid, recoverPaid));
     },
     scanOrphans(closeUnpaid, recoverPaid) {
@@ -532,9 +532,9 @@ export default {
         .then((res) => {
           const data = res.data || {};
           this.$message.success(
-            `Scanned ${data.scanned || 0}, unpaid ${data.payable_orphans || 0}, paid ${
+            `已扫描 ${data.scanned || 0}，未支付 ${data.payable_orphans || 0}，已支付 ${
               data.paid_orphans || 0
-            }, closed ${data.closed || 0}, recovered ${data.recovered || 0}`,
+            }，已关闭 ${data.closed || 0}，已恢复 ${data.recovered || 0}`,
           );
           this.loadPurchases();
         })

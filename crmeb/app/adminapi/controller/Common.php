@@ -24,6 +24,7 @@ use app\services\user\UserServices;
 use crmeb\services\CacheService;
 use crmeb\services\HttpService;
 use think\facade\Config;
+use think\facade\Db;
 
 /**
  * 公共接口基类 主要存放公共接口
@@ -139,6 +140,68 @@ class Common extends AuthController
     }
 
     /**
+     * 御方通和总部运营工作台
+     * @return mixed
+     */
+    public function yfthWorkbench()
+    {
+        $todayStart = strtotime(date('Y-m-d'));
+        $todayEnd = $todayStart + 86399;
+        $todayYmd = (int)date('Ymd');
+
+        $cards = [
+            $this->workbenchCard('business_subjects', '经营主体', $this->safeCount('yfth_business_subject', ['status' => 'active']), '已启用主体'),
+            $this->workbenchCard('service_stores', '服务门店', $this->safeCount('system_store', ['is_del' => 0, 'is_show' => 1]), '正常展示门店'),
+            $this->workbenchCard('users', '用户总数', $this->safeCount('user', ['is_del' => 0]), '平台用户'),
+            $this->workbenchCard('package_instances', '5980套餐实例', $this->safeCountIn('yfth_package_instance', 'status', ['active', 'refunding']), '有效及退款中'),
+            $this->workbenchCard('today_appointments', '今日预约', $this->safeCount('yfth_service_appointment', ['service_date' => $todayYmd]), '按服务日期'),
+            $this->workbenchCard('pending_confirm', '待门店确认', $this->safeCount('yfth_service_appointment', ['status' => 'pending_confirm']), '预约待处理'),
+            $this->workbenchCard('today_writeoffs', '今日核销', $this->safeCountRange('yfth_service_writeoff_record', 'writeoff_time', $todayStart, $todayEnd, ['status' => 'succeeded']), '已完成履约'),
+            $this->workbenchCard('today_orders', '今日商城订单', $this->safeCountRange('store_order', 'add_time', $todayStart, $todayEnd, ['is_del' => 0]), 'CRMEB订单'),
+        ];
+
+        $todos = [
+            [
+                'title' => '待门店确认预约',
+                'count' => $this->safeCount('yfth_service_appointment', ['status' => 'pending_confirm']),
+                'path' => '/' . Config::get('app.admin_prefix', 'admin') . '/yfth/service-appointment?tab=appointments&status=pending_confirm',
+                'auth' => ['yfth-service-appointment-index'],
+            ],
+            [
+                'title' => '今日待核销预约',
+                'count' => $this->safeCount('yfth_service_appointment', ['status' => 'checked_in', 'service_date' => $todayYmd]),
+                'path' => '/' . Config::get('app.admin_prefix', 'admin') . '/yfth/service-appointment?tab=appointments&status=checked_in',
+                'auth' => ['yfth-service-appointment-index'],
+            ],
+        ];
+
+        $quickLinks = [
+            $this->quickLink('商品管理', '/product/product_list', ['admin-store-storeProuduct-index'], '商品、SKU与库存'),
+            $this->quickLink('订单管理', '/order/list', ['admin-order-storeOrder-index'], '商城订单与发货'),
+            $this->quickLink('用户管理', '/user/list', ['admin-user-user-index'], '用户与会员资料'),
+            $this->quickLink('门店管理', '/setting/merchant/system_store/list', ['setting-merchant-system-store'], 'CRMEB门店资料'),
+            $this->quickLink('页面装修', '/setting/pages/diy', ['admin-setting-pages-diy'], '小程序页面配置'),
+            $this->quickLink('内容管理', '/cms/article/index', ['cms-article-index'], '文章与内容配置'),
+            $this->quickLink('业务基础域', '/yfth/foundation', ['yfth-foundation-index'], '身份、主体与资质'),
+            $this->quickLink('套餐与权益', '/yfth/package-benefit', ['yfth-package-benefit-index'], '5980套餐和权益计划'),
+            $this->quickLink('服务预约与核销', '/yfth/service-appointment', ['yfth-service-appointment-index'], '预约、签到与核销'),
+        ];
+
+        return app('json')->success([
+            'platform' => [
+                'name' => '御方通和总部运营管理平台',
+                'description' => '商城、门店、套餐权益、服务预约与核销的总部运营入口',
+            ],
+            'cards' => $cards,
+            'todos' => array_values(array_filter($todos, function ($item) {
+                return (int)$item['count'] > 0;
+            })),
+            'quick_links' => $quickLinks,
+            'generated_at' => time(),
+        ]);
+    }
+
+    /**
     * 计算增长率
     * 特殊情况：
     * 1. 当前值和上期值均为0时，返回0；
@@ -155,6 +218,48 @@ class Common extends AuthController
        if ($lastValue == 0) return round($nowValue, 2);
        if ($nowValue == 0) return -round($lastValue, 2);
        return bcmul(bcdiv((bcsub($nowValue, $lastValue, 2)), $lastValue, 2), 100, 2);
+    }
+
+    private function workbenchCard(string $key, string $title, int $value, string $desc): array
+    {
+        return compact('key', 'title', 'value', 'desc');
+    }
+
+    private function quickLink(string $title, string $path, array $auth, string $desc): array
+    {
+        return [
+            'title' => $title,
+            'path' => '/' . Config::get('app.admin_prefix', 'admin') . $path,
+            'auth' => $auth,
+            'desc' => $desc,
+        ];
+    }
+
+    private function safeCount(string $table, array $where = []): int
+    {
+        try {
+            return (int)Db::name($table)->where($where)->count();
+        } catch (\Throwable $e) {
+            return 0;
+        }
+    }
+
+    private function safeCountIn(string $table, string $field, array $values, array $where = []): int
+    {
+        try {
+            return (int)Db::name($table)->where($where)->whereIn($field, $values)->count();
+        } catch (\Throwable $e) {
+            return 0;
+        }
+    }
+
+    private function safeCountRange(string $table, string $field, int $start, int $end, array $where = []): int
+    {
+        try {
+            return (int)Db::name($table)->where($where)->whereBetween($field, [$start, $end])->count();
+        } catch (\Throwable $e) {
+            return 0;
+        }
     }
 
 
