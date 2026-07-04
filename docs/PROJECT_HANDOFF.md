@@ -4,12 +4,13 @@
 - 当前代码基础：CRMEB 开源商城 PHP 版 v5.6 系列
 - 本地路径：`C:\Users\zhangxu\Desktop\御方通和\yufangcare-platform`
 - GitHub 仓库：`https://github.com/Flippede/yufangcare-platform.git`
-- 当前分支：`feature/yfth-service-appointment-writeoff-v1`
-- 当前最新提交：以本文件所在分支的 Git HEAD 为准；到店签到、动态码与服务权益核销 V1 完成 commit 见开发报告。
-- 当前稳定 main：`7413627250bd057474fd2a4ea04068fae5f2ec9c`
+- 当前分支：`main`
+- 当前最新提交：`f9a0d963ac4c92120111983c9b489433f1ab0dca`
+- 当前稳定 main：`f9a0d963ac4c92120111983c9b489433f1ab0dca`
+- origin/main：`f9a0d963ac4c92120111983c9b489433f1ab0dca`
 - 本轮开始基线：`7413627250bd057474fd2a4ea04068fae5f2ec9c`
-- 当前开发阶段：服务项目、门店服务授权、周排班和特殊日期、可预约时段查询、预约创建、自动确认、人工确认、拒绝、取消、同门店同项目改期、真实容量锁定/占用、5980 服务权益锁定/释放、预约事件时间线、到店签到、动态二维码/数字码、扫码/输码核销、服务权益最终消耗、核销记录和服务完成状态已经在功能分支完成；下一步为签到与动态核销 V1 只读架构审核。
-- 当前工作区和推送状态：本轮开发提交后工作区应保持干净；功能分支暂未推送远端。
+- 当前开发阶段：服务预约、容量锁定、5980 服务权益锁定与最终消耗、签到、动态码和核销 V1 已完成最终审核，并已通过 `git merge --ff-only` 合并、推送至 `main`。
+- 当前工作区和推送状态：`main` 与 `origin/main` 已同步，工作区干净；功能分支 `feature/yfth-service-appointment-writeoff-v1` 已保留。
 - 当前禁止事项和冻结模块：不得在本阶段开发核销撤销/反冲、权益恢复、评价、自动爽约、提醒消息、独立付费服务订单、跨店核销、离线码、打印码、员工排班资源、家庭成员预约、推荐奖励、配送、库存补货、产品额度、加盟合同、真实分账或生产部署；不得修改 5980 套餐支付激活、CRMEB 订单/支付/退款、后台权限核心流程或生产部署配置。
 - 产品文档目录：`C:\Users\zhangxu\Desktop\御方通和\yufangcare-platform\项目文档`
 - 完整产品依据：`御方通和加盟小程序项目需求与产品设计文档_V1.0.docx`
@@ -93,7 +94,7 @@
 
 ## 7. 当前开发阶段
 
-阶段：到店签到、动态码与服务权益核销 V1 已完成，当前功能分支进入只读架构审核准备。
+阶段：服务预约、容量锁定、5980 服务权益锁定与最终消耗、到店签到、动态码与服务权益核销 V1 已完成最终审核，并已快进合并、推送至 `main`。
 
 本轮变化：
 
@@ -122,11 +123,11 @@
 
 ## 8. 下一步建议
 
-当前下一步不应合并 `main` 或部署生产。建议对到店签到、动态二维码/数字码、扫码/输码核销、服务权益最终消耗和核销记录 V1 进行只读架构审核；审核通过后再进入“核销撤销/反冲、自动爽约、消息提醒或更完整门店工作台”的独立分支规划。
+当前服务预约与动态核销 V1 已正式收口并进入稳定 `main`。下一业务模块由项目主控根据完整产品流程另行决定，不再继续写“架构审核”或“等待合并 main”。
 
 生产服务器仍需保持干净克隆和凭据轮换要求：正式切换前应确认 GitHub Deploy Key 或受控 SSH 凭据可用，并确认生产 `.env`、微信支付证书、运行时 PEM 和前端环境变量均不进入 Git。
 
-后续开发建议按业务风险顺序推进：签到/动态核销 V1 架构审核、核销异常反冲策略、自动爽约、消息提醒、更完整门店工作台、权益领取配送履约、推荐关系与只读奖励台账，再进入库存补货、产品额度、加盟合同和真实分账执行。
+后续开发可在项目主控确认模块顺序后，再围绕核销异常反冲策略、自动爽约、消息提醒、更完整门店工作台、权益领取配送履约、推荐关系与只读奖励台账、库存补货、产品额度、加盟合同和真实分账执行等未完成能力创建独立分支。
 
 建议先明确：
 
@@ -326,10 +327,13 @@
 
 ## Current Fact Snapshot - 2026-07-03 Final Service Appointment And Writeoff V1 Closure
 
-- Current branch before merge: `feature/yfth-service-appointment-writeoff-v1`.
+- Current branch after merge: `main`.
+- Document closure commit and current stable main: `f9a0d963ac4c92120111983c9b489433f1ab0dca`.
+- Current origin/main: `f9a0d963ac4c92120111983c9b489433f1ab0dca`.
+- Feature branch retained: `feature/yfth-service-appointment-writeoff-v1`.
 - Stable main before merge: `7413627250bd057474fd2a4ea04068fae5f2ec9c`.
 - Final review conclusion: digital-code security hardening targeted review result is B, conditionally passed; the original digital-code P1 is closed; there are no current Blocker/P1 issues.
-- Merge readiness: service appointment and dynamic writeoff V1 is allowed to merge into `main`.
+- Merge result: service appointment and dynamic writeoff V1 was merged into `main` with `git merge --ff-only`; `main` and the feature branch pointed to the same commit at merge time, and `origin/main` was pushed successfully to `f9a0d963ac4c92120111983c9b489433f1ab0dca`.
 - Completed stable capabilities: service project definition, store service authorization, weekly schedule and special days, available dates and slots, appointment creation, auto/manual confirmation, rejection, cancellation, same-store same-project reschedule, true capacity locking/occupation, 5980 service-benefit lock/release/final consumption, check-in, dynamic QR token, 6-digit digital writeoff code, same-store staff/manager/franchisee QR or digital writeoff, headquarters exception writeoff, appointment completion, writeoff records, events, unified audit, idempotency, and minimum real user/store/admin pages.
 - Validation basis: MySQL 8.0.46 migration run, rollback, rerun, and real-flow validation were completed in the feature branch before this final documentation closure.
 - Digital-code hardening facts: precheck is read-only; backend admin token and trusted store scope are resolved before numeric-code lookup; other-store real codes, random wrong codes, expired codes, and invalidated codes share safe error semantics; failure throttling is keyed by administrator, trusted store scope, IP, and business scene; failed attempts 1 through 5 execute, and the 6th request is temporarily limited; same-store active numeric codes are protected by `digital_active_key`; generation retries finite collisions; headquarters exception writeoff reason is required on the service side.
@@ -337,4 +341,5 @@
 - Non-blocking P2: when Cache/Redis has an exception, the digital-code entry fails closed, but the degraded response and operator experience can still be improved.
 - Non-blocking P3: no real wait-300-seconds TTL recovery test was executed; a future test can use injectable time or cache fake support.
 - Still not implemented: writeoff reversal/reversal accounting, benefit recovery, automatic no-show, service review, WeChat subscription messages, SMS reminders, independent paid service orders, fuller store workstation, delivery fulfillment, recommendation/reward ledger, inventory replenishment, product quota, franchise contracts, real settlement, production deployment, and production database migration.
-- Next state: current service appointment and dynamic writeoff V1 has passed final architecture review and is allowed to merge into `main`. The next business module must be determined separately by the project owner from the complete product flow.
+- Next state: current service appointment and dynamic writeoff V1 has passed final architecture review and is already merged and pushed to `main`. The next business module must be determined separately by the project owner from the complete product flow.
+- Production status: no production deployment was performed, and no production database was connected during the merge closure.

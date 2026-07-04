@@ -172,8 +172,9 @@ Future rounds should add reversal/no-show/notification/paid-service-order behavi
 
 - Final review conclusion: digital-code security hardening targeted review result is B, conditionally passed.
 - The original digital-code P1 is closed. There are no current Blocker/P1 issues for service appointment and dynamic writeoff V1.
-- Service appointment and dynamic writeoff V1 is allowed to merge into `main`.
-- The project may enter the next business module after merge, but the next module must be selected separately by the project owner from the complete product flow.
+- Service appointment and dynamic writeoff V1 was fast-forward merged into `main` with `git merge --ff-only`.
+- Current stable `main` and `origin/main`: `f9a0d963ac4c92120111983c9b489433f1ab0dca`.
+- The service appointment and dynamic writeoff V1 stage is formally closed. The project may enter the next business module, but the next module must be selected separately by the project owner from the complete product flow.
 
 Completed stable capabilities include:
 
