@@ -24,6 +24,80 @@ const demoData = {
   products: [
     '草本足浴包', '艾草温灸贴', '家庭理疗垫', '康养茶饮礼盒', '肩颈热敷包'
   ],
+  mallCategories: [
+    { name: '调养项目', icon: '调', action: 'openView', value: 'wellnessFlow' },
+    { name: '套餐', icon: '套', action: 'chooseService', value: 'tuina' },
+    { name: '同源产品区', icon: '源', action: 'setTab', value: '商城' },
+    { name: '中药日化', icon: '日', action: 'setTab', value: '商城' },
+    { name: '化产品区', icon: '护', action: 'setTab', value: '商城' },
+    { name: '食硒厨房', icon: '硒', action: 'setTab', value: '商城' },
+    { name: '富硒厨房', icon: '厨', action: 'setTab', value: '商城' },
+    { name: '产品区', icon: '品', action: 'setTab', value: '商城' },
+    { name: '食疗药膳', icon: '膳', action: 'setTab', value: '商城' },
+    { name: '营养医学', icon: '养', action: 'setTab', value: '商城' }
+  ],
+  storefrontSections: [
+    {
+      title: '调养项目套餐',
+      subtitle: '到店服务 · 预约体验',
+      action: 'openView',
+      value: 'wellnessFlow',
+      items: [
+        { name: '经络调理套餐', desc: '肩颈腰背舒缓', price: '服务权益', tone: 'service' },
+        { name: '温灸养护套餐', desc: '温养睡眠调理', price: '45分钟', tone: 'moxa' }
+      ]
+    },
+    {
+      title: '食药同源产品区',
+      subtitle: '家庭日常调理',
+      action: 'setTab',
+      value: '商城',
+      items: [
+        { name: '康养茶饮礼盒', desc: '草本轻养系列', price: '演示价 ¥168', tone: 'tea' },
+        { name: '草本足浴包', desc: '睡前泡脚养护', price: '演示价 ¥69', tone: 'herb' }
+      ]
+    },
+    {
+      title: '中药日化产品区',
+      subtitle: '外用护理用品',
+      action: 'setTab',
+      value: '商城',
+      items: [
+        { name: '艾草温灸贴', desc: '居家温热护理', price: '演示价 ¥89', tone: 'moxa' },
+        { name: '肩颈热敷包', desc: '久坐放松随身用', price: '演示价 ¥129', tone: 'wood' }
+      ]
+    },
+    {
+      title: '富硒厨房产品区',
+      subtitle: '餐桌健康搭配',
+      action: 'setTab',
+      value: '商城',
+      items: [
+        { name: '富硒杂粮礼盒', desc: '早餐搭配演示', price: '规划中', tone: 'grain' },
+        { name: '食硒厨房组合', desc: '家庭厨房场景', price: '规划中', tone: 'kitchen' }
+      ]
+    },
+    {
+      title: '食疗药膳产品区',
+      subtitle: '四季食养灵感',
+      action: 'setTab',
+      value: '商城',
+      items: [
+        { name: '四季药膳包', desc: '煲汤炖煮场景', price: '规划中', tone: 'soup' },
+        { name: '轻养餐食方案', desc: '营养搭配展示', price: '规划中', tone: 'meal' }
+      ]
+    },
+    {
+      title: '营养医学产品区',
+      subtitle: '评估后推荐',
+      action: 'setTab',
+      value: '商城',
+      items: [
+        { name: '家庭营养评估', desc: '服务导师建议', price: '演示服务', tone: 'assessment' },
+        { name: '康养档案随访', desc: '长期跟踪规划', price: '规划中', tone: 'record' }
+      ]
+    }
+  ],
   customers: ['赵女士', '王先生', '刘阿姨', '陈先生', '李女士', '周先生', '孙女士'],
   appointments: [
     { id: 'A001', customer: '赵女士', service: '经络调理', store: '郑州金水店', time: '今天 14:00', status: '待确认' },
@@ -183,9 +257,12 @@ const actions = {
 
 function render() {
   const currentRole = role();
+  const miniapp = document.querySelector('.miniapp');
+  miniapp.classList.toggle('customer-mode', state.role === 'customer');
   appKicker.textContent = `${currentRole.label} · ${currentStore().name}`;
   pageTitle.textContent = getTitle();
-  notice.hidden = false;
+  const isCustomerStorefront = state.role === 'customer' && state.view === 'home' && state.tab === '首页';
+  notice.hidden = isCustomerStorefront;
   notice.textContent = '当前为本地交互 Demo，所有内容均为演示数据，不连接真实接口。';
   renderBottomNav(currentRole.nav);
   view.innerHTML = renderView();
@@ -286,28 +363,57 @@ function renderCustomerTab(tab) {
 }
 
 function renderCustomerHome() {
-  return `<div class="hero"><h3>御方通和家庭康养</h3><p>5980全家康套餐、门店服务预约、商品商城与合作入口演示</p></div>
-    <div class="section-title">当前推荐门店 <button class="mini-btn" data-action="openView" data-value="publicStore">查看门店页</button></div>
-    ${storeCard(currentStore())}
-    <div class="section-title">5980全家康套餐</div>
-    <div class="card"><strong>十个月家庭康养计划</strong><p class="meta">含服务权益、产品权益、预约核销位置演示。</p><button class="full-btn" data-action="openView" data-value="wellnessFlow">立即预约服务</button></div>
-    <div class="section-title">热门康养项目</div>
-    <div class="grid-2">${demoData.services.map(serviceMiniCard).join('')}</div>
-    <div class="section-title">推荐商品</div>
-    ${simpleList(demoData.products.slice(0, 3), '加入购物车演示')}
-    <div class="section-title">活动入口</div>
-    <div class="list-card"><strong>夏季温养体验周</strong><p class="meta">点击可进入活动报名占位。</p><span class="tag plan">规划中</span></div>
-    <button class="full-btn" data-action="setTab" data-value="合作中心">了解合作加盟</button>`;
+  return `<section class="storefront">
+    <div class="storefront-top">
+      <div class="storefront-titlebar">
+        <span class="back-mark">‹</span>
+        <strong>御方通和</strong>
+        <span class="demo-chip">演示</span>
+      </div>
+      <button class="search-bar" data-action="setTab" data-value="商城">搜索康养项目、食疗药膳、同源产品</button>
+      <div class="storefront-banner">
+        <div>
+          <p>御方通和家庭康养</p>
+          <h3>从调养项目到家庭产品的一站式商城首页</h3>
+          <button class="banner-btn" data-action="openView" data-value="wellnessFlow">立即预约服务</button>
+        </div>
+        <div class="banner-visual"></div>
+      </div>
+    </div>
+    <div class="quick-grid">
+      ${demoData.mallCategories.map(item => `<button class="quick-item" data-action="${item.action}" data-value="${item.value}">
+        <span class="quick-icon">${item.icon}</span><span>${item.name}</span>
+      </button>`).join('')}
+    </div>
+    <div class="storefront-strip">
+      <button data-action="openView" data-value="publicStore"><strong>${currentStore().name}</strong><span>门店对外页 ›</span></button>
+      <button data-action="openView" data-value="customerAppointments"><strong>我的预约</strong><span>查看服务码 ›</span></button>
+    </div>
+    ${demoData.storefrontSections.map(renderStorefrontSection).join('')}
+    <div class="storefront-footer-card">
+      <strong>合作加盟</strong>
+      <p>了解加盟申请、导师跟进和活动协同位置。</p>
+      <button class="mini-btn" data-action="setTab" data-value="合作中心">进入合作中心</button>
+    </div>
+  </section>`;
 }
 
 function renderPublicStore() {
   const store = currentStore().id === 'all' ? demoData.stores[1] : currentStore();
-  return `<div class="hero"><h3>${store.name}</h3><p>这是顾客可见的门店对外商店页，不展示内部经营数据。</p></div>
+  return `<section class="public-store">
+    <div class="store-cover">
+      <span class="demo-chip">门店展示</span>
+      <h3>${store.name}</h3>
+      <p>顾客可见的门店介绍页，不展示内部经营数据。</p>
+    </div>
     ${storeCard(store)}
-    <div class="section-title">康养服务</div>${simpleList(demoData.services.map(item => `${item.name} · ${item.duration}`), '预约')}
-    <div class="section-title">可预约项目</div><div class="grid-2">${demoData.services.map(serviceMiniCard).join('')}</div>
-    <div class="section-title">门店商品</div>${simpleList(demoData.products.slice(0, 4), '查看')}
-    <div class="section-title">门店活动</div><div class="list-card"><strong>门店体验日</strong><p class="meta">对外活动展示，不包含客户名单、销售数据、员工业绩、库存成本、核销记录或经营报表。</p></div>`;
+    <div class="floor-head"><strong>康养服务</strong><button data-action="openView" data-value="wellnessFlow">预约 ›</button></div>
+    <div class="grid-2">${demoData.services.map(serviceMiniCard).join('')}</div>
+    <div class="floor-head"><strong>门店商品</strong><button data-action="setTab" data-value="商城">更多 ›</button></div>
+    <div class="product-row">${demoData.storefrontSections[1].items.map(productTile).join('')}</div>
+    <div class="floor-head"><strong>活动推荐</strong><button>查看更多 ›</button></div>
+    <div class="store-event"><div class="event-img"></div><div><strong>门店体验日</strong><p>对外活动展示，不包含客户名单、销售数据、员工业绩、库存成本、核销记录或经营报表。</p></div></div>
+  </section>`;
 }
 
 function renderWellnessFlow() {
@@ -339,7 +445,9 @@ function renderDynamicCode() {
 }
 
 function renderMall() {
-  return `<div class="section-title">商城演示</div>${simpleList(demoData.products, '查看详情')}<div class="card"><strong>购物车</strong><p class="meta">商品详情、购物车、确认订单、订单列表和订单详情仅做交互占位，不接支付。</p><span class="tag plan">不接真实支付</span></div>`;
+  return `<div class="floor-head"><strong>商城演示</strong><button>分类 ›</button></div>
+    ${demoData.storefrontSections.slice(1, 4).map(renderStorefrontSection).join('')}
+    <div class="card"><strong>购物车</strong><p class="meta">商品详情、购物车、确认订单、订单列表和订单详情仅做交互占位，不接支付。</p><span class="tag plan">不接真实支付</span></div>`;
 }
 
 function renderCooperation() {
@@ -428,7 +536,23 @@ function storeCard(store) {
 }
 
 function serviceMiniCard(service) {
-  return `<button type="button" class="card" data-action="chooseService" data-value="${service.id}"><strong>${service.name}</strong><p class="meta">${service.duration}<br>${service.benefit}</p></button>`;
+  return `<button type="button" class="service-tile" data-action="chooseService" data-value="${service.id}"><span class="tile-image service"></span><strong>${service.name}</strong><p>${service.duration}<br>${service.benefit}</p></button>`;
+}
+
+function renderStorefrontSection(section) {
+  return `<section class="storefront-floor">
+    <div class="floor-head"><div><strong>${section.title}</strong><p>${section.subtitle}</p></div><button data-action="${section.action}" data-value="${section.value}">查看更多 ›</button></div>
+    <div class="product-row">${section.items.map(productTile).join('')}</div>
+  </section>`;
+}
+
+function productTile(item) {
+  return `<button class="product-tile" data-action="setTab" data-value="商城">
+    <span class="tile-image ${item.tone}"></span>
+    <strong>${item.name}</strong>
+    <p>${item.desc}</p>
+    <em>${item.price}</em>
+  </button>`;
 }
 
 function stat(label, value) {
