@@ -54,6 +54,22 @@
 - 顾客端方向修正：顾客首页已从工作台/信息卡片式原型改为商城装修风格，参考 CRMEB 移动端首页的搜索栏、金刚区菜单、图片/内容块、楼层标题和商品列表组织方式；其他四种身份工作台本轮未大改。
 - 本轮顾客端修正范围仍限 `prototype/yfth-multi-role-miniapp-v1` 和交接文档，未修改正式 `template/uni-app`、后端 API、数据库、迁移或总部后台。
 
+## Current Fact Snapshot - 2026-07-05 Multi-role Miniapp Shell V1
+
+- 当前开发分支：`feature/yfth-miniapp-multi-role-shell-v1`。
+- 开始提交：`f56a682ca35e6c4e3e7067b3fb1bf27d0c7af264`，来自已完成的多身份静态交互 Demo 分支。
+- 本轮目标：把多身份小程序方向接入正式 `template/uni-app` 基础框架，先完成可运行的身份切换与经营工作台外壳，不合并 `main`，不部署生产。
+- 顾客端首页继续复用 CRMEB 正式移动端首页 `pages/index/index.vue`，由页面装修数据承载搜索、轮播、菜单、图片块、商品列表和底部导航；本轮不把顾客首页改成经营工作台。
+- 新增正式入口：`pages/user/index.vue` 增加“御方通和经营工作台”，登录用户可进入经营身份选择页。
+- 新增前端上下文：`template/uni-app/libs/yfthContext.js` 通过现有 `yfth/identities`、`yfth/context`、`yfth/capability/:capability` 用户 Token 接口读取服务端身份和门店上下文。
+- 新增页面：`template/uni-app/pages/yfth/workbench/index.vue`、`role_switch.vue`、`store_switch.vue`，并在 `pages.json` 注册。
+- 复用能力：顾客商城首页、我的、商品列表、合作中心、5980 套餐、预约列表、动态码/核销页和 CRMEB 门店订单入口均走现有页面，不复制静态 Demo 为正式代码。
+- 权限边界：前端只缓存选择结果，真实身份、门店和能力仍由服务端校验；不得依赖前端传入 `store_id` 或角色字段作为最终权限依据。
+- 本轮未修改后端 API、数据库迁移、CRMEB 登录、订单、支付、退款、5980 套餐激活、服务预约/核销状态机或总部 Web 后台。
+- 当前限制：`template/uni-app/package.json` 未提供 npm 构建脚本，当前工作区也没有 `template/uni-app/node_modules`；H5/小程序构建需使用项目既有 HBuilderX/uni-app 环境或后续单独依赖收口任务。
+- 新增架构文档：`docs/YFTH_MINIAPP_MULTI_ROLE_ARCHITECTURE.md`。
+- 下一步建议：先对多身份小程序正式壳层做只读架构审核，再由项目主控决定是否进入门店/加盟商/导师等真实业务模块开发。
+
 ## 1. 项目目标
 
 在 CRMEB 成熟商城和后台能力基础上，开发御方通和加盟 APP / 微信小程序，覆盖公共用户端、C端家庭康养会员、B端加盟商/门店工作台、A端服务导师、总部 Web 管理后台、商品商城、5980 家庭康养套餐、十个月权益、预约核销、加盟经营、推荐关系、奖励台账、内容活动、报表和审计。

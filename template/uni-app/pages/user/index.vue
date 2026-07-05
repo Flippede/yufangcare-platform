@@ -169,6 +169,13 @@
 							{{ userInfo.overdue_time ? $t('立即续费') : $t('立即激活') }}
 						</navigator>
 					</view>
+					<view class="yfth-entry-card" v-if="isLogin" @click="goYfthWorkbench">
+						<view>
+							<view class="yfth-entry-title">御方通和经营工作台</view>
+							<view class="yfth-entry-desc">加盟商、店长、店员和服务导师从这里进入</view>
+						</view>
+						<text class="iconfont icon-jiantou"></text>
+					</view>
 					<view class="order-wrapper" :class="userInfo.svip_open ? '' : 'height'">
 						<view class="order-hd flex">
 							<view class="left">{{ $t('订单中心') }}</view>
@@ -685,6 +692,16 @@ export default {
 			});
 		},
 
+		goYfthWorkbench() {
+			if (!this.isLogin) {
+				toLogin();
+				return;
+			}
+			uni.navigateTo({
+				url: '/pages/yfth/workbench/role_switch'
+			});
+		},
+
 		goPages(url) {
 			this.$util.JumpPath(url);
 		},
@@ -1135,6 +1152,29 @@ body {
 				font-size: 28rpx;
 				font-weight: bold;
 			}
+		}
+
+		.yfth-entry-card {
+			margin: 20rpx 30rpx 26rpx;
+			padding: 24rpx 26rpx;
+			border-radius: 18rpx;
+			background: linear-gradient(135deg, #fff8e8, #f2dfb5);
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			color: #5b3b23;
+			box-shadow: 0 10rpx 24rpx rgba(91, 59, 35, 0.08);
+		}
+
+		.yfth-entry-title {
+			font-size: 30rpx;
+			font-weight: 700;
+		}
+
+		.yfth-entry-desc {
+			margin-top: 8rpx;
+			color: #8a6a48;
+			font-size: 24rpx;
 		}
 
 		.order-wrapper {

@@ -123,19 +123,37 @@
 				{
 					"path": "appointment/list",
 					"style": {
-						"navigationBarTitleText": "Service Appointments"
+						"navigationBarTitleText": "我的预约"
 					}
 				},
 				{
 					"path": "appointment/create",
 					"style": {
-						"navigationBarTitleText": "Create Appointment"
+						"navigationBarTitleText": "预约服务"
 					}
 				},
 				{
 					"path": "appointment/detail",
 					"style": {
-						"navigationBarTitleText": "Appointment Detail"
+						"navigationBarTitleText": "预约详情"
+					}
+				},
+				{
+					"path": "workbench/index",
+					"style": {
+						"navigationBarTitleText": "经营工作台"
+					}
+				},
+				{
+					"path": "workbench/role_switch",
+					"style": {
+						"navigationBarTitleText": "选择身份"
+					}
+				},
+				{
+					"path": "workbench/store_switch",
+					"style": {
+						"navigationBarTitleText": "切换门店"
 					}
 				}
 			]

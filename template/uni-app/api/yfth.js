@@ -1,5 +1,17 @@
 import request from '@/utils/request.js';
 
+export function getYfthIdentities() {
+	return request.get('yfth/identities');
+}
+
+export function getYfthContext(data) {
+	return request.get('yfth/context', data || {});
+}
+
+export function checkYfthCapability(capability, data) {
+	return request.get('yfth/capability/' + capability, data || {});
+}
+
 export function getYfthPackageList(data) {
 	return request.get('yfth/package/list', data || {}, { noAuth: true });
 }
