@@ -385,6 +385,7 @@ export default {
 			business_status: 0,
 			member_style: 0,
 			hasYfthBusinessIdentity: false,
+			yfthBusinessIdentityRequestSeq: 0,
 			my_banner_status: 0,
 			is_diy: uni.getStorageSync('is_diy'),
 			copyRightPic: '/static/images/support.png' //版权图片
@@ -419,7 +420,9 @@ export default {
 			this.$Cache.set('snsapi_userinfo_code', option.code);
 			Auth.auth(option.code)
 				.then((res) => {
-					this.getUserInfo();
+					this.getUserInfo().then(() => {
+						this.loadYfthBusinessEntry();
+					});
 				})
 				.catch((err) => {});
 		}
@@ -455,8 +458,14 @@ export default {
 		});
 		// #endif
 		if (that.isLogin) {
-			this.getUserInfo();
+			this.getUserInfo().then(() => {
+				this.loadYfthBusinessEntry();
+			}).catch(() => {
+				this.resetYfthBusinessEntry();
+			});
 			this.setVisit();
+		} else {
+			this.resetYfthBusinessEntry();
 		}
 		this.getMyMenus();
 		this.getCopyRight();
@@ -481,7 +490,7 @@ export default {
 		setVisit() {
 			setVisit({
 				url: '/pages/user/index'
-			}).then((res) => {});
+			}).then((res) => {}).catch(() => {});
 		},
 		// 打开授权
 		openAuto() {
@@ -489,20 +498,42 @@ export default {
 		},
 		// 授权回调
 		onLoadFun() {
-			this.getUserInfo();
+			this.resetYfthBusinessEntry();
+			this.getUserInfo().then(() => {
+				this.loadYfthBusinessEntry();
+			}).catch(() => {
+				this.resetYfthBusinessEntry();
+			});
 			this.getMyMenus();
-			this.loadYfthBusinessEntry();
 			this.setVisit();
 		},
+		resetYfthBusinessEntry() {
+			this.hasYfthBusinessIdentity = false;
+			this.yfthBusinessIdentityRequestSeq += 1;
+		},
 		loadYfthBusinessEntry() {
+			const requestSeq = this.yfthBusinessIdentityRequestSeq + 1;
+			this.yfthBusinessIdentityRequestSeq = requestSeq;
+			this.hasYfthBusinessIdentity = false;
 			if (!this.isLogin) {
-				this.hasYfthBusinessIdentity = false;
-				return;
+				return Promise.resolve(false);
 			}
-			loadYfthIdentities().then((list) => {
+			const requestUid = Number((this.userInfo && this.userInfo.uid) || this.$store.state.app.uid || 0);
+			if (!requestUid) {
+				return Promise.resolve(false);
+			}
+			return loadYfthIdentities().then((list) => {
+				const currentUid = Number((this.userInfo && this.userInfo.uid) || this.$store.state.app.uid || 0);
+				if (requestSeq !== this.yfthBusinessIdentityRequestSeq || Number(currentUid) !== Number(requestUid)) {
+					return false;
+				}
 				this.hasYfthBusinessIdentity = list.some((item) => isBusinessRole(item.role_code));
+				return this.hasYfthBusinessIdentity;
 			}).catch(() => {
-				this.hasYfthBusinessIdentity = false;
+				if (requestSeq === this.yfthBusinessIdentityRequestSeq) {
+					this.hasYfthBusinessIdentity = false;
+				}
+				return false;
 			});
 		},
 		Setting: function () {
@@ -553,7 +584,7 @@ export default {
 		 */
 		getUserInfo: function () {
 			let that = this;
-			getUserInfo().then((res) => {
+			return getUserInfo().then((res) => {
 				that.userInfo = res.data;
 				that.$store.commit('SETUID', res.data.uid);
 				that.orderMenu.forEach((item, index) => {
@@ -576,6 +607,10 @@ export default {
 					}
 				});
 				uni.stopPullDownRefresh();
+				return res.data;
+			}).catch((err) => {
+				uni.stopPullDownRefresh();
+				throw err;
 			});
 		},
 		//小程序授权api替换 getUserInfo

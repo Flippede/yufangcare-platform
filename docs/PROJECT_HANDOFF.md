@@ -1,5 +1,23 @@
 # 项目交接文档
 
+## Current Fact Snapshot - 2026-07-05 Multi-role Miniapp Shell P1 Audit Fix
+
+- Current branch: `feature/yfth-miniapp-multi-role-shell-v1`.
+- Round start commit: `cb4fc30a8ecc782f1852c898f26fdda2208dea66`; stable `main` / `origin/main`: `f30426c955cce55cc552f474782c880034986514`.
+- Current latest commit: use Git HEAD after the P1 fix commit; this branch remains a feature branch and is not merged into `main`.
+- Audit result before this round: C, not allowed to merge. This round closes P1-1 and P1-2 and addresses the recorded P2 footer tolerance issue; a follow-up read-only architecture re-review is still required before any main merge decision.
+- P1-1 root cause: the H5 request layer converted arbitrary HTML responses into `{ status: 200, data: ... }`, which could mask login expiry, permission denial, gateway errors, PHP errors, or other non-JSON API failures.
+- P1-1 fix: the request layer now uses `utils/yfthH5Fallback.js`; HTML fallback is allowed only for H5 development, HTTP 200, local devServer origin, confirmed full HTML, and explicit local-dev whitelist endpoints. Production H5, non-200 HTML, and non-whitelisted HTML now reject through the normal error flow. `/api/get_script` ignores full HTML only in local H5 development and still honors HTTP status.
+- P1-2 root cause: `pages/user/index.vue` did not reliably refresh the YFTH business identity entry on normal `onShow()` user-center entry.
+- P1-2 fix: logged-in `onShow()` and `onLoadFun()` now refresh user info first, reset the entry to false before async loading, wait for a current UID, and guard async identity responses with a request sequence and UID comparison. Logout, request failure, revoked identity, and user switch paths hide the entry.
+- P2 footer fix: `components/pageFooter/index.vue` no longer clears a valid current/cached footer when version or navigation requests fail. Explicit successful empty config can still hide the footer; no-cache failure remains a safe hidden state.
+- Additional compatibility fix: workbench identity list keys now use `identity_key` instead of non-H5 `:key` expressions, and role-switch request failure clears YFTH context and safely returns to the customer side.
+- Verification added/updated: `template/uni-app/tests/yfth_request_fallback_check.js` and `template/uni-app/tests/yfth_multi_role_shell_contract_check.js`.
+- Verified results in this round: request fallback scenarios passed; contract check passed; HBuilderX Babel parser passed for changed JS/Vue scripts; H5 development server opened successfully; H5 production build passed; mp-weixin production compile passed with Node 18 plus `--no-opt` after Node/V8 optimization crashes were reproduced without that flag; browser validation covered customer home, user center, workbench direct access, role switch, store switch, mocked user-center business roles, request-failure hidden entry, and footer cached failure preservation.
+- Browser notes: the only observed network noise was DCloud analytics `ERR_ABORTED` and the intentional mocked 500 in request-failure/footer tests; there were no page errors in the passing browser scenarios.
+- Production status: no production server, production database, real AppID/AppSecret/private key, WeChat upload, or deployment was used.
+- Current frozen scope remains unchanged: do not develop procurement, rewards, contracts, inventory, real settlement, appointment/writeoff state machines, CRMEB login core, payment, refund, package activation, production deployment, or main merge in this round.
+
 - 项目名称：御方通和加盟 APP / 微信小程序
 - 当前代码基础：CRMEB 开源商城 PHP 版 v5.6 系列
 - 本地路径：`C:\Users\zhangxu\Desktop\御方通和\yufangcare-platform`

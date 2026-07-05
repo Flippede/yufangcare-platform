@@ -35,7 +35,7 @@
 			<view v-else-if="pane === 'stores'" class="panel">
 				<view class="panel-title">门店范围</view>
 				<view v-if="storeIdentities.length">
-					<view v-for="item in storeIdentities" :key="item.role_code + '_' + item.store_id" class="row">
+					<view v-for="item in storeIdentities" :key="item.identity_key" class="row">
 						<view>
 							<view>{{ item.store_name || ('门店ID ' + item.store_id) }}</view>
 							<text>{{ item.role_name_cn }}</text>

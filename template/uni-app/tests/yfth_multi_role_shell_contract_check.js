@@ -31,6 +31,10 @@ const userPage = read('pages/user/index.vue');
 assert(userPage.includes('hasYfthBusinessIdentity'), 'user center entry must be gated by business identity');
 assert(userPage.includes('loadYfthIdentities'), 'business entry must read server-side identities');
 assert(userPage.includes('isBusinessRole'), 'business entry must use the role whitelist helper');
+assert(userPage.includes('onShow: function') && userPage.includes('this.loadYfthBusinessEntry();'), 'user center onShow path must refresh business identities');
+assert(userPage.includes('resetYfthBusinessEntry'), 'user center must reset business entry before async identity loading');
+assert(userPage.includes('yfthBusinessIdentityRequestSeq'), 'user center must guard identity requests with a sequence');
+assert(userPage.includes('requestUid') && userPage.includes('currentUid'), 'user center must prevent stale identity requests from writing after user switch');
 
 const context = read('libs/yfthContext.js');
 assert(context.includes("['franchisee', 'store_manager', 'store_staff', 'service_mentor']"), 'business role whitelist changed unexpectedly');
@@ -45,6 +49,22 @@ assertContains('pages/yfth/workbench/index.vue', 'clearYfthContext', 'returning 
 
 assertNotContains('api/yfth_admin.js', 'store.state.app.token', 'admin API helper must not fall back to the customer token');
 assertContains('api/yfth_admin.js', 'admin_token_required', 'admin API helper must fail closed without admin token');
+
+const requestLayer = read('utils/request.js');
+assertContains('utils/request.js', 'shouldUseH5DevFallback', 'request layer must use guarded H5 fallback classifier');
+assertContains('utils/request.js', 'isHtmlResponse', 'request layer must explicitly reject html responses outside guarded fallback');
+assertContains('utils/request.js', 'Number(res.statusCode) !== 200', 'request layer must reject non-200 HTTP responses');
+assertNotContains('utils/request.js', 'if (isHtmlFallback(res.data))', 'request layer must not convert arbitrary HTML to success');
+
+const fallbackHelper = read('utils/yfthH5Fallback.js');
+assertContains('utils/yfthH5Fallback.js', "nodeEnv === 'development'", 'fallback helper must be development-only');
+assertContains('utils/yfthH5Fallback.js', 'isWhitelistedFallbackApi', 'fallback helper must require an explicit whitelist');
+assertContains('utils/yfthH5Fallback.js', "host === 'localhost' || host === '127.0.0.1' || host === '::1'", 'fallback helper must require local dev server host');
+
+const pageFooter = read('components/pageFooter/index.vue');
+assertContains('components/pageFooter/index.vue', 'keepCurrentNavigation', 'footer request failure must preserve valid navigation');
+assertContains('components/pageFooter/index.vue', 'this.getNavigationInfo(footerNavigation)', 'footer refresh failure must retain cached navigation');
+assertNotContains('components/pageFooter/index.vue', '.catch(() => {\n\t\t\t\t\tthis.setNavigationInfo({});', 'footer catch must not unconditionally clear navigation');
 
 assertContains('pages/index/index.vue', 'homeComb', 'customer home must keep CRMEB decoration components');
 assertContains('pages/index/index.vue', 'getDiy', 'customer home must keep CRMEB page-decoration loading');

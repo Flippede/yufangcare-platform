@@ -148,6 +148,12 @@ Verified result:
 - no upload was performed;
 - no real AppID, private key, AppSecret, or WeChat developer tool login was used.
 
+2026-07-05 P1 hardening note:
+
+- During the P1 audit fix verification, plain Node 18 production compiles intermittently crashed inside V8 optimization with Windows exit codes such as `-1073741819` / `-2147483645`, without a uni-app source error.
+- Re-running the same HBuilderX `uniapp-cli` with Node 18 and `--no-opt` completed `mp-weixin` production compile successfully. This is a Node runtime flag workaround for the local compiler process; it is not a dependency upgrade and does not change project source.
+- The only remaining mp-weixin compile warnings were existing CRMEB skeleton `:key` expression hints and component subpackage suggestions. New YFTH workbench key-expression hints were removed by using normalized `identity_key` values.
+
 Known CLI limitation:
 
 ```powershell
@@ -162,10 +168,13 @@ This command still uses HBuilderX's bundled Node 22 and reports a missing legacy
 cd "C:\Users\zhangxu\Desktop\御方通和\yufangcare-platform"
 
 & "C:\Users\zhangxu\.codex\tools\node-v18.20.8-win-x64\node.exe" template/uni-app/tests/yfth_multi_role_shell_contract_check.js
+& "C:\Users\zhangxu\.codex\tools\node-v18.20.8-win-x64\node.exe" template/uni-app/tests/yfth_request_fallback_check.js
 git diff --check
 ```
 
 For ESM syntax checks, use HBuilderX's Babel parser or the HBuilderX compiler. Plain `node --check` treats the files as CommonJS and misreports valid HBuilderX alias imports such as `@/utils/cache`.
+
+The request fallback check covers production HTML 401/403/500, production HTML 200 non-whitelist, production JSON 200, development local whitelist fallback, and development HTML 500 failure. It is the minimum repeatable guard for the H5 HTML-swallowing P1 issue.
 
 ## Do Not
 

@@ -270,7 +270,7 @@
 			fetch(`${HTTP_REQUEST_URL}/api/get_script`)
 				.then(response => {
 					if (!response.ok) {
-						return '';
+						throw new Error(`get_script_http_${response.status}`);
 					}
 					return response.text();
 				})
@@ -279,10 +279,12 @@
 					if (!trimmedContent) {
 						return;
 					}
-					// 本地 H5 无后端时，history fallback 会把 index.html 返回给该接口。
-					// 这类完整 HTML 不是可执行统计脚本，必须忽略，避免白屏。
 					if (/^<!doctype html/i.test(trimmedContent) || /^<html[\s>]/i.test(trimmedContent)) {
-						return;
+						const localDevHost = ['localhost', '127.0.0.1', '::1'].indexOf(window.location.hostname) !== -1;
+						if (process.env.NODE_ENV === 'development' && localDevHost) {
+							return;
+						}
+						throw new Error('get_script_returned_html');
 					}
 					// 尝试解析是否为HTML（带<script>标签）
 					const isHTML = trimmedContent.startsWith('<script');

@@ -130,7 +130,8 @@ export function normalizeIdentityRows(rows) {
 			role_name_cn: roleLabel(roleCode),
 			requires_store: roleRequiresStore(roleCode),
 			is_business_role: isBusinessRole(roleCode),
-			store_id: Number(item.store_id || 0)
+			store_id: Number(item.store_id || 0),
+			identity_key: roleCode + '_' + Number(item.store_id || 0)
 		});
 	});
 }

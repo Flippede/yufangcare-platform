@@ -77,6 +77,50 @@ Known limitation:
 
 - Writeoff, backend store orders, and store appointment management still require a formal business-side authentication adapter or backend user-token API. This round intentionally closes those links instead of routing customer tokens into admin API pages.
 
+## P1 Audit Fix - 2026-07-05
+
+The architecture audit result before this fix was C, with the branch not allowed to merge. This round only closes the listed request-layer, user-center entry, and footer tolerance issues. It does not add new business modules and still requires a follow-up read-only architecture re-review before any main merge decision.
+
+### H5 HTML Response Boundary
+
+Root cause: `utils/request.js` previously treated any H5 HTML response as a successful empty CRMEB API response. That could mask production login expiry, permission denial, gateway/PHP/database errors, or other non-JSON API failures.
+
+Fix:
+
+- HTML response classification was extracted to `utils/yfthH5Fallback.js`.
+- Development fallback is allowed only when all of these are true: H5 development mode, HTTP 200, local devServer origin, confirmed full HTML document, and explicit endpoint whitelist.
+- Production H5 never converts HTML to success. Non-200 HTML and non-whitelisted HTML reject through the normal request flow.
+- The whitelist is limited to local page-decoration/bootstrap endpoints such as `basic_config`, `menu/user`, `navigation`, `share`, `copyright`, `wechat/get_logo`, and `ajcaptcha`. YFTH business APIs such as `yfth/identities`, appointment, writeoff, package, order, payment, and refund endpoints are not whitelisted.
+- `/api/get_script` now ignores full HTML only for local H5 development fallback and still checks HTTP status.
+
+### User-center Business Entry Lifecycle
+
+Root cause: the YFTH business entry in `pages/user/index.vue` was not reliably refreshed from the normal logged-in `onShow()` path.
+
+Fix:
+
+- `onShow()` and `onLoadFun()` now reset the entry to false before loading.
+- User info is refreshed first; identity loading starts only after a current UID is available.
+- `yfthBusinessIdentityRequestSeq` plus current UID comparison prevents stale async identity results from writing after logout or user switch.
+- Request failure, no identity, revoked identity, and logged-out state all keep the entry hidden.
+- `user/set_visit` failures are swallowed because visit logging must not break user-center rendering or identity gating.
+
+### Footer Request Failure Tolerance
+
+Root cause: `components/pageFooter/index.vue` could call `setNavigationInfo({})` on request failure and clear a valid existing footer.
+
+Fix:
+
+- Request failure now calls `keepCurrentNavigation()`.
+- A valid current footer or valid cached footer is preserved on version/navigation request failure.
+- A successful explicit empty config may still hide the footer.
+- No-cache plus request failure remains a safe hidden state.
+
+### Workbench Compatibility
+
+- Workbench identity list keys now use the normalized `identity_key` field instead of non-H5 `:key` expressions.
+- Direct role-switch identity failure clears YFTH context and returns safely to the customer side.
+
 ## Build And Delivery Notes
 
 `template/uni-app` remains an HBuilderX-style CRMEB uni-app project rather than an npm-script driven project. `package.json` still has no `dev:h5` or `build:h5` script, so the verified build path is the DCloud/HBuilderX compiler.
@@ -89,6 +133,8 @@ Verified on 2026-07-05:
 - H5 production build: passed with `UNI_PLATFORM=h5`, output `template/uni-app/unpackage/dist/build/h5`.
 - H5 browser validation: customer home, user center, workbench direct access, role switch, and store switch were opened in Edge/Chromium. The customer home renders a safe empty CRMEB storefront state when no local backend is connected, and direct workbench access without business identity is blocked back to the customer side.
 - WeChat mini program production compile: passed through HBuilderX `uniapp-cli` + Node 18 with `UNI_PLATFORM=mp-weixin`, output `template/uni-app/unpackage/dist/build/mp-weixin`.
+- P1 audit fix verification: `yfth_request_fallback_check.js` and `yfth_multi_role_shell_contract_check.js` both passed; browser validation covered customer home, user center, direct workbench access, role switch, store switch, mocked customer/store_staff/store_manager/franchisee/service_mentor identities, identity-request failure, and cached footer preservation on request failure.
+- Local Node/V8 optimization crashes were reproduced during production compile retries. `mp-weixin` completed with the same HBuilderX `uniapp-cli` and Node 18 plus `--no-opt`; this is a local compiler runtime flag, not a source or dependency change.
 
 The HBuilderX `cli.exe launch mp-weixin --compile true` entry still invokes HBuilderX's bundled Node 22 and reports a missing old `node-sass` ABI 127 binary. This is a tooling compatibility boundary, not a business-code failure. Do not switch the project to Dart Sass or upgrade the CRMEB frontend stack without a separate compatibility task.
 
@@ -100,9 +146,10 @@ The lightweight Node contract check is:
 
 ```bash
 node template/uni-app/tests/yfth_multi_role_shell_contract_check.js
+node template/uni-app/tests/yfth_request_fallback_check.js
 ```
 
-It verifies page registration, business-entry gating, role whitelist usage, uid-bound context caching, admin API fail-closed behavior, no user-token workbench links to admin writeoff/order pages, and CRMEB storefront decoration preservation.
+It verifies page registration, business-entry gating, role whitelist usage, uid-bound context caching, admin API fail-closed behavior, no user-token workbench links to admin writeoff/order pages, CRMEB storefront decoration preservation, and the H5 HTML fallback boundary.
 
 ## Next Round
 

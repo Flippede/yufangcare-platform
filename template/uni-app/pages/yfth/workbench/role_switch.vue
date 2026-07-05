@@ -8,7 +8,7 @@
 			<button @click="backCustomer">返回顾客端</button>
 		</view>
 		<view v-else>
-			<view v-for="item in businessIdentities" :key="item.role_code + '_' + item.store_id" class="card" @click="choose(item)">
+			<view v-for="item in businessIdentities" :key="item.identity_key" class="card" @click="choose(item)">
 				<view class="name">{{ item.role_name_cn }}</view>
 				<view class="meta">{{ item.store_name || (item.store_id ? ('门店ID ' + item.store_id) : '无需门店') }}</view>
 			</view>
@@ -32,10 +32,15 @@ export default {
 		this.loading = true;
 		loadYfthIdentities().then((list) => {
 			this.identities = list;
-		}).catch((err) => {
-			uni.showToast({ title: String((err && err.msg) || err), icon: 'none' });
-		}).finally(() => {
 			this.loading = false;
+		}, (err) => {
+			clearYfthContext();
+			this.identities = [];
+			uni.showToast({ title: String((err && err.msg) || err), icon: 'none' });
+			this.loading = false;
+			setTimeout(() => {
+				uni.reLaunch({ url: '/pages/index/index' });
+			}, 300);
 		});
 	},
 	methods: {

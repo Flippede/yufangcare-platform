@@ -133,8 +133,11 @@ export default {
 		};
 	},
 	methods: {
+		hasValidNavigation(data) {
+			return !!(data && data.effectConfig);
+		},
 		setNavigationInfo(data) {
-			if (!data || !data.effectConfig) {
+			if (!this.hasValidNavigation(data)) {
 				this.newData = {};
 				this.showTabBar = false;
 				this.$emit('newDataStatus', false, 0);
@@ -152,28 +155,39 @@ export default {
 				}
 			}
 		},
-		getNavigationInfo() {
-			getNavigation()
+		keepCurrentNavigation(fallbackData) {
+			const currentData = this.hasValidNavigation(this.newData) ? this.newData : null;
+			const cachedData = this.hasValidNavigation(fallbackData) ? fallbackData : null;
+			if (currentData || cachedData) {
+				this.setNavigationInfo(currentData || cachedData);
+			}
+		},
+		getNavigationInfo(fallbackData) {
+			return getNavigation()
 				.then((res) => {
 					uni.setStorageSync('diyVersionNav', res.data);
 					this.setNavigationInfo(res.data);
 				})
 				.catch(() => {
-					this.setNavigationInfo({});
+					this.keepCurrentNavigation(fallbackData);
 				});
 		},
 		navigationInfo() {
 			let footerNavigation = uni.getStorageSync('footerNavigation');
 			if (footerNavigation) {
-				getDiyVersion(0).then((res) => {
-					let diyVersion = uni.getStorageSync('diyVersionNav');
-					if (res.data.version + '0' === diyVersion) {
-						this.setNavigationInfo(footerNavigation);
-					} else {
-						uni.setStorageSync('diyVersionNav', res.data.version + '0');
-						this.getNavigationInfo();
-					}
-				});
+				getDiyVersion(0)
+					.then((res) => {
+						let diyVersion = uni.getStorageSync('diyVersionNav');
+						if (res.data.version + '0' === diyVersion) {
+							this.setNavigationInfo(footerNavigation);
+						} else {
+							uni.setStorageSync('diyVersionNav', res.data.version + '0');
+							this.getNavigationInfo(footerNavigation);
+						}
+					})
+					.catch(() => {
+						this.keepCurrentNavigation(footerNavigation);
+					});
 			} else {
 				this.getNavigationInfo();
 			}
