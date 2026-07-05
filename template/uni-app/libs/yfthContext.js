@@ -1,4 +1,5 @@
 import Cache from '@/utils/cache';
+import { UID } from '@/config/cache';
 import { getYfthContext, getYfthIdentities } from '@/api/yfth.js';
 
 export const YFTH_ROLE_LABELS = {
@@ -22,21 +23,21 @@ export const YFTH_ROLE_NAVS = {
 		{ title: '工作台', pane: 'dashboard' },
 		{ title: '门店', pane: 'stores' },
 		{ title: '客户', pane: 'customers' },
-		{ title: '订单', url: '/pages/admin/orderList/index' },
+		{ title: '订单', pane: 'orders' },
 		{ title: '我的', pane: 'mine' }
 	],
 	store_manager: [
 		{ title: '工作台', pane: 'dashboard' },
 		{ title: '客户', pane: 'customers' },
-		{ title: '预约', url: '/pages/yfth/appointment/list' },
-		{ title: '核销', url: '/pages/admin/yfth_writeoff/index' },
+		{ title: '预约', pane: 'appointments' },
+		{ title: '核销', pane: 'writeoff' },
 		{ title: '我的', pane: 'mine' }
 	],
 	store_staff: [
 		{ title: '工作台', pane: 'dashboard' },
 		{ title: '客户', pane: 'customers' },
-		{ title: '核销', url: '/pages/admin/yfth_writeoff/index' },
-		{ title: '订单', url: '/pages/admin/orderList/index' },
+		{ title: '核销', pane: 'writeoff' },
+		{ title: '订单', pane: 'orders' },
 		{ title: '我的', pane: 'mine' }
 	],
 	service_mentor: [
@@ -72,6 +73,11 @@ export function currentContext() {
 	const context = Cache.get(CONTEXT_KEY, true);
 	if (!context || typeof context !== 'object') {
 		Cache.clear(CONTEXT_KEY);
+		return {};
+	}
+	const uid = currentUid();
+	if (context.uid && uid && Number(context.uid) !== Number(uid)) {
+		clearYfthContext();
 		return {};
 	}
 	return context;
@@ -132,10 +138,15 @@ export function normalizeIdentityRows(rows) {
 function normalizeContext(context) {
 	const roleCode = context.role_code || 'customer';
 	return Object.assign({}, context, {
+		uid: Number(context.uid || currentUid() || 0),
 		role_code: roleCode,
 		role_name_cn: roleLabel(roleCode),
 		is_business_role: isBusinessRole(roleCode),
 		requires_store: roleRequiresStore(roleCode),
 		store_id: Number(context.store_id || 0)
 	});
+}
+
+function currentUid() {
+	return Number(Cache.get(UID) || 0);
 }

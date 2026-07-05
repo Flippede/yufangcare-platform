@@ -169,7 +169,7 @@
 							{{ userInfo.overdue_time ? $t('立即续费') : $t('立即激活') }}
 						</navigator>
 					</view>
-					<view class="yfth-entry-card" v-if="isLogin" @click="goYfthWorkbench">
+					<view class="yfth-entry-card" v-if="isLogin && hasYfthBusinessIdentity" @click="goYfthWorkbench">
 						<view>
 							<view class="yfth-entry-title">御方通和经营工作台</view>
 							<view class="yfth-entry-desc">加盟商、店长、店员和服务导师从这里进入</view>
@@ -298,6 +298,7 @@ import colors from '@/mixins/color';
 import pageFooter from '@/components/pageFooter/index.vue';
 import { getCustomer } from '@/utils/index.js';
 import editUserModal from '@/components/eidtUserModal/index.vue';
+import { isBusinessRole, loadYfthIdentities } from '@/libs/yfthContext.js';
 export default {
 	components: {
 		pageFooter,
@@ -383,6 +384,7 @@ export default {
 			my_menus_status: 0,
 			business_status: 0,
 			member_style: 0,
+			hasYfthBusinessIdentity: false,
 			my_banner_status: 0,
 			is_diy: uni.getStorageSync('is_diy'),
 			copyRightPic: '/static/images/support.png' //版权图片
@@ -489,7 +491,19 @@ export default {
 		onLoadFun() {
 			this.getUserInfo();
 			this.getMyMenus();
+			this.loadYfthBusinessEntry();
 			this.setVisit();
+		},
+		loadYfthBusinessEntry() {
+			if (!this.isLogin) {
+				this.hasYfthBusinessIdentity = false;
+				return;
+			}
+			loadYfthIdentities().then((list) => {
+				this.hasYfthBusinessIdentity = list.some((item) => isBusinessRole(item.role_code));
+			}).catch(() => {
+				this.hasYfthBusinessIdentity = false;
+			});
 		},
 		Setting: function () {
 			uni.openSetting({

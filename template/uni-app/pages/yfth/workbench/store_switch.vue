@@ -14,7 +14,7 @@
 </template>
 
 <script>
-import { currentContext, loadYfthIdentities, switchYfthStore } from '@/libs/yfthContext.js';
+import { currentContext, isBusinessRole, loadYfthIdentities, switchYfthStore } from '@/libs/yfthContext.js';
 
 export default {
 	data() {
@@ -32,9 +32,15 @@ export default {
 	},
 	onShow() {
 		this.context = currentContext();
+		if (!isBusinessRole(this.context.role_code)) {
+			uni.reLaunch({ url: '/pages/index/index' });
+			return;
+		}
 		this.loading = true;
 		loadYfthIdentities().then((list) => {
 			this.identities = list;
+		}).catch((err) => {
+			uni.showToast({ title: String((err && err.msg) || err), icon: 'none' });
 		}).finally(() => {
 			this.loading = false;
 		});

@@ -1,12 +1,12 @@
 import { HTTP_REQUEST_URL, HEADER, TOKENNAME, TIMEOUT } from '@/config/app';
-import store from '../store';
 
 function adminRequest(url, method, data) {
 	const header = Object.assign({}, HEADER);
-	const token = uni.getStorageSync('admin_token') || store.state.app.token;
-	if (token) {
-		header[TOKENNAME] = 'Bearer ' + token;
+	const token = uni.getStorageSync('admin_token');
+	if (!token) {
+		return Promise.reject('admin_token_required');
 	}
+	header[TOKENNAME] = 'Bearer ' + token;
 	return new Promise((resolve, reject) => {
 		uni.request({
 			url: HTTP_REQUEST_URL + '/adminapi/' + url,

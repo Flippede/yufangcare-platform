@@ -29,11 +29,18 @@ const state = {
 	activityTab: ''
 };
 
+const YFTH_CONTEXT_KEYS = ['YFTH_CURRENT_CONTEXT', 'YFTH_CURRENT_ROLE', 'YFTH_CURRENT_STORE'];
+
+function clearYfthContextCache() {
+	YFTH_CONTEXT_KEYS.forEach((key) => Cache.clear(key));
+}
+
 const mutations = {
 	SETPHONESTATUS(state, val) {
 		state.phoneStatus = val;
 	},
 	LOGIN(state, opt) {
+		clearYfthContextCache();
 		state.token = opt.token;
 		Cache.set(LOGIN_STATUS, opt.token, opt.time);
 	},
@@ -54,6 +61,7 @@ const mutations = {
 		Cache.clear(USER_INFO);
 		Cache.clear(UID);
 		Cache.clear('snsapiCode');
+		clearYfthContextCache();
 	},
 	BACKGROUND_COLOR(state, color) {
 		state.color = color;

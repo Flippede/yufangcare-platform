@@ -67,7 +67,9 @@
 
 <script>
 import {
+	clearYfthContext,
 	currentContext,
+	isBusinessRole,
 	loadYfthIdentities,
 	resolveYfthContext,
 	roleNav,
@@ -95,6 +97,9 @@ export default {
 		paneTitle() {
 			const titles = {
 				customers: '客户入口',
+				appointments: '预约管理',
+				writeoff: '核销入口',
+				orders: '门店订单',
 				mine: '我的经营身份',
 				leads: '线索',
 				activities: '活动',
@@ -106,14 +111,17 @@ export default {
 			if (['leads', 'activities', 'materials'].indexOf(this.pane) !== -1) {
 				return '导师业务域尚未开放，当前仅保留正式导航外壳。';
 			}
+			if (['appointments', 'writeoff', 'orders'].indexOf(this.pane) !== -1) {
+				return '该入口需要正式后台或门店端认证适配。本轮先关闭错误跳转，不使用普通用户 token 访问后台接口。';
+			}
 			return '当前入口已预留，后续接入真实业务列表；本页不展示假数据。';
 		},
 		dashboardCards() {
 			const role = this.context.role_code;
 			const common = [
-				{ title: '今日预约', desc: '复用服务预约列表和状态机', url: '/pages/yfth/appointment/list', linkText: '查看预约' },
-				{ title: '核销入口', desc: '复用已完成的扫码/数字码核销页面', url: '/pages/admin/yfth_writeoff/index', linkText: '进入核销' },
-				{ title: '门店订单', desc: '继续复用 CRMEB 门店订单能力', url: '/pages/admin/orderList/index', linkText: '查看订单' }
+				{ title: '今日预约', desc: '门店预约列表需接入经营端认证后开放', pane: 'appointments', linkText: '认证适配中', disabled: true },
+				{ title: '核销入口', desc: '扫码/数字码核销继续使用后台 token 边界', pane: 'writeoff', linkText: '认证适配中', disabled: true },
+				{ title: '门店订单', desc: 'CRMEB 门店订单需正式后台权限，不在用户态壳层直连', pane: 'orders', linkText: '认证适配中', disabled: true }
 			];
 			if (role === 'franchisee') {
 				return common.concat([
@@ -129,9 +137,9 @@ export default {
 			}
 			if (role === 'store_staff') {
 				return [
-					{ title: '当前门店预约', desc: '只读查看当前门店预约', url: '/pages/yfth/appointment/list', linkText: '查看预约' },
-					{ title: '核销入口', desc: '复用真实核销链路', url: '/pages/admin/yfth_writeoff/index', linkText: '进入核销' },
-					{ title: '门店订单', desc: '不展示多门店经营和财务数据', url: '/pages/admin/orderList/index', linkText: '查看订单' },
+					{ title: '当前门店预约', desc: '门店预约列表需经营端认证适配后开放', pane: 'appointments', linkText: '认证适配中', disabled: true },
+					{ title: '核销入口', desc: '核销保持后台 token 边界，不用用户 token 直连', pane: 'writeoff', linkText: '认证适配中', disabled: true },
+					{ title: '门店订单', desc: '不展示多门店经营和财务数据', pane: 'orders', linkText: '认证适配中', disabled: true },
 					{ title: '我的操作记录', desc: '操作记录入口预留，后续接真实数据', pane: 'mine', linkText: '查看入口' }
 				];
 			}
@@ -162,15 +170,21 @@ export default {
 			const store = cached.store_id || 0;
 			Promise.all([loadYfthIdentities(), resolveYfthContext(role, store)])
 				.then(([identities, context]) => {
-					if (!context.is_business_role) {
-						uni.redirectTo({ url: '/pages/yfth/workbench/role_switch' });
+					if (!context.is_business_role || !isBusinessRole(context.role_code)) {
+						clearYfthContext();
+						uni.reLaunch({ url: '/pages/index/index' });
 						return;
 					}
 					this.identities = identities;
 					this.context = context;
 				})
 				.catch((err) => {
+					clearYfthContext();
 					this.error = String((err && err.msg) || err || '身份上下文读取失败');
+					uni.showToast({ title: this.error, icon: 'none' });
+					setTimeout(() => {
+						uni.reLaunch({ url: '/pages/index/index' });
+					}, 800);
 				})
 				.finally(() => {
 					this.loading = false;
@@ -183,7 +197,8 @@ export default {
 			uni.navigateTo({ url: '/pages/yfth/workbench/store_switch' });
 		},
 		backCustomer() {
-			uni.switchTab({ url: '/pages/index/index' });
+			clearYfthContext();
+			uni.reLaunch({ url: '/pages/index/index' });
 		},
 		activeNav(item) {
 			return (item.pane || 'dashboard') === this.pane && !item.url;
@@ -197,6 +212,13 @@ export default {
 			this.pane = item.pane || 'dashboard';
 		},
 		goCard(item) {
+			if (item.disabled) {
+				uni.showToast({ title: item.linkText || '认证适配中', icon: 'none' });
+				if (item.pane) {
+					this.pane = item.pane;
+				}
+				return;
+			}
 			if (item.url) {
 				uni.navigateTo({ url: item.url });
 				return;

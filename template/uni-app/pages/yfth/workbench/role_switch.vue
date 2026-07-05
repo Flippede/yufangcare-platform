@@ -17,7 +17,7 @@
 </template>
 
 <script>
-import { isBusinessRole, loadYfthIdentities, switchYfthRole } from '@/libs/yfthContext.js';
+import { clearYfthContext, isBusinessRole, loadYfthIdentities, switchYfthRole } from '@/libs/yfthContext.js';
 
 export default {
 	data() {
@@ -47,7 +47,8 @@ export default {
 			});
 		},
 		backCustomer() {
-			uni.switchTab({ url: '/pages/index/index' });
+			clearYfthContext();
+			uni.reLaunch({ url: '/pages/index/index' });
 		}
 	}
 };

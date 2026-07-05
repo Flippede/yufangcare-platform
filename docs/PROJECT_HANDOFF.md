@@ -4,13 +4,13 @@
 - 当前代码基础：CRMEB 开源商城 PHP 版 v5.6 系列
 - 本地路径：`C:\Users\zhangxu\Desktop\御方通和\yufangcare-platform`
 - GitHub 仓库：`https://github.com/Flippede/yufangcare-platform.git`
-- 当前分支：`main`
+- 当前分支：`feature/yfth-miniapp-multi-role-shell-v1`
 - 当前最新提交：以当前 Git HEAD 和 origin/main 实时值为准。
 - 当前稳定 main：以当前 Git HEAD 和 origin/main 实时值为准。
 - origin/main：以当前 Git HEAD 和 origin/main 实时值为准。
 - 本轮开始基线：`7413627250bd057474fd2a4ea04068fae5f2ec9c`
-- 当前开发阶段：总部管理后台产品化 V1 已通过最终架构复审，原 P1 `home/yfth` 未登记权限已关闭，并已通过 fast-forward 合并进入 `main`；本轮仅做合并后文档收口和 `main` 推送。
-- 当前工作区和推送状态：以 `git status`、当前 Git HEAD 和 origin/main 实时值为准；功能分支 `feature/yfth-hq-admin-productization-v1` 保留，不删除。
+- 当前开发阶段：多身份小程序壳层 V1 正在进行运行闭环与认证边界整改；顾客端继续复用 CRMEB 页面装修，经营工作台只作为用户态壳层，不直连后台 token 页面。
+- 当前工作区和推送状态：以 `git status`、当前 Git HEAD 和 origin/main 实时值为准；本轮在 `feature/yfth-miniapp-multi-role-shell-v1` 开发，不合并 `main`，不部署生产。
 - 当前禁止事项和冻结模块：不得在本阶段开发核销撤销/反冲、权益恢复、评价、自动爽约、提醒消息、独立付费服务订单、跨店核销、离线码、打印码、员工排班资源、家庭成员预约、推荐奖励、配送、库存补货、产品额度、加盟合同、真实分账或生产部署；不得修改 5980 套餐支付激活、CRMEB 订单/支付/退款、后台权限核心流程或生产部署配置。
 - 产品文档目录：`C:\Users\zhangxu\Desktop\御方通和\yufangcare-platform\项目文档`
 - 完整产品依据：`御方通和加盟小程序项目需求与产品设计文档_V1.0.docx`
@@ -58,16 +58,19 @@
 
 - 当前开发分支：`feature/yfth-miniapp-multi-role-shell-v1`。
 - 开始提交：`f56a682ca35e6c4e3e7067b3fb1bf27d0c7af264`，来自已完成的多身份静态交互 Demo 分支。
-- 本轮目标：把多身份小程序方向接入正式 `template/uni-app` 基础框架，先完成可运行的身份切换与经营工作台外壳，不合并 `main`，不部署生产。
+- 本轮目标：把多身份小程序方向接入正式 `template/uni-app` 基础框架，并完成运行闭环与认证边界整改；不合并 `main`，不部署生产。
 - 顾客端首页继续复用 CRMEB 正式移动端首页 `pages/index/index.vue`，由页面装修数据承载搜索、轮播、菜单、图片块、商品列表和底部导航；本轮不把顾客首页改成经营工作台。
-- 新增正式入口：`pages/user/index.vue` 增加“御方通和经营工作台”，登录用户可进入经营身份选择页。
-- 新增前端上下文：`template/uni-app/libs/yfthContext.js` 通过现有 `yfth/identities`、`yfth/context`、`yfth/capability/:capability` 用户 Token 接口读取服务端身份和门店上下文。
+- 正式入口：`pages/user/index.vue` 的“御方通和经营工作台”只对服务端 `yfth/identities` 返回的经营身份用户展示；普通顾客不显示经营工作台入口。
+- 前端上下文：`template/uni-app/libs/yfthContext.js` 通过现有 `yfth/identities`、`yfth/context`、`yfth/capability/:capability` 用户 Token 接口读取服务端身份和门店上下文；本地缓存绑定当前 CRMEB `uid`，登录、退出或用户切换会清理经营身份缓存。
 - 新增页面：`template/uni-app/pages/yfth/workbench/index.vue`、`role_switch.vue`、`store_switch.vue`，并在 `pages.json` 注册。
-- 复用能力：顾客商城首页、我的、商品列表、合作中心、5980 套餐、预约列表、动态码/核销页和 CRMEB 门店订单入口均走现有页面，不复制静态 Demo 为正式代码。
-- 权限边界：前端只缓存选择结果，真实身份、门店和能力仍由服务端校验；不得依赖前端传入 `store_id` 或角色字段作为最终权限依据。
+- 复用能力：顾客商城首页、我的、商品列表、合作中心、5980 套餐和用户端预约/动态码能力继续走现有页面，不复制静态 Demo 为正式代码。
+- 认证边界整改：经营工作台不再直接跳转 `/pages/admin/yfth_writeoff/index` 或 `/pages/admin/orderList/index`；核销、门店订单和门店预约管理保持“认证适配中”占位，避免普通用户 token 误连后台 API。
+- 后台 API 边界：`template/uni-app/api/yfth_admin.js` 不再回退使用 `store.state.app.token`，缺少 `admin_token` 时直接 `admin_token_required` 安全失败。
+- 权限边界：前端只缓存选择结果，真实身份、门店和能力仍由服务端校验；不得依赖前端传入 `store_id` 或角色字段作为最终权限依据；直接访问经营工作台且无经营身份时会清理上下文并返回顾客首页。
 - 本轮未修改后端 API、数据库迁移、CRMEB 登录、订单、支付、退款、5980 套餐激活、服务预约/核销状态机或总部 Web 后台。
-- 当前限制：`template/uni-app/package.json` 未提供 npm 构建脚本，当前工作区也没有 `template/uni-app/node_modules`；H5/小程序构建需使用项目既有 HBuilderX/uni-app 环境或后续单独依赖收口任务。
-- 新增架构文档：`docs/YFTH_MINIAPP_MULTI_ROLE_ARCHITECTURE.md`。
+- 当前构建事实：`template/uni-app/package.json` 未提供 npm 构建脚本，当前工作区也没有 `template/uni-app/node_modules`；本机未发现可直接复用的 HBuilderX 可执行文件。H5/小程序构建需按 `docs/YFTH_UNIAPP_BUILD_GUIDE.md` 补齐 HBuilderX/uni-app 环境后执行，不得虚构构建通过。
+- 新增/更新文档：`docs/YFTH_MINIAPP_MULTI_ROLE_ARCHITECTURE.md`、`docs/YFTH_UNIAPP_BUILD_GUIDE.md`。
+- 新增契约检查：`node template/uni-app/tests/yfth_multi_role_shell_contract_check.js`，覆盖页面注册、经营入口身份门控、角色白名单、缓存 uid 绑定、禁止用户态壳层直连后台核销/订单页面、CRMEB 顾客首页装修保留。
 - 下一步建议：先对多身份小程序正式壳层做只读架构审核，再由项目主控决定是否进入门店/加盟商/导师等真实业务模块开发。
 
 ## 1. 项目目标
