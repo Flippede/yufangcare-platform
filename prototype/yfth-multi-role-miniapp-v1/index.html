@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>御方通和多身份小程序交互 Demo V1</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <main class="demo-shell">
+    <section class="control-panel" aria-label="演示控制栏">
+      <div>
+        <p class="eyebrow">本地演示数据</p>
+        <h1>御方通和多身份小程序 Demo</h1>
+      </div>
+      <label>
+        当前身份
+        <select id="roleSelect"></select>
+      </label>
+      <label>
+        当前经营主体
+        <select id="subjectSelect"></select>
+      </label>
+      <label>
+        当前门店
+        <select id="storeSelect"></select>
+      </label>
+      <div class="control-actions">
+        <button type="button" class="ghost-btn" data-action="resetDemo">重置演示数据</button>
+        <button type="button" class="primary-btn" data-action="goHome">返回身份首页</button>
+      </div>
+    </section>
+
+    <section class="phone-frame" aria-label="小程序画面">
+      <div class="phone-speaker"></div>
+      <div class="miniapp">
+        <header class="app-header">
+          <div>
+            <p id="appKicker">御方通和</p>
+            <h2 id="pageTitle">首页</h2>
+          </div>
+          <button type="button" class="pill-btn" data-action="showIdentitySheet">切换身份</button>
+        </header>
+        <section id="notice" class="notice" hidden></section>
+        <section id="appView" class="app-view" tabindex="-1"></section>
+        <nav id="bottomNav" class="bottom-nav" aria-label="底部导航"></nav>
+      </div>
+    </section>
+  </main>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <script src="./app.js"></script>
+</body>
+</html>
