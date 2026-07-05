@@ -50,7 +50,7 @@
 
 本轮不修改 CRMEB 登录鉴权、token、订单、支付、退款、商品、库存、数据库迁移主流程和服务预约/核销业务状态机。
 
-本轮不部署生产，不连接生产数据库，不删除功能分支，不合并 `main`。完成后只推送功能分支，等待后续审核和受控合并。
+总部管理后台产品化 V1 已通过最终架构复审，并已通过 `git merge --ff-only feature/yfth-hq-admin-productization-v1` 合并进入 `main`。功能分支保留，不删除；本轮不部署生产，不连接生产数据库，不执行生产迁移。
 
 ## 构建产物
 
@@ -69,3 +69,4 @@
 - 浏览器验证：本机 `http://127.0.0.1:18081/admin` 登录页可加载并登录，首页工作台显示中文一级菜单、总部运营卡片和真实空待办；`/admin/yfth/service-appointment` 可加载服务预约与核销页面，主要 JS/CSS/chunk 资源均为 200，无白屏。
 - 契约验证：`crmeb/tests/yfth_service_appointment_contract_check.php` 已按中文页面标签更新并通过。
 - P2 遗留：菜单自定义名称和排序覆盖策略仍可能受未来 CRMEB 菜单变更影响，暂不阻塞总部后台产品化 V1。
+- 合并收口：最终复审结论为 B，P1 已关闭，无 Blocker/P1；总部管理后台产品化 V1 已合并进入 `main`，当前提交以 Git HEAD 和 origin/main 实时值为准。

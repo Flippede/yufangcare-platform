@@ -4,22 +4,23 @@
 - 当前代码基础：CRMEB 开源商城 PHP 版 v5.6 系列
 - 本地路径：`C:\Users\zhangxu\Desktop\御方通和\yufangcare-platform`
 - GitHub 仓库：`https://github.com/Flippede/yufangcare-platform.git`
-- 当前分支：`feature/yfth-hq-admin-productization-v1`
-- 当前最新提交：以当前功能分支 Git HEAD 为准。
-- 当前稳定 main：`f6ebce63d1afda54f416de41a3d2036669a0122d`
-- origin/main：`f6ebce63d1afda54f416de41a3d2036669a0122d`
+- 当前分支：`main`
+- 当前最新提交：以当前 Git HEAD 和 origin/main 实时值为准。
+- 当前稳定 main：以当前 Git HEAD 和 origin/main 实时值为准。
+- origin/main：以当前 Git HEAD 和 origin/main 实时值为准。
 - 本轮开始基线：`7413627250bd057474fd2a4ea04068fae5f2ec9c`
-- 当前开发阶段：总部管理后台产品化 V1 验证与收口整改；当前分支尚未合并 `main`。
-- 当前工作区和推送状态：以 `git status`、当前功能分支 HEAD 和远端功能分支实时值为准；稳定 `main` 保持不变。
+- 当前开发阶段：总部管理后台产品化 V1 已通过最终架构复审，原 P1 `home/yfth` 未登记权限已关闭，并已通过 fast-forward 合并进入 `main`；本轮仅做合并后文档收口和 `main` 推送。
+- 当前工作区和推送状态：以 `git status`、当前 Git HEAD 和 origin/main 实时值为准；功能分支 `feature/yfth-hq-admin-productization-v1` 保留，不删除。
 - 当前禁止事项和冻结模块：不得在本阶段开发核销撤销/反冲、权益恢复、评价、自动爽约、提醒消息、独立付费服务订单、跨店核销、离线码、打印码、员工排班资源、家庭成员预约、推荐奖励、配送、库存补货、产品额度、加盟合同、真实分账或生产部署；不得修改 5980 套餐支付激活、CRMEB 订单/支付/退款、后台权限核心流程或生产部署配置。
 - 产品文档目录：`C:\Users\zhangxu\Desktop\御方通和\yufangcare-platform\项目文档`
 - 完整产品依据：`御方通和加盟小程序项目需求与产品设计文档_V1.0.docx`
 
 ## Current Fact Snapshot - 2026-07-04 HQ Admin Productization V1
 
-- 当前开发分支：`feature/yfth-hq-admin-productization-v1`。
-- 开始基线与稳定 `main`：`f6ebce63d1afda54f416de41a3d2036669a0122d`。
-- 本轮目标：仅产品化总部 Web 管理后台，统一品牌入口、总部工作台、总体后台一级菜单、YFTH 权限树、后台中文可见文案和正式后台静态构建产物状态。
+- 当前分支：`main`；功能分支 `feature/yfth-hq-admin-productization-v1` 已保留为阶段历史分支。
+- 开始基线与合并前稳定 `main`：`f6ebce63d1afda54f416de41a3d2036669a0122d`。
+- 本轮目标：仅产品化总部 Web 管理后台，统一品牌入口、总部工作台、总体后台一级菜单、YFTH 权限树、后台中文可见文案和正式后台静态构建产物状态；该阶段已通过最终架构复审并合并进入 `main`。
+- 最终复审结论：B，P1 已关闭，无 Blocker/P1，P2/P3 后续处理。
 - 已新增并验证只读后台接口：`GET home/yfth`，用于总部运营工作台真实统计和授权快捷入口；该接口不写业务数据，不触发预约、核销、支付、退款或权益状态变更。后台公共中间件会按 CRMEB 既有机制写入 `system_log` 访问日志。
 - P1 权限缺口已关闭：新增 API 权限 `yfth-hq-workbench-read`，显示名称“查看总部经营工作台”，`api_url = home/yfth`，`methods = GET`，`auth_type = 2`，父级为 `admin-home` 首页工作台；普通角色必须显式授权该权限，超管继续按既有机制自动拥有。
 - 服务端纵深校验已补齐：`Common::yfthWorkbench()` 在读取全局统计前调用 `SystemRoleServices::assertApiAuthForAdmin($this->adminInfo ?: [], 'home/yfth', 'GET')`，不信任前端入口、角色、门店或权限字段。
@@ -32,6 +33,8 @@
 - 已执行验证：PHP 语法检查、`php think list`、迁移 run/rollback/rerun、`GET /adminapi/home/yfth` 未登录/超管/缺可选表降级、普通角色访问已登记 YFTH API 越权拦截、YFTH 权限菜单英文清理、`crmeb/tests/yfth_service_appointment_contract_check.php`、浏览器登录和服务预约页面加载验证。
 - P1 追加验证：隔离库 `yfth_hq_p1_verify` 完整迁移 run 通过；`yfth-hq-workbench-read` 迁移前数量 0、run 后 1、rollback 后 0、rerun 后 1，重复数量 0；真实后台 token 验证未登录返回 `110003`，超管成功，无权限普通管理员返回 `100101`，有权限普通管理员成功，带门店范围但无总部工作台权限账号返回 `100101`。
 - 统计测试数据覆盖：已插入今天创建未支付、昨天创建今天支付、今天支付主订单、今天支付子订单、今天支付但退款状态非 0、已删除订单、正常今日支付订单；接口返回“今日支付订单”=3，“今日成交金额”=120，仅统计符合条件的主订单。
+- 合并收口：总部管理后台产品化 V1 已使用 `git merge --ff-only feature/yfth-hq-admin-productization-v1` 合并至 `main`；本轮不删除本地或远端功能分支。
+- 生产状态：尚未进行生产部署，尚未执行生产数据库迁移，尚未连接生产数据库或修改服务器。
 - 本轮继续冻结：CRMEB 登录鉴权、token、订单、支付、退款、商品库存主流程、5980 套餐激活主流程、服务预约/核销业务状态机、生产部署和生产数据库迁移。
 - 服务预约与动态核销 V1 最新管理后台生产构建产物已刷新至 `crmeb/public/admin`；本轮核对 `template/admin/dist` 与 `crmeb/public/admin` 均为 592 个文件、39,427,546 字节且无差异，服务器后续无需执行 npm 构建即可加载相关后台页面。
 - 仍保留 P2：菜单自定义名称和排序覆盖策略仍可能受未来 CRMEB 菜单变更影响，暂不阻塞总部后台产品化 V1。
@@ -115,9 +118,20 @@
 
 ## 7. 当前开发阶段
 
-阶段：服务预约、容量锁定、5980 服务权益锁定与最终消耗、到店签到、动态码与服务权益核销 V1 已完成最终审核，并已快进合并、推送至 `main`。
+阶段：总部管理后台产品化 V1 已通过最终架构复审，原 P1 `home/yfth` 未登记权限已关闭，并已通过 fast-forward 合并进入 `main`。服务预约、容量锁定、5980 服务权益锁定与最终消耗、到店签到、动态码与服务权益核销 V1 仍作为已完成稳定能力保留。
 
 本轮变化：
+
+- 总部 Web 管理后台已完成品牌化入口、登录页标题与 logo fallback、首页运营工作台、中文一级菜单、YFTH 权限树中文化和正式后台静态产物刷新。
+- `GET /adminapi/home/yfth` 总部工作台接口已登记 API 权限 `yfth-hq-workbench-read`，`api_url = home/yfth`，`methods = GET`，`auth_type = 2`，父级 `admin-home`。
+- `Common::yfthWorkbench()` 在读取总部全局统计前显式调用 `SystemRoleServices::assertApiAuthForAdmin(..., 'home/yfth', 'GET')`，关闭未登记 API 被普通后台账号读取的 P1 缺口。
+- 未登录、超管、有权限普通角色、无权限普通角色和带门店范围但无总部工作台权限账号均已验证；无权限路径返回 `100101`，未登录返回 `110003`。
+- “今日支付订单”和“今日成交金额”共用同一 `store_order` 查询集合：按 `pay_time` 当日、已支付、未退款、主订单、未删除统计。
+- 总部管理后台产品化 V1 已合并进入 `main`；功能分支 `feature/yfth-hq-admin-productization-v1` 保留，不删除。
+- P2 继续记录：菜单名称和排序产品化迁移可能覆盖现场自定义菜单配置，后续按项目主控安排处理。
+- 尚未进行生产部署，尚未执行生产数据库迁移，尚未连接生产数据库或修改服务器。
+
+历史已完成稳定能力：
 
 - 服务项目定义、门店服务授权、周排班规则、特殊日期规则、只读公开 API 和后台配置页面已经落地。
 - Booking V1 已新增真实预约、可锁定时段实例、服务权益锁和预约事件时间线；支持用户创建、自动确认、人工确认、门店拒绝、用户取消、门店/总部取消、同门店同服务项目改期。
@@ -144,7 +158,7 @@
 
 ## 8. 下一步建议
 
-当前服务预约与动态核销 V1 已正式收口并进入稳定 `main`。下一业务模块由项目主控根据完整产品流程另行决定，不再继续写“架构审核”或“等待合并 main”。
+当前服务预约与动态核销 V1、总部管理后台产品化 V1 均已正式收口并进入稳定 `main`。下一业务模块由项目主控根据完整产品流程另行决定，不再继续写“总部后台产品化架构审核”或“等待合并 main”。
 
 生产服务器仍需保持干净克隆和凭据轮换要求：正式切换前应确认 GitHub Deploy Key 或受控 SSH 凭据可用，并确认生产 `.env`、微信支付证书、运行时 PEM 和前端环境变量均不进入 Git。
 
