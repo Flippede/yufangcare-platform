@@ -1,5 +1,27 @@
 # 项目交接文档
 
+## Current Fact Snapshot - 2026-07-05 Final Multi-role Miniapp Shell V1 Closure
+
+- Current branch: `main`.
+- Preserved feature branch: `feature/yfth-miniapp-multi-role-shell-v1`.
+- Preserved static demo branch: `feature/yfth-multi-role-interaction-demo-v1`.
+- Main before merge: `f30426c955cce55cc552f474782c880034986514`.
+- Feature branch final reviewed commit: `e4d36b519eac017bfaba5bd19dcb463480e861a0`.
+- Merge method: `git merge --ff-only feature/yfth-miniapp-multi-role-shell-v1`.
+- Final architecture re-review conclusion: B, no Blocker/P1, allowed to merge; P2 items are recorded for later handling.
+- Stable capabilities now merged into `main`: CRMEB customer storefront continues to use the page-decoration system; user-center business workbench entry; `franchisee`, `store_manager`, `store_staff`, and `service_mentor` shell roles; role/store context; UID-bound YFTH context cache; customer token and `admin_token` isolation; direct workbench access blocking without business identity; H5 development build; H5 production build; mp-weixin production compile; H5 HTML fallback safety boundary; user-center business-entry lifecycle fix; footer request-failure cache tolerance.
+- Still not open in this V1: user-token store writeoff, user-token store orders, user-token appointment management, procurement, inventory replenishment, product quota, franchise contracts, recommendation rewards, real mentor business flows, real settlement, and revenue sharing.
+- Not modified by this closure: CRMEB login core, orders, payment, refund, 5980 package activation, service appointment state machine, and writeoff state machine.
+- Production status: no production database connection, no production server deployment, and no WeChat platform upload.
+- Final `main` and `origin/main` commit should be read from real Git HEAD after push, avoiding a self-referential document hash.
+- Next business module is to be decided separately by the project controller.
+
+### Non-blocking P2 Recorded For Later
+
+- P2-1: final review recorded that role-switch request failure may only show an error and not immediately clear every local YFTH context path; workbench entry still performs server-side context validation, so this does not create permission bypass. Keep this for the later real business-side adapter/error-flow pass and do not expand scope in this closure round.
+- P2-2: H5 non-200 HTML responses are no longer forged into successful JSON, but HTML classification currently happens before the HTTP-error branch. An HTML 401 may not always trigger the original `toLogin()` flow, and the rejected error may not preserve the full HTTP status. Keep this for a later unified request-layer error-governance pass and do not expand scope in this closure round.
+- Both P2 items are non-blocking for the Multi-role Miniapp Shell V1 merge.
+
 ## Current Fact Snapshot - 2026-07-05 Multi-role Miniapp Shell P1 Audit Fix
 
 - Current branch: `feature/yfth-miniapp-multi-role-shell-v1`.
