@@ -268,10 +268,24 @@
 
 
 			fetch(`${HTTP_REQUEST_URL}/api/get_script`)
-				.then(response => response.text())
+				.then(response => {
+					if (!response.ok) {
+						return '';
+					}
+					return response.text();
+				})
 				.then(content => {
+					const trimmedContent = (content || '').trim();
+					if (!trimmedContent) {
+						return;
+					}
+					// 本地 H5 无后端时，history fallback 会把 index.html 返回给该接口。
+					// 这类完整 HTML 不是可执行统计脚本，必须忽略，避免白屏。
+					if (/^<!doctype html/i.test(trimmedContent) || /^<html[\s>]/i.test(trimmedContent)) {
+						return;
+					}
 					// 尝试解析是否为HTML（带<script>标签）
-					const isHTML = content.trim().startsWith('<script');
+					const isHTML = trimmedContent.startsWith('<script');
 
 					let externalScripts = [];
 					let inlineScripts = [];
@@ -287,7 +301,7 @@
 					} else {
 						// 情况2：不带<script>标签，直接当作内联脚本处理
 						inlineScripts = [{
-							textContent: content
+							textContent: trimmedContent
 						}];
 					}
 

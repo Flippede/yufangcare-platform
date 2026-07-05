@@ -21,6 +21,89 @@ import {
 import store from '../store';
 import i18n from './lang.js';
 
+function isHtmlFallback(data) {
+	return typeof data === 'string' && (/^\s*<!doctype html/i.test(data) || /^\s*<html[\s>]/i.test(data));
+}
+
+function h5FallbackData(url) {
+	if (url.indexOf('v2/diy/get_diy/default') === 0) {
+		return {
+			is_show: true,
+			is_bg_color: false,
+			is_bg_pic: false,
+			title: '',
+			value: {}
+		};
+	}
+	if (url.indexOf('v2/diy/color_change/') === 0) {
+		return {
+			is_diy: 0,
+			status: 3
+		};
+	}
+	if (url === 'lang_version') {
+		return {
+			version: 0
+		};
+	}
+	if (url === 'basic_config') {
+		return {
+			diy_data: {
+				value: 1,
+				my_banner_status: 0,
+				my_menus_status: 1,
+				business_status: 0,
+				order_status: 1
+			},
+			routine_my_menus: [],
+			routine_my_banner: [],
+			routine_contact_type: 0
+		};
+	}
+	if (url === 'get_workerman_url') {
+		return {};
+	}
+	if (url === 'menu/user') {
+		return {
+			diy_data: {
+				value: 1,
+				my_banner_status: 0,
+				my_menus_status: 1,
+				business_status: 0,
+				order_status: 1
+			},
+			routine_my_menus: [],
+			routine_my_banner: [],
+			routine_contact_type: 0
+		};
+	}
+	if (url === 'copyright') {
+		return {
+			wechat_status: 0,
+			copyrightContext: '',
+			copyrightImage: '/static/images/support.png',
+			site_logo: '',
+			site_name: ''
+		};
+	}
+	if (url === 'get_open_adv') {
+		return {
+			show: false
+		};
+	}
+	if (url === 'share') {
+		return {
+			title: '',
+			synopsis: '',
+			img: ''
+		};
+	}
+	if (url === 'navigation') {
+		return [];
+	}
+	return {};
+}
+
 /**
  * 发送请求
  */
@@ -53,6 +136,18 @@ function baseRequest(url, method, data, {
 			data: data || {},
 			timeout: TIMEOUT,
 			success: (res) => {
+				// #ifdef H5
+				// 本地 H5 验收未连接后端时，webpack devServer 会把 /api/* fallback 成 index.html。
+				// 这不是业务 API 响应，转为空数据以保持 CRMEB 页面安全空状态，真实 JSON 响应不受影响。
+				if (isHtmlFallback(res.data)) {
+					reslove({
+						status: 200,
+						msg: '',
+						data: h5FallbackData(url)
+					}, res);
+					return;
+				}
+				// #endif
 				if (noVerify)
 					reslove(res.data, res);
 				else if (res.data.status == 200)

@@ -9,7 +9,7 @@
 - 当前稳定 main：以当前 Git HEAD 和 origin/main 实时值为准。
 - origin/main：以当前 Git HEAD 和 origin/main 实时值为准。
 - 本轮开始基线：`7413627250bd057474fd2a4ea04068fae5f2ec9c`
-- 当前开发阶段：多身份小程序壳层 V1 正在进行运行闭环与认证边界整改；顾客端继续复用 CRMEB 页面装修，经营工作台只作为用户态壳层，不直连后台 token 页面。
+- 当前开发阶段：多身份小程序壳层 V1 已完成 HBuilderX/uni-app 构建环境恢复、H5 开发/生产构建、浏览器运行验收和微信小程序生产编译调查；顾客端继续复用 CRMEB 页面装修，经营工作台只作为用户态壳层，不直连后台 token 页面。
 - 当前工作区和推送状态：以 `git status`、当前 Git HEAD 和 origin/main 实时值为准；本轮在 `feature/yfth-miniapp-multi-role-shell-v1` 开发，不合并 `main`，不部署生产。
 - 当前禁止事项和冻结模块：不得在本阶段开发核销撤销/反冲、权益恢复、评价、自动爽约、提醒消息、独立付费服务订单、跨店核销、离线码、打印码、员工排班资源、家庭成员预约、推荐奖励、配送、库存补货、产品额度、加盟合同、真实分账或生产部署；不得修改 5980 套餐支付激活、CRMEB 订单/支付/退款、后台权限核心流程或生产部署配置。
 - 产品文档目录：`C:\Users\zhangxu\Desktop\御方通和\yufangcare-platform\项目文档`
@@ -68,10 +68,26 @@
 - 后台 API 边界：`template/uni-app/api/yfth_admin.js` 不再回退使用 `store.state.app.token`，缺少 `admin_token` 时直接 `admin_token_required` 安全失败。
 - 权限边界：前端只缓存选择结果，真实身份、门店和能力仍由服务端校验；不得依赖前端传入 `store_id` 或角色字段作为最终权限依据；直接访问经营工作台且无经营身份时会清理上下文并返回顾客首页。
 - 本轮未修改后端 API、数据库迁移、CRMEB 登录、订单、支付、退款、5980 套餐激活、服务预约/核销状态机或总部 Web 后台。
-- 当前构建事实：`template/uni-app/package.json` 未提供 npm 构建脚本，当前工作区也没有 `template/uni-app/node_modules`；本机未发现可直接复用的 HBuilderX 可执行文件。H5/小程序构建需按 `docs/YFTH_UNIAPP_BUILD_GUIDE.md` 补齐 HBuilderX/uni-app 环境后执行，不得虚构构建通过。
+- 上一轮遗留构建状态：`template/uni-app/package.json` 未提供 npm 构建脚本，且当时未发现可直接复用的 HBuilderX 可执行文件；该遗留状态已在 2026-07-05 uni-app 构建恢复与运行验收中关闭，最新工具链、命令和验证结果见下一节及 `docs/YFTH_UNIAPP_BUILD_GUIDE.md`。
 - 新增/更新文档：`docs/YFTH_MINIAPP_MULTI_ROLE_ARCHITECTURE.md`、`docs/YFTH_UNIAPP_BUILD_GUIDE.md`。
 - 新增契约检查：`node template/uni-app/tests/yfth_multi_role_shell_contract_check.js`，覆盖页面注册、经营入口身份门控、角色白名单、缓存 uid 绑定、禁止用户态壳层直连后台核销/订单页面、CRMEB 顾客首页装修保留。
 - 下一步建议：先对多身份小程序正式壳层做只读架构审核，再由项目主控决定是否进入门店/加盟商/导师等真实业务模块开发。
+
+## Current Fact Snapshot - 2026-07-05 Uni-app Build Runtime Validation
+
+- 当前开发分支：`feature/yfth-miniapp-multi-role-shell-v1`；本轮合法起点为 `63751f222555e9bed4e2fabeb7a918129ad95c01`，`main`/`origin/main` 仍以 `f30426c955cce55cc552f474782c880034986514` 为稳定基线；本轮不合并 `main`，不部署生产。
+- 构建工具来源：从 DCloud 官方发布源准备 HBuilderX 5.14.2026070214，并放置在仓库外 `C:\Users\zhangxu\.codex\tools\hbuilderx-5.14.2026070214\HBuilderX`；同时从 Node.js 官方发行源准备仓库外便携 Node.js `v18.20.8`，路径为 `C:\Users\zhangxu\.codex\tools\node-v18.20.8-win-x64`。
+- HBuilderX CLI：`C:\Users\zhangxu\.codex\tools\hbuilderx-5.14.2026070214\HBuilderX\cli.exe`，版本 `5.14.2026070214`；DCloud 插件安装在 HBuilderX 工具目录内，未写入仓库。
+- 旧 CRMEB uni-app 项目仍使用 `node-sass`；HBuilderX 5.14 内置 Node 22 对应 ABI 127，与旧 `node-sass` 二进制不兼容。本轮用 HBuilderX 官方 `uniapp-cli` 搭配 Node 18 运行编译，未升级 Vue、uni-app、Webpack、Babel 或业务依赖。
+- H5 开发/预览构建：设置 `NODE_ENV=development`、`UNI_PLATFORM=h5`、`UNI_INPUT_DIR=template/uni-app`、`UNI_OUTPUT_DIR=template/uni-app/unpackage/dist/dev/h5` 后执行 `node --max-old-space-size=5120 --no-warnings <HBuilderX>\plugins\uniapp-cli\bin\uniapp-cli.js`；本地访问地址为 `http://127.0.0.1:8080/`，构建成功并进入 watch。
+- H5 生产构建：设置 `NODE_ENV=production`、`UNI_PLATFORM=h5`、`UNI_OUTPUT_DIR=template/uni-app/unpackage/dist/build/h5` 后执行同一 `uniapp-cli.js`；`index.html`、JS、CSS 和静态资源已生成，产物目录 324 个文件、9,790,085 字节；仅保留既有大资源体积 warning。
+- 生产 H5 静态验收：使用 Python 静态服务打开 `http://127.0.0.1:8091/`，页面显示 CRMEB 首页安全空态“暂无商品，去看点别的吧～”，无白屏、无 JavaScript page error；因未连接本地后端，`/api/*` 和后端 `/statics/images/*` 返回 404 属于本地静态服务边界，不代表已连接生产。
+- 浏览器验收结果：Edge/Chromium 实际打开顾客首页、用户中心、经营工作台直连、身份选择、门店选择；顾客首页和用户中心可渲染，经营工作台无经营身份时返回顾客首页，身份选择未登录时进入登录页，普通顾客页面未暴露后台核销或后台订单入口；未发现重定向循环。
+- 本轮运行修复：忽略本地 H5 无后端时 `/api/get_script` 返回的完整 HTML，避免当作脚本执行；对 H5 devServer 返回 `index.html` 的 API fallback 转为空配置；导航 footer 无配置时关闭自定义 tabbar；CRMEB 首页无装修块时显示安全空态。
+- 微信小程序编译：`cli.exe launch mp-weixin --compile true` 使用 HBuilderX 内置 Node 22 时仍触发旧 `node-sass` ABI 127 缺失；改用 HBuilderX `uniapp-cli` + Node 18 执行 `NODE_ENV=production`、`UNI_PLATFORM=mp-weixin` 的生产编译成功，输出目录为 `template/uni-app/unpackage/dist/build/mp-weixin`，1121 个文件、7,592,360 字节。未上传微信平台，未使用真实 AppID、私钥或微信开发者工具。
+- 后台认证边界仍关闭：`template/uni-app/api/yfth_admin.js` 继续要求 `admin_token`，用户态 CRMEB token 不回退调用后台核销、后台订单或后台预约管理接口；经营工作台中的未适配能力仍为占位，不伪装为已完成正式业务。
+- 已执行检查：`node template/uni-app/tests/yfth_multi_role_shell_contract_check.js` 通过；`git diff --check` 通过；HBuilderX H5/mp 编译覆盖 Vue SFC `<script>` 语法；HBuilderX 自带 Babel parser 对 `libs/yfthContext.js`、`utils/request.js` 和本轮修改的 Vue `<script>` 块解析通过；敏感文件和工具缓存扫描未发现待提交的 HBuilderX、Node、node_modules、`.env`、密钥、日志或临时构建缓存。
+- 生产状态：未连接生产数据库，未部署服务器，未复制生产 `.env`，未使用生产 AppID、AppSecret、微信上传密钥或真实用户数据。
 
 ## 1. 项目目标
 

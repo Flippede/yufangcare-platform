@@ -79,7 +79,20 @@ Known limitation:
 
 ## Build And Delivery Notes
 
-`template/uni-app/package.json` currently has no npm scripts and no local `node_modules` directory in this checkout. The local machine has DCloud configuration/cache directories, but no directly discoverable HBuilderX executable in the checked paths. H5/dev/prod builds therefore require the project's existing HBuilderX/uni-app build environment or a later dependency setup task. See `docs/YFTH_UNIAPP_BUILD_GUIDE.md`; do not record a successful H5 build unless the real toolchain has run.
+`template/uni-app` remains an HBuilderX-style CRMEB uni-app project rather than an npm-script driven project. `package.json` still has no `dev:h5` or `build:h5` script, so the verified build path is the DCloud/HBuilderX compiler.
+
+Verified on 2026-07-05:
+
+- HBuilderX: `5.14.2026070214`, installed outside the repository at `C:\Users\zhangxu\.codex\tools\hbuilderx-5.14.2026070214\HBuilderX`.
+- Node.js for the legacy CRMEB compiler path: `v18.20.8`, installed outside the repository at `C:\Users\zhangxu\.codex\tools\node-v18.20.8-win-x64`.
+- H5 development build: passed with `UNI_PLATFORM=h5`, output `template/uni-app/unpackage/dist/dev/h5`, local URL `http://127.0.0.1:8080/`.
+- H5 production build: passed with `UNI_PLATFORM=h5`, output `template/uni-app/unpackage/dist/build/h5`.
+- H5 browser validation: customer home, user center, workbench direct access, role switch, and store switch were opened in Edge/Chromium. The customer home renders a safe empty CRMEB storefront state when no local backend is connected, and direct workbench access without business identity is blocked back to the customer side.
+- WeChat mini program production compile: passed through HBuilderX `uniapp-cli` + Node 18 with `UNI_PLATFORM=mp-weixin`, output `template/uni-app/unpackage/dist/build/mp-weixin`.
+
+The HBuilderX `cli.exe launch mp-weixin --compile true` entry still invokes HBuilderX's bundled Node 22 and reports a missing old `node-sass` ABI 127 binary. This is a tooling compatibility boundary, not a business-code failure. Do not switch the project to Dart Sass or upgrade the CRMEB frontend stack without a separate compatibility task.
+
+No HBuilderX program files, Node runtime, DCloud cache, `node_modules`, generated `unpackage` output, credentials, or local logs are committed.
 
 ## Contract Check
 

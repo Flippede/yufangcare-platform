@@ -134,6 +134,12 @@ export default {
 	},
 	methods: {
 		setNavigationInfo(data) {
+			if (!data || !data.effectConfig) {
+				this.newData = {};
+				this.showTabBar = false;
+				this.$emit('newDataStatus', false, 0);
+				return;
+			}
 			if (this.isTabBar) {
 				this.newData = data;
 				this.showTabBar = data.effectConfig.tabVal;
@@ -147,10 +153,14 @@ export default {
 			}
 		},
 		getNavigationInfo() {
-			getNavigation().then((res) => {
-				uni.setStorageSync('diyVersionNav', res.data);
-				this.setNavigationInfo(res.data);
-			});
+			getNavigation()
+				.then((res) => {
+					uni.setStorageSync('diyVersionNav', res.data);
+					this.setNavigationInfo(res.data);
+				})
+				.catch(() => {
+					this.setNavigationInfo({});
+				});
 		},
 		navigationInfo() {
 			let footerNavigation = uni.getStorageSync('footerNavigation');

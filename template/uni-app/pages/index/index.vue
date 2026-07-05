@@ -767,6 +767,10 @@ export default {
 			this.styleConfig = temp;
 			this.goodsIndex = goodsIndex;
 			this.promotionIndex = promotionIndex;
+			if (!temp.length) {
+				this.loaded = true;
+				this.loading = false;
+			}
 		},
 		getDiyData() {
 			getDiy(0)
