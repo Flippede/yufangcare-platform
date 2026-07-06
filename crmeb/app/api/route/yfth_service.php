@@ -27,3 +27,23 @@ Route::group(function () {
     ->middleware(\app\api\middleware\StationOpenMiddleware::class)
     ->middleware(\app\api\middleware\AuthTokenMiddleware::class)
     ->option(['mark' => 'yfth_service_appointment_user', 'mark_name' => 'YFTH service appointment user API']);
+
+Route::group(function () {
+    Route::get('yfth/store_workbench/overview', 'v1.yfth.StoreWorkbenchController/overview')->option(['real_name' => 'YFTH store workbench overview']);
+    Route::get('yfth/store_workbench/appointments', 'v1.yfth.StoreWorkbenchController/appointmentList')->option(['real_name' => 'YFTH store workbench appointments']);
+    Route::get('yfth/store_workbench/appointments/:id', 'v1.yfth.StoreWorkbenchController/appointmentDetail')->option(['real_name' => 'YFTH store workbench appointment detail']);
+    Route::post('yfth/store_workbench/appointments/:id/confirm', 'v1.yfth.StoreWorkbenchController/appointmentConfirm')->option(['real_name' => 'YFTH store workbench appointment confirm']);
+    Route::post('yfth/store_workbench/appointments/:id/reject', 'v1.yfth.StoreWorkbenchController/appointmentReject')->option(['real_name' => 'YFTH store workbench appointment reject']);
+    Route::post('yfth/store_workbench/appointments/:id/cancel', 'v1.yfth.StoreWorkbenchController/appointmentCancel')->option(['real_name' => 'YFTH store workbench appointment cancel']);
+    Route::post('yfth/store_workbench/writeoff/precheck', 'v1.yfth.StoreWorkbenchController/writeoffPrecheck')->option(['real_name' => 'YFTH store workbench writeoff precheck']);
+    Route::post('yfth/store_workbench/writeoff/token', 'v1.yfth.StoreWorkbenchController/writeoffToken')->option(['real_name' => 'YFTH store workbench QR writeoff']);
+    Route::post('yfth/store_workbench/writeoff/digital', 'v1.yfth.StoreWorkbenchController/writeoffDigital')->option(['real_name' => 'YFTH store workbench digital writeoff']);
+    Route::get('yfth/store_workbench/writeoff/records', 'v1.yfth.StoreWorkbenchController/writeoffList')->option(['real_name' => 'YFTH store workbench writeoff records']);
+    Route::get('yfth/store_workbench/writeoff/records/:id', 'v1.yfth.StoreWorkbenchController/writeoffDetail')->option(['real_name' => 'YFTH store workbench writeoff record detail']);
+    Route::get('yfth/store_workbench/writeoff/result/:id', 'v1.yfth.StoreWorkbenchController/writeoffResult')->option(['real_name' => 'YFTH store workbench writeoff result']);
+    Route::get('yfth/store_workbench/orders', 'v1.yfth.StoreWorkbenchController/orderList')->option(['real_name' => 'YFTH store workbench order list']);
+    Route::get('yfth/store_workbench/orders/:id', 'v1.yfth.StoreWorkbenchController/orderDetail')->option(['real_name' => 'YFTH store workbench order detail']);
+})->middleware(\app\http\middleware\AllowOriginMiddleware::class)
+    ->middleware(\app\api\middleware\StationOpenMiddleware::class)
+    ->middleware(\app\api\middleware\AuthTokenMiddleware::class)
+    ->option(['mark' => 'yfth_store_workbench_user', 'mark_name' => 'YFTH store workbench user-token API']);

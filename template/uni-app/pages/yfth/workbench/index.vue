@@ -2,14 +2,14 @@
 	<view class="yfth-shell">
 		<view class="header">
 			<view>
-				<view class="eyebrow">御方通和多身份小程序</view>
-				<view class="title">{{ context.role_name_cn || '顾客' }}工作台</view>
-				<view class="sub">{{ context.store_name || '顾客端 / 未选择门店' }}</view>
+				<view class="eyebrow">御方通和经营工作台</view>
+				<view class="title">{{ context.role_name_cn || '经营身份' }}工作台</view>
+				<view class="sub">{{ context.store_name || '请选择授权门店' }}</view>
 			</view>
 			<button class="light" @click="backCustomer">返回顾客端</button>
 		</view>
 
-		<view v-if="loading" class="empty">正在读取真实身份上下文...</view>
+		<view v-if="loading" class="empty">正在读取服务端身份上下文...</view>
 		<view v-else-if="error" class="empty error">
 			<view>{{ error }}</view>
 			<button @click="load">重新加载</button>
@@ -21,34 +21,178 @@
 			</view>
 
 			<view class="notice">
-				当前身份和门店由服务端 yfth/context 校验；本地缓存只保存选择结果，不能作为权限依据。
+				当前门店权限由服务端按用户 Token、经营身份和授权门店重新校验；本地缓存只保存选择结果，不能作为授权依据。
 			</view>
 
-			<view v-if="pane === 'dashboard'" class="grid">
-				<view v-for="item in dashboardCards" :key="item.title" class="card" @click="goCard(item)">
-					<view class="card-title">{{ item.title }}</view>
-					<view class="card-desc">{{ item.desc }}</view>
-					<view class="card-link">{{ item.linkText }}</view>
-				</view>
-			</view>
-
-			<view v-else-if="pane === 'stores'" class="panel">
-				<view class="panel-title">门店范围</view>
-				<view v-if="storeIdentities.length">
-					<view v-for="item in storeIdentities" :key="item.identity_key" class="row">
-						<view>
-							<view>{{ item.store_name || ('门店ID ' + item.store_id) }}</view>
-							<text>{{ item.role_name_cn }}</text>
+			<view v-if="storeRoleReady">
+				<view v-if="pane === 'dashboard'" class="section">
+					<view class="metrics">
+						<view v-for="item in dashboardCards" :key="item.key" class="metric" @click="tapDashboard(item)">
+							<view class="metric-value">{{ item.value }}</view>
+							<view class="metric-title">{{ item.title }}</view>
+							<view class="metric-desc">{{ item.desc }}</view>
 						</view>
-						<button @click="switchStore(item.store_id)">进入</button>
+					</view>
+					<view class="panel">
+						<view class="panel-title">真实业务入口</view>
+						<view class="quick-actions">
+							<button @click="openPane('appointments')">预约管理</button>
+							<button @click="openPane('writeoff')">服务核销</button>
+							<button @click="openPane('orders')">门店订单</button>
+						</view>
 					</view>
 				</view>
-				<view v-else class="empty small">暂无服务端返回的门店范围。</view>
+
+				<view v-else-if="pane === 'appointments'" class="section">
+					<view class="panel">
+						<view class="panel-head">
+							<view class="panel-title">门店预约</view>
+							<button class="mini" @click="loadAppointments(true)">刷新</button>
+						</view>
+						<view class="filter-tabs">
+							<view v-for="item in appointmentTabs" :key="item.value" :class="['tab', appointmentWhere.status === item.value ? 'active' : '']" @click="changeAppointmentStatus(item.value)">
+								{{ item.label }}
+							</view>
+						</view>
+						<view v-if="appointmentLoading" class="inline-empty">正在加载预约...</view>
+						<view v-else-if="!appointments.length" class="inline-empty">当前筛选下暂无预约记录。</view>
+						<view v-else>
+							<view v-for="item in appointments" :key="item.id" class="list-card">
+								<view class="row-main">
+									<view>
+										<view class="strong">{{ item.service_name || '服务项目' }}</view>
+										<view class="muted">{{ item.date_text }} {{ item.start_time_text }}-{{ item.end_time_text }}</view>
+										<view class="muted">预约号 {{ item.appointment_no }}</view>
+									</view>
+									<view class="status">{{ item.status_text }}</view>
+								</view>
+								<view class="button-row">
+									<button @click="viewAppointment(item)">详情</button>
+									<button v-if="item.actions && item.actions.can_confirm" @click="operateAppointment(item, 'confirm')">确认</button>
+									<button v-if="item.actions && item.actions.can_reject" @click="operateAppointment(item, 'reject')">拒绝</button>
+									<button v-if="item.actions && item.actions.can_cancel" @click="operateAppointment(item, 'cancel')">取消</button>
+									<button v-if="item.actions && item.actions.can_writeoff" @click="openWriteoffFor(item)">去核销</button>
+								</view>
+							</view>
+						</view>
+						<view v-if="selectedAppointment.id" class="detail-box">
+							<view class="panel-title">预约详情</view>
+							<view class="detail-line">服务：{{ selectedAppointment.service_name }}</view>
+							<view class="detail-line">权益：{{ selectedAppointment.benefit_name || '服务权益' }}</view>
+							<view class="detail-line">状态：{{ selectedAppointment.status_text }}</view>
+							<view class="detail-line">备注：{{ selectedAppointment.user_note || '无' }}</view>
+							<view v-if="selectedAppointment.writeoff_result && selectedAppointment.writeoff_result.status !== 'none'" class="detail-line">核销：{{ selectedAppointment.writeoff_result.status }}</view>
+						</view>
+					</view>
+				</view>
+
+				<view v-else-if="pane === 'writeoff'" class="section">
+					<view class="panel">
+						<view class="panel-head">
+							<view class="panel-title">服务核销</view>
+							<button class="mini" @click="loadWriteoffRecords(true)">记录</button>
+						</view>
+						<view class="writeoff-box">
+							<button class="primary" @click="scanQr">扫码预检</button>
+							<view class="manual-code">
+								<input v-model="writeoffForm.digital_code" maxlength="6" type="number" placeholder="输入6位数字核销码" />
+								<button @click="precheckDigital">预检</button>
+							</view>
+							<input v-model="writeoffForm.qr_token" class="token-input" placeholder="H5调试可粘贴二维码 token" />
+							<button @click="precheckToken">二维码 token 预检</button>
+						</view>
+						<view v-if="writeoffPrecheck.appointment" class="detail-box">
+							<view class="panel-title">预检结果</view>
+							<view class="detail-line">预约：{{ writeoffPrecheck.appointment.appointment_no }}</view>
+							<view class="detail-line">服务：{{ writeoffPrecheck.appointment.service_name }}</view>
+							<view class="detail-line">时间：{{ writeoffPrecheck.appointment.date_text }} {{ writeoffPrecheck.appointment.start_time_text }}-{{ writeoffPrecheck.appointment.end_time_text }}</view>
+							<button class="primary" @click="submitWriteoff">确认核销</button>
+						</view>
+						<view v-if="writeoffResult.status" class="result-box">
+							<view class="strong">核销结果：{{ writeoffResult.status }}</view>
+							<view v-if="writeoffResult.record">核销单号：{{ writeoffResult.record.writeoff_no }}</view>
+						</view>
+					</view>
+
+					<view class="panel">
+						<view class="panel-title">最近核销记录</view>
+						<view v-if="writeoffRecords.length">
+							<view v-for="item in writeoffRecords" :key="item.id" class="compact-row">
+								<view>
+									<view class="strong">{{ item.writeoff_no }}</view>
+									<view class="muted">{{ item.writeoff_method }} · {{ formatTime(item.writeoff_time) }}</view>
+								</view>
+								<view class="status">{{ item.status }}</view>
+							</view>
+						</view>
+						<view v-else class="inline-empty">暂无核销记录。</view>
+					</view>
+				</view>
+
+				<view v-else-if="pane === 'orders'" class="section">
+					<view class="panel">
+						<view class="panel-head">
+							<view class="panel-title">门店订单只读</view>
+							<button class="mini" @click="loadOrders(true)">刷新</button>
+						</view>
+						<view class="search-row">
+							<input v-model="orderWhere.order_sn" placeholder="订单号搜索" @confirm="loadOrders(true)" />
+							<button @click="loadOrders(true)">查询</button>
+						</view>
+						<view v-if="orderLoading" class="inline-empty">正在加载订单...</view>
+						<view v-else-if="!orders.length" class="inline-empty">暂无门店订单。</view>
+						<view v-else>
+							<view v-for="item in orders" :key="item.id" class="list-card" @click="viewOrder(item)">
+								<view class="row-main">
+									<view>
+										<view class="strong">{{ item.order_id }}</view>
+										<view class="muted">{{ item.real_name_masked }} {{ item.user_phone_masked }}</view>
+										<view class="muted">{{ formatTime(item.add_time) }}</view>
+									</view>
+									<view class="price">￥{{ item.pay_price }}</view>
+								</view>
+								<view class="muted">{{ item.status_text }} · {{ item.total_num }}件</view>
+							</view>
+						</view>
+						<view v-if="selectedOrder.id" class="detail-box">
+							<view class="panel-title">订单详情</view>
+							<view class="detail-line">订单号：{{ selectedOrder.order_id }}</view>
+							<view class="detail-line">收货人：{{ selectedOrder.real_name_masked }} {{ selectedOrder.user_phone_masked }}</view>
+							<view class="detail-line">地址：{{ selectedOrder.user_address_masked || '已脱敏' }}</view>
+							<view class="detail-line">实付：￥{{ selectedOrder.pay_price }}</view>
+							<view v-for="item in selectedOrder.items || []" :key="item.item_key" class="compact-row">
+								<view>
+									<view class="strong">{{ item.product_name || '商品' }}</view>
+									<view class="muted">{{ item.sku || '默认规格' }}</view>
+								</view>
+								<view>x{{ item.cart_num }}</view>
+							</view>
+						</view>
+					</view>
+				</view>
+
+				<view v-else-if="pane === 'stores'" class="panel">
+					<view class="panel-title">授权门店范围</view>
+					<view v-if="storeIdentities.length">
+						<view v-for="item in storeIdentities" :key="item.identity_key" class="compact-row">
+							<view>
+								<view class="strong">{{ item.store_name || ('门店ID ' + item.store_id) }}</view>
+								<view class="muted">{{ item.role_name_cn }}</view>
+							</view>
+							<button @click="switchStore(item.store_id)">进入</button>
+						</view>
+					</view>
+					<view v-else class="inline-empty">暂无服务端返回的门店范围。</view>
+				</view>
+
+				<view v-else class="panel">
+					<view class="panel-title">{{ paneTitle }}</view>
+					<view class="inline-empty">{{ paneEmptyText }}</view>
+				</view>
 			</view>
 
-			<view v-else class="panel">
-				<view class="panel-title">{{ paneTitle }}</view>
-				<view class="empty small">{{ paneEmptyText }}</view>
+			<view v-else class="empty">
+				当前身份不是门店经营身份，或尚未选择具体授权门店。请切换到加盟商、店长或店员并选择门店。
 			</view>
 		</block>
 
@@ -67,6 +211,20 @@
 
 <script>
 import {
+	cancelYfthStoreWorkbenchAppointment,
+	confirmYfthStoreWorkbenchAppointment,
+	getYfthStoreWorkbenchAppointmentDetail,
+	getYfthStoreWorkbenchAppointments,
+	getYfthStoreWorkbenchOrderDetail,
+	getYfthStoreWorkbenchOrders,
+	getYfthStoreWorkbenchOverview,
+	getYfthStoreWorkbenchWriteoffRecords,
+	precheckYfthStoreWorkbenchWriteoff,
+	rejectYfthStoreWorkbenchAppointment,
+	writeoffYfthStoreWorkbenchByDigital,
+	writeoffYfthStoreWorkbenchByToken
+} from '@/api/yfth.js';
+import {
 	clearYfthContext,
 	currentContext,
 	isBusinessRole,
@@ -83,23 +241,57 @@ export default {
 			error: '',
 			pane: 'dashboard',
 			context: {},
-			identities: []
+			identities: [],
+			overview: {},
+			appointments: [],
+			appointmentLoading: false,
+			appointmentWhere: { status: '', page: 1, limit: 10 },
+			selectedAppointment: {},
+			writeoffForm: { qr_token: '', digital_code: '' },
+			writeoffMethod: '',
+			writeoffPrecheck: {},
+			writeoffResult: {},
+			writeoffRecords: [],
+			orders: [],
+			orderLoading: false,
+			orderWhere: { order_sn: '', page: 1, limit: 10 },
+			selectedOrder: {}
 		};
 	},
 	computed: {
 		navItems() {
 			return roleNav(this.context.role_code || 'customer');
 		},
+		storeRoleReady() {
+			return ['franchisee', 'store_manager', 'store_staff'].indexOf(this.context.role_code) !== -1 && Number(this.context.store_id) > 0;
+		},
 		storeIdentities() {
 			const role = this.context.role_code;
 			return this.identities.filter((item) => item.role_code === role && item.store_id);
 		},
+		appointmentTabs() {
+			return [
+				{ label: '全部', value: '' },
+				{ label: '待确认', value: 'pending_confirm' },
+				{ label: '待到店', value: 'confirmed' },
+				{ label: '已完成', value: 'completed' },
+				{ label: '已取消', value: 'cancelled' }
+			];
+		},
+		dashboardCards() {
+			const metrics = this.overview.metrics || {};
+			return [
+				{ key: 'today_appointments', title: '今日预约', value: metrics.today_appointments || 0, desc: '当前门店今日服务预约', pane: 'appointments' },
+				{ key: 'pending_confirm', title: '待确认', value: metrics.pending_confirm || 0, desc: '需要店长或加盟商处理', pane: 'appointments' },
+				{ key: 'confirmed_waiting_arrival', title: '待到店', value: metrics.confirmed_waiting_arrival || 0, desc: '已确认等待用户到店', pane: 'writeoff' },
+				{ key: 'today_writeoffs', title: '今日核销', value: metrics.today_writeoffs || 0, desc: '今日服务权益核销记录', pane: 'writeoff' },
+				{ key: 'today_store_orders', title: '今日支付订单', value: metrics.today_store_orders || 0, desc: '门店今日已支付主订单', pane: 'orders' },
+				{ key: 'pending_store_orders', title: '待处理订单', value: metrics.pending_store_orders || 0, desc: '门店待发货或待核销订单', pane: 'orders' }
+			];
+		},
 		paneTitle() {
 			const titles = {
 				customers: '客户入口',
-				appointments: '预约管理',
-				writeoff: '核销入口',
-				orders: '门店订单',
 				mine: '我的经营身份',
 				leads: '线索',
 				activities: '活动',
@@ -111,48 +303,7 @@ export default {
 			if (['leads', 'activities', 'materials'].indexOf(this.pane) !== -1) {
 				return '导师业务域尚未开放，当前仅保留正式导航外壳。';
 			}
-			if (['appointments', 'writeoff', 'orders'].indexOf(this.pane) !== -1) {
-				return '该入口需要正式后台或门店端认证适配。本轮先关闭错误跳转，不使用普通用户 token 访问后台接口。';
-			}
 			return '当前入口已预留，后续接入真实业务列表；本页不展示假数据。';
-		},
-		dashboardCards() {
-			const role = this.context.role_code;
-			const common = [
-				{ title: '今日预约', desc: '门店预约列表需接入经营端认证后开放', pane: 'appointments', linkText: '认证适配中', disabled: true },
-				{ title: '核销入口', desc: '扫码/数字码核销继续使用后台 token 边界', pane: 'writeoff', linkText: '认证适配中', disabled: true },
-				{ title: '门店订单', desc: 'CRMEB 门店订单需正式后台权限，不在用户态壳层直连', pane: 'orders', linkText: '认证适配中', disabled: true }
-			];
-			if (role === 'franchisee') {
-				return common.concat([
-					{ title: '名下门店', desc: '按服务端返回门店范围切换', pane: 'stores', linkText: '切换门店' },
-					{ title: '采购/奖励/合同', desc: '相关业务尚未开放，不提供假提交', pane: 'mine', linkText: '建设中' }
-				]);
-			}
-			if (role === 'store_manager') {
-				return common.concat([
-					{ title: '客户与套餐客户', desc: '后续接入真实客户归属和套餐权益', pane: 'customers', linkText: '查看入口' },
-					{ title: '切换授权门店', desc: '只允许服务端授权门店', pane: 'stores', linkText: '切换门店' }
-				]);
-			}
-			if (role === 'store_staff') {
-				return [
-					{ title: '当前门店预约', desc: '门店预约列表需经营端认证适配后开放', pane: 'appointments', linkText: '认证适配中', disabled: true },
-					{ title: '核销入口', desc: '核销保持后台 token 边界，不用用户 token 直连', pane: 'writeoff', linkText: '认证适配中', disabled: true },
-					{ title: '门店订单', desc: '不展示多门店经营和财务数据', pane: 'orders', linkText: '认证适配中', disabled: true },
-					{ title: '我的操作记录', desc: '操作记录入口预留，后续接真实数据', pane: 'mine', linkText: '查看入口' }
-				];
-			}
-			if (role === 'service_mentor') {
-				return [
-					{ title: '线索', desc: '导师线索业务建设中', pane: 'leads', linkText: '查看外壳' },
-					{ title: '活动', desc: '活动计划和签到建设中', pane: 'activities', linkText: '查看外壳' },
-					{ title: '资料', desc: '培训资料和常见问题建设中', pane: 'materials', linkText: '查看外壳' }
-				];
-			}
-			return [
-				{ title: '顾客首页', desc: '继续使用 CRMEB 页面装修承载', url: '/pages/index/index', type: 'switchTab', linkText: '返回首页' }
-			];
 		}
 	},
 	onLoad(options) {
@@ -177,6 +328,10 @@ export default {
 					}
 					this.identities = identities;
 					this.context = context;
+					if (this.storeRoleReady) {
+						this.loadOverview();
+						this.loadPane();
+					}
 				})
 				.catch((err) => {
 					clearYfthContext();
@@ -189,6 +344,201 @@ export default {
 				.finally(() => {
 					this.loading = false;
 				});
+		},
+		contextParams(extra) {
+			return Object.assign({
+				role_code: this.context.role_code,
+				store_id: this.context.store_id
+			}, extra || {});
+		},
+		loadOverview() {
+			return getYfthStoreWorkbenchOverview(this.contextParams()).then((res) => {
+				this.overview = res.data || {};
+			}).catch((err) => {
+				uni.showToast({ title: String((err && err.msg) || err), icon: 'none' });
+			});
+		},
+		loadPane() {
+			if (this.pane === 'appointments') {
+				this.loadAppointments(true);
+			} else if (this.pane === 'writeoff') {
+				this.loadWriteoffRecords(true);
+			} else if (this.pane === 'orders') {
+				this.loadOrders(true);
+			}
+		},
+		loadAppointments(reset) {
+			if (reset) {
+				this.appointmentWhere.page = 1;
+				this.appointments = [];
+				this.selectedAppointment = {};
+			}
+			this.appointmentLoading = true;
+			getYfthStoreWorkbenchAppointments(this.contextParams(this.appointmentWhere)).then((res) => {
+				this.appointments = (res.data && res.data.list) || [];
+			}).catch((err) => {
+				uni.showToast({ title: String((err && err.msg) || err), icon: 'none' });
+			}).finally(() => {
+				this.appointmentLoading = false;
+			});
+		},
+		changeAppointmentStatus(status) {
+			this.appointmentWhere.status = status;
+			this.loadAppointments(true);
+		},
+		viewAppointment(item) {
+			getYfthStoreWorkbenchAppointmentDetail(item.id, this.contextParams()).then((res) => {
+				this.selectedAppointment = (res.data && res.data.appointment) || {};
+			}).catch((err) => {
+				uni.showToast({ title: String((err && err.msg) || err), icon: 'none' });
+			});
+		},
+		operateAppointment(item, action) {
+			const actionText = { confirm: '确认', reject: '拒绝', cancel: '取消' }[action] || '处理';
+			uni.showModal({
+				title: actionText + '预约',
+				content: '确认对预约 ' + item.appointment_no + ' 执行' + actionText + '操作？',
+				success: (modal) => {
+					if (!modal.confirm) return;
+					const payload = {
+						reason: 'store_workbench_' + action,
+						idempotency_key: this.idempotencyKey(action, item.id)
+					};
+					const api = action === 'confirm'
+						? confirmYfthStoreWorkbenchAppointment
+						: (action === 'reject' ? rejectYfthStoreWorkbenchAppointment : cancelYfthStoreWorkbenchAppointment);
+					api(item.id, this.contextParams(payload)).then(() => {
+						uni.showToast({ title: actionText + '成功', icon: 'success' });
+						this.loadOverview();
+						this.loadAppointments(true);
+					}).catch((err) => {
+						uni.showToast({ title: String((err && err.msg) || err), icon: 'none' });
+					});
+				}
+			});
+		},
+		openWriteoffFor(item) {
+			this.pane = 'writeoff';
+			this.writeoffResult = {};
+			this.writeoffPrecheck = {};
+			uni.showToast({ title: '请扫码或输入数字码', icon: 'none' });
+			this.loadWriteoffRecords(true);
+		},
+		scanQr() {
+			// #ifdef H5
+			uni.showToast({ title: 'H5 请使用数字码或粘贴 token', icon: 'none' });
+			// #endif
+			// #ifndef H5
+			uni.scanCode({
+				success: (res) => {
+					this.writeoffForm.qr_token = this.normalizeQrToken(res.result || '');
+					this.precheckToken();
+				},
+				fail: () => {
+					uni.showToast({ title: '扫码失败', icon: 'none' });
+				}
+			});
+			// #endif
+		},
+		precheckToken() {
+			const token = this.normalizeQrToken(this.writeoffForm.qr_token);
+			if (!token) {
+				uni.showToast({ title: '请先扫码或粘贴 token', icon: 'none' });
+				return;
+			}
+			this.writeoffMethod = 'token';
+			this.doPrecheck({ qr_token: token });
+		},
+		precheckDigital() {
+			const code = String(this.writeoffForm.digital_code || '').trim();
+			if (!/^\d{6}$/.test(code)) {
+				uni.showToast({ title: '请输入6位数字码', icon: 'none' });
+				return;
+			}
+			this.writeoffMethod = 'digital';
+			this.doPrecheck({ digital_code: code });
+		},
+		doPrecheck(payload) {
+			this.writeoffPrecheck = {};
+			this.writeoffResult = {};
+			precheckYfthStoreWorkbenchWriteoff(this.contextParams(payload)).then((res) => {
+				this.writeoffPrecheck = res.data || {};
+			}).catch((err) => {
+				uni.showToast({ title: String((err && err.msg) || err), icon: 'none' });
+			});
+		},
+		submitWriteoff() {
+			if (!this.writeoffPrecheck.appointment) {
+				uni.showToast({ title: '请先完成预检', icon: 'none' });
+				return;
+			}
+			uni.showModal({
+				title: '确认核销',
+				content: '核销后将完成预约并消耗对应服务权益，是否继续？',
+				success: (modal) => {
+					if (!modal.confirm) return;
+					const payload = this.contextParams({
+						idempotency_key: this.idempotencyKey('writeoff', this.writeoffPrecheck.appointment.id)
+					});
+					const promise = this.writeoffMethod === 'digital'
+						? writeoffYfthStoreWorkbenchByDigital(this.writeoffForm.digital_code, payload)
+						: writeoffYfthStoreWorkbenchByToken(this.normalizeQrToken(this.writeoffForm.qr_token), payload);
+					promise.then((res) => {
+						this.writeoffResult = res.data || {};
+						uni.showToast({ title: '核销成功', icon: 'success' });
+						this.writeoffPrecheck = {};
+						this.loadOverview();
+						this.loadWriteoffRecords(true);
+					}).catch((err) => {
+						uni.showToast({ title: String((err && err.msg) || err), icon: 'none' });
+					});
+				}
+			});
+		},
+		loadWriteoffRecords() {
+			getYfthStoreWorkbenchWriteoffRecords(this.contextParams({ page: 1, limit: 5 })).then((res) => {
+				this.writeoffRecords = (res.data && res.data.list) || [];
+			}).catch((err) => {
+				uni.showToast({ title: String((err && err.msg) || err), icon: 'none' });
+			});
+		},
+		loadOrders(reset) {
+			if (reset) {
+				this.orderWhere.page = 1;
+				this.orders = [];
+				this.selectedOrder = {};
+			}
+			this.orderLoading = true;
+			getYfthStoreWorkbenchOrders(this.contextParams(this.orderWhere)).then((res) => {
+				this.orders = (res.data && res.data.list) || [];
+			}).catch((err) => {
+				uni.showToast({ title: String((err && err.msg) || err), icon: 'none' });
+			}).finally(() => {
+				this.orderLoading = false;
+			});
+		},
+		viewOrder(item) {
+			getYfthStoreWorkbenchOrderDetail(item.id, this.contextParams()).then((res) => {
+				this.selectedOrder = (res.data && res.data.order) || {};
+			}).catch((err) => {
+				uni.showToast({ title: String((err && err.msg) || err), icon: 'none' });
+			});
+		},
+		normalizeQrToken(value) {
+			const text = String(value || '').trim();
+			if (!text) return '';
+			const match = text.match(/[?&](qr_token|token|yfth_writeoff_token)=([^&]+)/);
+			return match ? decodeURIComponent(match[2]) : text;
+		},
+		idempotencyKey(action, id) {
+			return 'yfth_store_workbench_' + action + '_' + id + '_' + Date.now();
+		},
+		formatTime(value) {
+			const ts = Number(value || 0);
+			if (!ts) return '-';
+			const date = new Date(ts * 1000);
+			const pad = (n) => (n < 10 ? '0' + n : '' + n);
+			return date.getFullYear() + '-' + pad(date.getMonth() + 1) + '-' + pad(date.getDate()) + ' ' + pad(date.getHours()) + ':' + pad(date.getMinutes());
 		},
 		goRoleSwitch() {
 			uni.navigateTo({ url: '/pages/yfth/workbench/role_switch' });
@@ -209,21 +559,14 @@ export default {
 				fn({ url: item.url });
 				return;
 			}
-			this.pane = item.pane || 'dashboard';
+			this.openPane(item.pane || 'dashboard');
 		},
-		goCard(item) {
-			if (item.disabled) {
-				uni.showToast({ title: item.linkText || '认证适配中', icon: 'none' });
-				if (item.pane) {
-					this.pane = item.pane;
-				}
-				return;
-			}
-			if (item.url) {
-				uni.navigateTo({ url: item.url });
-				return;
-			}
-			this.pane = item.pane || 'dashboard';
+		openPane(pane) {
+			this.pane = pane || 'dashboard';
+			this.loadPane();
+		},
+		tapDashboard(item) {
+			this.openPane(item.pane || 'dashboard');
 		},
 		switchStore(storeId) {
 			switchYfthStore(storeId).then(() => {
@@ -239,27 +582,40 @@ export default {
 
 <style scoped>
 .yfth-shell { min-height: 100vh; background: #f6f0e6; padding: 24rpx 24rpx 130rpx; }
-.header { border-radius: 18rpx; background: linear-gradient(135deg, #4b315f, #8a5a3c); color: #fff; padding: 28rpx; display: flex; justify-content: space-between; gap: 18rpx; }
+.header { border-radius: 18rpx; background: linear-gradient(135deg, #4f3424, #a5763b); color: #fff; padding: 28rpx; display: flex; justify-content: space-between; gap: 18rpx; }
 .eyebrow { color: #f2dfb5; font-size: 22rpx; }
 .title { font-size: 38rpx; font-weight: 700; margin-top: 8rpx; }
 .sub { margin-top: 8rpx; color: #f7e8d0; font-size: 24rpx; }
 button { font-size: 26rpx; }
 .light { background: #fffaf2; color: #6d4b31; border-radius: 12rpx; height: 64rpx; line-height: 64rpx; padding: 0 20rpx; }
+.primary { background: #6f4c2f; color: #fff; border-radius: 12rpx; }
+.mini { background: #fff7e9; color: #6f4c2f; border-radius: 10rpx; height: 56rpx; line-height: 56rpx; padding: 0 18rpx; margin: 0; }
 .switch-row { display: flex; gap: 18rpx; margin: 22rpx 0; }
-.switch-row button { flex: 1; background: #fff; color: #4b315f; border-radius: 12rpx; }
+.switch-row button { flex: 1; background: #fff; color: #6f4c2f; border-radius: 12rpx; }
 .notice { background: #fff8e8; color: #8a5a3c; border: 1rpx solid #ead7a8; padding: 18rpx; border-radius: 12rpx; font-size: 24rpx; margin-bottom: 20rpx; }
-.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18rpx; }
-.card, .panel { background: #fff; border-radius: 16rpx; padding: 24rpx; box-shadow: 0 10rpx 26rpx rgba(70, 45, 30, .06); }
-.card-title, .panel-title { font-size: 30rpx; font-weight: 700; color: #2d2434; }
-.card-desc { color: #786b73; font-size: 24rpx; min-height: 72rpx; margin-top: 12rpx; }
-.card-link { color: #8a5a3c; font-weight: 700; margin-top: 16rpx; font-size: 24rpx; }
-.row { display: flex; justify-content: space-between; align-items: center; padding: 20rpx 0; border-bottom: 1rpx solid #f0e5d3; }
-.row text { color: #8a7a68; font-size: 24rpx; }
-.row button { background: #4b315f; color: #fff; border-radius: 10rpx; margin: 0; }
+.section { display: flex; flex-direction: column; gap: 18rpx; }
+.metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 18rpx; }
+.metric, .panel, .list-card, .detail-box, .result-box { background: #fff; border-radius: 16rpx; padding: 24rpx; box-shadow: 0 10rpx 26rpx rgba(70, 45, 30, .06); }
+.metric-value { color: #6f4c2f; font-size: 42rpx; font-weight: 700; }
+.metric-title, .panel-title, .strong { font-size: 30rpx; font-weight: 700; color: #2d2434; }
+.metric-desc, .muted { color: #786b73; font-size: 24rpx; margin-top: 8rpx; }
+.panel-head, .row-main, .compact-row { display: flex; align-items: center; justify-content: space-between; gap: 18rpx; }
+.quick-actions, .button-row, .filter-tabs, .search-row, .manual-code { display: flex; gap: 14rpx; margin-top: 18rpx; }
+.quick-actions button, .button-row button, .search-row button, .manual-code button { flex: 1; background: #fff7e9; color: #6f4c2f; border-radius: 10rpx; }
+.filter-tabs { overflow-x: auto; }
+.tab { flex: 0 0 auto; padding: 12rpx 20rpx; border-radius: 999rpx; background: #fff7e9; color: #8a725c; font-size: 24rpx; }
+.tab.active { background: #6f4c2f; color: #fff; }
+.status { color: #6f4c2f; font-weight: 700; font-size: 24rpx; }
+.price { color: #9a4f2f; font-size: 32rpx; font-weight: 700; }
+.list-card { margin-top: 18rpx; }
+.detail-box, .result-box { margin-top: 18rpx; background: #fffaf2; box-shadow: none; }
+.detail-line { color: #5e5147; font-size: 25rpx; margin-top: 10rpx; }
+.inline-empty { margin-top: 18rpx; color: #786b73; background: #fffaf2; border-radius: 12rpx; padding: 22rpx; text-align: center; }
 .empty { margin-top: 80rpx; text-align: center; color: #786b73; background: #fff; border-radius: 16rpx; padding: 34rpx; }
-.empty.small { margin-top: 20rpx; box-shadow: none; background: #fffaf2; }
 .error { color: #a74e4e; }
+input { background: #fffaf2; border-radius: 10rpx; padding: 0 20rpx; height: 64rpx; line-height: 64rpx; font-size: 26rpx; flex: 1; }
+.token-input { margin-top: 16rpx; width: auto; }
 .nav { position: fixed; left: 0; right: 0; bottom: 0; height: 106rpx; background: #fffaf4; border-top: 1rpx solid #eadfce; display: flex; z-index: 30; }
 .nav-item { flex: 1; display: flex; align-items: center; justify-content: center; color: #786b73; font-size: 24rpx; }
-.nav-item.active { color: #4b315f; font-weight: 700; }
+.nav-item.active { color: #6f4c2f; font-weight: 700; }
 </style>

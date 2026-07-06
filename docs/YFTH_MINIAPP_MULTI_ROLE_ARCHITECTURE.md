@@ -1,5 +1,22 @@
 # YFTH Multi-role Miniapp Shell V1
 
+## Store Workbench Business Adapter V1 - 2026-07-06
+
+The store workbench shell has now been connected to real user-token backend APIs for the first store-scoped business round.
+
+Completed in this adapter round:
+
+- Store appointment list/detail, manager/franchisee confirm, reject, and cancel.
+- Store staff read-only appointment management plus writeoff entry.
+- Service writeoff token/digital precheck, confirmation, result, and record lookup.
+- Store order read-only list/detail.
+- Real server-side role and store validation through the existing YFTH business context.
+- Customer-token and `admin_token` isolation preserved.
+
+The adapter is documented in `docs/YFTH_STORE_WORKBENCH_ADAPTER_ARCHITECTURE.md`.
+
+The earlier shell limitation that user-token store writeoff, store orders, and appointment management were not open is now historical for the shell V1 closure. It no longer represents the current state of the workbench adapter branch.
+
 ## Scope
 
 This round turns the static multi-role prototype direction into a formal uni-app shell under `template/uni-app`.
@@ -60,7 +77,7 @@ It links only to surfaces that fit the current user-token boundary:
 - Role switch: `/pages/yfth/workbench/role_switch`
 - Store switch: `/pages/yfth/workbench/store_switch`
 
-The shell keeps unfinished areas as explicit construction placeholders without metrics or fake records. This includes store appointment management, service writeoff, CRMEB store orders, procurement, reward, contract, mentor leads, activity, training material, and fuller customer management.
+The shell now connects store appointment management, service writeoff, and CRMEB store order read-only views through the store workbench adapter. Remaining unfinished areas stay explicit placeholders without fake records, including procurement, reward, contract, mentor leads, activity, training material, and fuller customer management.
 
 ## Permission Boundary
 
@@ -73,9 +90,14 @@ The miniapp shell only selects a role and target store; real authorization remai
 - Direct access to the workbench without a valid business context clears local YFTH context and returns to the customer storefront.
 - `api/yfth_admin.js` no longer falls back to the customer token. It requires `admin_token` and fails closed with `admin_token_required` when that token is absent.
 
-Known limitation:
+Historical shell limitation:
 
 - Writeoff, backend store orders, and store appointment management still require a formal business-side authentication adapter or backend user-token API. This round intentionally closes those links instead of routing customer tokens into admin API pages.
+
+Current state:
+
+- The formal backend user-token adapter now exists for store appointment management, service writeoff, and store order read-only lookup.
+- The adapter still does not implement procurement, inventory replenishment, product quota, franchise contracts, recommendation rewards, mentor real business, settlement, or revenue sharing.
 
 ## P1 Audit Fix - 2026-07-05
 

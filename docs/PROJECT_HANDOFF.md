@@ -1,5 +1,27 @@
 # 项目交接文档
 
+## Current Fact Snapshot - 2026-07-06 Store Workbench Business Adapter V1
+
+- Current branch: `feature/yfth-store-workbench-business-adapter-v1`.
+- Start baseline: `main` / `origin/main` at `dc5efcc6cd3b9e9131a59f48e6a8e7718ec933bb`.
+- Latest commit for this round should be read from real Git HEAD after the feature-branch commit.
+- Scope: formal store-scoped user-token business adapter for the multi-role miniapp workbench.
+- Completed real adapters: store appointment management, service writeoff, and store order read-only lookup.
+- Appointment capability: store appointment list/detail; `franchisee` and `store_manager` can confirm, reject, and cancel within authorized stores; `store_staff` remains read/writeoff-oriented and cannot configure or change appointment state.
+- Writeoff capability: token/digital precheck, token/digital writeoff, writeoff result lookup, and writeoff record list/detail reuse the existing Service Appointment Writeoff V1 service and idempotency/audit behavior.
+- Store order capability: real CRMEB store order list/detail lookup is read-only, store-scoped, and masks customer contact/address fields for the workbench.
+- Security boundary: miniapp uses only the CRMEB user token; the workbench does not expose, reuse, persist, or request `admin_token`.
+- Server-side validation: every request resolves the current YFTH role/store through `CurrentBusinessContextServices`; client role/store values are only requested context and are not trusted as authorization.
+- Reused stable services: existing appointment booking service, writeoff service, YFTH identity/store role services, and CRMEB store order DAOs. No duplicate appointment/writeoff/order state machine was introduced.
+- New backend files: `StoreWorkbenchController`, `StoreWorkbenchBusinessAdapterServices`, and `yfth_store_workbench_adapter_contract_check.php`.
+- New frontend behavior: `pages/yfth/workbench/index.vue` now shows real overview, appointment, writeoff, and read-only order modules through `api/yfth.js`.
+- Documentation: `docs/YFTH_STORE_WORKBENCH_ADAPTER_ARCHITECTURE.md` records adapter boundaries and role rules; `docs/YFTH_MINIAPP_MULTI_ROLE_ARCHITECTURE.md` marks the previous shell limitation as historical.
+- Verification in this round: PHP syntax checks passed for changed backend files; `yfth_store_workbench_adapter_contract_check.php`, `yfth_service_appointment_contract_check.php`, `yfth_multi_role_shell_contract_check.js`, and `yfth_request_fallback_check.js` passed; H5 development preview started on local port 8080; H5 production build passed; mp-weixin production compile passed; local static H5 production validation loaded through Chrome with no blocking static-resource error, while backend `/api` misses were expected because no CRMEB backend was connected.
+- No database migration was added in this round.
+- Not modified: CRMEB login core, admin-token login, orders/payment/refund core flows, 5980 package activation, appointment state-machine internals, writeoff state-machine internals, database migrations, and production configuration.
+- Still not implemented: procurement, inventory replenishment, product quota, franchise contracts, recommendation rewards, mentor real business workflows, settlement, revenue sharing, store order mutation/fulfillment/refund/shipment, and production deployment.
+- This feature branch is not merged into `main` in this round; push target is the feature branch only.
+
 ## Current Fact Snapshot - 2026-07-05 Final Multi-role Miniapp Shell V1 Closure
 
 - Current branch: `main`.

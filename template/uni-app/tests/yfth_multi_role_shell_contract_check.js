@@ -44,11 +44,18 @@ assert(context.includes('Number(context.uid) !== Number(uid)'), 'cached context 
 
 assertNotContains('pages/yfth/workbench/index.vue', "/pages/admin/yfth_writeoff/index", 'user-token workbench must not link to admin writeoff page');
 assertNotContains('pages/yfth/workbench/index.vue', "/pages/admin/orderList/index", 'user-token workbench must not link to admin order page');
-assertContains('pages/yfth/workbench/index.vue', '认证适配中', 'closed backend entries must explain the auth adapter status');
+assertContains('pages/yfth/workbench/index.vue', 'getYfthStoreWorkbenchOverview', 'workbench must use the user-token store adapter overview API');
+assertContains('pages/yfth/workbench/index.vue', 'precheckYfthStoreWorkbenchWriteoff', 'workbench writeoff must use the user-token store adapter API');
+assertContains('pages/yfth/workbench/index.vue', 'getYfthStoreWorkbenchOrders', 'workbench orders must use the user-token store adapter API');
+assertContains('pages/yfth/workbench/index.vue', 'store_staff', 'workbench must keep store staff as a server-validated store role');
+assertNotContains('pages/yfth/workbench/index.vue', "from '@/api/yfth_admin.js'", 'formal workbench must not import admin-token APIs');
 assertContains('pages/yfth/workbench/index.vue', 'clearYfthContext', 'returning to customer side must clear business context');
 
 assertNotContains('api/yfth_admin.js', 'store.state.app.token', 'admin API helper must not fall back to the customer token');
 assertContains('api/yfth_admin.js', 'admin_token_required', 'admin API helper must fail closed without admin token');
+assertContains('api/yfth.js', 'yfth/store_workbench/overview', 'user API helper must expose store workbench overview');
+assertContains('api/yfth.js', 'yfth/store_workbench/writeoff/precheck', 'user API helper must expose store writeoff precheck');
+assertContains('api/yfth.js', 'yfth/store_workbench/orders', 'user API helper must expose read-only store orders');
 
 const requestLayer = read('utils/request.js');
 assertContains('utils/request.js', 'shouldUseH5DevFallback', 'request layer must use guarded H5 fallback classifier');

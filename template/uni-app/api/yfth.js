@@ -127,3 +127,59 @@ export function getYfthAppointmentCodeStatus(id) {
 export function generateYfthAppointmentCode(id, data) {
 	return request.post('yfth/service/appointment/' + id + '/code', data || {});
 }
+
+export function getYfthStoreWorkbenchOverview(data) {
+	return request.get('yfth/store_workbench/overview', data || {});
+}
+
+export function getYfthStoreWorkbenchAppointments(data) {
+	return request.get('yfth/store_workbench/appointments', data || {});
+}
+
+export function getYfthStoreWorkbenchAppointmentDetail(id, data) {
+	return request.get('yfth/store_workbench/appointments/' + id, data || {});
+}
+
+export function confirmYfthStoreWorkbenchAppointment(id, data) {
+	return request.post('yfth/store_workbench/appointments/' + id + '/confirm', data || {});
+}
+
+export function rejectYfthStoreWorkbenchAppointment(id, data) {
+	return request.post('yfth/store_workbench/appointments/' + id + '/reject', data || {});
+}
+
+export function cancelYfthStoreWorkbenchAppointment(id, data) {
+	return request.post('yfth/store_workbench/appointments/' + id + '/cancel', data || {});
+}
+
+export function precheckYfthStoreWorkbenchWriteoff(data) {
+	return request.post('yfth/store_workbench/writeoff/precheck', data || {});
+}
+
+export function writeoffYfthStoreWorkbenchByToken(qrToken, data) {
+	return request.post('yfth/store_workbench/writeoff/token', Object.assign({ qr_token: qrToken }, data || {}));
+}
+
+export function writeoffYfthStoreWorkbenchByDigital(digitalCode, data) {
+	return request.post('yfth/store_workbench/writeoff/digital', Object.assign({ digital_code: digitalCode }, data || {}));
+}
+
+export function getYfthStoreWorkbenchWriteoffRecords(data) {
+	return request.get('yfth/store_workbench/writeoff/records', data || {});
+}
+
+export function getYfthStoreWorkbenchWriteoffRecordDetail(id, data) {
+	return request.get('yfth/store_workbench/writeoff/records/' + id, data || {});
+}
+
+export function getYfthStoreWorkbenchWriteoffResult(appointmentId, data) {
+	return request.get('yfth/store_workbench/writeoff/result/' + appointmentId, data || {});
+}
+
+export function getYfthStoreWorkbenchOrders(data) {
+	return request.get('yfth/store_workbench/orders', data || {});
+}
+
+export function getYfthStoreWorkbenchOrderDetail(id, data) {
+	return request.get('yfth/store_workbench/orders/' + id, data || {});
+}
