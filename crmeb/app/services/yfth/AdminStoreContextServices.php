@@ -8,6 +8,8 @@ use crmeb\exceptions\AdminException;
 class AdminStoreContextServices extends YfthFoundationBaseServices
 {
     public const ROLE_HEADQUARTER = 'headquarter_operator';
+    public const OPERATOR_ADMIN = 'admin';
+    public const OPERATOR_USER_STORE_ROLE = 'user_store_role';
 
     public function __construct(YfthAdminStoreScopeDao $dao)
     {
@@ -29,6 +31,10 @@ class AdminStoreContextServices extends YfthFoundationBaseServices
 
     public function resolve(array $adminInfo): array
     {
+        if (!empty($adminInfo['yfth_operator_context']) && is_array($adminInfo['yfth_operator_context'])) {
+            return $this->normalizeOperatorContext($adminInfo['yfth_operator_context']);
+        }
+
         if (!empty($adminInfo['yfth_admin_context']) && is_array($adminInfo['yfth_admin_context'])) {
             return $this->normalizeContext($adminInfo['yfth_admin_context']);
         }
@@ -200,6 +206,8 @@ class AdminStoreContextServices extends YfthFoundationBaseServices
     {
         return [
             'admin_id' => $adminId,
+            'operator_type' => self::OPERATOR_ADMIN,
+            'operator_uid' => 0,
             'is_super_admin' => false,
             'is_headquarter_admin' => false,
             'is_store_manager' => false,
@@ -209,6 +217,7 @@ class AdminStoreContextServices extends YfthFoundationBaseServices
             'store_scope_roles' => [],
             'primary_role_code' => '',
             'permission_scope' => [],
+            'allowed_actions' => [],
             'source' => 'none',
         ];
     }
@@ -226,11 +235,50 @@ class AdminStoreContextServices extends YfthFoundationBaseServices
     private function normalizeContext(array $context): array
     {
         $context = array_merge($this->emptyContext((int)($context['admin_id'] ?? 0)), $context);
+        $context['operator_type'] = self::OPERATOR_ADMIN;
+        $context['operator_uid'] = (int)($context['operator_uid'] ?? 0);
         $context['is_super_admin'] = (bool)$context['is_super_admin'];
         $context['is_headquarter_admin'] = (bool)$context['is_headquarter_admin'];
         $context['is_store_manager'] = (bool)$context['is_store_manager'];
         $context['is_store_staff'] = (bool)$context['is_store_staff'];
         $context['store_ids'] = array_values(array_filter(array_unique(array_map('intval', (array)$context['store_ids']))));
         return $context;
+    }
+
+    private function normalizeOperatorContext(array $context): array
+    {
+        $operatorUid = (int)($context['operator_uid'] ?? 0);
+        $roleCode = trim((string)($context['role_code'] ?? ($context['primary_role_code'] ?? '')));
+        $storeId = (int)($context['store_id'] ?? 0);
+        $storeIds = array_values(array_filter(array_unique(array_map('intval', (array)($context['authorized_store_ids'] ?? ($context['store_ids'] ?? []))))));
+        if ($storeId > 0 && !in_array($storeId, $storeIds, true)) {
+            $storeIds[] = $storeId;
+        }
+
+        $storeScopeRoles = [];
+        foreach ($storeIds as $currentStoreId) {
+            $roles = (array)($context['store_scope_roles'][$currentStoreId] ?? []);
+            if ($roleCode !== '' && !in_array($roleCode, $roles, true)) {
+                $roles[] = $roleCode;
+            }
+            $storeScopeRoles[$currentStoreId] = array_values(array_unique(array_filter($roles)));
+        }
+
+        $normalized = array_merge($this->emptyContext(0), [
+            'operator_type' => self::OPERATOR_USER_STORE_ROLE,
+            'operator_uid' => $operatorUid,
+            'is_super_admin' => false,
+            'is_headquarter_admin' => false,
+            'is_store_manager' => in_array($roleCode, ['store_manager', 'franchisee'], true),
+            'is_store_staff' => $roleCode === 'store_staff',
+            'store_ids' => $storeIds,
+            'store_role_codes' => $roleCode === '' ? [] : [$roleCode],
+            'store_scope_roles' => $storeScopeRoles,
+            'primary_role_code' => $roleCode,
+            'permission_scope' => (array)($context['permission_scope'] ?? []),
+            'allowed_actions' => array_values((array)($context['allowed_actions'] ?? [])),
+            'source' => (string)($context['source'] ?? 'yfth_user_store_role_operator'),
+        ]);
+        return $normalized;
     }
 }

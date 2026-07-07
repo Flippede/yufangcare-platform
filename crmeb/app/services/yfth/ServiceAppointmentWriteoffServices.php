@@ -126,6 +126,12 @@ class ServiceAppointmentWriteoffServices extends ServiceAppointmentBaseServices
         return $this->precheckCode($code, $adminInfo);
     }
 
+    public function precheckByStoreToken(string $token, array $operatorInfo = []): array
+    {
+        $code = $this->requireActiveCodeByToken($token, false);
+        return $this->precheckCode($code, $operatorInfo);
+    }
+
     public function precheckByDigital(string $digitalCode, array $adminInfo = []): array
     {
         $scope = $this->resolveDigitalWriteoffScope($adminInfo);
@@ -140,25 +146,58 @@ class ServiceAppointmentWriteoffServices extends ServiceAppointmentBaseServices
         }
     }
 
+    public function precheckByStoreDigital(string $digitalCode, array $operatorInfo = []): array
+    {
+        return $this->precheckByDigital($digitalCode, $operatorInfo);
+    }
+
     public function writeoffByToken(string $token, array $adminInfo = [], array $data = []): array
     {
-        $adminId = (int)($adminInfo['id'] ?? 0);
-        $key = $this->writeKey('writeoff_token', $adminId, 0, $data + ['token_hash' => $this->hashSecret($token)]);
-        return $this->runIdempotent('writeoff_token', $key, ['admin_id' => $adminId], '', function ($requestId) use ($token, $adminInfo, $key) {
+        $operatorId = $this->operatorId($adminInfo);
+        $key = $this->writeKey('writeoff_token', $operatorId, 0, $data + ['token_hash' => $this->hashSecret($token)]);
+        return $this->runIdempotent('writeoff_token', $key, ['operator_id' => $operatorId], '', function ($requestId) use ($token, $adminInfo, $key) {
             return $this->performCodeWriteoff($token, '', self::METHOD_QR, $adminInfo, $key, $requestId);
+        });
+    }
+
+    public function writeoffByStoreToken(string $token, array $operatorInfo = [], array $data = []): array
+    {
+        $operatorId = $this->operatorId($operatorInfo);
+        $key = $this->writeKey('store_writeoff_token', $operatorId, 0, $data + ['token_hash' => $this->hashSecret($token)]);
+        return $this->runIdempotent('store_writeoff_token', $key, ['operator_id' => $operatorId], '', function ($requestId) use ($token, $operatorInfo, $key) {
+            return $this->performCodeWriteoff($token, '', self::METHOD_QR, $operatorInfo, $key, $requestId);
         });
     }
 
     public function writeoffByDigital(string $digitalCode, array $adminInfo = [], array $data = []): array
     {
-        $adminId = (int)($adminInfo['id'] ?? 0);
+        $operatorId = $this->operatorId($adminInfo);
         $scope = $this->resolveDigitalWriteoffScope($adminInfo);
         $rateKey = $this->digitalRateLimitKey($scope);
         $this->assertDigitalRateAllowed($rateKey);
-        $key = $this->writeKey('writeoff_digital', $adminId, 0, $data + ['digital_hash' => $this->hashSecret($digitalCode)]);
+        $key = $this->writeKey('writeoff_digital', $operatorId, 0, $data + ['digital_hash' => $this->hashSecret($digitalCode)]);
         try {
-            $result = $this->runIdempotent('writeoff_digital', $key, ['admin_id' => $adminId], '', function ($requestId) use ($digitalCode, $adminInfo, $key, $scope) {
+            $result = $this->runIdempotent('writeoff_digital', $key, ['operator_id' => $operatorId], '', function ($requestId) use ($digitalCode, $adminInfo, $key, $scope) {
                 return $this->performCodeWriteoff('', $digitalCode, self::METHOD_DIGITAL, $adminInfo, $key, $requestId, $scope);
+            });
+            $this->resetDigitalFailures($rateKey);
+            return $result;
+        } catch (\Throwable $e) {
+            $this->recordDigitalFailure($rateKey);
+            throw $this->safeDigitalException($e);
+        }
+    }
+
+    public function writeoffByStoreDigital(string $digitalCode, array $operatorInfo = [], array $data = []): array
+    {
+        $operatorId = $this->operatorId($operatorInfo);
+        $scope = $this->resolveDigitalWriteoffScope($operatorInfo);
+        $rateKey = $this->digitalRateLimitKey($scope);
+        $this->assertDigitalRateAllowed($rateKey);
+        $key = $this->writeKey('store_writeoff_digital', $operatorId, 0, $data + ['digital_hash' => $this->hashSecret($digitalCode)]);
+        try {
+            $result = $this->runIdempotent('store_writeoff_digital', $key, ['operator_id' => $operatorId], '', function ($requestId) use ($digitalCode, $operatorInfo, $key, $scope) {
+                return $this->performCodeWriteoff('', $digitalCode, self::METHOD_DIGITAL, $operatorInfo, $key, $requestId, $scope);
             });
             $this->resetDigitalFailures($rateKey);
             return $result;
@@ -184,6 +223,16 @@ class ServiceAppointmentWriteoffServices extends ServiceAppointmentBaseServices
 
     public function adminList(array $where, array $adminInfo = []): array
     {
+        return $this->operatorList($where, $adminInfo);
+    }
+
+    public function storeOperatorList(array $where, array $operatorInfo = []): array
+    {
+        return $this->operatorList($where, $operatorInfo);
+    }
+
+    private function operatorList(array $where, array $operatorInfo = []): array
+    {
         $filter = $this->cleanWhere([
             'store_id' => (int)($where['store_id'] ?? 0) ?: '',
             'appointment_id' => (int)($where['appointment_id'] ?? 0) ?: '',
@@ -191,7 +240,7 @@ class ServiceAppointmentWriteoffServices extends ServiceAppointmentBaseServices
             'status' => $where['status'] ?? '',
             'writeoff_method' => $where['writeoff_method'] ?? '',
         ]);
-        $filter = app()->make(AdminStoreContextServices::class)->applyStoreFilter($filter, $adminInfo);
+        $filter = app()->make(AdminStoreContextServices::class)->applyStoreFilter($filter, $operatorInfo);
         return $this->pageList($filter, '*', 'id desc', function ($row) {
             return $this->formatWriteoffRecord($row, true);
         });
@@ -199,8 +248,18 @@ class ServiceAppointmentWriteoffServices extends ServiceAppointmentBaseServices
 
     public function adminDetail(int $id, array $adminInfo = []): array
     {
+        return $this->operatorDetail($id, $adminInfo);
+    }
+
+    public function storeOperatorDetail(int $id, array $operatorInfo = []): array
+    {
+        return $this->operatorDetail($id, $operatorInfo);
+    }
+
+    private function operatorDetail(int $id, array $operatorInfo = []): array
+    {
         $row = $this->requireRow($this->dao->get($id), 'writeoff_record_not_found');
-        $this->assertAdminStoreReadable($adminInfo, (int)$row['store_id']);
+        $this->assertAdminStoreReadable($operatorInfo, (int)$row['store_id']);
         return ['status' => 'ok', 'record' => $this->formatWriteoffRecord($row, true)];
     }
 
@@ -239,7 +298,8 @@ class ServiceAppointmentWriteoffServices extends ServiceAppointmentBaseServices
 
     private function completeWriteoff(array $appointment, array $code, string $method, array $adminInfo, string $idempotencyKey, string $requestId, string $reason): array
     {
-        $adminId = (int)($adminInfo['id'] ?? 0);
+        $operatorId = $this->operatorId($adminInfo);
+        $operatorType = $this->operatorType($adminInfo);
         $roleCode = $this->assertAdminCanWriteoff($adminInfo, (int)$appointment['store_id'], $method === self::METHOD_EXCEPTION);
         $existing = $this->dao->getOne(['appointment_id' => (int)$appointment['id'], 'status' => 'succeeded']);
         if ($existing || (string)$appointment['status'] === ServiceAppointmentBookingServices::STATUS_COMPLETED) {
@@ -276,8 +336,8 @@ class ServiceAppointmentWriteoffServices extends ServiceAppointmentBaseServices
             'benefit_lock_id' => (int)$benefitLock['id'],
             'dynamic_code_id' => (int)($code['id'] ?? 0),
             'writeoff_method' => $method,
-            'operator_type' => 'admin',
-            'operator_id' => $adminId,
+            'operator_type' => $operatorType,
+            'operator_id' => $operatorId,
             'operator_role_code' => $roleCode,
             'before_appointment_status' => (string)$appointment['status'],
             'after_appointment_status' => ServiceAppointmentBookingServices::STATUS_COMPLETED,
@@ -293,7 +353,7 @@ class ServiceAppointmentWriteoffServices extends ServiceAppointmentBaseServices
         $writeoffId = (int)$record->id;
 
         $consumption = app()->make(ServiceBenefitConsumptionServices::class)
-            ->consumeForServiceWriteoff($appointment, $benefitLock, $writeoffId, $adminId, $roleCode, (int)$appointment['store_id'], $requestId);
+            ->consumeForServiceWriteoff($appointment, $benefitLock, $writeoffId, $operatorId, $roleCode, (int)$appointment['store_id'], $requestId);
 
         app()->make(YfthServiceBenefitLockDao::class)->update((int)$benefitLock['id'], [
             'status' => 'consumed',
@@ -313,8 +373,8 @@ class ServiceAppointmentWriteoffServices extends ServiceAppointmentBaseServices
             'completed_at' => $now,
             'writeoff_id' => $writeoffId,
             'writeoff_store_id' => (int)$appointment['store_id'],
-            'writeoff_operator_id' => $adminId,
-            'writeoff_operator_type' => 'admin',
+            'writeoff_operator_id' => $operatorId,
+            'writeoff_operator_type' => $operatorType,
             'writeoff_method' => $method,
             'request_id' => $requestId,
             'update_time' => $now,
@@ -324,7 +384,7 @@ class ServiceAppointmentWriteoffServices extends ServiceAppointmentBaseServices
             app()->make(YfthServiceDynamicCodeDao::class)->update((int)$code['id'], [
                 'status' => self::CODE_STATUS_USED,
                 'used_time' => $now,
-                'used_admin_id' => $adminId,
+                'used_admin_id' => $operatorId,
                 'used_role_code' => $roleCode,
                 'used_writeoff_id' => $writeoffId,
                 'active_key' => null,
@@ -342,11 +402,11 @@ class ServiceAppointmentWriteoffServices extends ServiceAppointmentBaseServices
         ];
         $this->dao->update($writeoffId, ['snapshot' => $this->jsonEncode($snapshot), 'update_time' => $now]);
 
-        $this->recordEvent((int)$appointment['id'], 'checked_in', (string)$appointment['status'], (string)$appointment['status'], 'admin', $adminId, (int)$appointment['store_id'], $appointment, $after, $reason, $requestId);
-        $this->recordEvent((int)$appointment['id'], 'benefit_written_off', (string)$appointment['status'], (string)$appointment['status'], 'admin', $adminId, (int)$appointment['store_id'], $appointment, $after, $reason, $requestId);
-        $this->recordEvent((int)$appointment['id'], 'completed', (string)$appointment['status'], ServiceAppointmentBookingServices::STATUS_COMPLETED, 'admin', $adminId, (int)$appointment['store_id'], $appointment, $after, $reason, $requestId);
-        $this->recordServiceAudit('appointment', (string)$appointment['id'], 'writeoff', $appointment, $after, $adminId, $roleCode, (int)$appointment['store_id'], $reason, $requestId);
-        $this->recordServiceAudit('writeoff_record', (string)$writeoffId, 'create', [], $snapshot, $adminId, $roleCode, (int)$appointment['store_id'], $reason, $requestId);
+        $this->recordEvent((int)$appointment['id'], 'checked_in', (string)$appointment['status'], (string)$appointment['status'], $operatorType, $operatorId, (int)$appointment['store_id'], $appointment, $after, $reason, $requestId);
+        $this->recordEvent((int)$appointment['id'], 'benefit_written_off', (string)$appointment['status'], (string)$appointment['status'], $operatorType, $operatorId, (int)$appointment['store_id'], $appointment, $after, $reason, $requestId);
+        $this->recordEvent((int)$appointment['id'], 'completed', (string)$appointment['status'], ServiceAppointmentBookingServices::STATUS_COMPLETED, $operatorType, $operatorId, (int)$appointment['store_id'], $appointment, $after, $reason, $requestId);
+        $this->recordServiceAudit('appointment', (string)$appointment['id'], 'writeoff', $appointment, $after, $operatorId, $roleCode, (int)$appointment['store_id'], $reason, $requestId);
+        $this->recordServiceAudit('writeoff_record', (string)$writeoffId, 'create', [], $snapshot, $operatorId, $roleCode, (int)$appointment['store_id'], $reason, $requestId);
 
         return [
             'status' => 'ok',
@@ -549,7 +609,7 @@ class ServiceAppointmentWriteoffServices extends ServiceAppointmentBaseServices
             throw new AdminException('store_scope_forbidden');
         }
         return [
-            'admin_id' => (int)($context['admin_id'] ?? ($adminInfo['id'] ?? 0)),
+            'operator_id' => $this->operatorIdFromContext($context, $adminInfo),
             'store_ids' => $storeIds,
             'primary_role_code' => (string)($context['primary_role_code'] ?? ''),
         ];
@@ -564,7 +624,7 @@ class ServiceAppointmentWriteoffServices extends ServiceAppointmentBaseServices
         } catch (\Throwable $e) {
             $ip = 'cli';
         }
-        return 'yfth:writeoff:digital_attempt:' . (int)($scope['admin_id'] ?? 0) . ':' . $storeKey . ':' . hash('sha256', $ip);
+        return 'yfth:writeoff:digital_attempt:' . (int)($scope['operator_id'] ?? 0) . ':' . $storeKey . ':' . hash('sha256', $ip);
     }
 
     private function assertDigitalRateAllowed(string $key): void
@@ -654,6 +714,26 @@ class ServiceAppointmentWriteoffServices extends ServiceAppointmentBaseServices
         throw new AdminException('headquarter_permission_required');
     }
 
+    private function operatorId(array $operatorInfo): int
+    {
+        $context = app()->make(AdminStoreContextServices::class)->resolve($operatorInfo);
+        return $this->operatorIdFromContext($context, $operatorInfo);
+    }
+
+    private function operatorIdFromContext(array $context, array $operatorInfo): int
+    {
+        if ((string)($context['operator_type'] ?? '') === AdminStoreContextServices::OPERATOR_USER_STORE_ROLE) {
+            return (int)($context['operator_uid'] ?? 0);
+        }
+        return (int)($context['admin_id'] ?? ($operatorInfo['id'] ?? 0));
+    }
+
+    private function operatorType(array $operatorInfo): string
+    {
+        $context = app()->make(AdminStoreContextServices::class)->resolve($operatorInfo);
+        return (string)($context['operator_type'] ?? AdminStoreContextServices::OPERATOR_ADMIN);
+    }
+
     private function assertAdminStoreReadable(array $adminInfo, int $storeId): void
     {
         app()->make(AdminStoreContextServices::class)->applyStoreFilter(['store_id' => $storeId], $adminInfo);
@@ -730,6 +810,7 @@ class ServiceAppointmentWriteoffServices extends ServiceAppointmentBaseServices
             'store_id' => (int)$row['store_id'],
             'service_project_id' => (int)$row['service_project_id'],
             'writeoff_method' => (string)$row['writeoff_method'],
+            'operator_type' => (string)($row['operator_type'] ?? ''),
             'operator_role_code' => (string)$row['operator_role_code'],
             'writeoff_time' => (int)$row['writeoff_time'],
             'status' => (string)$row['status'],

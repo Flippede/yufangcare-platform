@@ -40,9 +40,56 @@ It intentionally stays thin:
 - Appointment list/detail/confirm/reject/cancel delegates to `ServiceAppointmentBookingServices`.
 - Writeoff precheck/token/digital/list/detail/result delegates to `ServiceAppointmentWriteoffServices`.
 - Store order list/detail uses `StoreOrderDao` and `StoreOrderCartInfoDao` for read-only scoped queries.
-- Store-role context is converted into an admin-compatible store scope only inside the backend service so existing appointment/writeoff permission checks can be reused without exposing an admin token to the miniapp.
+- Store-role context is converted into an explicit YFTH business operator context, not a forged backend administrator context.
 
 The API controller is `crmeb/app/api/controller/v1/yfth/StoreWorkbenchController.php`.
+
+## Store Operator Context
+
+The previous "admin-compatible store scope" wording is historical and should not be used for the current implementation.
+
+The current user-token workbench creates an `operator_info` payload containing only:
+
+- `yfth_operator_context.operator_type = user_store_role`
+- `operator_uid`
+- `role_code`
+- `store_id`
+- `authorized_store_ids`
+- `primary_role_code`
+- `permission_scope`
+- `allowed_actions`
+- `source = yfth_user_token_store_workbench`
+
+It does not set a backend admin id, backend admin role, super-admin flag, `level`, `adminInfo`, or `yfth_admin_context`. `AdminStoreContextServices` now recognizes this explicit operator context separately from normal backend-admin context and normalizes it to store-scope data with `admin_id = 0`, `is_super = false`, `is_headquarter = false`, and `operator_type = user_store_role`.
+
+This keeps the reused appointment/writeoff permission path limited to store scope. It does not grant access to adminapi, backend role permissions, backend login, or headquarter exception writeoff.
+
+## Service Split
+
+The adapter does not copy the appointment or writeoff state machines.
+
+`ServiceAppointmentBookingServices` now exposes store-operator wrappers:
+
+- `storeOperatorList`
+- `storeOperatorDetail`
+- `confirmByStoreOperator`
+- `rejectByStoreOperator`
+- `cancelByStoreOperator`
+
+The existing backend-admin methods and the new user-store methods delegate into shared private core methods. The operation action names remain distinct (`store_confirm`, `store_reject`, `store_cancel`) so idempotency and audit can record the source without creating duplicate state transitions.
+
+`ServiceAppointmentWriteoffServices` now exposes store-operator wrappers:
+
+- `precheckByStoreToken`
+- `precheckByStoreDigital`
+- `writeoffByStoreToken`
+- `writeoffByStoreDigital`
+- `storeOperatorList`
+- `storeOperatorDetail`
+
+The final writeoff transaction, appointment completion, benefit consumption, writeoff record creation, event creation, and idempotency paths remain shared with the existing writeoff implementation. Store workbench writeoff uses `store_writeoff_token` and `store_writeoff_digital` idempotency actions and records `operator_type = user_store_role`.
+
+The legacy `used_admin_id` column continues to store the numeric operator id for compatibility with the existing table shape. For user-token store workbench writes, that value is the CRMEB user UID and must be interpreted together with `operator_type = user_store_role`.
 
 ## Role Rules
 
@@ -91,12 +138,72 @@ Appointment and writeoff mutations continue to go through the existing appointme
 
 The adapter passes the current user id and validated store role into the delegated service context. It does not create a parallel audit table and does not duplicate state-machine writes.
 
+Audit/event rows include the operator id, role code, and operator type where the underlying V1 tables support those fields. Appointment events and writeoff records were verified with `operator_type = user_store_role` for store workbench operations.
+
+Headquarter exception writeoff remains backend-admin only through `exceptionWriteoff()`. The user-token store workbench route group has no `writeoff/exception` route and the adapter does not call `exceptionWriteoff()`.
+
+## Runtime Validation
+
+The isolated runtime validation script is:
+
+```bash
+php crmeb/tests/yfth_store_workbench_adapter_real_flow_check.php
+```
+
+It performs lightweight static contract checks by default. When the local isolated environment variables are provided and `YFTH_STORE_WORKBENCH_REAL_FLOW_EXECUTE=1`, it starts or uses a local CRMEB API endpoint and validates the full HTTP path against real MySQL and Redis data.
+
+The completed validation used:
+
+- PHP 7.4.33 portable runtime.
+- MySQL Community Server 8.0.46.
+- Temporary MySQL port `33219`.
+- Temporary database `yfth_storewb_validation`.
+- Redis 5.0.14.1 on port `6381`, database `14`.
+- Local API base URL `http://127.0.0.1:18081`.
+- CRMEB install baseline from `crmeb/public/install/crmeb.sql`.
+- Current YFTH migrations applied after baseline import.
+- Temporary CRMEB users, tokens, stores, identities, appointments, service benefits, dynamic codes, writeoff records, and store orders.
+
+Validated HTTP routes include:
+
+- `GET /api/yfth/store_workbench/overview`
+- `GET /api/yfth/store_workbench/appointments`
+- `GET /api/yfth/store_workbench/appointments/:id`
+- `POST /api/yfth/store_workbench/appointments/:id/confirm`
+- `POST /api/yfth/store_workbench/appointments/:id/reject`
+- `POST /api/yfth/store_workbench/appointments/:id/cancel`
+- `POST /api/yfth/store_workbench/writeoff/precheck`
+- `POST /api/yfth/store_workbench/writeoff/token`
+- `POST /api/yfth/store_workbench/writeoff/digital`
+- `GET /api/yfth/store_workbench/writeoff/records`
+- `GET /api/yfth/store_workbench/writeoff/records/:id`
+- `GET /api/yfth/store_workbench/writeoff/result/:id`
+- `GET /api/yfth/store_workbench/orders`
+- `GET /api/yfth/store_workbench/orders/:id`
+
+Validation results:
+
+- Customer and service mentor tokens are forbidden from the store workbench.
+- Revoked identity and disabled-store role are forbidden.
+- Store staff can read appointments/orders and execute writeoff, but cannot confirm, reject, or cancel appointments.
+- Store manager can confirm, reject, and cancel only authorized-store appointments.
+- Franchisee can switch between authorized stores A and B, cannot use store C, and cannot perform write operations in an all-store context.
+- Cross-store appointment, writeoff, and order access is denied without business writes.
+- Digital-code precheck is read-only.
+- Digital-code and QR-token writeoff are idempotent; appointment completion, writeoff record, event, and benefit consumption are created exactly once.
+- Wrong digital-code attempts are limited; the sixth failure is rate-limited in the tested boundary.
+- Store order list/detail responses are store-scoped, field-whitelisted, masked, and read-only.
+- User-token headquarter exception writeoff is unavailable.
+
+The validation did not use production `.env`, production database, production Redis, production user data, real AppID/AppSecret, WeChat upload, or server deployment. Temporary MySQL, Redis, PHP extension files, API router files, environment files, and fixture data were cleaned after the run.
+
 ## Verification
 
 The lightweight backend contract check is:
 
 ```bash
 php crmeb/tests/yfth_store_workbench_adapter_contract_check.php
+php crmeb/tests/yfth_store_workbench_adapter_real_flow_check.php
 ```
 
 The uni-app shell contract check is:
@@ -107,3 +214,5 @@ node template/uni-app/tests/yfth_request_fallback_check.js
 ```
 
 Runtime H5 and mp-weixin build verification should continue to follow `docs/YFTH_UNIAPP_BUILD_GUIDE.md`.
+
+This branch still needs a read-only architecture audit before any `main` merge decision.

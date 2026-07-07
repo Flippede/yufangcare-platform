@@ -12,8 +12,11 @@ Completed in this adapter round:
 - Store order read-only list/detail.
 - Real server-side role and store validation through the existing YFTH business context.
 - Customer-token and `admin_token` isolation preserved.
+- The previous admin-compatible wording has been replaced by an explicit `yfth_operator_context` with `operator_type = user_store_role`; the user-token workbench does not forge backend admin identity.
+- Isolated MySQL 8.0.46 plus Redis plus local CRMEB HTTP validation now covers the store workbench route group through real CRMEB user tokens.
 
 The adapter is documented in `docs/YFTH_STORE_WORKBENCH_ADAPTER_ARCHITECTURE.md`.
+The runtime validation facts are documented in `docs/YFTH_STORE_WORKBENCH_RUNTIME_VALIDATION.md`.
 
 The earlier shell limitation that user-token store writeoff, store orders, and appointment management were not open is now historical for the shell V1 closure. It no longer represents the current state of the workbench adapter branch.
 
@@ -29,7 +32,7 @@ Implemented:
 - Add the unified workbench shell under `pages/yfth/workbench/*`.
 - Register the workbench pages in `pages.json`.
 - Keep existing YFTH package, appointment, dynamic-code, and CRMEB customer pages as the real customer surface.
-- Close user-token workbench links that previously pointed at admin writeoff/order pages until a formal store-side authentication adapter exists.
+- Close user-token workbench links that previously pointed at admin writeoff/order pages, then reconnect store appointment/writeoff/order capabilities through the formal user-token store workbench adapter.
 
 Not implemented:
 
@@ -92,11 +95,13 @@ The miniapp shell only selects a role and target store; real authorization remai
 
 Historical shell limitation:
 
-- Writeoff, backend store orders, and store appointment management still require a formal business-side authentication adapter or backend user-token API. This round intentionally closes those links instead of routing customer tokens into admin API pages.
+- Before the store workbench adapter branch, writeoff, backend store orders, and store appointment management required a formal business-side authentication adapter or backend user-token API. That limitation is historical for this branch.
 
 Current state:
 
 - The formal backend user-token adapter now exists for store appointment management, service writeoff, and store order read-only lookup.
+- Store workbench API calls use CRMEB user token routes under `yfth/store_workbench/*`; they do not call adminapi and do not request or persist `admin_token`.
+- Store workbench operations pass an explicit `user_store_role` operator context into the reused appointment/writeoff services and keep backend-admin context separate.
 - The adapter still does not implement procurement, inventory replenishment, product quota, franchise contracts, recommendation rewards, mentor real business, settlement, or revenue sharing.
 
 ## P1 Audit Fix - 2026-07-05
@@ -175,4 +180,4 @@ It verifies page registration, business-entry gating, role whitelist usage, uid-
 
 ## Next Round
 
-Recommended follow-up is a read-only architecture review of the formal miniapp shell before expanding business flows. Later rounds should build real business modules behind the shell one by one, with backend permissions, migrations, and tests added only when those capabilities are actually implemented.
+Recommended follow-up is a read-only architecture review of Store Workbench Business Adapter V1 before any `main` merge decision. Later rounds should build real business modules behind the shell one by one, with backend permissions, migrations, and tests added only when those capabilities are actually implemented.

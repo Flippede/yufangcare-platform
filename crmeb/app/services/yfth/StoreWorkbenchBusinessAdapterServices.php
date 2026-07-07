@@ -67,7 +67,7 @@ class StoreWorkbenchBusinessAdapterServices extends YfthFoundationBaseServices
     {
         $scope = $this->resolveStoreScope($request);
         $where['store_id'] = (int)$scope['context']['store_id'];
-        $result = app()->make(ServiceAppointmentBookingServices::class)->adminList($where, $scope['admin_info']);
+        $result = app()->make(ServiceAppointmentBookingServices::class)->storeOperatorList($where, $scope['operator_info']);
         $result['list'] = array_map(function ($row) use ($scope) {
             return $this->formatStoreAppointment($row, false, (string)$scope['context']['role_code']);
         }, $result['list'] ?? []);
@@ -77,7 +77,7 @@ class StoreWorkbenchBusinessAdapterServices extends YfthFoundationBaseServices
     public function appointmentDetail(Request $request, int $appointmentId): array
     {
         $scope = $this->resolveStoreScope($request);
-        $result = app()->make(ServiceAppointmentBookingServices::class)->adminDetail($appointmentId, $scope['admin_info']);
+        $result = app()->make(ServiceAppointmentBookingServices::class)->storeOperatorDetail($appointmentId, $scope['operator_info']);
         $appointment = $this->formatStoreAppointment($result, true, (string)$scope['context']['role_code']);
         $appointment['events'] = array_map(function ($event) {
             return [
@@ -97,7 +97,7 @@ class StoreWorkbenchBusinessAdapterServices extends YfthFoundationBaseServices
         $scope = $this->resolveStoreScope($request);
         $this->assertAppointmentOperateRole((string)$scope['context']['role_code']);
         return app()->make(ServiceAppointmentBookingServices::class)
-            ->confirmByAdmin($appointmentId, $reason, (int)$scope['context']['uid'], $scope['admin_info'], $data);
+            ->confirmByStoreOperator($appointmentId, $reason, $scope['operator_info'], $data);
     }
 
     public function rejectAppointment(Request $request, int $appointmentId, string $reason, array $data): array
@@ -105,7 +105,7 @@ class StoreWorkbenchBusinessAdapterServices extends YfthFoundationBaseServices
         $scope = $this->resolveStoreScope($request);
         $this->assertAppointmentOperateRole((string)$scope['context']['role_code']);
         return app()->make(ServiceAppointmentBookingServices::class)
-            ->rejectByAdmin($appointmentId, $reason, (int)$scope['context']['uid'], $scope['admin_info'], $data);
+            ->rejectByStoreOperator($appointmentId, $reason, $scope['operator_info'], $data);
     }
 
     public function cancelAppointment(Request $request, int $appointmentId, string $reason, array $data): array
@@ -113,7 +113,7 @@ class StoreWorkbenchBusinessAdapterServices extends YfthFoundationBaseServices
         $scope = $this->resolveStoreScope($request);
         $this->assertAppointmentOperateRole((string)$scope['context']['role_code']);
         return app()->make(ServiceAppointmentBookingServices::class)
-            ->cancelByAdmin($appointmentId, $reason, (int)$scope['context']['uid'], $scope['admin_info'], $data);
+            ->cancelByStoreOperator($appointmentId, $reason, $scope['operator_info'], $data);
     }
 
     public function writeoffPrecheck(Request $request, string $qrToken, string $digitalCode): array
@@ -121,30 +121,30 @@ class StoreWorkbenchBusinessAdapterServices extends YfthFoundationBaseServices
         $scope = $this->resolveStoreScope($request);
         $services = app()->make(ServiceAppointmentWriteoffServices::class);
         if (trim($qrToken) !== '') {
-            return $services->precheckByToken($qrToken, $scope['admin_info']);
+            return $services->precheckByStoreToken($qrToken, $scope['operator_info']);
         }
-        return $services->precheckByDigital($digitalCode, $scope['admin_info']);
+        return $services->precheckByStoreDigital($digitalCode, $scope['operator_info']);
     }
 
     public function writeoffByToken(Request $request, string $qrToken, array $data): array
     {
         $scope = $this->resolveStoreScope($request);
         return app()->make(ServiceAppointmentWriteoffServices::class)
-            ->writeoffByToken($qrToken, $scope['admin_info'], $data);
+            ->writeoffByStoreToken($qrToken, $scope['operator_info'], $data);
     }
 
     public function writeoffByDigital(Request $request, string $digitalCode, array $data): array
     {
         $scope = $this->resolveStoreScope($request);
         return app()->make(ServiceAppointmentWriteoffServices::class)
-            ->writeoffByDigital($digitalCode, $scope['admin_info'], $data);
+            ->writeoffByStoreDigital($digitalCode, $scope['operator_info'], $data);
     }
 
     public function writeoffList(Request $request, array $where): array
     {
         $scope = $this->resolveStoreScope($request);
         $where['store_id'] = (int)$scope['context']['store_id'];
-        $result = app()->make(ServiceAppointmentWriteoffServices::class)->adminList($where, $scope['admin_info']);
+        $result = app()->make(ServiceAppointmentWriteoffServices::class)->storeOperatorList($where, $scope['operator_info']);
         $result['list'] = array_map(function ($row) {
             return $this->formatStoreWriteoffRecord($row);
         }, $result['list'] ?? []);
@@ -154,7 +154,7 @@ class StoreWorkbenchBusinessAdapterServices extends YfthFoundationBaseServices
     public function writeoffDetail(Request $request, int $id): array
     {
         $scope = $this->resolveStoreScope($request);
-        $result = app()->make(ServiceAppointmentWriteoffServices::class)->adminDetail($id, $scope['admin_info']);
+        $result = app()->make(ServiceAppointmentWriteoffServices::class)->storeOperatorDetail($id, $scope['operator_info']);
         return ['record' => $this->formatStoreWriteoffRecord($result['record'] ?? [])];
     }
 
@@ -223,7 +223,7 @@ class StoreWorkbenchBusinessAdapterServices extends YfthFoundationBaseServices
             ->where('pid', 0)
             ->where('is_del', 0)
             ->where('is_system_del', 0)
-            ->field('id,order_id,uid,store_id,real_name,user_phone,user_address,total_num,total_price,total_postage,pay_price,pay_postage,paid,pay_type,status,refund_status,shipping_type,delivery_type,mark,add_time,pay_time')
+            ->field('id,order_id,uid,store_id,real_name,user_phone,user_address,total_num,total_price,total_postage,pay_price,pay_postage,paid,pay_type,status,refund_status,shipping_type,delivery_type,add_time,pay_time')
             ->find();
         if (!$row) {
             throw new ApiException('store_order_not_found');
@@ -247,29 +247,27 @@ class StoreWorkbenchBusinessAdapterServices extends YfthFoundationBaseServices
         app()->make(StoreAccessServices::class)->assertStoreActive($storeId);
         return [
             'context' => $context,
-            'admin_info' => $this->adminCompatibleStoreInfo($context),
+            'operator_info' => $this->storeOperatorInfo($context),
         ];
     }
 
-    private function adminCompatibleStoreInfo(array $context): array
+    private function storeOperatorInfo(array $context): array
     {
         $uid = (int)($context['uid'] ?? 0);
         $storeId = (int)($context['store_id'] ?? 0);
         $roleCode = (string)($context['role_code'] ?? '');
         return [
-            'id' => $uid,
-            'level' => 99,
-            'yfth_admin_context' => [
-                'admin_id' => $uid,
-                'is_super_admin' => false,
-                'is_headquarter_admin' => false,
-                'is_store_manager' => in_array($roleCode, self::STORE_OPERATE_ROLES, true),
-                'is_store_staff' => $roleCode === 'store_staff',
-                'store_ids' => [$storeId],
-                'store_role_codes' => [$roleCode],
-                'store_scope_roles' => [$storeId => [$roleCode]],
+            'yfth_operator_context' => [
+                'operator_type' => AdminStoreContextServices::OPERATOR_USER_STORE_ROLE,
+                'operator_uid' => $uid,
+                'role_code' => $roleCode,
+                'store_id' => $storeId,
+                'authorized_store_ids' => [$storeId],
                 'primary_role_code' => $roleCode,
                 'permission_scope' => (array)($context['permission_scope'] ?? []),
+                'allowed_actions' => $roleCode === 'store_staff'
+                    ? ['appointment.read', 'writeoff.execute', 'order.read']
+                    : ['appointment.read', 'appointment.confirm', 'appointment.reject', 'appointment.cancel', 'writeoff.execute', 'order.read'],
                 'source' => 'yfth_user_token_store_workbench',
             ],
         ];
@@ -345,6 +343,7 @@ class StoreWorkbenchBusinessAdapterServices extends YfthFoundationBaseServices
             'store_id' => (int)($row['store_id'] ?? 0),
             'service_project_id' => (int)($row['service_project_id'] ?? 0),
             'writeoff_method' => (string)($row['writeoff_method'] ?? ''),
+            'operator_type' => (string)($row['operator_type'] ?? ''),
             'operator_role_code' => (string)($row['operator_role_code'] ?? ''),
             'writeoff_time' => (int)($row['writeoff_time'] ?? 0),
             'status' => (string)($row['status'] ?? ''),
@@ -377,7 +376,6 @@ class StoreWorkbenchBusinessAdapterServices extends YfthFoundationBaseServices
         ];
         if ($detail) {
             $payload['user_address_masked'] = $this->maskAddress((string)($row['user_address'] ?? ''));
-            $payload['mark'] = (string)($row['mark'] ?? '');
         }
         return $payload;
     }

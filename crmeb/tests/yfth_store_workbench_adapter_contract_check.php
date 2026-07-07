@@ -65,7 +65,11 @@ foreach ([
     'store_workbench_role_forbidden',
     'store_staff_can_read_appointment_only',
     'yfth_user_token_store_workbench',
-    'headquarter_exception_writeoff',
+    'yfth_operator_context',
+    'OPERATOR_USER_STORE_ROLE',
+    'confirmByStoreOperator',
+    'writeoffByStoreToken',
+    'writeoffByStoreDigital',
     'maskPhone',
     'maskAddress',
 ] as $needle) {
@@ -79,8 +83,51 @@ foreach ([
     'exceptionWriteoff(',
     'AdminAuthTokenMiddleware',
     'admin_token',
+    'adminCompatibleStoreInfo',
+    "'level' => 99",
+    "'id' => \$uid",
+    "'admin_id' => \$uid",
+    "'mark' =>",
+    'field(\'id,order_id,uid,store_id,real_name,user_phone,user_address,total_num,total_price,total_postage,pay_price,pay_postage,paid,pay_type,status,refund_status,shipping_type,delivery_type,mark',
 ] as $needle) {
     $assert(strpos($service, $needle) === false, 'service_must_not_contain:' . $needle);
+}
+
+$adminContextService = $read('app/services/yfth/AdminStoreContextServices.php');
+foreach ([
+    'OPERATOR_USER_STORE_ROLE',
+    'yfth_operator_context',
+    'normalizeOperatorContext',
+    'emptyContext(0)',
+] as $needle) {
+    $assert(strpos($adminContextService, $needle) !== false, 'admin_context_contains:' . $needle);
+}
+
+$bookingService = $read('app/services/yfth/ServiceAppointmentBookingServices.php');
+foreach ([
+    'confirmByStoreOperator',
+    'rejectByStoreOperator',
+    'cancelByStoreOperator',
+    'storeOperatorList',
+    'storeOperatorDetail',
+    'operatorType',
+    'operatorRole',
+] as $needle) {
+    $assert(strpos($bookingService, $needle) !== false, 'booking_service_contains:' . $needle);
+}
+
+$writeoffService = $read('app/services/yfth/ServiceAppointmentWriteoffServices.php');
+foreach ([
+    'precheckByStoreToken',
+    'precheckByStoreDigital',
+    'writeoffByStoreToken',
+    'writeoffByStoreDigital',
+    'storeOperatorList',
+    'storeOperatorDetail',
+    "'operator_type' => \$operatorType",
+    "'writeoff_operator_type' => \$operatorType",
+] as $needle) {
+    $assert(strpos($writeoffService, $needle) !== false, 'writeoff_service_contains:' . $needle);
 }
 
 $uniApi = (string)file_get_contents($projectRoot . DIRECTORY_SEPARATOR . 'template/uni-app/api/yfth.js');

@@ -232,6 +232,16 @@ class ServiceAppointmentBookingServices extends ServiceAppointmentBaseServices
 
     public function adminList(array $where, array $adminInfo = []): array
     {
+        return $this->operatorList($where, $adminInfo);
+    }
+
+    public function storeOperatorList(array $where, array $operatorInfo = []): array
+    {
+        return $this->operatorList($where, $operatorInfo);
+    }
+
+    private function operatorList(array $where, array $operatorInfo = []): array
+    {
         $filter = $this->cleanWhere([
             'store_id' => (int)($where['store_id'] ?? 0) ?: '',
             'service_project_id' => (int)($where['service_project_id'] ?? 0) ?: '',
@@ -239,7 +249,7 @@ class ServiceAppointmentBookingServices extends ServiceAppointmentBaseServices
             'status' => $where['status'] ?? '',
             'service_date' => ($where['service_date'] ?? '') ? $this->serviceDateToInt($where['service_date']) : '',
         ]);
-        $filter = app()->make(AdminStoreContextServices::class)->applyStoreFilter($filter, $adminInfo);
+        $filter = app()->make(AdminStoreContextServices::class)->applyStoreFilter($filter, $operatorInfo);
         return $this->pageList($filter, '*', 'service_date desc,start_minute desc,id desc', function ($row) {
             return $this->formatAppointment($row);
         });
@@ -247,19 +257,39 @@ class ServiceAppointmentBookingServices extends ServiceAppointmentBaseServices
 
     public function adminDetail(int $appointmentId, array $adminInfo = []): array
     {
+        return $this->operatorDetail($appointmentId, $adminInfo);
+    }
+
+    public function storeOperatorDetail(int $appointmentId, array $operatorInfo = []): array
+    {
+        return $this->operatorDetail($appointmentId, $operatorInfo);
+    }
+
+    private function operatorDetail(int $appointmentId, array $operatorInfo = []): array
+    {
         $row = $this->appointmentById($appointmentId);
-        $this->assertAdminStoreReadable($adminInfo, (int)$row['store_id']);
+        $this->assertAdminStoreReadable($operatorInfo, (int)$row['store_id']);
         return $this->detailPayload($row);
     }
 
     public function confirmByAdmin(int $appointmentId, string $reason, int $adminId, array $adminInfo = [], array $data = []): array
     {
-        $this->assertAdminCanOperate($adminInfo, 0);
-        $key = $this->writeKey('admin_confirm', $adminId, $appointmentId, $data + ['reason' => $reason]);
-        return $this->runIdempotent('admin_confirm', $key, ['admin_id' => $adminId, 'id' => $appointmentId, 'reason' => $reason], (string)$appointmentId, function ($requestId) use ($appointmentId, $reason, $adminId, $adminInfo) {
-            return $this->transaction(function () use ($appointmentId, $reason, $adminId, $adminInfo, $requestId) {
+        return $this->confirmByOperator($appointmentId, $reason, $adminId, $adminInfo, $data, 'admin_confirm');
+    }
+
+    public function confirmByStoreOperator(int $appointmentId, string $reason, array $operatorInfo = [], array $data = []): array
+    {
+        return $this->confirmByOperator($appointmentId, $reason, $this->operatorId($operatorInfo), $operatorInfo, $data, 'store_confirm');
+    }
+
+    private function confirmByOperator(int $appointmentId, string $reason, int $operatorId, array $operatorInfo = [], array $data = [], string $action = 'admin_confirm'): array
+    {
+        $this->assertAdminCanOperate($operatorInfo, 0);
+        $key = $this->writeKey($action, $operatorId, $appointmentId, $data + ['reason' => $reason]);
+        return $this->runIdempotent($action, $key, ['operator_id' => $operatorId, 'id' => $appointmentId, 'reason' => $reason], (string)$appointmentId, function ($requestId) use ($appointmentId, $reason, $operatorId, $operatorInfo, $action) {
+            return $this->transaction(function () use ($appointmentId, $reason, $operatorId, $operatorInfo, $requestId, $action) {
                 $row = $this->lockAppointment($appointmentId);
-                $this->assertAdminCanOperate($adminInfo, (int)$row['store_id']);
+                $this->assertAdminCanOperate($operatorInfo, (int)$row['store_id']);
                 if ((string)$row['status'] !== self::STATUS_PENDING) {
                     throw new AdminException('appointment_status_not_pending_confirm');
                 }
@@ -272,13 +302,15 @@ class ServiceAppointmentBookingServices extends ServiceAppointmentBaseServices
                 $this->dao->update((int)$row['id'], [
                     'status' => self::STATUS_CONFIRMED,
                     'confirm_time' => time(),
-                    'confirm_operator_id' => $adminId,
+                    'confirm_operator_id' => $operatorId,
                     'request_id' => $requestId,
                     'update_time' => time(),
                 ]);
                 $after = $this->appointmentById((int)$row['id']);
-                $this->recordEvent((int)$row['id'], 'confirm', self::STATUS_PENDING, self::STATUS_CONFIRMED, 'admin', $adminId, (int)$row['store_id'], $before, $after, $reason ?: 'admin_confirm', $requestId);
-                $this->recordServiceAudit('appointment', (string)$row['id'], 'confirm', $before, $after, $adminId, $this->adminRole($adminInfo), (int)$row['store_id'], $reason ?: 'admin_confirm', $requestId);
+                $operatorType = $this->operatorType($operatorInfo);
+                $eventReason = $reason ?: $action;
+                $this->recordEvent((int)$row['id'], 'confirm', self::STATUS_PENDING, self::STATUS_CONFIRMED, $operatorType, $operatorId, (int)$row['store_id'], $before, $after, $eventReason, $requestId);
+                $this->recordServiceAudit('appointment', (string)$row['id'], 'confirm', $before, $after, $operatorId, $this->operatorRole($operatorInfo), (int)$row['store_id'], $eventReason, $requestId);
                 return ['status' => 'ok', 'appointment' => $this->formatAppointment($after)];
             });
         });
@@ -286,32 +318,52 @@ class ServiceAppointmentBookingServices extends ServiceAppointmentBaseServices
 
     public function rejectByAdmin(int $appointmentId, string $reason, int $adminId, array $adminInfo = [], array $data = []): array
     {
-        $this->assertAdminCanOperate($adminInfo, 0);
-        $key = $this->writeKey('admin_reject', $adminId, $appointmentId, $data + ['reason' => $reason]);
-        return $this->runIdempotent('admin_reject', $key, ['admin_id' => $adminId, 'id' => $appointmentId, 'reason' => $reason], (string)$appointmentId, function ($requestId) use ($appointmentId, $reason, $adminId, $adminInfo) {
-            return $this->transaction(function () use ($appointmentId, $reason, $adminId, $adminInfo, $requestId) {
+        return $this->rejectByOperator($appointmentId, $reason, $adminId, $adminInfo, $data, 'admin_reject');
+    }
+
+    public function rejectByStoreOperator(int $appointmentId, string $reason, array $operatorInfo = [], array $data = []): array
+    {
+        return $this->rejectByOperator($appointmentId, $reason, $this->operatorId($operatorInfo), $operatorInfo, $data, 'store_reject');
+    }
+
+    private function rejectByOperator(int $appointmentId, string $reason, int $operatorId, array $operatorInfo = [], array $data = [], string $action = 'admin_reject'): array
+    {
+        $this->assertAdminCanOperate($operatorInfo, 0);
+        $key = $this->writeKey($action, $operatorId, $appointmentId, $data + ['reason' => $reason]);
+        return $this->runIdempotent($action, $key, ['operator_id' => $operatorId, 'id' => $appointmentId, 'reason' => $reason], (string)$appointmentId, function ($requestId) use ($appointmentId, $reason, $operatorId, $operatorInfo, $action) {
+            return $this->transaction(function () use ($appointmentId, $reason, $operatorId, $operatorInfo, $requestId, $action) {
                 $row = $this->lockAppointment($appointmentId);
-                $this->assertAdminCanOperate($adminInfo, (int)$row['store_id']);
+                $this->assertAdminCanOperate($operatorInfo, (int)$row['store_id']);
                 if ((string)$row['status'] !== self::STATUS_PENDING) {
                     throw new AdminException('appointment_status_not_pending_confirm');
                 }
-                return $this->closeAppointment($row, self::STATUS_REJECTED, 'admin_reject', 'admin', $adminId, $reason ?: 'admin_reject', $requestId, $adminInfo);
+                return $this->closeAppointment($row, self::STATUS_REJECTED, $action, $this->operatorType($operatorInfo), $operatorId, $reason ?: $action, $requestId, $operatorInfo);
             });
         });
     }
 
     public function cancelByAdmin(int $appointmentId, string $reason, int $adminId, array $adminInfo = [], array $data = []): array
     {
-        $this->assertAdminCanOperate($adminInfo, 0);
-        $key = $this->writeKey('admin_cancel', $adminId, $appointmentId, $data + ['reason' => $reason]);
-        return $this->runIdempotent('admin_cancel', $key, ['admin_id' => $adminId, 'id' => $appointmentId, 'reason' => $reason], (string)$appointmentId, function ($requestId) use ($appointmentId, $reason, $adminId, $adminInfo) {
-            return $this->transaction(function () use ($appointmentId, $reason, $adminId, $adminInfo, $requestId) {
+        return $this->cancelByOperator($appointmentId, $reason, $adminId, $adminInfo, $data, 'admin_cancel');
+    }
+
+    public function cancelByStoreOperator(int $appointmentId, string $reason, array $operatorInfo = [], array $data = []): array
+    {
+        return $this->cancelByOperator($appointmentId, $reason, $this->operatorId($operatorInfo), $operatorInfo, $data, 'store_cancel');
+    }
+
+    private function cancelByOperator(int $appointmentId, string $reason, int $operatorId, array $operatorInfo = [], array $data = [], string $action = 'admin_cancel'): array
+    {
+        $this->assertAdminCanOperate($operatorInfo, 0);
+        $key = $this->writeKey($action, $operatorId, $appointmentId, $data + ['reason' => $reason]);
+        return $this->runIdempotent($action, $key, ['operator_id' => $operatorId, 'id' => $appointmentId, 'reason' => $reason], (string)$appointmentId, function ($requestId) use ($appointmentId, $reason, $operatorId, $operatorInfo, $action) {
+            return $this->transaction(function () use ($appointmentId, $reason, $operatorId, $operatorInfo, $requestId, $action) {
                 $row = $this->lockAppointment($appointmentId);
-                $this->assertAdminCanOperate($adminInfo, (int)$row['store_id']);
+                $this->assertAdminCanOperate($operatorInfo, (int)$row['store_id']);
                 if (!in_array((string)$row['status'], [self::STATUS_PENDING, self::STATUS_CONFIRMED], true)) {
                     throw new AdminException('appointment_status_not_cancelable');
                 }
-                return $this->closeAppointment($row, self::STATUS_CANCELLED, 'admin_cancel', 'admin', $adminId, $reason ?: 'admin_cancel', $requestId, $adminInfo);
+                return $this->closeAppointment($row, self::STATUS_CANCELLED, $action, $this->operatorType($operatorInfo), $operatorId, $reason ?: $action, $requestId, $operatorInfo);
             });
         });
     }
@@ -573,7 +625,7 @@ class ServiceAppointmentBookingServices extends ServiceAppointmentBaseServices
         $before = $row;
         $this->dao->update((int)$row['id'], $update);
         $after = $this->appointmentById((int)$row['id']);
-        $role = $operatorType === 'admin' ? $this->adminRole($adminInfo) : 'user';
+        $role = $operatorType === 'user' ? 'user' : $this->operatorRole($adminInfo);
         $this->recordEvent((int)$row['id'], $event, $fromStatus, $toStatus, $operatorType, $operatorId, (int)$row['store_id'], $before, $after, $reason, $requestId);
         $this->recordServiceAudit('appointment', (string)$row['id'], $event, $before, $after, $operatorId, $role, (int)$row['store_id'], $reason, $requestId);
         return ['status' => 'ok', 'appointment' => $this->formatAppointment($after)];
@@ -851,8 +903,28 @@ class ServiceAppointmentBookingServices extends ServiceAppointmentBaseServices
 
     private function adminRole(array $adminInfo): string
     {
-        $context = app()->make(AdminStoreContextServices::class)->resolve($adminInfo);
+        return $this->operatorRole($adminInfo);
+    }
+
+    private function operatorRole(array $operatorInfo): string
+    {
+        $context = app()->make(AdminStoreContextServices::class)->resolve($operatorInfo);
         return (string)($context['primary_role_code'] ?? 'admin');
+    }
+
+    private function operatorType(array $operatorInfo): string
+    {
+        $context = app()->make(AdminStoreContextServices::class)->resolve($operatorInfo);
+        return (string)($context['operator_type'] ?? AdminStoreContextServices::OPERATOR_ADMIN);
+    }
+
+    private function operatorId(array $operatorInfo): int
+    {
+        $context = app()->make(AdminStoreContextServices::class)->resolve($operatorInfo);
+        if ((string)($context['operator_type'] ?? '') === AdminStoreContextServices::OPERATOR_USER_STORE_ROLE) {
+            return (int)($context['operator_uid'] ?? 0);
+        }
+        return (int)($context['admin_id'] ?? ($operatorInfo['id'] ?? 0));
     }
 
     private function projectBenefitTemplateIds(array $project): array
