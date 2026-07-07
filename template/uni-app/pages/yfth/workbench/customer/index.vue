@@ -10,7 +10,7 @@
 		</view>
 
 		<view class="search-panel">
-			<input v-model="where.keyword" placeholder="按客户 UID 查询" @confirm="load(true)" />
+			<input v-model="where.keyword" placeholder="按客户关系ID查询" @confirm="load(true)" />
 			<picker mode="selector" :range="statusOptions" range-key="label" @change="changeStatus">
 				<view class="picker">{{ currentStatusLabel }}</view>
 			</picker>
@@ -20,10 +20,13 @@
 		<view class="bind-panel">
 			<view class="panel-title">客户归属绑定</view>
 			<view class="bind-row">
-				<input v-model="bindForm.uid" type="number" placeholder="输入客户 UID" />
+				<picker mode="selector" :range="sourceOptions" range-key="label" @change="changeSource">
+					<view class="picker">{{ currentSourceLabel }}</view>
+				</picker>
+				<input v-model="bindForm.reference_id" type="number" placeholder="输入来源记录ID" />
 				<button @click="bindCustomer">绑定</button>
 			</view>
-			<view class="hint">仅用于当前门店首次归属绑定；已有活跃归属不可被其他门店抢占。</view>
+			<view class="hint">仅允许从本店真实订单、预约或核销记录建立归属；不能直接输入客户 UID。</view>
 		</view>
 
 		<view v-if="loading" class="empty">正在加载客户...</view>
@@ -32,7 +35,7 @@
 			<view v-for="item in list" :key="item.id" class="customer-card" @click="goDetail(item)">
 				<view class="card-top">
 					<view>
-						<view class="name">{{ item.nickname || ('客户 #' + item.uid) }}</view>
+						<view class="name">{{ item.nickname || ('客户关系 #' + item.id) }}</view>
 						<view class="muted">{{ item.phone_masked || '未留手机号' }} · {{ item.source_text }}</view>
 					</view>
 					<view class="status">{{ item.customer_status_text }}</view>
@@ -58,7 +61,12 @@ export default {
 			context: {},
 			where: { keyword: '', customer_status: '', page: 1, limit: 20 },
 			list: [],
-			bindForm: { uid: '' },
+			bindForm: { source: 'order', reference_id: '' },
+			sourceOptions: [
+				{ label: '订单', value: 'order' },
+				{ label: '预约', value: 'appointment' },
+				{ label: '核销', value: 'writeoff' }
+			],
 			statusOptions: [
 				{ label: '全部状态', value: '' },
 				{ label: '潜在客户', value: 'potential' },
@@ -75,6 +83,10 @@ export default {
 		currentStatusLabel() {
 			const found = this.statusOptions.find((item) => item.value === this.where.customer_status);
 			return found ? found.label : '全部状态';
+		},
+		currentSourceLabel() {
+			const found = this.sourceOptions.find((item) => item.value === this.bindForm.source);
+			return found ? found.label : '订单';
 		}
 	},
 	onShow() {
@@ -111,18 +123,22 @@ export default {
 			this.where.customer_status = this.statusOptions[index].value;
 			this.load(true);
 		},
+		changeSource(event) {
+			const index = Number(event.detail.value || 0);
+			this.bindForm.source = this.sourceOptions[index].value;
+		},
 		bindCustomer() {
-			const uid = Number(this.bindForm.uid || 0);
-			if (!uid) {
-				uni.showToast({ title: '请输入客户 UID', icon: 'none' });
+			const referenceId = Number(this.bindForm.reference_id || 0);
+			if (!referenceId) {
+				uni.showToast({ title: '请输入来源记录ID', icon: 'none' });
 				return;
 			}
 			createYfthCustomerRelation(this.contextParams({
-				uid,
-				source: 'store_visit',
+				source: this.bindForm.source,
+				reference_id: referenceId,
 				customer_status: 'potential'
 			})).then(() => {
-				this.bindForm.uid = '';
+				this.bindForm.reference_id = '';
 				uni.showToast({ title: '绑定成功', icon: 'success' });
 				this.load(true);
 			}).catch((err) => {

@@ -2,7 +2,7 @@
 	<view class="page">
 		<view class="profile">
 			<view>
-				<view class="name">{{ customer.nickname || ('客户 #' + customer.uid) }}</view>
+				<view class="name">{{ customer.nickname || ('客户关系 #' + customer.id) }}</view>
 				<view class="muted">{{ customer.phone_masked || '未留手机号' }} · {{ customer.source_text }}</view>
 			</view>
 			<view class="status">{{ customer.customer_status_text }}</view>
@@ -10,11 +10,9 @@
 
 		<view class="panel">
 			<view class="panel-title">客户概况</view>
-			<view class="line">客户 UID：{{ customer.uid }}</view>
-			<view class="line">归属门店：{{ customer.store_id }}</view>
-			<view class="line">绑定时间：{{ formatTime(customer.bind_time) }}</view>
-			<view class="line">5980 套餐：{{ customer.has_5980_package ? '已购买' : '暂无' }}</view>
-			<view class="line">预约记录：{{ customer.has_appointment ? '已有' : '暂无' }}</view>
+			<view class="line">归属来源：{{ customer.source_text }}</view>
+			<view class="line">5980 套餐：{{ customer.package_status === 'active' ? '已购买' : '暂无' }}</view>
+			<view class="line">服务状态：{{ customer.service_status === 'has_appointment' ? '已有预约' : '暂无预约' }}</view>
 		</view>
 
 		<view class="panel">
@@ -27,7 +25,7 @@
 				<view v-for="item in follows" :key="item.id" class="follow-card">
 					<view class="row">
 						<view class="strong">{{ item.follow_type_text }}</view>
-						<view class="muted">{{ formatTime(item.create_time) }}</view>
+						<view class="muted">{{ formatTime(item.follow_time) }}</view>
 					</view>
 					<view class="content">{{ item.content }}</view>
 					<view v-if="item.next_follow_time" class="muted">下次跟进：{{ formatTime(item.next_follow_time) }}</view>

@@ -3,11 +3,13 @@
 namespace app\services\yfth;
 
 use app\Request;
+use app\dao\order\StoreOrderDao;
 use app\dao\user\UserDao;
 use app\dao\yfth\YfthCustomerFollowRecordDao;
 use app\dao\yfth\YfthCustomerRelationDao;
 use app\dao\yfth\YfthPackageInstanceDao;
 use app\dao\yfth\YfthServiceAppointmentDao;
+use app\dao\yfth\YfthServiceWriteoffRecordDao;
 use crmeb\exceptions\ApiException;
 use think\facade\Db;
 
@@ -16,7 +18,7 @@ class FranchiseCustomerServices extends YfthFoundationBaseServices
     private const DOMAIN = 'yfth_franchise_customer';
     private const STORE_ROLES = ['franchisee', 'store_manager', 'store_staff'];
     private const CUSTOMER_STATUSES = ['potential', 'leads', 'registered', 'purchased', 'serving', 'repeat', 'lost'];
-    private const SOURCES = ['franchise_referral', 'store_visit', 'qr_scan', 'activity', 'online', 'headquarters_assign'];
+    private const TRUSTED_ATTRIBUTION_SOURCES = ['order', 'appointment', 'writeoff'];
     private const FOLLOW_TYPES = ['phone', 'wechat', 'store_visit', 'other'];
 
     public function __construct(YfthCustomerRelationDao $dao)
@@ -27,28 +29,22 @@ class FranchiseCustomerServices extends YfthFoundationBaseServices
     public function bindCustomer(Request $request, array $data): array
     {
         $scope = $this->resolveStoreScope($request);
-        $uid = (int)($data['uid'] ?? 0);
-        if ($uid <= 0) {
-            throw new ApiException('customer_uid_required');
-        }
-        $user = app()->make(UserDao::class)->get($uid, ['uid', 'nickname', 'avatar', 'phone']);
-        if (!$user) {
-            throw new ApiException('customer_user_not_found');
+        if (!empty($data['_direct_customer_field_submitted'])) {
+            throw new ApiException('direct_customer_binding_forbidden');
         }
 
-        $source = $this->normalizeSource((string)($data['source'] ?? 'store_visit'));
-        $customerStatus = $this->normalizeCustomerStatus((string)($data['customer_status'] ?? 'potential'));
         $storeId = (int)$scope['context']['store_id'];
+        $source = $this->normalizeAttributionSource((string)($data['source'] ?? ''), true);
+        $referenceId = (int)($data['reference_id'] ?? 0);
+        $sourceRecord = $this->resolveTrustedAttribution($source, $referenceId, $storeId);
+        $uid = (int)$sourceRecord['uid'];
+        $customerStatus = $this->normalizeCustomerStatus((string)($data['customer_status'] ?? 'potential'));
         $operatorUid = (int)$scope['context']['uid'];
 
-        return Db::transaction(function () use ($uid, $storeId, $operatorUid, $source, $customerStatus, $scope) {
+        return Db::transaction(function () use ($uid, $storeId, $operatorUid, $source, $referenceId, $customerStatus, $scope, $sourceRecord) {
             $active = $this->dao->getOne(['active_key' => (string)$uid]);
             if ($active) {
-                $active = is_array($active) ? $active : $active->toArray();
-                if ((int)$active['store_id'] !== $storeId) {
-                    throw new ApiException('customer_relation_already_bound');
-                }
-                return ['relation' => $this->formatRelation($active, true)];
+                throw new ApiException('already_bound');
             }
 
             $now = time();
@@ -57,6 +53,7 @@ class FranchiseCustomerServices extends YfthFoundationBaseServices
                 'store_id' => $storeId,
                 'owner_uid' => $operatorUid,
                 'source' => $source,
+                'reference_id' => $referenceId,
                 'customer_status' => $customerStatus,
                 'status' => YfthConstants::STATUS_ACTIVE,
                 'bind_time' => $now,
@@ -65,7 +62,9 @@ class FranchiseCustomerServices extends YfthFoundationBaseServices
                 'active_key' => (string)$uid,
             ]);
             $relation = is_array($row) ? $row : $row->toArray();
-            $this->audit('customer_relation', (int)$relation['id'], 'bind', [], $relation, $scope);
+            $this->audit('customer_relation', (int)$relation['id'], 'bind', [], array_merge($relation, [
+                'trusted_source' => $sourceRecord['summary'],
+            ]), $scope);
             return ['relation' => $this->formatRelation($relation, true)];
         });
     }
@@ -87,20 +86,23 @@ class FranchiseCustomerServices extends YfthFoundationBaseServices
             }
             $source = trim((string)($where['source'] ?? ''));
             if ($source !== '') {
-                $query->where('source', $this->normalizeSource($source));
+                $normalizedSource = $this->normalizeAttributionSource($source, false);
+                if ($normalizedSource !== '') {
+                    $query->where('source', $normalizedSource);
+                }
             }
             $keyword = trim((string)($where['keyword'] ?? ''));
             if ($keyword !== '' && ctype_digit($keyword)) {
-                $query->where('uid', (int)$keyword);
+                $query->where('id', (int)$keyword);
             }
             return $query;
         };
 
         $count = (int)$buildQuery()->count();
         $relations = $buildQuery()
-            ->field('id,uid,store_id,owner_uid,source,customer_status,status,bind_time,create_time,update_time')
+            ->field('id,uid,store_id,source,reference_id,customer_status,status')
             ->page($page, $limit)
-            ->order('update_time desc,id desc')
+            ->order('id desc')
             ->select()
             ->toArray();
 
@@ -207,9 +209,6 @@ class FranchiseCustomerServices extends YfthFoundationBaseServices
         $storeId = (int)($relation['store_id'] ?? 0);
         $payload = [
             'id' => $relationId,
-            'uid' => $uid,
-            'store_id' => $storeId,
-            'owner_uid' => (int)($relation['owner_uid'] ?? 0),
             'nickname' => (string)($user['nickname'] ?? ''),
             'avatar' => (string)($user['avatar'] ?? ''),
             'phone_masked' => $this->maskPhone((string)($user['phone'] ?? '')),
@@ -217,14 +216,12 @@ class FranchiseCustomerServices extends YfthFoundationBaseServices
             'source_text' => $this->sourceText((string)($relation['source'] ?? '')),
             'customer_status' => (string)($relation['customer_status'] ?? ''),
             'customer_status_text' => $this->customerStatusText((string)($relation['customer_status'] ?? '')),
-            'status' => (string)($relation['status'] ?? ''),
-            'bind_time' => (int)($relation['bind_time'] ?? 0),
-            'create_time' => (int)($relation['create_time'] ?? 0),
-            'update_time' => (int)($relation['update_time'] ?? 0),
             'has_5980_package' => $this->hasPackage($uid),
             'has_appointment' => $this->hasAppointment($uid, $storeId),
             'latest_follow_time' => $this->latestFollowTime($relationId, $storeId),
         ];
+        $payload['package_status'] = $payload['has_5980_package'] ? 'active' : 'none';
+        $payload['service_status'] = $payload['has_appointment'] ? 'has_appointment' : 'none';
         if ($detail) {
             $payload['follow_summary'] = [
                 'latest_follow_time' => $payload['latest_follow_time'],
@@ -238,15 +235,84 @@ class FranchiseCustomerServices extends YfthFoundationBaseServices
     {
         return [
             'id' => (int)($row['id'] ?? 0),
-            'customer_relation_id' => (int)($row['customer_relation_id'] ?? 0),
-            'uid' => (int)($row['uid'] ?? 0),
-            'store_id' => (int)($row['store_id'] ?? 0),
-            'operator_uid' => (int)($row['operator_uid'] ?? 0),
             'follow_type' => (string)($row['follow_type'] ?? ''),
             'follow_type_text' => $this->followTypeText((string)($row['follow_type'] ?? '')),
             'content' => (string)($row['content'] ?? ''),
             'next_follow_time' => (int)($row['next_follow_time'] ?? 0),
-            'create_time' => (int)($row['create_time'] ?? 0),
+            'follow_time' => (int)($row['create_time'] ?? 0),
+        ];
+    }
+
+    private function resolveTrustedAttribution(string $source, int $referenceId, int $storeId): array
+    {
+        if ($referenceId <= 0) {
+            throw new ApiException('customer_reference_id_required');
+        }
+
+        if ($source === 'order') {
+            $row = app()->make(StoreOrderDao::class)->get($referenceId, ['id', 'uid', 'store_id', 'order_id', 'paid', 'pid', 'is_del', 'is_system_del']);
+            $row = $this->trustedSourceRow($row);
+            $this->assertTrustedSourceStore($row, $storeId);
+            if ((int)($row['paid'] ?? 0) !== 1 || (int)($row['pid'] ?? 0) !== 0 || (int)($row['is_del'] ?? 0) !== 0 || (int)($row['is_system_del'] ?? 0) !== 0) {
+                throw new ApiException('customer_source_not_eligible');
+            }
+            return $this->trustedSourcePayload($row, 'order', ['order_id' => (string)($row['order_id'] ?? '')]);
+        }
+
+        if ($source === 'appointment') {
+            $row = app()->make(YfthServiceAppointmentDao::class)->get($referenceId, ['id', 'uid', 'store_id', 'appointment_no', 'status']);
+            $row = $this->trustedSourceRow($row);
+            $this->assertTrustedSourceStore($row, $storeId);
+            if (in_array((string)($row['status'] ?? ''), ['cancelled', 'rejected'], true)) {
+                throw new ApiException('customer_source_not_eligible');
+            }
+            return $this->trustedSourcePayload($row, 'appointment', ['appointment_no' => (string)($row['appointment_no'] ?? '')]);
+        }
+
+        if ($source === 'writeoff') {
+            $row = app()->make(YfthServiceWriteoffRecordDao::class)->get($referenceId, ['id', 'uid', 'store_id', 'writeoff_no', 'appointment_id', 'status']);
+            $row = $this->trustedSourceRow($row);
+            $this->assertTrustedSourceStore($row, $storeId);
+            if ((string)($row['status'] ?? '') !== 'succeeded') {
+                throw new ApiException('customer_source_not_eligible');
+            }
+            return $this->trustedSourcePayload($row, 'writeoff', ['writeoff_no' => (string)($row['writeoff_no'] ?? '')]);
+        }
+
+        throw new ApiException('customer_source_not_supported');
+    }
+
+    private function trustedSourceRow($row): array
+    {
+        if (!$row) {
+            throw new ApiException('customer_source_not_found');
+        }
+        $row = is_array($row) ? $row : $row->toArray();
+        if ((int)($row['uid'] ?? 0) <= 0) {
+            throw new ApiException('customer_source_uid_missing');
+        }
+        return $row;
+    }
+
+    private function assertTrustedSourceStore(array $row, int $storeId): void
+    {
+        if ((int)($row['store_id'] ?? 0) !== $storeId) {
+            throw new ApiException('customer_source_store_forbidden');
+        }
+    }
+
+    private function trustedSourcePayload(array $row, string $source, array $summary = []): array
+    {
+        return [
+            'uid' => (int)$row['uid'],
+            'source' => $source,
+            'reference_id' => (int)$row['id'],
+            'summary' => array_merge([
+                'source' => $source,
+                'reference_id' => (int)$row['id'],
+                'uid' => (int)$row['uid'],
+                'store_id' => (int)$row['store_id'],
+            ], $summary),
         ];
     }
 
@@ -332,10 +398,16 @@ class FranchiseCustomerServices extends YfthFoundationBaseServices
         return in_array($status, self::CUSTOMER_STATUSES, true) ? $status : 'potential';
     }
 
-    private function normalizeSource(string $source): string
+    private function normalizeAttributionSource(string $source, bool $strict): string
     {
         $source = trim($source);
-        return in_array($source, self::SOURCES, true) ? $source : 'store_visit';
+        if (in_array($source, self::TRUSTED_ATTRIBUTION_SOURCES, true)) {
+            return $source;
+        }
+        if ($strict) {
+            throw new ApiException('customer_source_not_supported');
+        }
+        return '';
     }
 
     private function normalizeFollowType(string $type): string
@@ -361,11 +433,9 @@ class FranchiseCustomerServices extends YfthFoundationBaseServices
     private function sourceText(string $source): string
     {
         $map = [
-            'franchise_referral' => '加盟商推荐',
-            'store_visit' => '到店',
-            'qr_scan' => '扫码',
-            'activity' => '活动',
-            'online' => '线上',
+            'order' => '订单',
+            'appointment' => '预约',
+            'writeoff' => '核销',
             'headquarters_assign' => '总部分配',
         ];
         return $map[$source] ?? $source;

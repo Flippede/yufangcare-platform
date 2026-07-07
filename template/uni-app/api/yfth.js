@@ -193,9 +193,26 @@ export function getYfthCustomerDetail(id, data) {
 }
 
 export function createYfthCustomerRelation(data) {
-	return request.post('yfth/customer/relation', data || {});
+	const payload = splitYfthContext(data || {});
+	return request.post('yfth/customer/relation' + payload.query, payload.body);
 }
 
 export function addYfthCustomerFollow(id, data) {
-	return request.post('yfth/customer/' + id + '/follow', data || {});
+	const payload = splitYfthContext(data || {});
+	return request.post('yfth/customer/' + id + '/follow' + payload.query, payload.body);
+}
+
+function splitYfthContext(data) {
+	const body = Object.assign({}, data || {});
+	const query = {};
+	['role_code', 'store_id'].forEach((key) => {
+		if (body[key] !== undefined && body[key] !== null && body[key] !== '') {
+			query[key] = body[key];
+			delete body[key];
+		}
+	});
+	const queryString = Object.keys(query).length ? ('?' + Object.keys(query).map((key) => {
+		return encodeURIComponent(key) + '=' + encodeURIComponent(query[key]);
+	}).join('&')) : '';
+	return { body, query: queryString };
 }

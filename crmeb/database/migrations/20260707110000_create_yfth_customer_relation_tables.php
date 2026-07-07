@@ -18,7 +18,8 @@ class CreateYfthCustomerRelationTables extends Migrator
             ->addColumn('uid', 'integer', ['signed' => false, 'default' => 0, 'comment' => 'CRMEB user id'])
             ->addColumn('store_id', 'integer', ['signed' => false, 'default' => 0, 'comment' => 'operating store id'])
             ->addColumn('owner_uid', 'integer', ['signed' => false, 'default' => 0, 'comment' => 'first binding operator uid'])
-            ->addColumn('source', 'string', ['limit' => 48, 'default' => 'store_visit', 'comment' => 'customer source'])
+            ->addColumn('source', 'string', ['limit' => 48, 'default' => 'order', 'comment' => 'trusted attribution source'])
+            ->addColumn('reference_id', 'integer', ['signed' => false, 'default' => 0, 'comment' => 'trusted source record id'])
             ->addColumn('customer_status', 'string', ['limit' => 32, 'default' => 'potential', 'comment' => 'potential/leads/registered/purchased/serving/repeat/lost'])
             ->addColumn('status', 'string', ['limit' => 24, 'default' => 'active', 'comment' => 'active/inactive'])
             ->addColumn('bind_time', 'integer', ['signed' => false, 'default' => 0, 'comment' => 'binding time'])
@@ -28,7 +29,7 @@ class CreateYfthCustomerRelationTables extends Migrator
             ->addIndex(['uid'], ['name' => 'idx_yfth_customer_relation_uid'])
             ->addIndex(['store_id', 'status'], ['name' => 'idx_yfth_customer_relation_store_status'])
             ->addIndex(['owner_uid'], ['name' => 'idx_yfth_customer_relation_owner'])
-            ->addIndex(['source'], ['name' => 'idx_yfth_customer_relation_source'])
+            ->addIndex(['source', 'reference_id'], ['name' => 'idx_yfth_customer_relation_source_ref'])
             ->addIndex(['customer_status'], ['name' => 'idx_yfth_customer_relation_customer_status'])
             ->addIndex(['active_key'], ['unique' => true, 'name' => 'uniq_yfth_customer_relation_active'])
             ->create();

@@ -6,6 +6,8 @@ Franchise Customer CRM V1 establishes the customer relationship foundation for t
 
 This V1 does not implement recommendation rewards, distribution rebate, franchise contracts, procurement, inventory, product quota, settlement, revenue sharing, or supply-chain flows.
 
+P1 closure status: direct `uid -> customer_relation` binding is deprecated and forbidden. Customer attribution must now be created from a trusted same-store business record.
+
 ## Stable Base Reused
 
 - Customer identity remains CRMEB `user.uid`.
@@ -27,13 +29,29 @@ Core fields:
 - `uid`: CRMEB customer uid.
 - `store_id`: operating store.
 - `owner_uid`: first binding operator uid.
-- `source`: customer source, such as `store_visit`, `qr_scan`, `activity`, `online`, `franchise_referral`, or `headquarters_assign`.
+- `source`: trusted attribution source. Current accepted values are `order`, `appointment`, and `writeoff`; `headquarters_assign` is reserved for a later audited headquarters allocation flow.
+- `reference_id`: trusted source record id.
 - `customer_status`: display/status field, one of `potential`, `leads`, `registered`, `purchased`, `serving`, `repeat`, `lost`.
 - `status`: active/inactive.
 - `bind_time`, `create_time`, `update_time`.
 - `active_key`: nullable unique guard. Active records use `uid` as the unique key, preventing a customer from being actively owned by multiple stores.
 
 This V1 does not implement headquarters transfer. Later transfer must explicitly close the old active relation and create a new relation through an audited headquarters flow.
+
+## Trusted Attribution Model
+
+`POST /api/yfth/customer/relation` no longer accepts customer identifiers from the client. The request must provide:
+
+- `source`: one of `order`, `appointment`, or `writeoff`.
+- `reference_id`: the corresponding business record id.
+
+The service resolves the real CRMEB `uid` server-side:
+
+- `order`: reads `store_order`, requires paid main order, not deleted, and same `store_id`.
+- `appointment`: reads `yfth_service_appointment`, requires same `store_id` and not cancelled/rejected.
+- `writeoff`: reads `yfth_service_writeoff_record`, requires same `store_id` and `status = succeeded`.
+
+The service rejects client-submitted `uid`, `owner_uid`, or `store_id` in the binding body with `direct_customer_binding_forbidden`. Cross-store sources are rejected with `customer_source_store_forbidden`. Existing active customer ownership is rejected with `already_bound`; it is never silently reused or reassigned by another store.
 
 ### `yfth_customer_follow_record`
 
@@ -61,7 +79,7 @@ Responsibilities:
 - Resolve user-token role and store context.
 - Allow only `franchisee`, `store_manager`, and `store_staff`.
 - Reject customer and `service_mentor` contexts with `franchise_customer_role_forbidden`.
-- Bind first customer attribution for the current store.
+- Bind first customer attribution for the current store only after resolving a trusted same-store `order`, `appointment`, or `writeoff` source.
 - Return current-store customer list and detail.
 - Add customer follow records.
 - Mask phone numbers and avoid sensitive customer fields.
@@ -93,7 +111,6 @@ There is no adminapi route and no `admin_token` dependency.
 
 Customer list/detail returns only safe fields:
 
-- `uid`
 - `nickname`
 - `avatar`
 - `phone_masked`
@@ -102,7 +119,7 @@ Customer list/detail returns only safe fields:
 - package/appointment presence flags
 - follow timestamps
 
-It does not return full phone, ID card, address, openid, unionid, payment detail, refund detail, order payment credentials, or internal tokens.
+It does not return `uid`, `store_id`, `owner_uid`, `bind_time`, `create_time`, `update_time`, internal relation `status`, full phone, ID card, address, openid, unionid, payment detail, refund detail, order payment credentials, or internal tokens.
 
 ## Audit
 
@@ -141,8 +158,13 @@ The store workbench page links to customer management, but the customer module i
 - migration/table/index existence;
 - user-token routes and middleware;
 - service role/store checks;
-- customer/source/status fields;
+- trusted source binding rules and direct customer-field rejection;
+- customer/source/reference/status fields;
 - active relation uniqueness guard;
 - masked phone output and sensitive-field absence;
 - audit domain/service;
 - uni-app API helper and page registration.
+
+`crmeb/tests/yfth_franchise_customer_real_flow_check.php` covers the P1 security flow against an isolated MySQL/runtime path when `YFTH_FRANCHISE_CUSTOMER_REAL_FLOW_EXECUTE=1`: naked uid rejection, same-store order binding, cross-store order rejection, same-store appointment binding, cross-store appointment rejection, already-bound rejection, role permissions, DTO safety, audit insertion, and MySQL active-key protection.
+
+The P1 closure was validated on isolated MySQL 8.0.46 with migration run/rollback/rerun and a temporary local API server. No production database, production user data, or production server was used.

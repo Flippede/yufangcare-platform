@@ -23,11 +23,15 @@ class FranchiseCustomerController
 
     public function bind(Request $request, FranchiseCustomerServices $services)
     {
-        return app('json')->success($services->bindCustomer($request, $request->postMore([
-            [['uid', 'd'], 0],
-            ['source', 'store_visit'],
+        $data = $request->postMore([
+            ['source', ''],
+            [['reference_id', 'd'], 0],
             ['customer_status', 'potential'],
-        ])));
+        ]);
+        if ($request->post('uid', null) !== null || $request->post('owner_uid', null) !== null || $request->post('store_id', null) !== null) {
+            $data['_direct_customer_field_submitted'] = true;
+        }
+        return app('json')->success($services->bindCustomer($request, $data));
     }
 
     public function follow(Request $request, FranchiseCustomerServices $services, $id)

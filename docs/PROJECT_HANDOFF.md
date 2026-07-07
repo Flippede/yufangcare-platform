@@ -1,27 +1,34 @@
 # 项目交接文档
 
-## Current Fact Snapshot - 2026-07-07 Franchise Customer CRM V1
+## Current Fact Snapshot - 2026-07-07 Franchise Customer CRM V1 P1 Closure
 
 - Current branch: `feature/yfth-franchise-crm-v1`.
 - Start baseline: `main` / `origin/main` at `99c9d96b3bdbd8801e9069d714ed883858f57f51`.
 - Latest commit for this round should be read from real Git HEAD after the feature branch commit and push.
-- Scope: customer relationship foundation for the franchisee/store operation loop.
-- Completed in this round: customer attribution relation, current-store customer list, customer detail, customer operating status display, customer source display, and customer follow records.
+- Scope: customer relationship foundation for the franchisee/store operation loop, plus the P1 attribution-security closure after architecture review.
+- Completed in this round: customer attribution relation, current-store customer list, customer detail, customer operating status display, trusted customer source display, customer follow records, and P1 secure attribution binding.
+- P1 root cause closed: the previous binding path could create an active relation from a client-submitted CRMEB `uid`. This is now forbidden.
+- Secure binding model: `POST /api/yfth/customer/relation` accepts only trusted business sources: `source = order | appointment | writeoff` and `reference_id`. The service resolves the real customer `uid` from the same-store order, appointment, or writeoff record.
+- Deprecated/forbidden body fields for binding: `uid`, `owner_uid`, and `store_id`. If submitted, the API rejects the request with `direct_customer_binding_forbidden`.
+- Same-store rules: order sources must be paid, main orders and not deleted; appointment sources must belong to the current store and not be cancelled/rejected; writeoff sources must belong to the current store and be `succeeded`.
+- Cross-store source protection: a store operator cannot bind a customer from another store's order, appointment, or writeoff record; cross-store sources are rejected and do not create relation rows.
+- Existing active attribution protection: if the customer already has an active relation, binding returns `already_bound`; another store cannot take over the active customer.
 - Stable CRMEB user identity is reused: customer identity remains `user.uid`; no new user, login, member, or account system was introduced.
 - New database tables: `yfth_customer_relation` and `yfth_customer_follow_record`.
-- Active attribution uniqueness: `yfth_customer_relation.active_key` has a unique index and active relations use the customer `uid` as the active key, preventing one customer from being actively owned by multiple stores in V1.
+- Active attribution uniqueness: `yfth_customer_relation.active_key` has a unique index and active relations use the customer `uid` as the active key, preventing one customer from being actively owned by multiple stores in V1; `source + reference_id` is indexed for trusted source lookup/audit.
 - User-token API only: `/api/yfth/customer/list`, `/api/yfth/customer/relation`, `/api/yfth/customer/:id`, and `/api/yfth/customer/:id/follow` are registered under `AuthTokenMiddleware`.
 - Permission boundary: `franchisee`, `store_manager`, and `store_staff` can use the V1 customer module for the current authorized store; normal customer and `service_mentor` contexts are rejected. The server resolves role and store through `CurrentBusinessContextServices`; frontend `store_id` is not trusted as authorization.
 - Data isolation: customer detail and follow writes load by `customer_relation_id + current store_id + active status`, not by global uid lookup.
-- Data safety: list/detail responses expose masked phone and safe summary fields only; full phone, address, ID card, openid, unionid, payment information, and internal token fields are not returned.
+- DTO safety: list/detail responses expose nickname, avatar, `phone_masked`, trusted source, customer status, package/service status, and follow timestamps only. They do not return `uid`, `store_id`, `owner_uid`, `bind_time`, `create_time`, `update_time`, internal relation `status`, full phone, address, ID card, openid, unionid, payment information, or internal token fields.
 - Audit: attribution binding and follow creation write through `AuditEventServices` into `yfth_audit_event` with domain `yfth_franchise_customer`.
 - uni-app pages added: `pages/yfth/workbench/customer/index`, `pages/yfth/workbench/customer/detail`, and `pages/yfth/workbench/customer/follow`; `workbench/index.vue` only links to the module and is not expanded into a large CRM page.
 - Documentation added: `docs/YFTH_FRANCHISE_CUSTOMER_ARCHITECTURE.md`.
-- Verification target for this round: PHP syntax, `yfth_franchise_customer_contract_check.php`, multi-role shell contract check, MySQL 8 migration run/rollback/rerun if the isolated local MySQL runtime is available, and applicable uni-app build checks.
+- Verification executed for this P1 closure: PHP syntax passed for changed PHP/migration/test files; `yfth_franchise_customer_contract_check.php` passed with 123 assertions; isolated MySQL 8.0.46 migration run/rollback/rerun passed for `20260707110000_create_yfth_customer_relation_tables`; `reference_id`, `uniq_yfth_customer_relation_active`, and `idx_yfth_customer_relation_source_ref` were verified; `yfth_franchise_customer_real_flow_check.php` passed against temporary database `yfth_franchise_crm_p1_validation`, file cache, temporary local API server, and temporary CRMEB user tokens; Node checks `yfth_multi_role_shell_contract_check.js` and `yfth_request_fallback_check.js` passed.
+- Real flow coverage in the P1 closure: naked uid binding rejected with no relation row; same-store order binding succeeded; cross-store order rejected; same-store appointment binding succeeded; cross-store appointment rejected; already-bound customer takeover rejected; customer and `service_mentor` denied; `store_staff`, `store_manager`, and `franchisee` allowed in their scoped flows; audit record inserted into `yfth_audit_event`; DTO checks confirmed no full phone, address, openid, unionid, `owner_uid`, internal timestamps, internal status, or payment fields are returned.
 - Still out of scope: recommendation rewards, distribution rebate, franchise contracts, procurement, inventory replenishment, product quota, settlement, revenue sharing, supply chain, activity split, customer transfer, and production deployment.
 - Not modified: CRMEB login core, orders, payment, refund, 5980 package activation, service appointment state machine, service writeoff state machine, headquarters admin productization, and production configuration.
 - Production status: no production database connection, no production server deployment, and no WeChat upload has been performed.
-- Next step after this feature branch: read-only architecture review before any main merge decision.
+- Next step after this P1 fix: run a read-only architecture re-review before any main merge decision.
 
 ## Current Fact Snapshot - 2026-07-07 Final Store Workbench Business Adapter V1 Closure
 
