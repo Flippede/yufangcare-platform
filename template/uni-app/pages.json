@@ -155,6 +155,24 @@
 					"style": {
 						"navigationBarTitleText": "切换门店"
 					}
+				},
+				{
+					"path": "workbench/customer/index",
+					"style": {
+						"navigationBarTitleText": "客户管理"
+					}
+				},
+				{
+					"path": "workbench/customer/detail",
+					"style": {
+						"navigationBarTitleText": "客户详情"
+					}
+				},
+				{
+					"path": "workbench/customer/follow",
+					"style": {
+						"navigationBarTitleText": "新增跟进"
+					}
 				}
 			]
 		}, {

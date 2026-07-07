@@ -1,5 +1,28 @@
 # 项目交接文档
 
+## Current Fact Snapshot - 2026-07-07 Franchise Customer CRM V1
+
+- Current branch: `feature/yfth-franchise-crm-v1`.
+- Start baseline: `main` / `origin/main` at `99c9d96b3bdbd8801e9069d714ed883858f57f51`.
+- Latest commit for this round should be read from real Git HEAD after the feature branch commit and push.
+- Scope: customer relationship foundation for the franchisee/store operation loop.
+- Completed in this round: customer attribution relation, current-store customer list, customer detail, customer operating status display, customer source display, and customer follow records.
+- Stable CRMEB user identity is reused: customer identity remains `user.uid`; no new user, login, member, or account system was introduced.
+- New database tables: `yfth_customer_relation` and `yfth_customer_follow_record`.
+- Active attribution uniqueness: `yfth_customer_relation.active_key` has a unique index and active relations use the customer `uid` as the active key, preventing one customer from being actively owned by multiple stores in V1.
+- User-token API only: `/api/yfth/customer/list`, `/api/yfth/customer/relation`, `/api/yfth/customer/:id`, and `/api/yfth/customer/:id/follow` are registered under `AuthTokenMiddleware`.
+- Permission boundary: `franchisee`, `store_manager`, and `store_staff` can use the V1 customer module for the current authorized store; normal customer and `service_mentor` contexts are rejected. The server resolves role and store through `CurrentBusinessContextServices`; frontend `store_id` is not trusted as authorization.
+- Data isolation: customer detail and follow writes load by `customer_relation_id + current store_id + active status`, not by global uid lookup.
+- Data safety: list/detail responses expose masked phone and safe summary fields only; full phone, address, ID card, openid, unionid, payment information, and internal token fields are not returned.
+- Audit: attribution binding and follow creation write through `AuditEventServices` into `yfth_audit_event` with domain `yfth_franchise_customer`.
+- uni-app pages added: `pages/yfth/workbench/customer/index`, `pages/yfth/workbench/customer/detail`, and `pages/yfth/workbench/customer/follow`; `workbench/index.vue` only links to the module and is not expanded into a large CRM page.
+- Documentation added: `docs/YFTH_FRANCHISE_CUSTOMER_ARCHITECTURE.md`.
+- Verification target for this round: PHP syntax, `yfth_franchise_customer_contract_check.php`, multi-role shell contract check, MySQL 8 migration run/rollback/rerun if the isolated local MySQL runtime is available, and applicable uni-app build checks.
+- Still out of scope: recommendation rewards, distribution rebate, franchise contracts, procurement, inventory replenishment, product quota, settlement, revenue sharing, supply chain, activity split, customer transfer, and production deployment.
+- Not modified: CRMEB login core, orders, payment, refund, 5980 package activation, service appointment state machine, service writeoff state machine, headquarters admin productization, and production configuration.
+- Production status: no production database connection, no production server deployment, and no WeChat upload has been performed.
+- Next step after this feature branch: read-only architecture review before any main merge decision.
+
 ## Current Fact Snapshot - 2026-07-07 Final Store Workbench Business Adapter V1 Closure
 
 - Current branch: `main`.

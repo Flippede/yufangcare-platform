@@ -183,3 +183,19 @@ export function getYfthStoreWorkbenchOrders(data) {
 export function getYfthStoreWorkbenchOrderDetail(id, data) {
 	return request.get('yfth/store_workbench/orders/' + id, data || {});
 }
+
+export function getYfthCustomerList(data) {
+	return request.get('yfth/customer/list', data || {});
+}
+
+export function getYfthCustomerDetail(id, data) {
+	return request.get('yfth/customer/' + id, data || {});
+}
+
+export function createYfthCustomerRelation(data) {
+	return request.post('yfth/customer/relation', data || {});
+}
+
+export function addYfthCustomerFollow(id, data) {
+	return request.post('yfth/customer/' + id + '/follow', data || {});
+}

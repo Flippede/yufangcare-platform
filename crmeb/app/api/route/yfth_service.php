@@ -47,3 +47,13 @@ Route::group(function () {
     ->middleware(\app\api\middleware\StationOpenMiddleware::class)
     ->middleware(\app\api\middleware\AuthTokenMiddleware::class)
     ->option(['mark' => 'yfth_store_workbench_user', 'mark_name' => 'YFTH store workbench user-token API']);
+
+Route::group(function () {
+    Route::get('yfth/customer/list', 'v1.yfth.FranchiseCustomerController/customerList')->option(['real_name' => 'YFTH franchise customer list']);
+    Route::post('yfth/customer/relation', 'v1.yfth.FranchiseCustomerController/bind')->option(['real_name' => 'YFTH franchise customer relation bind']);
+    Route::get('yfth/customer/:id', 'v1.yfth.FranchiseCustomerController/detail')->option(['real_name' => 'YFTH franchise customer detail']);
+    Route::post('yfth/customer/:id/follow', 'v1.yfth.FranchiseCustomerController/follow')->option(['real_name' => 'YFTH franchise customer follow']);
+})->middleware(\app\http\middleware\AllowOriginMiddleware::class)
+    ->middleware(\app\api\middleware\StationOpenMiddleware::class)
+    ->middleware(\app\api\middleware\AuthTokenMiddleware::class)
+    ->option(['mark' => 'yfth_franchise_customer_user', 'mark_name' => 'YFTH franchise customer user-token API']);

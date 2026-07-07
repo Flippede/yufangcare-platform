@@ -25,6 +25,9 @@ const pagesJson = read('pages.json');
 assertContains('pages.json', '"path": "workbench/index"', 'workbench index must be registered');
 assertContains('pages.json', '"path": "workbench/role_switch"', 'role switch page must be registered');
 assertContains('pages.json', '"path": "workbench/store_switch"', 'store switch page must be registered');
+assertContains('pages.json', '"path": "workbench/customer/index"', 'customer relation page must be registered');
+assertContains('pages.json', '"path": "workbench/customer/detail"', 'customer detail page must be registered');
+assertContains('pages.json', '"path": "workbench/customer/follow"', 'customer follow page must be registered');
 assert(pagesJson.includes('"root": "pages/yfth"'), 'YFTH subpackage must be registered');
 
 const userPage = read('pages/user/index.vue');
@@ -50,6 +53,14 @@ assertContains('pages/yfth/workbench/index.vue', 'getYfthStoreWorkbenchOrders', 
 assertContains('pages/yfth/workbench/index.vue', 'store_staff', 'workbench must keep store staff as a server-validated store role');
 assertNotContains('pages/yfth/workbench/index.vue', "from '@/api/yfth_admin.js'", 'formal workbench must not import admin-token APIs');
 assertContains('pages/yfth/workbench/index.vue', 'clearYfthContext', 'returning to customer side must clear business context');
+assertContains('pages/yfth/workbench/index.vue', '/pages/yfth/workbench/customer/index', 'workbench must link to customer relation page');
+
+assertContains('api/yfth.js', 'yfth/customer/list', 'user API helper must expose customer list');
+assertContains('api/yfth.js', 'yfth/customer/relation', 'user API helper must expose customer relation binding');
+assertContains('api/yfth.js', "yfth/customer/' + id + '/follow", 'user API helper must expose customer follow record');
+assertContains('pages/yfth/workbench/customer/index.vue', 'currentContext', 'customer page must use current user-token context');
+assertContains('pages/yfth/workbench/customer/index.vue', 'phone_masked', 'customer list must render masked phone only');
+assertNotContains('pages/yfth/workbench/customer/index.vue', 'phone }}</', 'customer list must not render raw phone');
 
 assertNotContains('api/yfth_admin.js', 'store.state.app.token', 'admin API helper must not fall back to the customer token');
 assertContains('api/yfth_admin.js', 'admin_token_required', 'admin API helper must fail closed without admin token');

@@ -36,6 +36,7 @@
 					<view class="panel">
 						<view class="panel-title">真实业务入口</view>
 						<view class="quick-actions">
+							<button @click="goCustomers">客户管理</button>
 							<button @click="openPane('appointments')">预约管理</button>
 							<button @click="openPane('writeoff')">服务核销</button>
 							<button @click="openPane('orders')">门店订单</button>
@@ -286,7 +287,8 @@ export default {
 				{ key: 'confirmed_waiting_arrival', title: '待到店', value: metrics.confirmed_waiting_arrival || 0, desc: '已确认等待用户到店', pane: 'writeoff' },
 				{ key: 'today_writeoffs', title: '今日核销', value: metrics.today_writeoffs || 0, desc: '今日服务权益核销记录', pane: 'writeoff' },
 				{ key: 'today_store_orders', title: '今日支付订单', value: metrics.today_store_orders || 0, desc: '门店今日已支付主订单', pane: 'orders' },
-				{ key: 'pending_store_orders', title: '待处理订单', value: metrics.pending_store_orders || 0, desc: '门店待发货或待核销订单', pane: 'orders' }
+				{ key: 'pending_store_orders', title: '待处理订单', value: metrics.pending_store_orders || 0, desc: '门店待发货或待核销订单', pane: 'orders' },
+				{ key: 'customers', title: '客户关系', value: 'CRM', desc: '当前门店客户、状态和跟进记录', pane: 'customers' }
 			];
 		},
 		paneTitle() {
@@ -546,6 +548,9 @@ export default {
 		goStoreSwitch() {
 			uni.navigateTo({ url: '/pages/yfth/workbench/store_switch' });
 		},
+		goCustomers() {
+			uni.navigateTo({ url: '/pages/yfth/workbench/customer/index' });
+		},
 		backCustomer() {
 			clearYfthContext();
 			uni.reLaunch({ url: '/pages/index/index' });
@@ -562,6 +567,10 @@ export default {
 			this.openPane(item.pane || 'dashboard');
 		},
 		openPane(pane) {
+			if (pane === 'customers') {
+				this.goCustomers();
+				return;
+			}
 			this.pane = pane || 'dashboard';
 			this.loadPane();
 		},
