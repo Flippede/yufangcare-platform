@@ -1,5 +1,23 @@
 # 项目交接文档
 
+## Current Fact Snapshot - 2026-07-07 Final Store Workbench Business Adapter V1 Closure
+
+- Current branch: `main`.
+- Preserved feature branch: `feature/yfth-store-workbench-business-adapter-v1`.
+- Main before merge: `dc5efcc6cd3b9e9131a59f48e6a8e7718ec933bb`.
+- Final reviewed feature commit: `4e20063730a039e6383b17b366f3211fdc132b16`; do not use `6ca24c882a3cd73e5babd63e169a7e85005e64e7` as a merge target because it did not include the cross-store writeoff-result P1 fix.
+- Merge method: `git merge --ff-only feature/yfth-store-workbench-business-adapter-v1`; no merge commit, squash, rebase, or history rewrite was used.
+- Architecture review conclusion: B, allowed to merge; no current Blocker/P1 remains for Store Workbench Business Adapter V1.
+- Completed stable capabilities now merged into `main`: CRMEB user-token store workbench, store appointment management, service writeoff, store order read-only lookup, explicit `yfth_operator_context`, server-side store isolation, and `admin_token` isolation.
+- Store workbench result lookup P1 remains closed in `main`: same-store staff/manager/franchisee can read same-store writeoff result, same-store unwritten appointments return `status = none`, and cross-store appointment-id result reads are rejected without business writes.
+- Branch handling: local and remote feature branches are retained for stage history; no branch was deleted.
+- Production status: no production deployment, no production database connection, no server modification, and no WeChat upload was performed in this closure.
+- Non-blocking P2 retained for later: before production release, add a complete isolated smoke run for this merged `main`; before production release, add a browser role-by-role smoke walk-through against a real local backend.
+- P2 status: both P2 items are non-blocking for the current merge and should be handled together in the later release-readiness pass.
+- Still out of scope: procurement, inventory replenishment, product quota, recommendation rewards, franchise contracts, mentor real business workflows, settlement, revenue sharing, order/payment/refund changes, appointment/writeoff state-machine redesign, and production deployment.
+- Final `main` and `origin/main` commit should be read from real Git HEAD after this documentation closure commit and push.
+- Next business module should be decided separately by the project controller.
+
 ## Current Fact Snapshot - 2026-07-06 Store Workbench Business Adapter V1
 
 - Current branch: `feature/yfth-store-workbench-business-adapter-v1`.
@@ -27,8 +45,8 @@
 - No database migration was added in this round.
 - Not modified: CRMEB login core, admin-token login, orders/payment/refund core flows, 5980 package activation, appointment state-machine internals, writeoff state-machine internals, database migrations, and production configuration.
 - Still not implemented: procurement, inventory replenishment, product quota, franchise contracts, recommendation rewards, mentor real business workflows, settlement, revenue sharing, store order mutation/fulfillment/refund/shipment, and production deployment.
-- This feature branch is not merged into `main` in this round; push target is the feature branch only.
-- Remaining gate: after this commit, the correct next step is a read-only architecture audit of Store Workbench Business Adapter V1. This document must not be interpreted as permission to merge `main`.
+- Historical pre-merge status for this 2026-07-06 section: at that time, the feature branch was not merged into `main` and the push target was the feature branch only.
+- Historical pre-merge gate for this 2026-07-06 section: a read-only architecture audit was still required then. The later 2026-07-07 closure snapshot above records the completed B review and fast-forward merge into `main`.
 
 ## Current Fact Snapshot - 2026-07-05 Final Multi-role Miniapp Shell V1 Closure
 
