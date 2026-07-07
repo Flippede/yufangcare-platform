@@ -160,8 +160,9 @@ class StoreWorkbenchBusinessAdapterServices extends YfthFoundationBaseServices
 
     public function writeoffResult(Request $request, int $appointmentId): array
     {
-        $this->resolveStoreScope($request);
-        return app()->make(ServiceAppointmentWriteoffServices::class)->writeoffResultForAppointment($appointmentId);
+        $scope = $this->resolveStoreScope($request);
+        return app()->make(ServiceAppointmentWriteoffServices::class)
+            ->writeoffResultForAppointmentByStoreOperator($appointmentId, $scope['operator_info']);
     }
 
     public function orderList(Request $request, array $where): array

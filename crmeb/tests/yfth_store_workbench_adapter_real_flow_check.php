@@ -136,6 +136,13 @@ $assert(strpos($serviceSource, "'level' => 99") === false, 'store_adapter_does_n
 $assert(strpos($serviceSource, "'id' => \$uid") === false, 'store_adapter_does_not_emit_fake_admin_id');
 $assert(strpos($serviceSource, 'exceptionWriteoff(') === false, 'store_adapter_has_no_headquarter_exception_writeoff_call');
 $assert(strpos($serviceSource, 'admin_token') === false, 'store_adapter_has_no_admin_token_reference');
+$assert(strpos($serviceSource, 'writeoffResultForAppointment($appointmentId)') === false, 'store_adapter_result_does_not_call_unscoped_writeoff_result');
+$assert(strpos($serviceSource, 'writeoffResultForAppointmentByStoreOperator') !== false, 'store_adapter_result_uses_store_operator_scope');
+
+$writeoffServiceSource = (string)file_get_contents(dirname(__DIR__) . '/app/services/yfth/ServiceAppointmentWriteoffServices.php');
+$assert(strpos($writeoffServiceSource, 'writeoffResultForAppointmentByStoreOperator') !== false, 'writeoff_service_has_store_operator_result');
+$assert(strpos($writeoffServiceSource, 'assertAdminStoreReadable($operatorInfo, (int)$appointment[\'store_id\'])') !== false, 'writeoff_result_checks_appointment_store_scope');
+$assert(strpos($writeoffServiceSource, 'assertAdminStoreReadable($operatorInfo, (int)$record[\'store_id\'])') !== false, 'writeoff_result_checks_record_store_scope');
 
 if ($executeFlow) {
     $assert((string)getenv('YFTH_REAL_FLOW_ISOLATED_DB') === '1', 'isolated_db_guard_confirmed');
@@ -244,6 +251,43 @@ function vfRunStoreWorkbenchHttpFlow(callable $assert, array &$notes): void
         vfExpectHttpOk(vfPost($baseUrl, $tokens['manager_a'], 'writeoff/token', ['role_code' => 'store_manager', 'store_id' => $fixture['stores']['A']], ['qr_token' => $fixture['codes']['qr_a'], 'idempotency_key' => 'qr_' . $runId]), 'manager_a_qr_writeoff_idempotent_replay_ok', $assert);
         vfAssertWriteoffClosed($fixture['appointments']['qr_writeoff'], $fixture['users']['manager_a'], 'qr_code', $assert);
         vfExpectHttpFailure(vfPost($baseUrl, $tokens['staff_a'], 'writeoff/token', ['role_code' => 'store_staff', 'store_id' => $fixture['stores']['A']], ['qr_token' => $fixture['codes']['qr_b'], 'idempotency_key' => 'cross_qr_' . $runId]), 'staff_a_cross_store_qr_forbidden', $assert);
+
+        vfExpectHttpOk(vfPost($baseUrl, $tokens['staff_b'], 'writeoff/token', ['role_code' => 'store_staff', 'store_id' => $fixture['stores']['B']], ['qr_token' => $fixture['codes']['qr_b'], 'idempotency_key' => 'qr_b_' . $runId]), 'staff_b_qr_writeoff_ok', $assert);
+        vfAssertWriteoffClosed($fixture['appointments']['store_b_writeoff'], $fixture['users']['staff_b'], 'qr_code', $assert);
+
+        $staffAResult = vfExpectHttpOk(vfGet($baseUrl, $tokens['staff_a'], 'writeoff/result/' . $fixture['appointments']['digital_writeoff'], ['role_code' => 'store_staff', 'store_id' => $fixture['stores']['A']]), 'staff_a_store_a_writeoff_result_ok', $assert);
+        $assert((string)($staffAResult['data']['status'] ?? '') === 'written_off', 'staff_a_store_a_result_written_off');
+        $assert((int)($staffAResult['data']['record']['appointment_id'] ?? 0) === $fixture['appointments']['digital_writeoff'], 'staff_a_store_a_result_appointment_id');
+        $assert((int)($staffAResult['data']['record']['store_id'] ?? 0) === $fixture['stores']['A'], 'staff_a_store_a_result_store_id');
+        vfAssertWriteoffResultWhitelist($staffAResult['data'] ?? [], $assert, 'staff_a_store_a_result');
+
+        $managerAResult = vfExpectHttpOk(vfGet($baseUrl, $tokens['manager_a'], 'writeoff/result/' . $fixture['appointments']['qr_writeoff'], ['role_code' => 'store_manager', 'store_id' => $fixture['stores']['A']]), 'manager_a_store_a_writeoff_result_ok', $assert);
+        $assert((string)($managerAResult['data']['status'] ?? '') === 'written_off', 'manager_a_store_a_result_written_off');
+        vfAssertWriteoffResultWhitelist($managerAResult['data'] ?? [], $assert, 'manager_a_store_a_result');
+
+        $franchiseeAResult = vfExpectHttpOk(vfGet($baseUrl, $tokens['franchisee'], 'writeoff/result/' . $fixture['appointments']['qr_writeoff'], ['role_code' => 'franchisee', 'store_id' => $fixture['stores']['A']]), 'franchisee_store_a_writeoff_result_ok', $assert);
+        $assert((int)($franchiseeAResult['data']['record']['store_id'] ?? 0) === $fixture['stores']['A'], 'franchisee_store_a_result_store_id');
+
+        $noneResult = vfExpectHttpOk(vfGet($baseUrl, $tokens['staff_a'], 'writeoff/result/' . $fixture['appointments']['pending_confirm'], ['role_code' => 'store_staff', 'store_id' => $fixture['stores']['A']]), 'staff_a_unwritten_appointment_result_ok', $assert);
+        $assert((string)($noneResult['data']['status'] ?? '') === 'none', 'staff_a_unwritten_appointment_result_none');
+        $assert(!isset($noneResult['data']['record']), 'staff_a_unwritten_appointment_result_no_record');
+
+        $crossStoreResultBefore = vfAppointmentBusinessSnapshot($fixture['appointments']['store_b_writeoff']);
+        vfExpectHttpFailure(vfGet($baseUrl, $tokens['staff_a'], 'writeoff/result/' . $fixture['appointments']['store_b_writeoff'], ['role_code' => 'store_staff', 'store_id' => $fixture['stores']['A']]), 'staff_a_cross_store_writeoff_result_forbidden', $assert);
+        vfExpectHttpFailure(vfGet($baseUrl, $tokens['manager_a'], 'writeoff/result/' . $fixture['appointments']['store_b_writeoff'], ['role_code' => 'store_manager', 'store_id' => $fixture['stores']['A']]), 'manager_a_cross_store_writeoff_result_forbidden', $assert);
+        vfExpectHttpFailure(vfGet($baseUrl, $tokens['franchisee'], 'writeoff/result/' . $fixture['appointments']['store_b_writeoff'], ['role_code' => 'franchisee', 'store_id' => $fixture['stores']['A']]), 'franchisee_store_a_cross_store_writeoff_result_forbidden', $assert);
+        $assert(vfAppointmentBusinessSnapshot($fixture['appointments']['store_b_writeoff']) === $crossStoreResultBefore, 'cross_store_writeoff_result_failure_db_snapshot_unchanged');
+
+        $franchiseeBResult = vfExpectHttpOk(vfGet($baseUrl, $tokens['franchisee'], 'writeoff/result/' . $fixture['appointments']['store_b_writeoff'], ['role_code' => 'franchisee', 'store_id' => $fixture['stores']['B']]), 'franchisee_store_b_writeoff_result_ok_after_switch', $assert);
+        $assert((string)($franchiseeBResult['data']['status'] ?? '') === 'written_off', 'franchisee_store_b_result_written_off');
+        $assert((int)($franchiseeBResult['data']['record']['store_id'] ?? 0) === $fixture['stores']['B'], 'franchisee_store_b_result_store_id');
+        vfAssertWriteoffResultWhitelist($franchiseeBResult['data'] ?? [], $assert, 'franchisee_store_b_result');
+
+        vfExpectHttpFailure(vfGet($baseUrl, $tokens['customer'], 'writeoff/result/' . $fixture['appointments']['digital_writeoff'], ['role_code' => 'customer']), 'customer_writeoff_result_forbidden', $assert);
+        vfExpectHttpFailure(vfGet($baseUrl, $tokens['mentor'], 'writeoff/result/' . $fixture['appointments']['digital_writeoff'], ['role_code' => 'service_mentor']), 'service_mentor_writeoff_result_forbidden', $assert);
+        vfExpectHttpFailure(vfGet($baseUrl, $tokens['revoked'], 'writeoff/result/' . $fixture['appointments']['digital_writeoff'], ['role_code' => 'store_staff', 'store_id' => $fixture['stores']['A']]), 'revoked_writeoff_result_forbidden', $assert);
+        vfExpectHttpFailure(vfGet($baseUrl, $tokens['disabled_store'], 'writeoff/result/' . $fixture['appointments']['store_b_writeoff'], ['role_code' => 'store_staff', 'store_id' => $fixture['stores']['D']]), 'disabled_store_writeoff_result_forbidden', $assert);
+        vfExpectHttpFailure(vfGet($baseUrl, $tokens['staff_a'], 'writeoff/result/999999999', ['role_code' => 'store_staff', 'store_id' => $fixture['stores']['A']]), 'staff_a_missing_appointment_writeoff_result_failure', $assert);
 
         $recordList = vfExpectHttpOk(vfGet($baseUrl, $tokens['staff_a'], 'writeoff/records', ['role_code' => 'store_staff', 'store_id' => $fixture['stores']['A']]), 'staff_a_writeoff_record_list_ok', $assert);
         $recordIds = array_map('intval', array_column($recordList['data']['list'] ?? [], 'id'));
@@ -1067,6 +1111,103 @@ function vfAssertWriteoffClosed(int $appointmentId, int $operatorId, string $met
     $assert((string)$item['status'] === 'used' && (string)$item['quantity_available'] === '0.00', $method . '_benefit_item_used_once');
     $assert((string)$record['writeoff_method'] === $method, $method . '_record_method');
     $assert((string)$record['operator_type'] === 'user_store_role', $method . '_record_operator_type_user_store_role');
+}
+
+function vfAssertWriteoffResultWhitelist(array $result, callable $assert, string $label): void
+{
+    $assert(isset($result['status']), $label . '_contains_status');
+    if (($result['status'] ?? '') !== 'written_off') {
+        return;
+    }
+    $record = $result['record'] ?? [];
+    $allowed = [
+        'id',
+        'writeoff_no',
+        'appointment_id',
+        'uid',
+        'store_id',
+        'service_project_id',
+        'writeoff_method',
+        'operator_type',
+        'operator_role_code',
+        'writeoff_time',
+        'status',
+        'reason',
+    ];
+    foreach ($allowed as $key) {
+        $assert(array_key_exists($key, $record), $label . '_contains_' . $key);
+    }
+    foreach ([
+        'token',
+        'qr_token',
+        'digital_code',
+        'digital_code_hash',
+        'token_hash',
+        'admin_token',
+        'openid',
+        'unionid',
+        'user_phone',
+        'user_address',
+        'request_id',
+        'idempotency_key',
+        'dynamic_code_id',
+        'benefit_lock_id',
+        'snapshot',
+        'operator_id',
+        'used_admin_id',
+    ] as $key) {
+        $assert(!array_key_exists($key, $record), $label . '_must_not_contain_' . $key);
+    }
+}
+
+function vfAppointmentBusinessSnapshot(int $appointmentId): array
+{
+    $appointment = vfRow('yfth_service_appointment', $appointmentId);
+    $codes = Db::name('yfth_service_dynamic_code')
+        ->where('appointment_id', $appointmentId)
+        ->field('id,status,attempt_count,used_time,expire_time,active_key,digital_active_key')
+        ->order('id asc')
+        ->select()
+        ->toArray();
+    $locks = Db::name('yfth_service_benefit_lock')
+        ->where('appointment_id', $appointmentId)
+        ->field('id,benefit_item_id,status,consume_status,locked_time,released_time,active_key')
+        ->order('id asc')
+        ->select()
+        ->toArray();
+    $itemIds = array_values(array_filter(array_map('intval', array_column($locks, 'benefit_item_id'))));
+    if (!$itemIds && !empty($appointment['benefit_item_id'])) {
+        $itemIds = [(int)$appointment['benefit_item_id']];
+    }
+    $items = $itemIds
+        ? Db::name('yfth_benefit_item')
+            ->whereIn('id', $itemIds)
+            ->field('id,status,quantity_available,quantity_used,fulfillment_status')
+            ->order('id asc')
+            ->select()
+            ->toArray()
+        : [];
+    return [
+        'appointment' => [
+            'id' => (int)$appointment['id'],
+            'status' => (string)$appointment['status'],
+            'writeoff_id' => (int)($appointment['writeoff_id'] ?? 0),
+            'writeoff_at' => (int)($appointment['writeoff_at'] ?? 0),
+            'completed_at' => (int)($appointment['completed_at'] ?? 0),
+            'writeoff_method' => (string)($appointment['writeoff_method'] ?? ''),
+            'writeoff_operator_id' => (int)($appointment['writeoff_operator_id'] ?? 0),
+            'writeoff_operator_type' => (string)($appointment['writeoff_operator_type'] ?? ''),
+        ],
+        'codes' => $codes,
+        'locks' => $locks,
+        'items' => $items,
+        'writeoff_record_count' => vfCount('yfth_service_writeoff_record', ['appointment_id' => $appointmentId]),
+        'event_count' => vfCount('yfth_service_appointment_event', ['appointment_id' => $appointmentId]),
+        'audit_count' => vfCount('yfth_audit_event', [
+            'business_domain' => 'yfth_service_appointment',
+            'object_type' => 'writeoff_record',
+        ]),
+    ];
 }
 
 function vfOrderReadOnlySnapshot(array $fixture): array

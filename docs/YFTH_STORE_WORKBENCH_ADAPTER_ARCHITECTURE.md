@@ -86,10 +86,13 @@ The existing backend-admin methods and the new user-store methods delegate into 
 - `writeoffByStoreDigital`
 - `storeOperatorList`
 - `storeOperatorDetail`
+- `writeoffResultForAppointmentByStoreOperator`
 
 The final writeoff transaction, appointment completion, benefit consumption, writeoff record creation, event creation, and idempotency paths remain shared with the existing writeoff implementation. Store workbench writeoff uses `store_writeoff_token` and `store_writeoff_digital` idempotency actions and records `operator_type = user_store_role`.
 
 The legacy `used_admin_id` column continues to store the numeric operator id for compatibility with the existing table shape. For user-token store workbench writes, that value is the CRMEB user UID and must be interpreted together with `operator_type = user_store_role`.
+
+Writeoff result lookup is read-only but still store-scoped. `StoreWorkbenchBusinessAdapterServices::writeoffResult()` resolves the current user-token store scope and delegates only to `ServiceAppointmentWriteoffServices::writeoffResultForAppointmentByStoreOperator($appointmentId, $operatorInfo)`. That service loads the appointment first, verifies that the operator can read the appointment's store, returns `status = none` only after that same-store check, and re-validates any succeeded writeoff record's `appointment_id` and `store_id` before returning the minimal `formatWriteoffRecord(..., false)` payload. The store workbench adapter must not call the legacy unscoped `writeoffResultForAppointment()` method.
 
 ## Role Rules
 
@@ -189,6 +192,9 @@ Validation results:
 - Store manager can confirm, reject, and cancel only authorized-store appointments.
 - Franchisee can switch between authorized stores A and B, cannot use store C, and cannot perform write operations in an all-store context.
 - Cross-store appointment, writeoff, and order access is denied without business writes.
+- Cross-store writeoff result lookup by appointment id is denied for staff, manager, and franchisee contexts from another store, and the failure path leaves appointment, dynamic-code, benefit-lock, benefit-item, event, audit, and writeoff-record snapshots unchanged.
+- Same-store writeoff result lookup succeeds for staff, manager, and franchisee, same-store unwritten appointments return `status = none`, and customer, service mentor, revoked identity, disabled-store role, and missing appointment paths fail safely.
+- Writeoff result responses are field-whitelisted and do not expose dynamic tokens, digital codes, token hashes, admin token material, full user contact fields, idempotency keys, internal snapshots, or raw operator ids.
 - Digital-code precheck is read-only.
 - Digital-code and QR-token writeoff are idempotent; appointment completion, writeoff record, event, and benefit consumption are created exactly once.
 - Wrong digital-code attempts are limited; the sixth failure is rate-limited in the tested boundary.
@@ -196,6 +202,8 @@ Validation results:
 - User-token headquarter exception writeoff is unavailable.
 
 The validation did not use production `.env`, production database, production Redis, production user data, real AppID/AppSecret, WeChat upload, or server deployment. Temporary MySQL, Redis, PHP extension files, API router files, environment files, and fixture data were cleaned after the run.
+
+The 2026-07-07 P1 cross-store writeoff-result rerun used the same script against MySQL Community Server 8.0.46, an isolated database named `yfth_storewb_validation_*`, a temporary local API server at `http://127.0.0.1:18121`, and file cache driver. Redis probe was not executed in that rerun because the portable PHP runtime did not load a Redis extension; the real route, middleware, controller, adapter, service, and MySQL path were still exercised through HTTP.
 
 ## Verification
 

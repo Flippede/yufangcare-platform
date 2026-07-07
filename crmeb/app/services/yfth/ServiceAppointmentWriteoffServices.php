@@ -272,6 +272,22 @@ class ServiceAppointmentWriteoffServices extends ServiceAppointmentBaseServices
         return ['status' => 'written_off', 'record' => $this->formatWriteoffRecord(is_array($record) ? $record : $record->toArray(), false)];
     }
 
+    public function writeoffResultForAppointmentByStoreOperator(int $appointmentId, array $operatorInfo = []): array
+    {
+        $appointment = $this->appointmentById($appointmentId);
+        $this->assertAdminStoreReadable($operatorInfo, (int)$appointment['store_id']);
+        $record = $this->dao->getOne(['appointment_id' => $appointmentId, 'status' => 'succeeded']);
+        if (!$record) {
+            return ['status' => 'none'];
+        }
+        $record = is_array($record) ? $record : $record->toArray();
+        if ((int)($record['appointment_id'] ?? 0) !== $appointmentId || (int)($record['store_id'] ?? 0) !== (int)$appointment['store_id']) {
+            throw new AdminException('store_scope_forbidden');
+        }
+        $this->assertAdminStoreReadable($operatorInfo, (int)$record['store_id']);
+        return ['status' => 'written_off', 'record' => $this->formatWriteoffRecord($record, false)];
+    }
+
     private function precheckCode(array $code, array $adminInfo): array
     {
         $appointment = $this->appointmentById((int)$code['appointment_id']);

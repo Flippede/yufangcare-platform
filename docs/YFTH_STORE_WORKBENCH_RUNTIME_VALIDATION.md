@@ -30,6 +30,8 @@ Temporary CRMEB users, CRMEB user-token records, stores, identities, appointment
 
 Temporary MySQL, Redis, PHP Redis extension files, API router files, temporary environment files, server lock files, and fixture data were cleaned after validation.
 
+P1 cross-store writeoff-result re-validation on 2026-07-07 used the same script against MySQL Community Server 8.0.46, an isolated database named `yfth_storewb_validation_*`, a temporary local API server at `http://127.0.0.1:18121`, and the file cache driver. Redis probe was not executed in this P1 rerun because the portable PHP runtime did not load a Redis extension; the real HTTP path and MySQL state checks were still executed.
+
 ## Runtime Script
 
 The real-flow script is:
@@ -116,6 +118,15 @@ Validated outcomes:
 - Wrong digital-code attempts fail, and the sixth tested failure reaches the rate-limit boundary.
 - User-token headquarter exception writeoff is unavailable and cannot be reached by forged role/store input.
 
+P1 writeoff-result lookup outcomes:
+
+- Store staff, store manager, and franchisee can read same-store writeoff results through `GET /api/yfth/store_workbench/writeoff/result/:id`.
+- Same-store unwritten appointments return `status = none` without exposing a record.
+- Store staff, store manager, and franchisee are forbidden from reading another store's writeoff result by appointment id.
+- Cross-store result failures leave appointment, dynamic-code, benefit-lock, benefit-item, appointment-event, audit-event, and writeoff-record snapshots unchanged.
+- Customer, service mentor, revoked identity, disabled-store role, and missing appointment result lookups fail safely.
+- Result records are field-whitelisted and do not expose tokens, QR/digital codes, hashes, admin token material, full user contact fields, idempotency keys, internal snapshots, or raw operator ids.
+
 ## Store Order Result
 
 Store order list/detail were validated as read-only.
@@ -188,8 +199,11 @@ The following store-operator wrapper methods were added and delegate to shared c
 - `ServiceAppointmentWriteoffServices::writeoffByStoreDigital`
 - `ServiceAppointmentWriteoffServices::storeOperatorList`
 - `ServiceAppointmentWriteoffServices::storeOperatorDetail`
+- `ServiceAppointmentWriteoffServices::writeoffResultForAppointmentByStoreOperator`
 
 The existing appointment and writeoff state machines are reused. No second appointment state machine, second writeoff state machine, second token system, or second audit table was introduced.
+
+`writeoffResultForAppointmentByStoreOperator()` is a read-only store-scope wrapper. It verifies the appointment store before returning either `status = none` or a result, verifies the succeeded writeoff record's appointment/store identity, and returns the minimal writeoff-record view. The store workbench adapter no longer calls the unscoped `writeoffResultForAppointment()` method.
 
 ## Frontend And Build Result
 

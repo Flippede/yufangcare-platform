@@ -32,6 +32,7 @@ foreach ([
     'yfth/store_workbench/writeoff/precheck',
     'yfth/store_workbench/writeoff/token',
     'yfth/store_workbench/writeoff/digital',
+    'yfth/store_workbench/writeoff/result/:id',
     'yfth/store_workbench/orders',
     'AuthTokenMiddleware::class',
     'yfth_store_workbench_user',
@@ -70,11 +71,14 @@ foreach ([
     'confirmByStoreOperator',
     'writeoffByStoreToken',
     'writeoffByStoreDigital',
+    'writeoffResultForAppointmentByStoreOperator',
     'maskPhone',
     'maskAddress',
 ] as $needle) {
     $assert(strpos($service, $needle) !== false, 'service_contains:' . $needle);
 }
+$assert(strpos($service, 'writeoffResultForAppointment($appointmentId)') === false, 'writeoff_result_must_not_call_unscoped_result');
+$assert(strpos($service, "->writeoffResultForAppointmentByStoreOperator(\$appointmentId, \$scope['operator_info'])") !== false, 'writeoff_result_uses_store_operator_scope');
 foreach ([
     'OrderPayServices',
     'StoreOrderRefundServices',
@@ -124,11 +128,16 @@ foreach ([
     'writeoffByStoreDigital',
     'storeOperatorList',
     'storeOperatorDetail',
+    'writeoffResultForAppointmentByStoreOperator',
+    'assertAdminStoreReadable($operatorInfo, (int)$appointment[\'store_id\'])',
+    'assertAdminStoreReadable($operatorInfo, (int)$record[\'store_id\'])',
     "'operator_type' => \$operatorType",
     "'writeoff_operator_type' => \$operatorType",
 ] as $needle) {
     $assert(strpos($writeoffService, $needle) !== false, 'writeoff_service_contains:' . $needle);
 }
+$assert(strpos($writeoffService, 'writeoffResultForAppointmentByStoreOperator') < strpos($writeoffService, 'private function precheckCode'), 'writeoff_scoped_result_is_public_entry');
+$assert(strpos($writeoffService, 'formatWriteoffRecord($record, false)') !== false, 'writeoff_result_uses_minimal_record_view');
 
 $uniApi = (string)file_get_contents($projectRoot . DIRECTORY_SEPARATOR . 'template/uni-app/api/yfth.js');
 foreach ([
