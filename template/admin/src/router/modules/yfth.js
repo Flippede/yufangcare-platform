@@ -70,5 +70,14 @@ export default {
       },
       component: () => import('@/pages/yfth/franchiseOpening/index'),
     },
+    {
+      path: 'referral-reward',
+      name: `${pre}referral_reward`,
+      meta: {
+        auth: ['yfth-referral-reward-index'],
+        title: '推荐奖励台账',
+      },
+      component: () => import('@/pages/yfth/referralReward/index'),
+    },
   ],
 };

@@ -94,3 +94,15 @@ Route::group(function () {
     ->middleware(\app\api\middleware\StationOpenMiddleware::class)
     ->middleware(\app\api\middleware\AuthTokenMiddleware::class)
     ->option(['mark' => 'yfth_franchise_opening_user', 'mark_name' => 'YFTH franchise opening user-token API']);
+
+Route::group(function () {
+    Route::post('yfth/referral/code', 'v1.yfth.ReferralRewardController/createCode')->option(['real_name' => 'YFTH referral code create']);
+    Route::get('yfth/referral/code', 'v1.yfth.ReferralRewardController/code')->option(['real_name' => 'YFTH my referral code']);
+    Route::post('yfth/referral/bind', 'v1.yfth.ReferralRewardController/bind')->option(['real_name' => 'YFTH referral candidate bind']);
+    Route::get('yfth/referral/candidates', 'v1.yfth.ReferralRewardController/candidates')->option(['real_name' => 'YFTH referral candidates']);
+    Route::get('yfth/referral/ledger', 'v1.yfth.ReferralRewardController/ledger')->option(['real_name' => 'YFTH read-only reward ledger']);
+    Route::get('yfth/referral/ledger/:id', 'v1.yfth.ReferralRewardController/ledgerDetail')->option(['real_name' => 'YFTH read-only reward ledger detail']);
+})->middleware(\app\http\middleware\AllowOriginMiddleware::class)
+    ->middleware(\app\api\middleware\StationOpenMiddleware::class)
+    ->middleware(\app\api\middleware\AuthTokenMiddleware::class)
+    ->option(['mark' => 'yfth_referral_reward_user', 'mark_name' => 'YFTH referral reward user-token API']);

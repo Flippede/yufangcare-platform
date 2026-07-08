@@ -716,3 +716,104 @@ export function yfthFranchiseOpeningIdentityGrant(data) {
     data,
   });
 }
+
+export function yfthReferralRewardRuleList(params) {
+  return request({
+    url: 'yfth/referral_reward/rule',
+    method: 'get',
+    params,
+  });
+}
+
+export function yfthReferralRewardRuleSave(data) {
+  return request({
+    url: 'yfth/referral_reward/rule',
+    method: 'post',
+    data,
+  });
+}
+
+export function yfthReferralRewardRulePublish(id) {
+  return request({
+    url: `yfth/referral_reward/rule/${id}/publish`,
+    method: 'post',
+  });
+}
+
+export function yfthReferralRewardRuleCopy(id) {
+  return request({
+    url: `yfth/referral_reward/rule/${id}/copy`,
+    method: 'post',
+  });
+}
+
+export function yfthReferralCandidateList(params) {
+  return request({
+    url: 'yfth/referral_reward/candidate',
+    method: 'get',
+    params,
+  });
+}
+
+export function yfthReferralEventList(params) {
+  return request({
+    url: 'yfth/referral_reward/event',
+    method: 'get',
+    params,
+  });
+}
+
+export function yfthReferralAttributionList(params) {
+  return request({
+    url: 'yfth/referral_reward/attribution',
+    method: 'get',
+    params,
+  });
+}
+
+export function yfthRewardLedgerList(params) {
+  return request({
+    url: 'yfth/referral_reward/ledger',
+    method: 'get',
+    params,
+  });
+}
+
+export function yfthRewardLedgerDetail(id) {
+  return request({
+    url: `yfth/referral_reward/ledger/${id}`,
+    method: 'get',
+  });
+}
+
+export function yfthRewardLedgerSettle(id, data) {
+  return request({
+    url: `yfth/referral_reward/ledger/${id}/settle`,
+    method: 'post',
+    data,
+  });
+}
+
+export function yfthRewardLedgerCancelSettlement(id, data) {
+  return request({
+    url: `yfth/referral_reward/ledger/${id}/cancel_settlement`,
+    method: 'post',
+    data,
+  });
+}
+
+export function yfthRewardLedgerReverse(id, data) {
+  return request({
+    url: `yfth/referral_reward/ledger/${id}/reverse`,
+    method: 'post',
+    data,
+  });
+}
+
+export function yfthReferralRewardScan(data) {
+  return request({
+    url: 'yfth/referral_reward/scan',
+    method: 'post',
+    data,
+  });
+}

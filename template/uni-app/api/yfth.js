@@ -280,6 +280,32 @@ export function getYfthInventoryLedger(data) {
 	return request.get('yfth/supply/ledger', data || {});
 }
 
+export function createYfthReferralCode(data) {
+	const payload = splitYfthContext(data || {});
+	return request.post('yfth/referral/code' + payload.query, payload.body);
+}
+
+export function getYfthReferralCode(data) {
+	return request.get('yfth/referral/code', data || {});
+}
+
+export function bindYfthReferralCode(data) {
+	const payload = splitYfthContext(data || {});
+	return request.post('yfth/referral/bind' + payload.query, payload.body);
+}
+
+export function getYfthReferralCandidates(data) {
+	return request.get('yfth/referral/candidates', data || {});
+}
+
+export function getYfthRewardLedger(data) {
+	return request.get('yfth/referral/ledger', data || {});
+}
+
+export function getYfthRewardLedgerDetail(id, data) {
+	return request.get('yfth/referral/ledger/' + id, data || {});
+}
+
 function splitYfthContext(data) {
 	const body = Object.assign({}, data || {});
 	const query = {};

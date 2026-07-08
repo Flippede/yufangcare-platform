@@ -113,6 +113,21 @@ Route::group('yfth', function () {
         Route::get('alert_rule', 'v1.yfth.SupplyChain/alertRuleList')->option(['real_name' => 'Inventory alert rule list']);
         Route::post('alert_rule/save', 'v1.yfth.SupplyChain/alertRuleSave')->option(['real_name' => 'Inventory alert rule save']);
     })->option(['parent' => 'yfth', 'cate_name' => 'Supply Chain']);
+    Route::group('referral_reward', function () {
+        Route::get('rule', 'v1.yfth.ReferralReward/ruleList')->option(['real_name' => 'Referral reward rule list']);
+        Route::post('rule', 'v1.yfth.ReferralReward/ruleSave')->option(['real_name' => 'Referral reward rule save']);
+        Route::post('rule/:id/publish', 'v1.yfth.ReferralReward/rulePublish')->option(['real_name' => 'Referral reward rule publish']);
+        Route::post('rule/:id/copy', 'v1.yfth.ReferralReward/ruleCopy')->option(['real_name' => 'Referral reward rule copy']);
+        Route::get('candidate', 'v1.yfth.ReferralReward/candidateList')->option(['real_name' => 'Referral candidate list']);
+        Route::get('event', 'v1.yfth.ReferralReward/eventList')->option(['real_name' => 'Referral event list']);
+        Route::get('attribution', 'v1.yfth.ReferralReward/attributionList')->option(['real_name' => 'Referral attribution list']);
+        Route::get('ledger', 'v1.yfth.ReferralReward/ledgerList')->option(['real_name' => 'Reward ledger list']);
+        Route::get('ledger/:id', 'v1.yfth.ReferralReward/ledgerDetail')->option(['real_name' => 'Reward ledger detail']);
+        Route::post('ledger/:id/settle', 'v1.yfth.ReferralReward/ledgerSettle')->option(['real_name' => 'Reward ledger offline settlement mark']);
+        Route::post('ledger/:id/cancel_settlement', 'v1.yfth.ReferralReward/ledgerCancelSettlement')->option(['real_name' => 'Reward ledger cancel offline settlement']);
+        Route::post('ledger/:id/reverse', 'v1.yfth.ReferralReward/ledgerReverse')->option(['real_name' => 'Reward ledger reverse']);
+        Route::post('scan', 'v1.yfth.ReferralReward/scan')->option(['real_name' => 'Referral reward compensation scan']);
+    })->option(['parent' => 'yfth', 'cate_name' => 'Referral Reward']);
 })->middleware([
     \app\http\middleware\AllowOriginMiddleware::class,
     \app\adminapi\middleware\AdminAuthTokenMiddleware::class,

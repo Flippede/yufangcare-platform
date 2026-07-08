@@ -1,5 +1,26 @@
 # 项目交接文档
 
+## Current Fact Snapshot - Referral Relationship And Read-only Reward Ledger V1
+
+- Current development branch: `codex/yfth-referral-reward-ledger-v1`.
+- Start commit: `6827cfdc6d1e2e06d59cb80b781bcfa4598da231`.
+- Scope: independent YFTH referral code, referral candidate, referral event, attribution, immutable reward rule version, observing period, read-only reward ledger, headquarters offline settlement marker, append-only adjustment/reverse record, user/franchisee read-only display, and headquarters management page/API.
+- New tables: `yfth_referral_code`, `yfth_referral_candidate`, `yfth_referral_event`, `yfth_referral_attribution`, `yfth_reward_rule_version`, `yfth_reward_rule_item`, `yfth_reward_ledger`, `yfth_reward_ledger_snapshot`, `yfth_reward_adjustment`, and `yfth_reward_settlement_record`.
+- New backend service: `app/services/yfth/ReferralRewardServices.php`.
+- New user-token APIs: `/api/yfth/referral/code`, `/api/yfth/referral/bind`, `/api/yfth/referral/candidates`, `/api/yfth/referral/ledger`, and `/api/yfth/referral/ledger/:id`.
+- New headquarters admin-token APIs: `/adminapi/yfth/referral_reward/*` for rules, candidates, events, attribution, ledger, offline settlement marker, cancellation, reverse, and scan.
+- Frontend added: admin `template/admin/src/pages/yfth/referralReward/index.vue`; uni-app pages under `template/uni-app/pages/yfth/referral/*`.
+- C-side effective boundary: registration and payment are not final rewards; `package_activated` creates observing ledger, and scan promotes to valid only after the observing period.
+- B-side effective boundary: application submitted, signed, and preparing are not final rewards; `franchise_opened` creates observing ledger, and scan promotes to valid only after the observing period.
+- CRMEB funding boundary: this V1 does not write `user_spread`, `user_brokerage`, `user_bill`, `now_money`, points, balance, commission, withdrawal, CRMEB `store_order`, CRMEB order/payment/refund, or CRMEB product/SKU stock/sales.
+- Package/franchise/supply-chain boundary: referral code reads trusted business events or scans only; it does not create package orders, change package/refund states, change franchise application/opening states, create purchase orders, ship/receive inventory, or write inventory balance/ledger.
+- Audit and idempotency: unified audit writes to `yfth_audit_event` with domain `yfth_referral_reward`; referral events use `scene + event_type + idempotency_key`; ledgers use `scene + business_type + business_id + referrer_uid + rule_item_id`; snapshots are sanitized.
+- Settlement boundary: `settled` means headquarters offline settlement marker only; it is not system payment and does not trigger withdrawal or balance changes.
+- Documentation added: `docs/YFTH_REFERRAL_REWARD_ARCHITECTURE.md`.
+- Tests added: `crmeb/tests/yfth_referral_reward_contract_check.php` and `crmeb/tests/yfth_referral_reward_real_flow_check.php`.
+- Not implemented: automatic payment, withdrawal, CRMEB distribution integration, online settlement, revenue sharing, product quota return, complex multi-level reward, complete package/franchise event listener integration, production deployment, and production database migration.
+- Final commit and verification results should be read from real Git status after this feature-branch commit.
+
 ## Current Fact Snapshot - Final Franchise Contract Preparation Opening V1 Closure
 
 - Current branch after merge: `main`.

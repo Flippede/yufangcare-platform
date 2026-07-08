@@ -237,3 +237,11 @@ V2.0 复用比例估算：约 15%-25%。现有分销/事业部只能提供技术
 - P1 hardening after architecture review: read-only acceptance detail no longer creates acceptance records; acceptance submit/pass now require signed contract, finance-confirmed payment, complete fixed required tasks, and headquarters pass additionally requires a bound active CRMEB store.
 - Remaining gaps: real electronic signing, online franchise fee payment, settlement, revenue sharing, recommendation rewards, product quota, procurement payment, purchase after-sale reversal, and production deployment.
 - Boundary retained: this module does not create CRMEB `store_order`, does not modify CRMEB payment/refund/order flows, and does not mutate CRMEB product or SKU stock.
+
+## 2026-07-10 Referral Relationship And Read-only Reward Ledger V1 Gap Update
+
+- Recommendation reward has moved from an unimplemented gap to an independent YFTH V1 foundation on `codex/yfth-referral-reward-ledger-v1`.
+- New covered capabilities: referral code, referral candidate, idempotent referral event, C-side package attribution, B-side franchise-opening attribution, immutable reward rule version, rule item, observing-period ledger, ledger snapshot, offline settlement marker, append-only reverse/adjustment, user-side read-only pages, and headquarters referral reward management page.
+- New data tables: `yfth_referral_code`, `yfth_referral_candidate`, `yfth_referral_event`, `yfth_referral_attribution`, `yfth_reward_rule_version`, `yfth_reward_rule_item`, `yfth_reward_ledger`, `yfth_reward_ledger_snapshot`, `yfth_reward_adjustment`, and `yfth_reward_settlement_record`.
+- Boundary retained: the module does not write CRMEB `user_spread`, `user_brokerage`, `user_bill`, `now_money`, points, balance, commission, withdrawal, CRMEB orders, CRMEB payment/refund state, or CRMEB product/SKU stock.
+- Remaining gaps: automatic cash payment, withdrawal, online settlement, revenue sharing, product quota return, complex multi-level reward, full package/franchise event listener integration, production deployment, and production database migration.

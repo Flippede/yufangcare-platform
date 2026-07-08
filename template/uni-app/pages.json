@@ -239,6 +239,36 @@
 					"style": {
 						"navigationBarTitleText": "开店验收"
 					}
+				},
+				{
+					"path": "referral/index",
+					"style": {
+						"navigationBarTitleText": "推荐中心"
+					}
+				},
+				{
+					"path": "referral/code",
+					"style": {
+						"navigationBarTitleText": "我的推荐码"
+					}
+				},
+				{
+					"path": "referral/candidates",
+					"style": {
+						"navigationBarTitleText": "推荐进度"
+					}
+				},
+				{
+					"path": "referral/ledger",
+					"style": {
+						"navigationBarTitleText": "奖励台账"
+					}
+				},
+				{
+					"path": "referral/ledger_detail",
+					"style": {
+						"navigationBarTitleText": "台账详情"
+					}
 				}
 			]
 		}, {
