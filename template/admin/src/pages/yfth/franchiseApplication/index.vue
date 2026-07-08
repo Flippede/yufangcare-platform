@@ -75,6 +75,7 @@
             :timestamp="formatTime(item.follow_time)"
           >
             <div class="strong">{{ item.type_text }} · {{ item.operator_name || '总部' }}</div>
+            <el-tag size="mini" :type="item.visible_type === 'public' ? 'success' : 'info'">{{ visibleText(item.visible_type) }}</el-tag>
             <div>{{ item.content }}</div>
             <div v-if="item.next_time" class="muted">下次跟进：{{ formatTime(item.next_time) }}</div>
           </el-timeline-item>
@@ -86,7 +87,7 @@
           <el-table-column prop="operator_uid" label="操作人" width="100" />
           <el-table-column prop="reason" label="原因" min-width="180" />
           <el-table-column label="时间" width="160">
-            <template slot-scope="scope">{{ formatTime(scope.row.create_time) }}</template>
+            <template slot-scope="scope">{{ formatTime(scope.row.add_time) }}</template>
           </el-table-column>
         </el-table>
       </div>
@@ -138,6 +139,12 @@
         <el-form-item label="内容">
           <el-input v-model="followForm.content" type="textarea" :rows="4" placeholder="请输入沟通内容" />
         </el-form-item>
+        <el-form-item label="可见范围">
+          <el-radio-group v-model="followForm.visible_type">
+            <el-radio label="internal">总部内部</el-radio>
+            <el-radio label="public">用户可见</el-radio>
+          </el-radio-group>
+        </el-form-item>
         <el-form-item label="下次跟进">
           <el-date-picker v-model="followForm.next_time" type="datetime" value-format="yyyy-MM-dd HH:mm:ss" class="full" />
         </el-form-item>
@@ -175,7 +182,7 @@ export default {
       currentRow: {},
       assignForm: { assigned_uid: '' },
       statusForm: { status: '', reason: '' },
-      followForm: { type: 'phone', content: '', next_time: '' },
+      followForm: { type: 'phone', content: '', visible_type: 'internal', next_time: '' },
       statusOptions: [
         { label: '已提交', value: 'submitted' },
         { label: '联系中', value: 'contacting' },
@@ -250,7 +257,7 @@ export default {
     },
     openFollow(row) {
       this.currentRow = row;
-      this.followForm = { type: 'phone', content: '', next_time: '' };
+      this.followForm = { type: 'phone', content: '', visible_type: 'internal', next_time: '' };
       this.followVisible = true;
     },
     submitFollow() {
@@ -276,6 +283,9 @@ export default {
         ':' +
         pad(date.getMinutes())
       );
+    },
+    visibleText(value) {
+      return value === 'public' ? '用户可见' : '总部内部';
     },
   },
 };

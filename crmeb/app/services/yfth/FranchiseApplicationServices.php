@@ -18,6 +18,7 @@ class FranchiseApplicationServices extends YfthFoundationBaseServices
     private const IMPLEMENTED_STATUSES = ['draft', 'submitted', 'contacting', 'communicating', 'inspecting', 'pending_contract'];
     private const RESERVED_STATUSES = ['signed', 'preparing', 'opened', 'terminated'];
     private const FOLLOW_TYPES = ['phone', 'wechat', 'meeting', 'inspection', 'other'];
+    private const FOLLOW_VISIBLE_TYPES = ['public', 'internal'];
     private const STATUS_TRANSITIONS = [
         'draft' => ['submitted'],
         'submitted' => ['contacting'],
@@ -246,13 +247,15 @@ class FranchiseApplicationServices extends YfthFoundationBaseServices
             throw new ApiException('franchise_follow_content_too_long');
         }
         $type = $this->normalizeFollowType((string)($data['type'] ?? 'phone'));
-        return Db::transaction(function () use ($application, $adminId, $type, $content, $data) {
+        $visibleType = $this->normalizeFollowVisibility((string)($data['visible_type'] ?? 'internal'));
+        return Db::transaction(function () use ($application, $adminId, $type, $visibleType, $content, $data) {
             $now = time();
             $record = app()->make(YfthFranchiseFollowRecordDao::class)->save([
                 'application_id' => (int)$application['id'],
                 'operator_uid' => $adminId,
                 'type' => $type,
                 'content' => $content,
+                'visible_type' => $visibleType,
                 'next_time' => $this->parseTime($data['next_time'] ?? 0),
                 'create_time' => $now,
             ]);
@@ -332,6 +335,12 @@ class FranchiseApplicationServices extends YfthFoundationBaseServices
     {
         $type = trim($type);
         return in_array($type, self::FOLLOW_TYPES, true) ? $type : 'other';
+    }
+
+    private function normalizeFollowVisibility(string $visibleType): string
+    {
+        $visibleType = trim($visibleType);
+        return in_array($visibleType, self::FOLLOW_VISIBLE_TYPES, true) ? $visibleType : 'internal';
     }
 
     private function makeApplicationNo(int $uid): string
@@ -426,6 +435,7 @@ class FranchiseApplicationServices extends YfthFoundationBaseServices
             $payload['application_id'] = (int)($row['application_id'] ?? 0);
             $payload['operator_uid'] = (int)($row['operator_uid'] ?? 0);
             $payload['operator_name'] = $this->adminDisplayName($this->adminMap([(int)($row['operator_uid'] ?? 0)])[(int)($row['operator_uid'] ?? 0)] ?? []);
+            $payload['visible_type'] = (string)($row['visible_type'] ?? 'internal');
         }
         return $payload;
     }
@@ -435,10 +445,12 @@ class FranchiseApplicationServices extends YfthFoundationBaseServices
         if ($applicationId <= 0) {
             return [];
         }
-        $row = app()->make(YfthFranchiseFollowRecordDao::class)->search([])
-            ->where('application_id', $applicationId)
-            ->order('create_time desc,id desc')
-            ->find();
+        $query = app()->make(YfthFranchiseFollowRecordDao::class)->search([])
+            ->where('application_id', $applicationId);
+        if (!$admin) {
+            $query->where('visible_type', 'public');
+        }
+        $row = $query->order('create_time desc,id desc')->find();
         if (!$row) {
             return [];
         }
@@ -447,9 +459,13 @@ class FranchiseApplicationServices extends YfthFoundationBaseServices
 
     private function followRecords(int $applicationId, bool $admin): array
     {
-        $rows = app()->make(YfthFranchiseFollowRecordDao::class)->search([])
-            ->where('application_id', $applicationId)
-            ->field('id,application_id,operator_uid,type,content,next_time,create_time')
+        $query = app()->make(YfthFranchiseFollowRecordDao::class)->search([])
+            ->where('application_id', $applicationId);
+        if (!$admin) {
+            $query->where('visible_type', 'public');
+        }
+        $rows = $query
+            ->field('id,application_id,operator_uid,type,content,visible_type,next_time,create_time')
             ->order('create_time desc,id desc')
             ->select()
             ->toArray();
@@ -460,16 +476,48 @@ class FranchiseApplicationServices extends YfthFoundationBaseServices
 
     private function auditEvents(int $applicationId): array
     {
-        $rows = app()->make(YfthAuditEventDao::class)->search([])
+        $auditDao = app()->make(YfthAuditEventDao::class);
+        $field = 'id,business_domain,object_type,object_id,action,operator_uid,role_code,store_id,reason,add_time';
+        $applicationRows = $auditDao->search([])
             ->where('business_domain', self::DOMAIN)
-            ->where(function ($query) use ($applicationId) {
-                $query->where('object_id', (string)$applicationId)->whereOr('after_state', 'like', '%"application_id":' . $applicationId . '%');
-            })
-            ->field('id,business_domain,object_type,object_id,action,operator_uid,role_code,store_id,reason,create_time')
-            ->order('id desc')
+            ->where('object_type', 'franchise_application')
+            ->where('object_id', (string)$applicationId)
+            ->field($field)
             ->limit(30)
             ->select()
             ->toArray();
+
+        $followRows = app()->make(YfthFranchiseFollowRecordDao::class)->search([])
+            ->where('application_id', $applicationId)
+            ->field('id')
+            ->select()
+            ->toArray();
+        $followIds = array_values(array_unique(array_filter(array_map(function ($row) {
+            return (string)(int)($row['id'] ?? 0);
+        }, $followRows))));
+
+        $auditRows = $applicationRows;
+        if ($followIds) {
+            $auditRows = array_merge($auditRows, $auditDao->search([])
+                ->where('business_domain', self::DOMAIN)
+                ->where('object_type', 'franchise_follow_record')
+                ->whereIn('object_id', $followIds)
+                ->field($field)
+                ->limit(30)
+                ->select()
+                ->toArray());
+        }
+
+        usort($auditRows, function ($left, $right) {
+            $leftId = (int)($left['id'] ?? 0);
+            $rightId = (int)($right['id'] ?? 0);
+            if ($leftId === $rightId) {
+                return (int)($right['add_time'] ?? 0) <=> (int)($left['add_time'] ?? 0);
+            }
+            return $rightId <=> $leftId;
+        });
+
+        $rows = array_slice($auditRows, 0, 30);
         return array_map(function ($row) {
             return [
                 'id' => (int)($row['id'] ?? 0),
@@ -479,7 +527,7 @@ class FranchiseApplicationServices extends YfthFoundationBaseServices
                 'operator_uid' => (int)($row['operator_uid'] ?? 0),
                 'role_code' => (string)($row['role_code'] ?? ''),
                 'reason' => (string)($row['reason'] ?? ''),
-                'create_time' => (int)($row['create_time'] ?? 0),
+                'add_time' => (int)($row['add_time'] ?? 0),
             ];
         }, $rows);
     }

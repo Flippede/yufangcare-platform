@@ -51,6 +51,7 @@ class FranchiseApplication extends AuthController
         return app('json')->success($services->addFollow((int)$id, $this->request->postMore([
             ['type', 'phone'],
             ['content', ''],
+            ['visible_type', 'internal'],
             ['next_time', 0],
         ]), (int)$this->adminId, $this->adminInfo ?: []));
     }

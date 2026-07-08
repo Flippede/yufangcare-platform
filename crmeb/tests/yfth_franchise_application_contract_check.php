@@ -17,8 +17,34 @@ $read = function (string $path) use ($root): string {
     return (string)file_get_contents($root . DIRECTORY_SEPARATOR . $path);
 };
 
+$methodBlock = function (string $source, string $methodName): string {
+    $needle = 'function ' . $methodName . '(';
+    $start = strpos($source, $needle);
+    if ($start === false) {
+        return '';
+    }
+    $brace = strpos($source, '{', $start);
+    if ($brace === false) {
+        return '';
+    }
+    $depth = 0;
+    $length = strlen($source);
+    for ($i = $brace; $i < $length; $i++) {
+        if ($source[$i] === '{') {
+            $depth++;
+        } elseif ($source[$i] === '}') {
+            $depth--;
+            if ($depth === 0) {
+                return substr($source, $start, $i - $start + 1);
+            }
+        }
+    }
+    return '';
+};
+
 foreach ([
     'database/migrations/20260708110000_create_yfth_franchise_application_tables.php',
+    'database/migrations/20260708113000_add_yfth_franchise_follow_visibility.php',
     'app/model/yfth/YfthFranchiseApplication.php',
     'app/model/yfth/YfthFranchiseFollowRecord.php',
     'app/dao/yfth/YfthFranchiseApplicationDao.php',
@@ -34,6 +60,7 @@ foreach ([
 }
 
 $migration = $read('database/migrations/20260708110000_create_yfth_franchise_application_tables.php');
+$visibilityMigration = $read('database/migrations/20260708113000_add_yfth_franchise_follow_visibility.php');
 foreach ([
     'yfth_franchise_application',
     'yfth_franchise_follow_record',
@@ -50,6 +77,16 @@ foreach ([
     'yfth/franchise_application/application/<id>/status',
 ] as $needle) {
     $assert(strpos($migration, $needle) !== false, 'migration_contains:' . $needle);
+}
+foreach ([
+    'AddYfthFranchiseFollowVisibility',
+    'visible_type',
+    'internal',
+    'public/internal visibility',
+    'idx_yfth_franchise_follow_visible_time',
+    'removeColumn(\'visible_type\')',
+] as $needle) {
+    $assert(strpos($visibilityMigration, $needle) !== false, 'visibility_migration_contains:' . $needle);
 }
 
 $service = $read('app/services/yfth/FranchiseApplicationServices.php');
@@ -79,9 +116,53 @@ foreach ([
     'SystemAdminDao',
     'AdminStoreContextServices',
     'assertHeadquarterScope',
+    'FOLLOW_VISIBLE_TYPES',
+    'normalizeFollowVisibility',
+    '\'visible_type\' => $visibleType',
+    '->where(\'visible_type\', \'public\')',
+    'object_type\', \'franchise_application\'',
+    'object_type\', \'franchise_follow_record\'',
+    'add_time',
 ] as $needle) {
     $assert(strpos($service, $needle) !== false, 'service_contains:' . $needle);
 }
+
+$auditBlock = $methodBlock($service, 'auditEvents');
+$assert($auditBlock !== '', 'service_audit_events_method_found');
+foreach ([
+    'after_state',
+    'like',
+    'whereOr',
+    'create_time',
+] as $needle) {
+    $assert(strpos($auditBlock, $needle) === false, 'audit_events_not_contains:' . $needle);
+}
+$assert(strpos($auditBlock, 'add_time') !== false, 'audit_events_uses_add_time');
+$assert(strpos($auditBlock, 'whereIn(\'object_id\', $followIds)') !== false, 'audit_events_matches_follow_ids_precisely');
+
+$followRecordsBlock = $methodBlock($service, 'followRecords');
+$latestFollowBlock = $methodBlock($service, 'latestFollow');
+$assert(strpos($followRecordsBlock, 'visible_type\', \'public\'') !== false, 'user_follow_records_filter_public');
+$assert(strpos($latestFollowBlock, 'visible_type\', \'public\'') !== false, 'user_latest_follow_filter_public');
+
+$exactAuditFixture = [
+    ['id' => 1, 'object_type' => 'franchise_application', 'object_id' => '1'],
+    ['id' => 2, 'object_type' => 'franchise_application', 'object_id' => '10'],
+    ['id' => 3, 'object_type' => 'franchise_follow_record', 'object_id' => '21'],
+    ['id' => 4, 'object_type' => 'franchise_follow_record', 'object_id' => '210'],
+];
+$applicationId = 1;
+$followIds = ['21'];
+$exactMatches = array_values(array_filter($exactAuditFixture, function ($row) use ($applicationId, $followIds) {
+    if ($row['object_type'] === 'franchise_application') {
+        return $row['object_id'] === (string)$applicationId;
+    }
+    if ($row['object_type'] === 'franchise_follow_record') {
+        return in_array($row['object_id'], $followIds, true);
+    }
+    return false;
+}));
+$assert(array_column($exactMatches, 'id') === [1, 3], 'audit_matching_exact_application_id_1_not_10');
 
 foreach ([
     'createStore',
@@ -145,6 +226,7 @@ foreach ([
     'assignOwner',
     'changeStatus',
     'addFollow',
+    'visible_type',
 ] as $needle) {
     $assert(strpos($adminController, $needle) !== false, 'admin_controller_contains:' . $needle);
 }
@@ -239,12 +321,23 @@ $userDetail = (string)file_get_contents($projectRoot . DIRECTORY_SEPARATOR . 'te
 foreach ([
     'assigned_uid',
     'operator_uid',
+    'visible_type: \'internal\'',
     'audit_events',
     'phone }}',
     'create_time',
     'update_time',
 ] as $needle) {
     $assert(strpos($userDetail, $needle) === false, 'user_detail_not_contains:' . $needle);
+}
+
+$adminPage = (string)file_get_contents($projectRoot . DIRECTORY_SEPARATOR . 'template/admin/src/pages/yfth/franchiseApplication/index.vue');
+foreach ([
+    'visible_type',
+    '用户可见',
+    '总部内部',
+    'scope.row.add_time',
+] as $needle) {
+    $assert(strpos($adminPage, $needle) !== false, 'admin_page_contains:' . $needle);
 }
 
 if ($failures) {
