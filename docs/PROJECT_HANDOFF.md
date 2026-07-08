@@ -1,5 +1,25 @@
 # 项目交接文档
 
+## Current Fact Snapshot - Final Franchise Contract Preparation Opening V1 Closure
+
+- Current branch after merge: `main`.
+- Preserved feature branch: `codex/yfth-franchise-contract-opening-v1`.
+- Main before merge: `0dc2572dc445c8944983b2a4a3436571646cc5a1`.
+- Final reviewed feature commit: `d62739059f044476260fe04994ce49a485fb3dc3`.
+- Merge method: `git merge --ff-only codex/yfth-franchise-contract-opening-v1`.
+- Architecture review conclusion: A, passed; no Blocker/P1/P2/P3 remains.
+- Completed capabilities: offline franchise contract record, applicant contract confirmation, headquarters contract confirmation/signing, offline payment proof upload, finance confirmation/reject, store preparation profile, fixed preparation tasks, task evidence records, opening acceptance, acceptance items, controlled store-bound identity grant, user opening pages, and headquarters `franchise_opening` admin page.
+- New tables: `yfth_franchise_contract`, `yfth_franchise_payment_proof`, `yfth_franchise_store_profile`, `yfth_franchise_preparation_task`, `yfth_franchise_preparation_task_record`, `yfth_store_opening_acceptance`, `yfth_store_opening_acceptance_item`, and `yfth_franchise_identity_grant`.
+- P1 closure: user acceptance detail no longer implicitly creates acceptance records; finance confirmation no longer pre-creates acceptance; acceptance submit requires signed contract, finance-confirmed payment, complete fixed required tasks, and all required tasks approved; headquarters pass additionally requires verified/bound store profile, concrete active `system_store_id`, and active CRMEB store; acceptance passed does not automatically grant identity; identity grant still requires second headquarters confirmation.
+- Identity boundary: final grant writes concrete store-bound `yfth_user_store_role` rows and does not create a global franchisee identity.
+- Store boundary: user side cannot create or enable CRMEB `system_store`; headquarters must bind a valid `system_store_id` before operating rights can be granted.
+- Supply-chain boundary: `first_purchase` only reads an existing YFTH purchase order and requires `stocked`; it does not create, audit, ship, receive, or mutate purchase orders, `yfth_inventory_balance`, or `yfth_inventory_ledger`.
+- CRMEB boundary: this V1 does not create CRMEB `store_order`, does not modify CRMEB order/payment/refund main flows, does not modify CRMEB product stock, SKU stock, or sales, and does not write balance, points, brokerage, distribution, commission, settlement, or revenue-sharing data.
+- Verification: Architecture Auditor A-level review passed; PHP syntax passed; franchise opening contract check passed; franchise opening real-flow source guard passed; MySQL 8.0.46 isolated migration `run -> rollback -t 0 -> run` passed; admin production build passed; existing uni-app request/context checks passed; `git diff --check` passed.
+- Not implemented: real electronic signing, online franchise fee payment, CRMEB order/payment/refund integration for franchise fee, settlement, revenue sharing, recommendation rewards, product quota, procurement payment, purchase after-sale reversal, production deployment, and production database migration.
+- Production status: no production deployment, no production database connection, no production migration, and no server modification were performed.
+- Final main and origin/main commit should be read from real Git HEAD after this documentation closure commit and push.
+
 ## Current Fact Snapshot - Franchise Contract Preparation Opening V1
 
 - Current development branch: `codex/yfth-franchise-contract-opening-v1`.
