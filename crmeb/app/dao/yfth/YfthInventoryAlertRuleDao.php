@@ -12,4 +12,3 @@ class YfthInventoryAlertRuleDao extends BaseDao
         return YfthInventoryAlertRule::class;
     }
 }
-

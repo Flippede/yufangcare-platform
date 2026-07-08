@@ -12,4 +12,3 @@ class YfthStockLocationDao extends BaseDao
         return YfthStockLocation::class;
     }
 }
-

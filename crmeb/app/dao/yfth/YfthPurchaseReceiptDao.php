@@ -12,4 +12,3 @@ class YfthPurchaseReceiptDao extends BaseDao
         return YfthPurchaseReceipt::class;
     }
 }
-

@@ -10,4 +10,3 @@ class YfthPurchaseReceipt extends YfthBaseModel
 
     protected $name = 'yfth_purchase_receipt';
 }
-

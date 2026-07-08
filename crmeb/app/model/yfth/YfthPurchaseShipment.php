@@ -10,4 +10,3 @@ class YfthPurchaseShipment extends YfthBaseModel
 
     protected $name = 'yfth_purchase_shipment';
 }
-

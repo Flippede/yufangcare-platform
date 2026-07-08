@@ -10,4 +10,3 @@ class YfthInventoryBalance extends YfthBaseModel
 
     protected $name = 'yfth_inventory_balance';
 }
-

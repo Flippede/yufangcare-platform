@@ -10,4 +10,3 @@ class YfthInventoryAlertRule extends YfthBaseModel
 
     protected $name = 'yfth_inventory_alert_rule';
 }
-

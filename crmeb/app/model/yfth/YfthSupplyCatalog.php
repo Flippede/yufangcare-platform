@@ -10,4 +10,3 @@ class YfthSupplyCatalog extends YfthBaseModel
 
     protected $name = 'yfth_supply_catalog';
 }
-

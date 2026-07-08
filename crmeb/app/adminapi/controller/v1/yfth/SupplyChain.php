@@ -135,4 +135,3 @@ class SupplyChain extends AuthController
         app()->make(SystemRoleServices::class)->assertApiAuthForAdmin($this->adminInfo ?: [], $rule, $method);
     }
 }
-

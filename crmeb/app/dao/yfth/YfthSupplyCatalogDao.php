@@ -12,4 +12,3 @@ class YfthSupplyCatalogDao extends BaseDao
         return YfthSupplyCatalog::class;
     }
 }
-

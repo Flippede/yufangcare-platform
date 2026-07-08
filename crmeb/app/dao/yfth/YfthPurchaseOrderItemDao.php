@@ -12,4 +12,3 @@ class YfthPurchaseOrderItemDao extends BaseDao
         return YfthPurchaseOrderItem::class;
     }
 }
-

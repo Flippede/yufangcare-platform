@@ -10,4 +10,3 @@ class YfthStockLocation extends YfthBaseModel
 
     protected $name = 'yfth_stock_location';
 }
-

@@ -10,4 +10,3 @@ class YfthPurchaseOrderItem extends YfthBaseModel
 
     protected $name = 'yfth_purchase_order_item';
 }
-

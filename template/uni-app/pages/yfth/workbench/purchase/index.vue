@@ -202,4 +202,3 @@ export default {
 .buy-row input { flex: 1; background: #fffaf2; border-radius: 10rpx; padding: 0 18rpx; height: 64rpx; line-height: 64rpx; }
 .buy-row button, .primary { flex: 1; background: #6f4c2f; color: #fff; border-radius: 10rpx; font-size: 25rpx; }
 </style>
-

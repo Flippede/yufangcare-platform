@@ -12,4 +12,3 @@ class YfthInventoryLedgerDao extends BaseDao
         return YfthInventoryLedger::class;
     }
 }
-

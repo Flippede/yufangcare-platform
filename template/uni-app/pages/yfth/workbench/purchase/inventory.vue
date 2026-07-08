@@ -63,4 +63,3 @@ export default {
 .muted { color: #786b73; font-size: 24rpx; margin-top: 8rpx; }
 .qty { color: #8f4d2c; font-weight: 700; margin-top: 10rpx; }
 </style>
-

@@ -64,4 +64,3 @@ export default {
 .section-title { font-size: 30rpx; font-weight: 700; margin-bottom: 12rpx; }
 .line { display: flex; justify-content: space-between; gap: 18rpx; padding: 18rpx 0; border-bottom: 1rpx solid #f1e5d4; }
 </style>
-

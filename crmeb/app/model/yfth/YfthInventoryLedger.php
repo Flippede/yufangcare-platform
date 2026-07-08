@@ -10,4 +10,3 @@ class YfthInventoryLedger extends YfthBaseModel
 
     protected $name = 'yfth_inventory_ledger';
 }
-

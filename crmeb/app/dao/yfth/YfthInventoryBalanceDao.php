@@ -12,4 +12,3 @@ class YfthInventoryBalanceDao extends BaseDao
         return YfthInventoryBalance::class;
     }
 }
-
