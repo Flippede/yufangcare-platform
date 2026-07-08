@@ -79,9 +79,17 @@ foreach ([
     'ensurePreparationTasks',
     'userSubmitTask',
     'validateFirstPurchaseTask',
+    'userAcceptance',
     'userSubmitAcceptance',
     'adminReviewAcceptance',
     'adminGrantIdentity',
+    'pendingAcceptanceDto',
+    'ensureAcceptanceForSubmit',
+    'assertAcceptanceSubmitReady',
+    'assertAcceptancePassReady',
+    'expectedRequiredTaskCodes',
+    'requiredTasksGeneratedForApplication',
+    'allRequiredTasksApprovedStrict',
     'activateStoreRoleGrant',
     'UserStoreRoleServices::class',
     'YfthStoreCapabilityDao::class',
@@ -122,12 +130,26 @@ $assert($contains($service, "'pending_contract' => ['signed']"), 'application_tr
 $assert($contains($service, "'signed' => ['preparing']"), 'application_transition_signed_to_preparing');
 $assert($contains($service, "'preparing' => ['opened']"), 'application_transition_preparing_to_opened');
 $assert($contains($service, "if ((string)\$contract['status'] !== 'signed')"), 'payment_requires_signed_contract');
-$assert($contains($service, "if (!\$this->allRequiredTasksApproved"), 'acceptance_and_grant_require_approved_tasks');
+$assert($contains($service, "\$acceptance = \$this->latestAcceptance((int)\$application['id']);"), 'user_acceptance_reads_existing_only');
+$assert($contains($service, "return ['acceptance' => \$this->pendingAcceptanceDto((int)\$application['id'])];"), 'user_acceptance_missing_returns_safe_dto');
+$assert(!$contains($service, "userAcceptance(Request \$request): array\n    {\n        \$uid = \$this->requestUid(\$request);\n        \$application = \$this->requireLatestOpeningApplication(\$uid);\n        return ['acceptance' => \$this->formatAcceptance(\$this->ensureAcceptance"), 'user_acceptance_does_not_ensure_acceptance');
+$assert(!$contains($service, "\$this->ensureAcceptance((int)\$before['application_id']);"), 'payment_confirm_does_not_create_acceptance');
+$assert($contains($service, "\$gate = \$this->assertAcceptanceSubmitReady((int)\$application['id']);"), 'acceptance_submit_uses_strict_gate');
+$assert($contains($service, "\$this->assertAcceptancePassReady((int)\$before['application_id']);"), 'acceptance_pass_uses_strict_gate');
+$assert($contains($service, "if (count(\$rows) !== count(\$expectedCodes))"), 'required_task_missing_count_fails');
+$assert($contains($service, "isset(\$seen[\$code])"), 'required_task_duplicate_fails');
+$assert($contains($service, "(string)(\$row['status'] ?? '') !== 'approved'"), 'required_task_unapproved_fails');
+$assert($contains($service, "\$this->validateFirstPurchaseTask(\$row, []);"), 'first_purchase_approved_readonly_revalidated');
+$assert($contains($service, "'franchise_acceptance_application_not_preparing'"), 'acceptance_requires_preparing_application');
+$assert($contains($service, "'franchise_acceptance_payment_not_confirmed'"), 'acceptance_requires_finance_payment');
+$assert($contains($service, "'franchise_acceptance_store_not_bound'"), 'acceptance_pass_requires_bound_store');
+$assert($contains($service, "StoreAccessServices::class)->assertStoreActive(\$storeId)"), 'acceptance_pass_requires_active_store');
+$assert($contains($service, "if (!\$this->allRequiredTasksApprovedStrict"), 'acceptance_and_grant_require_approved_tasks');
 $assert($contains($service, "(string)\$acceptance['status'] !== 'passed'"), 'grant_requires_passed_acceptance');
 $assert($contains($service, "\$storeId <= 0"), 'grant_requires_concrete_store_id');
 
 $apiController = $read('app/api/controller/v1/yfth/FranchiseOpeningController.php');
-foreach (['uid', 'applicant_uid', 'status', 'store_id', 'finance_uid', 'verified_uid'] as $field) {
+foreach (['uid', 'applicant_uid', 'status', 'store_id', 'system_store_id', 'finance_uid', 'verified_uid', 'reviewer_uid', 'grant_uid'] as $field) {
     $assert($contains($apiController, "'" . $field . "'"), 'api_controller_checks_forbidden:' . $field);
 }
 

@@ -79,7 +79,7 @@ class FranchiseOpeningController
     private function assertNoForbiddenUserFields(Request $request): void
     {
         $post = (array)$request->post();
-        foreach (['uid', 'applicant_uid', 'status', 'store_id', 'system_store_id', 'finance_uid', 'verified_uid', 'grant_uid'] as $field) {
+        foreach (['uid', 'applicant_uid', 'status', 'store_id', 'system_store_id', 'finance_uid', 'verified_uid', 'reviewer_uid', 'grant_uid'] as $field) {
             if (array_key_exists($field, $post)) {
                 throw new ApiException('franchise_opening_user_field_forbidden');
             }

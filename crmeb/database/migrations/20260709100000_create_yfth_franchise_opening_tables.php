@@ -263,7 +263,7 @@ class CreateYfthFranchiseOpeningTables extends Migrator
         $rootId = $this->ensureRoot();
         $pageId = $this->upsertMenu([
             'pid' => $rootId,
-            'icon' => 'md-checkbox-outline',
+            'icon' => 'md-checkbox',
             'menu_name' => 'Franchise Opening',
             'module' => 'admin',
             'controller' => 'v1.yfth.FranchiseOpening',

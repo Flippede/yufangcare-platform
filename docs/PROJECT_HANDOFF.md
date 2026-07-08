@@ -17,6 +17,12 @@
 - Frozen boundaries: no electronic signing, no online payment, no CRMEB `store_order`, no balance/points/brokerage/distribution/settlement writes, no CRMEB product/SKU stock or sales mutation, no recommendation reward, no product quota, no production deployment, and no production database migration.
 - Documentation added: `docs/YFTH_FRANCHISE_OPENING_ARCHITECTURE.md`.
 - Tests added: `crmeb/tests/yfth_franchise_opening_contract_check.php` and `crmeb/tests/yfth_franchise_opening_real_flow_check.php`.
+- P1 hardening after architecture review: user acceptance detail no longer implicitly creates acceptance records or items; finance confirmation no longer pre-creates acceptance; acceptance can be created only inside the user submit action after the complete opening gate passes.
+- Acceptance gate: application must be `preparing`, contract `signed`, payment `finance_confirmed`, store profile present, all fixed V1 required preparation tasks generated exactly once by task code, and every required task `approved`; `first_purchase` remains a read-only check against an existing `stocked` YFTH purchase order.
+- Headquarters acceptance pass gate: repeats the full submit gate and additionally requires profile `verified` or `bound`, a concrete active `system_store_id`, and active CRMEB `system_store`.
+- Identity boundary retained: acceptance `passed` does not automatically grant franchise/store identities; final identity grant still requires a second headquarters action and repeats signed contract, finance-confirmed payment, strict tasks-approved, passed acceptance, and bound active store checks.
+- User field hardening: user-side opening writes reject client-submitted `uid`, `applicant_uid`, `status`, `store_id`, `system_store_id`, `finance_uid`, `verified_uid`, `reviewer_uid`, and `grant_uid`.
+- Migration validation status for this P1 round: MySQL 8.0.46 isolated migration `run -> rollback -t 0 -> run` passed using a temporary local database imported from `crmeb/public/install/crmeb.sql`, temporary file cache `.env`, and a temporary `php.ini` with `pdo_mysql`; after run/rerun the 8 opening tables, key unique indexes, and `yfth-franchise-opening-index` permission existed, and after rollback the opening tables and permission were removed.
 - Final commit and verification results should be read from real Git status after this feature-branch commit.
 
 ## Current Fact Snapshot - Final Supply Chain And Store Inventory V1 Closure

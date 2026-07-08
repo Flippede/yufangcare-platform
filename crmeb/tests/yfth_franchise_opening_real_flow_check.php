@@ -27,7 +27,23 @@ $guards = [
     'pending_contract_before_contract' => 'franchise_contract_application_status_invalid',
     'contract_signed_before_payment' => 'franchise_payment_contract_not_signed',
     'payment_confirmed_before_preparing' => 'advanceApplication((int)$before[\'application_id\'], \'preparing\')',
-    'tasks_approved_before_acceptance' => 'franchise_required_tasks_not_approved',
+    'readonly_acceptance_does_not_create_row' => 'pendingAcceptanceDto',
+    'readonly_acceptance_uses_latest_only' => '$acceptance = $this->latestAcceptance((int)$application[\'id\']);',
+    'payment_confirm_does_not_create_acceptance' => 'ensureAcceptanceForSubmit',
+    'acceptance_submit_strict_gate' => 'assertAcceptanceSubmitReady',
+    'acceptance_pass_strict_gate' => 'assertAcceptancePassReady',
+    'tasks_complete_before_acceptance' => 'expectedRequiredTaskCodes',
+    'required_tasks_generated_before_acceptance' => 'requiredTasksGeneratedForApplication',
+    'tasks_approved_before_acceptance' => 'allRequiredTasksApprovedStrict',
+    'missing_required_tasks_fail' => 'if (count($rows) !== count($expectedCodes))',
+    'duplicate_required_tasks_fail' => 'isset($seen[$code])',
+    'unapproved_required_tasks_fail' => '(string)($row[\'status\'] ?? \'\') !== \'approved\'',
+    'first_purchase_readonly_revalidated' => '$this->validateFirstPurchaseTask($row, []);',
+    'acceptance_submit_requires_preparing' => 'franchise_acceptance_application_not_preparing',
+    'acceptance_submit_requires_signed_contract' => 'franchise_acceptance_contract_not_signed',
+    'acceptance_submit_requires_finance_payment' => 'franchise_acceptance_payment_not_confirmed',
+    'acceptance_pass_requires_bound_store' => 'franchise_acceptance_store_not_bound',
+    'acceptance_pass_requires_active_store' => 'assertStoreActive($storeId)',
     'acceptance_passed_before_grant' => 'franchise_identity_acceptance_not_passed',
     'store_bound_before_grant' => 'franchise_identity_store_not_bound',
     'store_role_written' => 'UserStoreRoleServices::class',
@@ -64,6 +80,8 @@ $transitionOrder = [
     'preparing' => strpos($service, "'preparing' => ['opened']"),
 ];
 $assert($transitionOrder['pending_contract'] !== false && $transitionOrder['signed'] !== false && $transitionOrder['preparing'] !== false, 'application_opening_transition_chain_present');
+$assert(strpos($service, "\$this->ensureAcceptance((int)\$before['application_id']);") === false, 'finance_confirm_does_not_create_acceptance');
+$assert(strpos($service, 'function ensureAcceptance(int $applicationId)') === false, 'generic_ensure_acceptance_removed');
 
 if ($failures) {
     echo "YFTH franchise opening real-flow source guard failed:\n";

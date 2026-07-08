@@ -45,6 +45,20 @@ Acceptance:
 
 `draft -> submitted -> reviewing -> passed`, with `rejected` and `recheck_required` reserved for rework.
 
+Acceptance creation is controlled by the submit action only. Read-only user acceptance detail uses an existing acceptance row when present; if no row exists, it returns a safe `not_started` DTO and does not create `yfth_store_opening_acceptance` or acceptance items.
+
+Acceptance submit and headquarters pass both require the complete upstream opening gate:
+
+- Application status is `preparing`.
+- Contract status is `signed`.
+- Payment proof status is `finance_confirmed`.
+- Store preparation profile exists.
+- All fixed V1 required preparation tasks have been generated exactly once by task code.
+- Every fixed required preparation task is `approved`.
+- `first_purchase` is revalidated read-only against the existing supply-chain purchase order and requires `stocked`.
+
+Headquarters pass additionally requires the store profile to be `verified` or `bound`, a concrete `system_store_id`, and an active CRMEB `system_store`. Passing acceptance still does not grant identity automatically.
+
 Identity grant:
 
 `pending -> active -> revoked`; V1 implements active grants only.
@@ -71,6 +85,8 @@ Formal store operation rights are granted only when all conditions are true:
 - Headquarters executes final identity grant.
 
 The final transaction writes `yfth_franchise_identity_grant`, concrete store-bound `yfth_user_store_role` rows, opening-source store capabilities, application status `opened`, and audit records. No global franchisee identity is created.
+
+Opening acceptance `passed` is deliberately separated from identity grant. A second headquarters identity-grant action is still required after acceptance has passed.
 
 ## Supply Chain Boundary
 
@@ -114,6 +130,23 @@ Static checks added:
 - `crmeb/tests/yfth_franchise_opening_real_flow_check.php`
 
 They check migration shape, API routes, explicit admin permission assertions, user-forbidden fields, controlled state transitions, store-bound identity grant, audit use, supply-chain read-only boundary, and CRMEB order/payment/inventory non-mutation boundaries.
+
+P1 hardening checks now also cover:
+
+- User acceptance detail does not implicitly create acceptance records.
+- Finance confirmation no longer pre-creates acceptance.
+- Acceptance submit uses the complete upstream gate.
+- Headquarters acceptance pass rechecks the same upstream gate plus active store binding.
+- Missing, partial, duplicate, or non-approved required tasks cannot satisfy the acceptance gate.
+- User-submitted `reviewer_uid` and other operator/store/status fields are rejected.
+
+MySQL 8.0.46 migration validation was completed after the P1 hardening:
+
+- Temporary MySQL 8.0.46 database imported from `crmeb/public/install/crmeb.sql`.
+- Temporary `.env` used file cache and the isolated database; production database/config was not used.
+- `migrate:run` created the 8 opening tables, key unique indexes, and `yfth-franchise-opening-index` permission.
+- `migrate:rollback -t 0` removed the opening tables and permission.
+- A second `migrate:run` restored the same tables, indexes, and permission.
 
 ## Not Implemented
 

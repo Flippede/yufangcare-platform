@@ -183,18 +183,21 @@ class FranchiseOpeningServices extends YfthFoundationBaseServices
     {
         $uid = $this->requestUid($request);
         $application = $this->requireLatestOpeningApplication($uid);
-        return ['acceptance' => $this->formatAcceptance($this->ensureAcceptance((int)$application['id']), false)];
+        $acceptance = $this->latestAcceptance((int)$application['id']);
+        if (!$acceptance) {
+            return ['acceptance' => $this->pendingAcceptanceDto((int)$application['id'])];
+        }
+        return ['acceptance' => $this->formatAcceptance($acceptance, false)];
     }
 
     public function userSubmitAcceptance(Request $request, array $data): array
     {
+        $this->assertNoForbiddenUserFields($data);
         $uid = $this->requestUid($request);
         $application = $this->requireLatestOpeningApplication($uid);
         return Db::transaction(function () use ($application, $uid, $data) {
-            if (!$this->allRequiredTasksApproved((int)$application['id'])) {
-                throw new ApiException('franchise_required_tasks_not_approved');
-            }
-            $before = $this->ensureAcceptance((int)$application['id']);
+            $gate = $this->assertAcceptanceSubmitReady((int)$application['id']);
+            $before = $this->ensureAcceptanceForSubmit((int)$application['id'], $gate['contract'], $gate['profile']);
             $this->assertApplicantOwns((int)$before['application_id'], $uid);
             if (!in_array((string)$before['status'], ['draft', 'rejected', 'recheck_required'], true)) {
                 throw new ApiException('franchise_acceptance_submit_status_invalid');
@@ -367,7 +370,6 @@ class FranchiseOpeningServices extends YfthFoundationBaseServices
             ]);
             $this->ensureStoreProfile((int)$before['application_id'], (int)$before['contract_id']);
             $this->ensurePreparationTasks((int)$before['application_id']);
-            $this->ensureAcceptance((int)$before['application_id']);
             $this->advanceApplication((int)$before['application_id'], 'preparing');
             $this->audit('franchise_payment_proof', $id, 'payment_finance_confirm', $before, $after, $adminId, 'headquarter_finance', 0, 'finance_confirm_payment');
             return ['payment' => $this->formatPayment($after, true)];
@@ -541,9 +543,7 @@ class FranchiseOpeningServices extends YfthFoundationBaseServices
                 $after['status'] = 'reviewing';
                 $auditAction = 'acceptance_reviewing';
             } elseif ($action === 'pass') {
-                if (!$this->allRequiredTasksApproved((int)$before['application_id'])) {
-                    throw new ApiException('franchise_required_tasks_not_approved');
-                }
+                $this->assertAcceptancePassReady((int)$before['application_id']);
                 $after['status'] = 'passed';
                 $auditAction = 'acceptance_pass';
                 $this->markAcceptanceItemsPassed($id, $adminId);
@@ -596,7 +596,7 @@ class FranchiseOpeningServices extends YfthFoundationBaseServices
             if (!$payment || (string)$payment['status'] !== 'finance_confirmed') {
                 throw new ApiException('franchise_identity_payment_not_confirmed');
             }
-            if (!$this->allRequiredTasksApproved($applicationId)) {
+            if (!$this->allRequiredTasksApprovedStrict($applicationId)) {
                 throw new ApiException('franchise_identity_tasks_not_approved');
             }
             if (!$acceptance || (string)$acceptance['status'] !== 'passed') {
@@ -763,33 +763,37 @@ class FranchiseOpeningServices extends YfthFoundationBaseServices
             if ($dao->getOne(['application_id' => $applicationId, 'task_code' => $template['code']])) {
                 continue;
             }
-            $dao->save([
-                'application_id' => $applicationId,
-                'store_profile_id' => (int)$profile['id'],
-                'task_code' => $template['code'],
-                'task_name' => $template['name'],
-                'required_flag' => (int)$template['required'],
-                'owner_type' => $template['owner'],
-                'status' => 'pending',
-                'purchase_order_id' => 0,
-                'verified_uid' => 0,
-                'verified_time' => 0,
-                'reject_reason' => '',
-                'create_time' => $now,
-                'update_time' => $now,
-            ]);
+            try {
+                $dao->save([
+                    'application_id' => $applicationId,
+                    'store_profile_id' => (int)$profile['id'],
+                    'task_code' => $template['code'],
+                    'task_name' => $template['name'],
+                    'required_flag' => (int)$template['required'],
+                    'owner_type' => $template['owner'],
+                    'status' => 'pending',
+                    'purchase_order_id' => 0,
+                    'verified_uid' => 0,
+                    'verified_time' => 0,
+                    'reject_reason' => '',
+                    'create_time' => $now,
+                    'update_time' => $now,
+                ]);
+            } catch (\Throwable $e) {
+                if (!$dao->getOne(['application_id' => $applicationId, 'task_code' => $template['code']])) {
+                    throw $e;
+                }
+            }
         }
     }
 
-    private function ensureAcceptance(int $applicationId): array
+    private function ensureAcceptanceForSubmit(int $applicationId, array $contract, array $profile): array
     {
         $dao = app()->make(YfthStoreOpeningAcceptanceDao::class);
         $existing = $this->rowArray($dao->getOne(['application_id' => $applicationId]));
         if ($existing) {
             return $existing;
         }
-        $contract = $this->latestContract($applicationId);
-        $profile = $this->ensureStoreProfile($applicationId, (int)($contract['id'] ?? 0));
         $now = time();
         $row = $this->rowArray($dao->save([
             'application_id' => $applicationId,
@@ -805,6 +809,47 @@ class FranchiseOpeningServices extends YfthFoundationBaseServices
         ]));
         $this->ensureAcceptanceItems((int)$row['id']);
         return $row;
+    }
+
+    private function assertAcceptanceSubmitReady(int $applicationId): array
+    {
+        $application = $this->requireApplication($applicationId);
+        if ((string)$application['status'] !== 'preparing') {
+            throw new ApiException('franchise_acceptance_application_not_preparing');
+        }
+        $contract = $this->latestContract($applicationId);
+        if (!$contract || (string)$contract['status'] !== 'signed') {
+            throw new ApiException('franchise_acceptance_contract_not_signed');
+        }
+        $payment = $this->latestPayment($applicationId);
+        if (!$payment || (string)$payment['status'] !== 'finance_confirmed') {
+            throw new ApiException('franchise_acceptance_payment_not_confirmed');
+        }
+        $profile = $this->latestProfile($applicationId);
+        if (!$profile) {
+            throw new ApiException('franchise_acceptance_store_profile_required');
+        }
+        if (!$this->allRequiredTasksApprovedStrict($applicationId)) {
+            throw new ApiException('franchise_required_tasks_not_approved');
+        }
+        return [
+            'application' => $application,
+            'contract' => $contract,
+            'payment' => $payment,
+            'profile' => $profile,
+        ];
+    }
+
+    private function assertAcceptancePassReady(int $applicationId): array
+    {
+        $gate = $this->assertAcceptanceSubmitReady($applicationId);
+        $profile = $gate['profile'];
+        $storeId = (int)($profile['system_store_id'] ?? 0);
+        if ($storeId <= 0 || !in_array((string)($profile['status'] ?? ''), ['verified', 'bound'], true)) {
+            throw new ApiException('franchise_acceptance_store_not_bound');
+        }
+        app()->make(StoreAccessServices::class)->assertStoreActive($storeId);
+        return $gate;
     }
 
     private function ensureAcceptanceItems(int $acceptanceId): void
@@ -859,14 +904,56 @@ class FranchiseOpeningServices extends YfthFoundationBaseServices
         }
     }
 
-    private function allRequiredTasksApproved(int $applicationId): bool
+    private function expectedRequiredTaskCodes(): array
     {
-        $count = (int)app()->make(YfthFranchisePreparationTaskDao::class)->search([])
+        $codes = [];
+        foreach (self::TASK_TEMPLATES as $template) {
+            if ((int)$template['required'] === 1) {
+                $codes[] = (string)$template['code'];
+            }
+        }
+        return $codes;
+    }
+
+    private function requiredTasksGeneratedForApplication(int $applicationId): array
+    {
+        return app()->make(YfthFranchisePreparationTaskDao::class)->search([])
             ->where('application_id', $applicationId)
             ->where('required_flag', 1)
-            ->where('status', '<>', 'approved')
-            ->count();
-        return $count === 0;
+            ->select()
+            ->toArray();
+    }
+
+    private function allRequiredTasksApprovedStrict(int $applicationId): bool
+    {
+        $expectedCodes = $this->expectedRequiredTaskCodes();
+        if (!$expectedCodes) {
+            return false;
+        }
+        $rows = $this->requiredTasksGeneratedForApplication($applicationId);
+        if (count($rows) !== count($expectedCodes)) {
+            return false;
+        }
+        $seen = [];
+        foreach ($rows as $row) {
+            $code = (string)($row['task_code'] ?? '');
+            if (!in_array($code, $expectedCodes, true) || isset($seen[$code])) {
+                return false;
+            }
+            if ((string)($row['status'] ?? '') !== 'approved') {
+                return false;
+            }
+            if ($code === 'first_purchase') {
+                $this->validateFirstPurchaseTask($row, []);
+            }
+            $seen[$code] = true;
+        }
+        foreach ($expectedCodes as $code) {
+            if (!isset($seen[$code])) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private function advanceApplication(int $applicationId, string $targetStatus): void
@@ -925,7 +1012,7 @@ class FranchiseOpeningServices extends YfthFoundationBaseServices
 
     private function assertNoForbiddenUserFields(array $data): void
     {
-        foreach (['uid', 'applicant_uid', 'status', 'store_id', 'system_store_id', 'finance_uid', 'verified_uid', 'grant_uid'] as $field) {
+        foreach (['uid', 'applicant_uid', 'status', 'store_id', 'system_store_id', 'finance_uid', 'verified_uid', 'reviewer_uid', 'grant_uid'] as $field) {
             if (array_key_exists($field, $data)) {
                 throw new ApiException('franchise_opening_user_field_forbidden');
             }
@@ -1215,6 +1302,24 @@ class FranchiseOpeningServices extends YfthFoundationBaseServices
         return $payload;
     }
 
+    private function pendingAcceptanceDto(int $applicationId): array
+    {
+        return [
+            'id' => 0,
+            'application_id' => $applicationId,
+            'contract_id' => 0,
+            'store_profile_id' => 0,
+            'system_store_id' => 0,
+            'status' => 'not_started',
+            'status_text' => $this->statusText('not_started'),
+            'reviewer_uid' => 0,
+            'review_time' => 0,
+            'reject_reason' => '',
+            'submit_allowed' => false,
+            'items' => [],
+        ];
+    }
+
     private function formatAcceptance(array $row = [], bool $admin = false): array
     {
         if (!$row) {
@@ -1324,6 +1429,7 @@ class FranchiseOpeningServices extends YfthFoundationBaseServices
             'signed' => 'Signed',
             'preparing' => 'Preparing',
             'opened' => 'Opened',
+            'not_started' => 'Not started',
             'draft' => 'Draft',
             'pending_user_confirm' => 'Pending user confirm',
             'user_confirmed' => 'User confirmed',
