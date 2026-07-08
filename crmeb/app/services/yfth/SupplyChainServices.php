@@ -70,9 +70,9 @@ class SupplyChainServices extends YfthFoundationBaseServices
     public function adminCatalogSave(array $data, int $adminId, array $adminInfo = []): array
     {
         $this->assertHeadquarterAdmin($adminInfo);
-        $payload = $this->normalizeCatalogPayload($data, $adminId);
         $id = (int)($data['id'] ?? 0);
         $before = $id > 0 ? $this->rowArray($this->dao->get($id)) : [];
+        $payload = $this->normalizeCatalogPayload($data, $adminId, $before);
 
         return Db::transaction(function () use ($id, $payload, $before, $adminId) {
             if ($id > 0) {
@@ -175,7 +175,7 @@ class SupplyChainServices extends YfthFoundationBaseServices
             if ($storeType !== '') {
                 $query->where(function ($query) use ($storeType) {
                     $query->where('allow_store_types', '')
-                        ->whereOr('allow_store_types', 'like', '%' . $storeType . '%');
+                        ->whereOr('FIND_IN_SET(:store_type, allow_store_types)', ['store_type' => $storeType]);
                 });
             }
             return $query;
@@ -199,7 +199,15 @@ class SupplyChainServices extends YfthFoundationBaseServices
             throw new ApiException('supply_purchase_store_field_forbidden');
         }
         $scope = $this->resolveStoreScope($request, true);
-        $key = $this->idempotencyKey($request, $data, 'purchase_create');
+        $key = $this->idempotencyKey(
+            $request,
+            $data,
+            'supply_purchase_create:' . (int)$scope['store_id'] . ':' . sha1(json_encode([
+                'supplier_subject_id' => (int)($data['supplier_subject_id'] ?? 0),
+                'items' => $data['items'] ?? [],
+            ]))
+        );
+        $data['idempotency_key'] = $key;
         return $this->withIdempotency('purchase_create', $key, $data, '', function () use ($scope, $data) {
             return $this->doCreatePurchaseOrder($scope, $data);
         });
@@ -267,11 +275,19 @@ class SupplyChainServices extends YfthFoundationBaseServices
     {
         $this->assertHeadquarterAdmin($adminInfo);
         return Db::transaction(function () use ($id, $data, $adminId) {
-            $before = $this->requirePurchaseOrder($id, 0);
-            if ((string)$before['status'] !== 'approved') {
+            $before = $this->lockPurchaseOrder($id, 0);
+            $status = (string)$before['status'];
+            $shipmentDao = app()->make(YfthPurchaseShipmentDao::class);
+            if (in_array($status, ['shipped', 'stocked'], true)) {
+                $existing = $this->rowArray($shipmentDao->getOne(['purchase_order_id' => $id]));
+                if ($existing) {
+                    return array_merge($this->purchaseOrderDetail($id, 0), ['shipment' => $this->formatShipment($existing)]);
+                }
+                throw new ApiException('purchase_order_already_shipped');
+            }
+            if ($status !== 'approved') {
                 throw new ApiException('purchase_order_ship_status_invalid');
             }
-            $shipmentDao = app()->make(YfthPurchaseShipmentDao::class);
             if ($shipmentDao->getOne(['purchase_order_id' => $id])) {
                 throw new ApiException('purchase_order_already_shipped');
             }
@@ -318,7 +334,8 @@ class SupplyChainServices extends YfthFoundationBaseServices
             throw new ApiException('supply_receipt_store_field_forbidden');
         }
         $scope = $this->resolveStoreScope($request, true);
-        $key = $this->idempotencyKey($request, $data, 'purchase_receipt_' . $orderId);
+        $key = $this->idempotencyKey($request, $data, 'supply_receive:' . (int)$scope['store_id'] . ':' . $orderId);
+        $data['idempotency_key'] = $key;
         return $this->withIdempotency('purchase_receipt', $key, $data, (string)$orderId, function () use ($scope, $orderId, $data) {
             return $this->doConfirmReceipt($scope, $orderId, $data);
         });
@@ -424,12 +441,13 @@ class SupplyChainServices extends YfthFoundationBaseServices
     {
         $items = $this->normalizePurchaseItems((array)($data['items'] ?? []), (string)($scope['context']['store_type'] ?? ''));
         $now = time();
-        $amount = '0.00';
+        $amountCents = 0;
         $quantityTotal = 0;
         foreach ($items as $item) {
-            $amount = sprintf('%.2f', (float)$amount + (float)$item['amount_snapshot']);
+            $amountCents += $this->decimalToCents((string)$item['amount_snapshot']);
             $quantityTotal += (int)$item['quantity'];
         }
+        $amount = $this->centsToDecimal($amountCents);
 
         return Db::transaction(function () use ($scope, $items, $now, $amount, $quantityTotal, $data) {
             $orderDao = app()->make(YfthPurchaseOrderDao::class);
@@ -464,9 +482,10 @@ class SupplyChainServices extends YfthFoundationBaseServices
     private function doConfirmReceipt(array $scope, int $orderId, array $data): array
     {
         return Db::transaction(function () use ($scope, $orderId, $data) {
-            $order = $this->requirePurchaseOrder($orderId, (int)$scope['store_id']);
+            $order = $this->lockPurchaseOrder($orderId, (int)$scope['store_id']);
             if ((string)$order['status'] === 'stocked') {
-                return $this->purchaseOrderDetail($orderId, (int)$scope['store_id']);
+                $existingReceipt = $this->rowArray(app()->make(YfthPurchaseReceiptDao::class)->getOne(['purchase_order_id' => $orderId]));
+                return array_merge($this->purchaseOrderDetail($orderId, (int)$scope['store_id']), ['receipt' => $existingReceipt]);
             }
             if ((string)$order['status'] !== 'shipped') {
                 throw new ApiException('purchase_order_receipt_status_invalid');
@@ -476,6 +495,9 @@ class SupplyChainServices extends YfthFoundationBaseServices
                 throw new ApiException('purchase_shipment_not_found');
             }
             $shipment = $this->rowArray($shipment);
+            if (app()->make(YfthPurchaseReceiptDao::class)->getOne(['purchase_order_id' => $orderId])) {
+                throw new ApiException('purchase_order_already_stocked');
+            }
             $items = app()->make(YfthPurchaseOrderItemDao::class)->search([])
                 ->where('purchase_order_id', $orderId)
                 ->select()
@@ -674,8 +696,9 @@ class SupplyChainServices extends YfthFoundationBaseServices
             if ($quantity < $min || $quantity % $multiple !== 0) {
                 throw new ApiException('purchase_quantity_rule_invalid');
             }
-            $price = sprintf('%.2f', (float)$catalog['purchase_price']);
-            $amount = sprintf('%.2f', (float)$price * $quantity);
+            $priceCents = $this->decimalToCents((string)$catalog['purchase_price']);
+            $price = $this->centsToDecimal($priceCents);
+            $amount = $this->centsToDecimal($priceCents * $quantity);
             $result[] = [
                 'product_id' => $productId,
                 'sku_unique' => $skuUnique,
@@ -703,18 +726,21 @@ class SupplyChainServices extends YfthFoundationBaseServices
         return $catalog;
     }
 
-    private function normalizeCatalogPayload(array $data, int $adminId): array
+    private function normalizeCatalogPayload(array $data, int $adminId, array $before = []): array
     {
         $productId = (int)($data['product_id'] ?? 0);
         if ($productId <= 0) {
             throw new ApiException('supply_catalog_product_id_required');
         }
         $this->requireProduct($productId);
-        $purchasePrice = is_numeric($data['purchase_price'] ?? null) ? (float)$data['purchase_price'] : -1;
-        if ($purchasePrice < 0) {
+        $purchasePrice = $this->normalizeMoney((string)($data['purchase_price'] ?? ''));
+        if ($purchasePrice === '') {
             throw new ApiException('supply_catalog_purchase_price_invalid');
         }
-        $retailPrice = is_numeric($data['retail_reference_price'] ?? null) ? (float)$data['retail_reference_price'] : 0;
+        $retailPrice = $this->normalizeMoney((string)($data['retail_reference_price'] ?? '0.00'));
+        if ($retailPrice === '') {
+            $retailPrice = '0.00';
+        }
         $min = max(1, (int)($data['min_purchase_quantity'] ?? 1));
         $multiple = max(1, (int)($data['package_multiple'] ?? 1));
         if ($min % $multiple !== 0 && $min > $multiple) {
@@ -724,15 +750,15 @@ class SupplyChainServices extends YfthFoundationBaseServices
         return [
             'product_id' => $productId,
             'status' => $this->normalizeStatus((string)($data['status'] ?? 'active'), self::CATALOG_STATUSES, 'active'),
-            'purchase_price' => sprintf('%.2f', $purchasePrice),
-            'retail_reference_price' => sprintf('%.2f', max(0, $retailPrice)),
+            'purchase_price' => $purchasePrice,
+            'retail_reference_price' => $retailPrice,
             'min_purchase_quantity' => $min,
             'package_multiple' => $multiple,
             'allow_store_types' => $this->normalizeCsv((string)($data['allow_store_types'] ?? '')),
             'qualification_requirement' => substr(trim((string)($data['qualification_requirement'] ?? '')), 0, 255),
-            'created_uid' => (int)($data['id'] ?? 0) > 0 ? (int)($data['created_uid'] ?? 0) : $adminId,
+            'created_uid' => $before ? (int)($before['created_uid'] ?? 0) : $adminId,
             'updated_uid' => $adminId,
-            'create_time' => (int)($data['id'] ?? 0) > 0 ? (int)($data['create_time'] ?? 0) : $now,
+            'create_time' => $before ? (int)($before['create_time'] ?? 0) : $now,
             'update_time' => $now,
         ];
     }
@@ -764,7 +790,7 @@ class SupplyChainServices extends YfthFoundationBaseServices
     private function hasStorePurchaseCapability(array $context): bool
     {
         $capabilities = (array)($context['capabilities'] ?? []);
-        return !$capabilities || in_array('store_purchase', $capabilities, true);
+        return in_array('store_purchase', $capabilities, true);
     }
 
     private function requirePurchaseOrder(int $id, int $storeId = 0): array
@@ -781,6 +807,22 @@ class SupplyChainServices extends YfthFoundationBaseServices
             throw new ApiException('purchase_order_not_found');
         }
         return $this->rowArray($row);
+    }
+
+    private function lockPurchaseOrder(int $id, int $storeId = 0): array
+    {
+        if ($id <= 0) {
+            throw new ApiException('purchase_order_id_required');
+        }
+        $query = Db::name('yfth_purchase_order')->where('id', $id);
+        if ($storeId > 0) {
+            $query->where('store_id', $storeId);
+        }
+        $row = $query->lock(true)->find();
+        if (!$row) {
+            throw new ApiException('purchase_order_not_found');
+        }
+        return $row;
     }
 
     private function requireProduct(int $productId): array
@@ -1009,7 +1051,7 @@ class SupplyChainServices extends YfthFoundationBaseServices
     private function withIdempotency(string $action, string $key, array $payload, string $objectId, callable $callback): array
     {
         if ($key === '') {
-            return $callback();
+            throw new ApiException('idempotency_key_required');
         }
         $idempotency = app()->make(IdempotencyRecordServices::class);
         $begin = $idempotency->begin(self::DOMAIN, $action, $key, $payload, $objectId, 600);
@@ -1041,7 +1083,34 @@ class SupplyChainServices extends YfthFoundationBaseServices
         if ($key === '') {
             $key = trim((string)$request->header('Idempotency-Key', ''));
         }
-        return $key !== '' ? $key : '';
+        return $key !== '' ? $key : $fallbackPrefix;
+    }
+
+    private function normalizeMoney(string $value): string
+    {
+        $value = trim($value);
+        if (!preg_match('/^\d+(\.\d{1,2})?$/', $value)) {
+            return '';
+        }
+        return $this->centsToDecimal($this->decimalToCents($value));
+    }
+
+    private function decimalToCents(string $value): int
+    {
+        $value = trim($value);
+        if (!preg_match('/^\d+(\.\d{1,2})?$/', $value)) {
+            throw new ApiException('decimal_money_invalid');
+        }
+        [$yuan, $cent] = array_pad(explode('.', $value, 2), 2, '0');
+        return ((int)$yuan * 100) + (int)str_pad(substr($cent, 0, 2), 2, '0');
+    }
+
+    private function centsToDecimal(int $cents): string
+    {
+        if ($cents < 0) {
+            throw new ApiException('decimal_money_invalid');
+        }
+        return intdiv($cents, 100) . '.' . str_pad((string)($cents % 100), 2, '0', STR_PAD_LEFT);
     }
 
     private function hasForbiddenStoreFields(array $data): bool

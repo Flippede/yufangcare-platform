@@ -53,8 +53,13 @@ foreach ([
 foreach ([
     'uniq_yfth_supply_catalog_product',
     'uniq_yfth_purchase_order_no',
+    'uniq_yfth_purchase_item_order_sku',
     'uniq_yfth_inventory_balance_location_sku',
     'idx_yfth_inventory_ledger_business',
+    'uniq_yfth_inventory_ledger_business_sku',
+    'uniq_yfth_purchase_shipment_order',
+    'uniq_yfth_purchase_receipt_order',
+    'uniq_yfth_purchase_receipt_shipment',
     'uniq_yfth_inventory_alert_store_sku',
 ] as $index) {
     $assert($contains($migration, $index), 'migration_contains_index_' . $index);
@@ -72,6 +77,14 @@ $assert($contains($service, "STORE_READ_ROLES = ['franchisee', 'store_manager', 
 $assert($contains($service, 'supply_purchase_store_field_forbidden'), 'service_rejects_client_store_fields_on_create');
 $assert($contains($service, 'supply_receipt_store_field_forbidden'), 'service_rejects_client_store_fields_on_receipt');
 $assert($contains($service, '$query->where(\'store_id\', $storeId)') || $contains($service, "['store_id' => (int)\$scope['store_id']"), 'service_filters_store_queries_by_resolved_store');
+$assert($contains($service, 'lockPurchaseOrder') && $contains($service, '->lock(true)->find()'), 'service_locks_purchase_order_for_state_transitions');
+$assert($contains($service, "return in_array('store_purchase', \$capabilities, true);"), 'service_requires_explicit_store_purchase_capability');
+$assert($contains($service, 'supply_receive:') && $contains($service, 'supply_purchase_create:'), 'service_generates_server_side_idempotency_keys');
+$assert($contains($service, 'idempotency_key_required') && !$contains($service, 'if ($key === \'\') {' . "\n" . '            return $callback();'), 'service_does_not_bypass_empty_idempotency_key');
+$assert($contains($service, 'decimalToCents') && $contains($service, 'centsToDecimal') && !$contains($service, '(float)'), 'service_avoids_float_money_calculation');
+$assert($contains($service, 'FIND_IN_SET(:store_type, allow_store_types)') && !$contains($service, "whereOr('allow_store_types', 'like'"), 'service_uses_exact_store_type_matching');
+$assert($contains($service, 'normalizeCatalogPayload(array $data, int $adminId, array $before = [])'), 'service_catalog_update_accepts_existing_create_fields');
+$assert($contains($service, "'created_uid' => \$before ?") && $contains($service, "'create_time' => \$before ?"), 'service_catalog_update_preserves_created_fields');
 $assert($contains($service, 'store_product_attr_value'), 'service_reuses_crmeb_sku_table');
 $assert($contains($service, 'store_product'), 'service_reuses_crmeb_product_table');
 $assert(!$contains($service, 'decStockIncSales('), 'service_does_not_decrement_crmeb_sales_stock');

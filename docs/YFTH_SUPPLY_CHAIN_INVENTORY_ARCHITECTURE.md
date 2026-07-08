@@ -67,6 +67,24 @@ Receipt V1 combines received, checked, and stocked into a single idempotent stoc
 - Store purchase creation and receipt support YFTH idempotency keys via `IdempotencyRecordServices`.
 - Inventory ledger rows are append-only in service behavior; stock balance updates are accompanied by ledger rows.
 
+## P1 Hardening After Architecture Review
+
+The first architecture review found merge-blocking concurrency and permission risks. This branch now closes the P1 items without expanding V1 scope:
+
+- Headquarters shipment now locks the `yfth_purchase_order` row inside the shipment transaction and rechecks status under the lock. Only `approved` can create the first shipment; later `shipped` or `stocked` requests return the existing shipment result and never create a second shipment.
+- Store receipt now locks the `yfth_purchase_order` row inside the receipt transaction and rechecks status under the lock. Only `shipped` can stock in; `stocked` returns the existing receipt result and does not write a second receipt, ledger set, or inventory increment.
+- V1 uniqueness guards are enforced in the migration: one shipment per purchase order, one receipt per purchase order, one receipt per shipment, one order item per purchase-order SKU, and one inventory ledger row per `business_type + business_id + location_id + sku_unique`.
+- Store write operations now require explicit `store_purchase` capability. An empty capability set no longer defaults to allow. This covers purchase order creation and receipt stock-in.
+- Purchase order creation and receipt use server-side deterministic idempotency fallbacks. Receipt fallback is `supply_receive:{store_id}:{purchase_order_id}`; business uniqueness and status locks remain the final anti-duplicate guard.
+
+Related P2 fixes included in the same closure:
+
+- Purchase amount snapshots are calculated with integer cents and normalized decimal strings, not PHP float multiplication.
+- Store-type catalog matching uses exact `FIND_IN_SET` token matching instead of `%like%`.
+- Catalog updates preserve original `created_uid` and `create_time`; request bodies cannot overwrite creation metadata.
+
+The V1 remains single-shipment and single-receipt by design. Multi-shipment, partial receiving, purchase payment, aftersales, product quota, recommendation reward, settlement, and CRMEB consumer order inventory deduction remain out of scope.
+
 ## Not Implemented
 
 - Procurement payment.
@@ -92,6 +110,14 @@ Executed checks in this branch:
 
 - PHP syntax check passed for changed backend, migration, and test files.
 - `php crmeb/tests/yfth_supply_chain_contract_check.php` passed with 50 assertions.
+- P1/P2 closure added `crmeb/tests/yfth_supply_chain_real_flow_check.php`. It performs source guard checks by default and can verify duplicate shipment, duplicate receipt, and duplicate ledger unique guards against isolated MySQL when `YFTH_SUPPLY_CHAIN_REAL_FLOW_EXECUTE=1` and `YFTH_REAL_FLOW_ISOLATED_DB=1` are provided.
 - Isolated MySQL 8.0.46 full migration `run -> rollback -t 0 -> run` passed against a temporary database; the supply-chain purchase table and admin permission seed were present after rerun and removed after rollback.
 - Admin Vue production build passed to a temporary output directory; only existing CSS order, asset-size, and Browserslist warnings were emitted.
 - Uni-app executable project checks `yfth_multi_role_shell_contract_check.js` and `yfth_request_fallback_check.js` passed. The repo's uni-app package has no production build script, so HBuilderX/mp-weixin compilation was not run in this branch.
+
+Current local P1 closure verification:
+
+- `git diff --check` passed with only line-ending warnings.
+- Bundled Node ran `template/uni-app/tests/yfth_multi_role_shell_contract_check.js` and `template/uni-app/tests/yfth_request_fallback_check.js`; both passed.
+- A Node source-guard check confirmed the row lock, strict `store_purchase` capability, deterministic receipt idempotency fallback, no PHP float money calculation, exact store-type matching, catalog creation-field preservation, and new uniqueness guards.
+- PHP CLI and isolated MySQL were not available in the current shell, so PHP syntax, PHP contract/real-flow scripts, and MySQL migration rerun/rollback were not re-executed in this closure round.

@@ -134,6 +134,7 @@ class CreateYfthSupplyChainInventoryTables extends Migrator
             ->addColumn('amount_snapshot', 'decimal', ['precision' => 12, 'scale' => 2, 'default' => '0.00', 'comment' => 'line amount snapshot'])
             ->addColumn('create_time', 'integer', ['signed' => false, 'default' => 0, 'comment' => 'created at'])
             ->addIndex(['purchase_order_id'], ['name' => 'idx_yfth_purchase_item_order'])
+            ->addIndex(['purchase_order_id', 'sku_unique'], ['unique' => true, 'name' => 'uniq_yfth_purchase_item_order_sku'])
             ->addIndex(['product_id', 'sku_unique'], ['name' => 'idx_yfth_purchase_item_product_sku'])
             ->create();
     }
@@ -202,6 +203,7 @@ class CreateYfthSupplyChainInventoryTables extends Migrator
             ->addColumn('add_time', 'integer', ['signed' => false, 'default' => 0, 'comment' => 'created at'])
             ->addIndex(['store_id', 'sku_unique', 'add_time'], ['name' => 'idx_yfth_inventory_ledger_store_sku_time'])
             ->addIndex(['business_type', 'business_id'], ['name' => 'idx_yfth_inventory_ledger_business'])
+            ->addIndex(['business_type', 'business_id', 'location_id', 'sku_unique'], ['unique' => true, 'name' => 'uniq_yfth_inventory_ledger_business_sku'])
             ->create();
     }
 
@@ -224,6 +226,7 @@ class CreateYfthSupplyChainInventoryTables extends Migrator
             ->addColumn('create_time', 'integer', ['signed' => false, 'default' => 0, 'comment' => 'created at'])
             ->addColumn('update_time', 'integer', ['signed' => false, 'default' => 0, 'comment' => 'updated at'])
             ->addIndex(['shipment_no'], ['unique' => true, 'name' => 'uniq_yfth_purchase_shipment_no'])
+            ->addIndex(['purchase_order_id'], ['unique' => true, 'name' => 'uniq_yfth_purchase_shipment_order'])
             ->addIndex(['purchase_order_id', 'status'], ['name' => 'idx_yfth_purchase_shipment_order_status'])
             ->create();
     }
@@ -249,8 +252,9 @@ class CreateYfthSupplyChainInventoryTables extends Migrator
             ->addColumn('create_time', 'integer', ['signed' => false, 'default' => 0, 'comment' => 'created at'])
             ->addColumn('update_time', 'integer', ['signed' => false, 'default' => 0, 'comment' => 'updated at'])
             ->addIndex(['receipt_no'], ['unique' => true, 'name' => 'uniq_yfth_purchase_receipt_no'])
+            ->addIndex(['purchase_order_id'], ['unique' => true, 'name' => 'uniq_yfth_purchase_receipt_order'])
+            ->addIndex(['shipment_id'], ['unique' => true, 'name' => 'uniq_yfth_purchase_receipt_shipment'])
             ->addIndex(['purchase_order_id', 'status'], ['name' => 'idx_yfth_purchase_receipt_order_status'])
-            ->addIndex(['shipment_id'], ['name' => 'idx_yfth_purchase_receipt_shipment'])
             ->create();
     }
 
@@ -422,4 +426,3 @@ class CreateYfthSupplyChainInventoryTables extends Migrator
         return $prefix . $table;
     }
 }
-
