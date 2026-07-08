@@ -1,5 +1,23 @@
 # 项目交接文档
 
+## Current Fact Snapshot - Franchise Customer CRM V1 Closure
+
+- Current branch: `main`.
+- Preserved feature branch: `feature/yfth-franchise-crm-v1`.
+- Main before merge: `99c9d96b3bdbd8801e9069d714ed883858f57f51`.
+- Final reviewed feature commit: `ff166cc3f8e39565476a06f85ce71577ed88b131`.
+- Merge method: `git merge --ff-only feature/yfth-franchise-crm-v1`; no merge commit, squash, rebase, or history rewrite was used.
+- Architecture review conclusion: B, allowed to merge; P2 items are retained for later and do not block the current merge.
+- Franchise Customer CRM V1 is completed and merged into `main`.
+- Completed capabilities: CRMEB `user.uid` reuse, `yfth_customer_relation`, `yfth_customer_follow_record`, customer attribution, customer list, customer detail, follow records, trusted source attribution, `order` / `appointment` / `writeoff` source binding, store isolation, user-token API, data masking, and unified YFTH audit.
+- Security closure retained in `main`: direct client-submitted `uid`, `owner_uid`, or binding-body `store_id` is forbidden; customer relation binding must resolve the real customer from a trusted same-store business source.
+- Branch handling: local and remote feature branches are retained for stage history; no branch was deleted.
+- Production status: no production deployment, no production database connection, and no server modification was performed in this closure.
+- Non-blocking P2 retained for later: before production release, add a complete isolated smoke run for this merged `main`; before production release, add a browser role-by-role smoke walk-through against a real local backend.
+- Still out of scope: franchise application, recommendation rewards, procurement, inventory replenishment, product quota, settlement, revenue sharing, distribution rebate, franchise contracts, order/payment/refund changes, package changes, appointment/writeoff state-machine changes, and production deployment.
+- Final `main` and `origin/main` commit should be read from real Git HEAD after this documentation closure commit and push.
+- Next business module should be decided separately by the project controller.
+
 ## Current Fact Snapshot - 2026-07-07 Franchise Customer CRM V1 P1 Closure
 
 - Current branch: `feature/yfth-franchise-crm-v1`.
