@@ -176,6 +176,13 @@
 						</view>
 						<text class="iconfont icon-jiantou"></text>
 					</view>
+					<view class="yfth-entry-card yfth-apply-card" v-if="isLogin" @click="goYfthFranchiseApplications">
+						<view>
+							<view class="yfth-entry-title">御方通和合作中心</view>
+							<view class="yfth-entry-desc">提交加盟申请，查看总部沟通进度</view>
+						</view>
+						<text class="iconfont icon-jiantou"></text>
+					</view>
 					<view class="order-wrapper" :class="userInfo.svip_open ? '' : 'height'">
 						<view class="order-hd flex">
 							<view class="left">{{ $t('订单中心') }}</view>
@@ -751,6 +758,16 @@ export default {
 			});
 		},
 
+		goYfthFranchiseApplications() {
+			if (!this.isLogin) {
+				toLogin();
+				return;
+			}
+			uni.navigateTo({
+				url: '/pages/yfth/franchise/index'
+			});
+		},
+
 		goPages(url) {
 			this.$util.JumpPath(url);
 		},
@@ -1213,6 +1230,11 @@ body {
 			justify-content: space-between;
 			color: #5b3b23;
 			box-shadow: 0 10rpx 24rpx rgba(91, 59, 35, 0.08);
+		}
+
+		.yfth-apply-card {
+			margin-top: -8rpx;
+			background: linear-gradient(135deg, #fffaf2, #e8d3aa);
 		}
 
 		.yfth-entry-title {

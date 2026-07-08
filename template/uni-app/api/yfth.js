@@ -202,6 +202,18 @@ export function addYfthCustomerFollow(id, data) {
 	return request.post('yfth/customer/' + id + '/follow' + payload.query, payload.body);
 }
 
+export function getYfthFranchiseApplications(data) {
+	return request.get('yfth/franchise/application/my', data || {});
+}
+
+export function getYfthFranchiseApplicationDetail(id) {
+	return request.get('yfth/franchise/application/' + id);
+}
+
+export function submitYfthFranchiseApplication(data) {
+	return request.post('yfth/franchise/application', data || {});
+}
+
 function splitYfthContext(data) {
 	const body = Object.assign({}, data || {});
 	const query = {};

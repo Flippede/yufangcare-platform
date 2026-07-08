@@ -71,6 +71,15 @@ Route::group('yfth', function () {
         Route::get('writeoff/:id', 'v1.yfth.ServiceAppointment/writeoffResult')->option(['real_name' => '核销结果']);
         Route::post('appointment/:id/exception_writeoff', 'v1.yfth.ServiceAppointment/appointmentExceptionWriteoff')->option(['real_name' => '总部例外核销']);
     })->option(['parent' => 'yfth', 'cate_name' => '服务预约与核销']);
+
+    Route::group('franchise_application', function () {
+        Route::get('application', 'v1.yfth.FranchiseApplication/applicationList')->option(['real_name' => '加盟申请列表']);
+        Route::get('application/status_options', 'v1.yfth.FranchiseApplication/statusOptions')->option(['real_name' => '加盟申请状态选项']);
+        Route::get('application/:id', 'v1.yfth.FranchiseApplication/applicationDetail')->option(['real_name' => '加盟申请详情']);
+        Route::post('application/:id/assign', 'v1.yfth.FranchiseApplication/assign')->option(['real_name' => '加盟申请分配负责人']);
+        Route::post('application/:id/status', 'v1.yfth.FranchiseApplication/status')->option(['real_name' => '加盟申请状态推进']);
+        Route::post('application/:id/follow', 'v1.yfth.FranchiseApplication/follow')->option(['real_name' => '加盟申请沟通记录']);
+    })->option(['parent' => 'yfth', 'cate_name' => '加盟管理']);
 })->middleware([
     \app\http\middleware\AllowOriginMiddleware::class,
     \app\adminapi\middleware\AdminAuthTokenMiddleware::class,

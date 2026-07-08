@@ -43,5 +43,14 @@ export default {
       },
       component: () => import('@/pages/yfth/serviceAppointment/index'),
     },
+    {
+      path: 'franchise-application',
+      name: `${pre}franchise_application`,
+      meta: {
+        auth: ['yfth-franchise-application-index'],
+        title: '加盟管理',
+      },
+      component: () => import('@/pages/yfth/franchiseApplication/index'),
+    },
   ],
 };

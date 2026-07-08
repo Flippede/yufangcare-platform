@@ -450,3 +450,42 @@ export function yfthServiceAppointmentExceptionWriteoff(id, data) {
     data,
   });
 }
+
+export function yfthFranchiseApplicationList(params) {
+  return request({
+    url: 'yfth/franchise_application/application',
+    method: 'get',
+    params,
+  });
+}
+
+export function yfthFranchiseApplicationDetail(id) {
+  return request({
+    url: `yfth/franchise_application/application/${id}`,
+    method: 'get',
+  });
+}
+
+export function yfthFranchiseApplicationAssign(id, data) {
+  return request({
+    url: `yfth/franchise_application/application/${id}/assign`,
+    method: 'post',
+    data,
+  });
+}
+
+export function yfthFranchiseApplicationStatus(id, data) {
+  return request({
+    url: `yfth/franchise_application/application/${id}/status`,
+    method: 'post',
+    data,
+  });
+}
+
+export function yfthFranchiseApplicationFollow(id, data) {
+  return request({
+    url: `yfth/franchise_application/application/${id}/follow`,
+    method: 'post',
+    data,
+  });
+}

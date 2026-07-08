@@ -1,5 +1,26 @@
 # 项目交接文档
 
+## Current Fact Snapshot - 2026-07-08 Franchise Application Workflow V1
+
+- Current branch: `feature/yfth-franchise-application-v1`.
+- Start baseline: `main` / `origin/main` at `15143d4a6a28e07b606ba4e934a5f3c31c63ae36`.
+- Latest feature commit: read from real Git HEAD after the feature commit and push.
+- Scope: first headquarters franchise application workflow only: user application submission, headquarters list/detail, owner assignment, status advancement, follow records, user-side progress lookup, permissions, audit, migration, and minimal real pages.
+- New tables: `yfth_franchise_application` and `yfth_franchise_follow_record`.
+- Identity boundary: applicant identity remains CRMEB `user.uid`; an application is not a franchisee identity, not a store, not a contract, and not an account grant.
+- User API boundary: user-token routes read the applicant from `Request::uid()` and reject client-submitted `uid`, `applicant_uid`, `assigned_uid`, `status`, and `store_id`.
+- Admin API boundary: headquarters management uses adminapi routes, `AdminAuthTokenMiddleware`, `AdminCheckRoleMiddleware`, and explicit `SystemRoleServices::assertApiAuthForAdmin()` checks.
+- Status model implemented in V1: `submitted -> contacting -> communicating -> inspecting -> pending_contract`; later `signed`, `preparing`, `opened`, and `terminated` states are reserved and not opened by the V1 API.
+- Frontend added: uni-app pages `pages/yfth/franchise/index`, `pages/yfth/franchise/apply`, `pages/yfth/franchise/detail`, a user-center cooperation entry, and admin page `template/admin/src/pages/yfth/franchiseApplication/index.vue`.
+- Audit: unified YFTH audit writes to `yfth_audit_event` with domain `yfth_franchise_application` for submit, owner assignment, status changes, and follow creation.
+- Documentation added: `docs/YFTH_FRANCHISE_APPLICATION_ARCHITECTURE.md`.
+- Verification executed in this feature branch: PHP syntax passed for changed backend/migration/test files; `yfth_franchise_application_contract_check.php` passed with 133 assertions; isolated MySQL 8.0.46 migration `up/down/up` passed for `20260708110000_create_yfth_franchise_application_tables.php`; admin production build passed with existing CSS order, asset-size, and Browserslist warnings; uni-app H5 production build passed with 350 files / 11,140,968 bytes; mp-weixin production compile passed with 1,145 files / 7,653,679 bytes and existing CRMEB skeleton key/component placement warnings.
+- Explicitly not implemented: electronic contracts, online signing, franchise fee payment, store creation, store decoration/opening acceptance tasks, recommendation rewards, procurement, inventory, product quota, settlement, revenue sharing, distribution rebate, and production deployment.
+- Not modified: CRMEB user/login/order/payment/refund core flows, 5980 package activation, service appointment state machine, service writeoff state machine, store workbench adapter, and existing customer CRM attribution model.
+- Production status: no production deployment, no production database connection, no server modification, no WeChat upload.
+- Historical note: older unfinished-module sections that listed franchise application as future work are superseded by this V1 snapshot for the basic application workflow only; franchise contract/payment/opening and settlement modules remain future work.
+- Next step after this feature branch is completed: run a read-only architecture review before any main merge decision.
+
 ## Current Fact Snapshot - Franchise Customer CRM V1 Closure
 
 - Current branch: `main`.
@@ -273,7 +294,7 @@
 - 独立付费服务订单。
 - 微信订阅消息和短信提醒。
 - 更完整的门店工作台、客户归属和经营待办。
-- 加盟申请、加盟合同、筹备任务和开店验收。
+- 加盟合同、线上签约、加盟费支付、筹备任务、开店验收和加盟商身份授予。
 - 产品额度/返货额度台账。
 - 服务导师线索、邀约、活动和帮扶任务。
 - 只读奖励台账、规则版本、观察期、有效新客校验和冲正。

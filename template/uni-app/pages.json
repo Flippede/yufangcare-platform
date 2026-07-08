@@ -173,6 +173,24 @@
 					"style": {
 						"navigationBarTitleText": "新增跟进"
 					}
+				},
+				{
+					"path": "franchise/index",
+					"style": {
+						"navigationBarTitleText": "我的加盟申请"
+					}
+				},
+				{
+					"path": "franchise/apply",
+					"style": {
+						"navigationBarTitleText": "提交加盟申请"
+					}
+				},
+				{
+					"path": "franchise/detail",
+					"style": {
+						"navigationBarTitleText": "加盟申请详情"
+					}
 				}
 			]
 		}, {

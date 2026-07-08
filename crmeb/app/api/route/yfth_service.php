@@ -57,3 +57,12 @@ Route::group(function () {
     ->middleware(\app\api\middleware\StationOpenMiddleware::class)
     ->middleware(\app\api\middleware\AuthTokenMiddleware::class)
     ->option(['mark' => 'yfth_franchise_customer_user', 'mark_name' => 'YFTH franchise customer user-token API']);
+
+Route::group(function () {
+    Route::post('yfth/franchise/application', 'v1.yfth.FranchiseApplicationController/submit')->option(['real_name' => 'YFTH franchise application submit']);
+    Route::get('yfth/franchise/application/my', 'v1.yfth.FranchiseApplicationController/myList')->option(['real_name' => 'YFTH my franchise applications']);
+    Route::get('yfth/franchise/application/:id', 'v1.yfth.FranchiseApplicationController/detail')->option(['real_name' => 'YFTH my franchise application detail']);
+})->middleware(\app\http\middleware\AllowOriginMiddleware::class)
+    ->middleware(\app\api\middleware\StationOpenMiddleware::class)
+    ->middleware(\app\api\middleware\AuthTokenMiddleware::class)
+    ->option(['mark' => 'yfth_franchise_application_user', 'mark_name' => 'YFTH franchise application user-token API']);
