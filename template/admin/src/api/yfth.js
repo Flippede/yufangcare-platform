@@ -489,3 +489,106 @@ export function yfthFranchiseApplicationFollow(id, data) {
     data,
   });
 }
+
+export function yfthSupplyCatalogList(params) {
+  return request({
+    url: 'yfth/supply_chain/catalog',
+    method: 'get',
+    params,
+  });
+}
+
+export function yfthSupplyCatalogSave(data) {
+  return request({
+    url: 'yfth/supply_chain/catalog/save',
+    method: 'post',
+    data,
+  });
+}
+
+export function yfthSupplyCatalogDisable(data) {
+  return request({
+    url: 'yfth/supply_chain/catalog/disable',
+    method: 'post',
+    data,
+  });
+}
+
+export function yfthSupplyProductSearch(params) {
+  return request({
+    url: 'yfth/supply_chain/product/search',
+    method: 'get',
+    params,
+  });
+}
+
+export function yfthPurchaseOrderList(params) {
+  return request({
+    url: 'yfth/supply_chain/purchase_order',
+    method: 'get',
+    params,
+  });
+}
+
+export function yfthPurchaseOrderDetail(id) {
+  return request({
+    url: `yfth/supply_chain/purchase_order/${id}`,
+    method: 'get',
+  });
+}
+
+export function yfthPurchaseOrderAudit(id, data) {
+  return request({
+    url: `yfth/supply_chain/purchase_order/${id}/audit`,
+    method: 'post',
+    data,
+  });
+}
+
+export function yfthPurchaseOrderShip(id, data) {
+  return request({
+    url: `yfth/supply_chain/purchase_order/${id}/ship`,
+    method: 'post',
+    data,
+  });
+}
+
+export function yfthSupplyShipmentList(params) {
+  return request({
+    url: 'yfth/supply_chain/shipment',
+    method: 'get',
+    params,
+  });
+}
+
+export function yfthInventoryBalanceList(params) {
+  return request({
+    url: 'yfth/supply_chain/inventory',
+    method: 'get',
+    params,
+  });
+}
+
+export function yfthInventoryLedgerList(params) {
+  return request({
+    url: 'yfth/supply_chain/ledger',
+    method: 'get',
+    params,
+  });
+}
+
+export function yfthInventoryAlertRuleList(params) {
+  return request({
+    url: 'yfth/supply_chain/alert_rule',
+    method: 'get',
+    params,
+  });
+}
+
+export function yfthInventoryAlertRuleSave(data) {
+  return request({
+    url: 'yfth/supply_chain/alert_rule/save',
+    method: 'post',
+    data,
+  });
+}

@@ -80,6 +80,21 @@ Route::group('yfth', function () {
         Route::post('application/:id/status', 'v1.yfth.FranchiseApplication/status')->option(['real_name' => '加盟申请状态推进']);
         Route::post('application/:id/follow', 'v1.yfth.FranchiseApplication/follow')->option(['real_name' => '加盟申请沟通记录']);
     })->option(['parent' => 'yfth', 'cate_name' => '加盟管理']);
+    Route::group('supply_chain', function () {
+        Route::get('catalog', 'v1.yfth.SupplyChain/catalogList')->option(['real_name' => 'Supply catalog list']);
+        Route::post('catalog/save', 'v1.yfth.SupplyChain/catalogSave')->option(['real_name' => 'Supply catalog save']);
+        Route::post('catalog/disable', 'v1.yfth.SupplyChain/catalogDisable')->option(['real_name' => 'Supply catalog disable']);
+        Route::get('product/search', 'v1.yfth.SupplyChain/productSearch')->option(['real_name' => 'Supply product search']);
+        Route::get('purchase_order', 'v1.yfth.SupplyChain/purchaseOrderList')->option(['real_name' => 'Purchase order list']);
+        Route::get('purchase_order/:id', 'v1.yfth.SupplyChain/purchaseOrderDetail')->option(['real_name' => 'Purchase order detail']);
+        Route::post('purchase_order/:id/audit', 'v1.yfth.SupplyChain/purchaseOrderAudit')->option(['real_name' => 'Purchase order audit']);
+        Route::post('purchase_order/:id/ship', 'v1.yfth.SupplyChain/purchaseOrderShip')->option(['real_name' => 'Purchase order ship']);
+        Route::get('shipment', 'v1.yfth.SupplyChain/shipmentList')->option(['real_name' => 'Shipment list']);
+        Route::get('inventory', 'v1.yfth.SupplyChain/inventoryList')->option(['real_name' => 'Inventory balance list']);
+        Route::get('ledger', 'v1.yfth.SupplyChain/ledgerList')->option(['real_name' => 'Inventory ledger list']);
+        Route::get('alert_rule', 'v1.yfth.SupplyChain/alertRuleList')->option(['real_name' => 'Inventory alert rule list']);
+        Route::post('alert_rule/save', 'v1.yfth.SupplyChain/alertRuleSave')->option(['real_name' => 'Inventory alert rule save']);
+    })->option(['parent' => 'yfth', 'cate_name' => 'Supply Chain']);
 })->middleware([
     \app\http\middleware\AllowOriginMiddleware::class,
     \app\adminapi\middleware\AdminAuthTokenMiddleware::class,

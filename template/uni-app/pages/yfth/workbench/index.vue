@@ -40,6 +40,7 @@
 							<button @click="openPane('appointments')">预约管理</button>
 							<button @click="openPane('writeoff')">服务核销</button>
 							<button @click="openPane('orders')">门店订单</button>
+							<button @click="goPurchase">采购库存</button>
 						</view>
 					</view>
 				</view>
@@ -550,6 +551,9 @@ export default {
 		},
 		goCustomers() {
 			uni.navigateTo({ url: '/pages/yfth/workbench/customer/index' });
+		},
+		goPurchase() {
+			uni.navigateTo({ url: '/pages/yfth/workbench/purchase/index' });
 		},
 		backCustomer() {
 			clearYfthContext();

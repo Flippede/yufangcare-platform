@@ -52,5 +52,14 @@ export default {
       },
       component: () => import('@/pages/yfth/franchiseApplication/index'),
     },
+    {
+      path: 'supply-chain',
+      name: `${pre}supply_chain`,
+      meta: {
+        auth: ['yfth-supply-chain-index'],
+        title: 'Supply Chain',
+      },
+      component: () => import('@/pages/yfth/supplyChain/index'),
+    },
   ],
 };

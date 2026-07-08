@@ -1,0 +1,15 @@
+<?php
+
+namespace app\dao\yfth;
+
+use app\dao\BaseDao;
+use app\model\yfth\YfthPurchaseShipment;
+
+class YfthPurchaseShipmentDao extends BaseDao
+{
+    protected function setModel(): string
+    {
+        return YfthPurchaseShipment::class;
+    }
+}
+

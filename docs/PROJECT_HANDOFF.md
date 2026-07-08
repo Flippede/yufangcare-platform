@@ -1,5 +1,29 @@
 # 项目交接文档
 
+## Current Fact Snapshot - Supply Chain And Store Inventory V1
+
+- Current development branch: `codex/yfth-supply-chain-inventory-v1`.
+- Start commit: `fc001260ff56dfc7b4a6a39358cebb612f9f4131`.
+- Scope: headquarters supply catalog, store purchase order, headquarters audit and shipment, store receipt and stock-in, store inventory balance, immutable inventory ledger, and inventory alert rules.
+- New backend service: `app/services/yfth/SupplyChainServices.php`.
+- New user-token controller: `app/api/controller/v1/yfth/SupplyChainController.php`.
+- New admin-token controller: `app/adminapi/controller/v1/yfth/SupplyChain.php`.
+- New migration: `crmeb/database/migrations/20260708170000_create_yfth_supply_chain_inventory_tables.php`.
+- New tables: `yfth_supply_catalog`, `yfth_purchase_order`, `yfth_purchase_order_item`, `yfth_stock_location`, `yfth_inventory_balance`, `yfth_inventory_ledger`, `yfth_purchase_shipment`, `yfth_purchase_receipt`, and `yfth_inventory_alert_rule`.
+- User APIs added under CRMEB user token: `/api/yfth/supply/catalog`, `/api/yfth/supply/purchase_order`, `/api/yfth/supply/purchase_order/:id`, `/api/yfth/supply/in_transit`, `/api/yfth/supply/purchase_order/:id/receive`, `/api/yfth/supply/inventory`, and `/api/yfth/supply/ledger`.
+- Admin APIs added under admin token and CRMEB API permission checks: `yfth/supply_chain/catalog`, `catalog/save`, `catalog/disable`, `product/search`, `purchase_order`, `purchase_order/<id>`, `purchase_order/<id>/audit`, `purchase_order/<id>/ship`, `shipment`, `inventory`, `ledger`, `alert_rule`, and `alert_rule/save`.
+- Permission boundary: `franchisee` and `store_manager` can create purchase orders and confirm receipt; `store_staff` can only read catalog, purchase order state, inventory, and ledger.
+- Store isolation: write bodies containing client-submitted `store_id`, `store_ids`, role, or operator fields are rejected. Store-side list/detail/inventory queries use the store resolved by `CurrentBusinessContextServices`.
+- Product boundary: supply catalog references CRMEB `store_product`; purchase items reference CRMEB `store_product_attr_value.unique`. No second product library was added.
+- Inventory boundary: YFTH store inventory is independent from CRMEB consumer sales stock. This V1 does not modify CRMEB `store_product.stock`, SKU stock, sales, or quota fields.
+- Order boundary: purchase orders are not CRMEB `store_order` rows and do not write CRMEB order, payment, refund, user balance, brokerage, or points data.
+- Frontend added: admin `pages/yfth/supplyChain/index.vue`; uni-app purchase center `pages/yfth/workbench/purchase/index.vue`, purchase detail, and inventory pages; the store workbench now links to purchase inventory.
+- Documentation added: `docs/YFTH_SUPPLY_CHAIN_INVENTORY_ARCHITECTURE.md`.
+- Test added: `crmeb/tests/yfth_supply_chain_contract_check.php`.
+- Verification executed in this feature branch: PHP syntax passed for changed backend/migration/test files; `crmeb/tests/yfth_supply_chain_contract_check.php` passed with 50 assertions; isolated MySQL 8.0.46 full migration `run -> rollback -t 0 -> run` passed after importing the CRMEB install schema into a temporary database, with `eb_yfth_purchase_order` and the `yfth-supply-chain-index` admin permission present after rerun and absent after rollback; admin Vue production build passed to a temporary output directory with existing CSS order, asset-size, and Browserslist warnings; uni-app executable project checks `yfth_multi_role_shell_contract_check.js` and `yfth_request_fallback_check.js` passed.
+- Production deployment, production database migration, and production data access were not performed.
+- Not implemented in V1: procurement payment, complex financial settlement, recommendation reward, revenue sharing, CRMEB consumer order fulfillment integration, consumer purchase auto-deducting store inventory, returns/reversals, and partial multi-shipment receiving.
+
 ## Current Fact Snapshot - Franchise Application Workflow V1 Closure
 
 - Current branch: `main`.

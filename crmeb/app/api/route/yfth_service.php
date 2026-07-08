@@ -59,6 +59,20 @@ Route::group(function () {
     ->option(['mark' => 'yfth_franchise_customer_user', 'mark_name' => 'YFTH franchise customer user-token API']);
 
 Route::group(function () {
+    Route::get('yfth/supply/catalog', 'v1.yfth.SupplyChainController/catalog')->option(['real_name' => 'YFTH store purchase catalog']);
+    Route::post('yfth/supply/purchase_order', 'v1.yfth.SupplyChainController/createOrder')->option(['real_name' => 'YFTH store purchase order create']);
+    Route::get('yfth/supply/purchase_order', 'v1.yfth.SupplyChainController/orderList')->option(['real_name' => 'YFTH store purchase orders']);
+    Route::get('yfth/supply/purchase_order/:id', 'v1.yfth.SupplyChainController/orderDetail')->option(['real_name' => 'YFTH store purchase order detail']);
+    Route::get('yfth/supply/in_transit', 'v1.yfth.SupplyChainController/inTransit')->option(['real_name' => 'YFTH store in-transit purchase orders']);
+    Route::post('yfth/supply/purchase_order/:id/receive', 'v1.yfth.SupplyChainController/receive')->option(['real_name' => 'YFTH store purchase receive and stock in']);
+    Route::get('yfth/supply/inventory', 'v1.yfth.SupplyChainController/inventory')->option(['real_name' => 'YFTH store inventory balance']);
+    Route::get('yfth/supply/ledger', 'v1.yfth.SupplyChainController/ledger')->option(['real_name' => 'YFTH store inventory ledger']);
+})->middleware(\app\http\middleware\AllowOriginMiddleware::class)
+    ->middleware(\app\api\middleware\StationOpenMiddleware::class)
+    ->middleware(\app\api\middleware\AuthTokenMiddleware::class)
+    ->option(['mark' => 'yfth_supply_chain_user', 'mark_name' => 'YFTH supply chain user-token API']);
+
+Route::group(function () {
     Route::post('yfth/franchise/application', 'v1.yfth.FranchiseApplicationController/submit')->option(['real_name' => 'YFTH franchise application submit']);
     Route::get('yfth/franchise/application/my', 'v1.yfth.FranchiseApplicationController/myList')->option(['real_name' => 'YFTH my franchise applications']);
     Route::get('yfth/franchise/application/:id', 'v1.yfth.FranchiseApplicationController/detail')->option(['real_name' => 'YFTH my franchise application detail']);

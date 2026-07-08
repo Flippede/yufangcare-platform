@@ -214,6 +214,40 @@ export function submitYfthFranchiseApplication(data) {
 	return request.post('yfth/franchise/application', data || {});
 }
 
+export function getYfthSupplyCatalog(data) {
+	return request.get('yfth/supply/catalog', data || {});
+}
+
+export function createYfthPurchaseOrder(data) {
+	const payload = splitYfthContext(data || {});
+	return request.post('yfth/supply/purchase_order' + payload.query, payload.body);
+}
+
+export function getYfthPurchaseOrders(data) {
+	return request.get('yfth/supply/purchase_order', data || {});
+}
+
+export function getYfthPurchaseOrderDetail(id, data) {
+	return request.get('yfth/supply/purchase_order/' + id, data || {});
+}
+
+export function getYfthSupplyInTransit(data) {
+	return request.get('yfth/supply/in_transit', data || {});
+}
+
+export function receiveYfthPurchaseOrder(id, data) {
+	const payload = splitYfthContext(data || {});
+	return request.post('yfth/supply/purchase_order/' + id + '/receive' + payload.query, payload.body);
+}
+
+export function getYfthInventory(data) {
+	return request.get('yfth/supply/inventory', data || {});
+}
+
+export function getYfthInventoryLedger(data) {
+	return request.get('yfth/supply/ledger', data || {});
+}
+
 function splitYfthContext(data) {
 	const body = Object.assign({}, data || {});
 	const query = {};

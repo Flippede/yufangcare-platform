@@ -175,6 +175,24 @@
 					}
 				},
 				{
+					"path": "workbench/purchase/index",
+					"style": {
+						"navigationBarTitleText": "Store Purchase"
+					}
+				},
+				{
+					"path": "workbench/purchase/detail",
+					"style": {
+						"navigationBarTitleText": "Purchase Detail"
+					}
+				},
+				{
+					"path": "workbench/purchase/inventory",
+					"style": {
+						"navigationBarTitleText": "Store Inventory"
+					}
+				},
+				{
 					"path": "franchise/index",
 					"style": {
 						"navigationBarTitleText": "我的加盟申请"
