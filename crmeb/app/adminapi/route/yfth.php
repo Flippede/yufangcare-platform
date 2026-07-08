@@ -80,6 +80,24 @@ Route::group('yfth', function () {
         Route::post('application/:id/status', 'v1.yfth.FranchiseApplication/status')->option(['real_name' => '加盟申请状态推进']);
         Route::post('application/:id/follow', 'v1.yfth.FranchiseApplication/follow')->option(['real_name' => '加盟申请沟通记录']);
     })->option(['parent' => 'yfth', 'cate_name' => '加盟管理']);
+    Route::group('franchise_opening', function () {
+        Route::get('contract', 'v1.yfth.FranchiseOpening/contractList')->option(['real_name' => 'Franchise opening contract list']);
+        Route::get('contract/:id', 'v1.yfth.FranchiseOpening/contractDetail')->option(['real_name' => 'Franchise opening contract detail']);
+        Route::post('contract/create', 'v1.yfth.FranchiseOpening/contractCreate')->option(['real_name' => 'Franchise opening contract create']);
+        Route::post('contract/:id/confirm', 'v1.yfth.FranchiseOpening/contractConfirm')->option(['real_name' => 'Franchise opening contract confirm']);
+        Route::get('payment', 'v1.yfth.FranchiseOpening/paymentList')->option(['real_name' => 'Franchise opening payment list']);
+        Route::post('payment/:id/confirm', 'v1.yfth.FranchiseOpening/paymentConfirm')->option(['real_name' => 'Franchise opening payment confirm']);
+        Route::post('payment/:id/reject', 'v1.yfth.FranchiseOpening/paymentReject')->option(['real_name' => 'Franchise opening payment reject']);
+        Route::get('profile/:application_id', 'v1.yfth.FranchiseOpening/profileDetail')->option(['real_name' => 'Franchise opening store profile']);
+        Route::post('profile/save', 'v1.yfth.FranchiseOpening/profileSave')->option(['real_name' => 'Franchise opening store profile save']);
+        Route::post('profile/:id/bind_store', 'v1.yfth.FranchiseOpening/profileBindStore')->option(['real_name' => 'Franchise opening bind store']);
+        Route::get('task', 'v1.yfth.FranchiseOpening/taskList')->option(['real_name' => 'Franchise opening task list']);
+        Route::post('task/:id/review', 'v1.yfth.FranchiseOpening/taskReview')->option(['real_name' => 'Franchise opening task review']);
+        Route::get('acceptance', 'v1.yfth.FranchiseOpening/acceptanceList')->option(['real_name' => 'Franchise opening acceptance list']);
+        Route::get('acceptance/:id', 'v1.yfth.FranchiseOpening/acceptanceDetail')->option(['real_name' => 'Franchise opening acceptance detail']);
+        Route::post('acceptance/:id/review', 'v1.yfth.FranchiseOpening/acceptanceReview')->option(['real_name' => 'Franchise opening acceptance review']);
+        Route::post('identity_grant', 'v1.yfth.FranchiseOpening/identityGrant')->option(['real_name' => 'Franchise opening identity grant']);
+    })->option(['parent' => 'yfth', 'cate_name' => 'Franchise Opening']);
     Route::group('supply_chain', function () {
         Route::get('catalog', 'v1.yfth.SupplyChain/catalogList')->option(['real_name' => 'Supply catalog list']);
         Route::post('catalog/save', 'v1.yfth.SupplyChain/catalogSave')->option(['real_name' => 'Supply catalog save']);

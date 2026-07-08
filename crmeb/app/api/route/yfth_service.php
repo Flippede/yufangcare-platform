@@ -80,3 +80,17 @@ Route::group(function () {
     ->middleware(\app\api\middleware\StationOpenMiddleware::class)
     ->middleware(\app\api\middleware\AuthTokenMiddleware::class)
     ->option(['mark' => 'yfth_franchise_application_user', 'mark_name' => 'YFTH franchise application user-token API']);
+
+Route::group(function () {
+    Route::get('yfth/franchise/opening/my', 'v1.yfth.FranchiseOpeningController/my')->option(['real_name' => 'YFTH my franchise opening progress']);
+    Route::get('yfth/franchise/opening/contract/:id', 'v1.yfth.FranchiseOpeningController/contractDetail')->option(['real_name' => 'YFTH my franchise contract detail']);
+    Route::post('yfth/franchise/opening/contract/:id/confirm', 'v1.yfth.FranchiseOpeningController/contractConfirm')->option(['real_name' => 'YFTH franchise contract user confirm']);
+    Route::post('yfth/franchise/opening/payment/:id/proof', 'v1.yfth.FranchiseOpeningController/paymentProof')->option(['real_name' => 'YFTH franchise payment proof upload']);
+    Route::get('yfth/franchise/opening/tasks', 'v1.yfth.FranchiseOpeningController/tasks')->option(['real_name' => 'YFTH franchise preparation tasks']);
+    Route::post('yfth/franchise/opening/tasks/:id/submit', 'v1.yfth.FranchiseOpeningController/taskSubmit')->option(['real_name' => 'YFTH franchise preparation task submit']);
+    Route::get('yfth/franchise/opening/acceptance', 'v1.yfth.FranchiseOpeningController/acceptance')->option(['real_name' => 'YFTH franchise opening acceptance']);
+    Route::post('yfth/franchise/opening/acceptance/submit', 'v1.yfth.FranchiseOpeningController/acceptanceSubmit')->option(['real_name' => 'YFTH franchise opening acceptance submit']);
+})->middleware(\app\http\middleware\AllowOriginMiddleware::class)
+    ->middleware(\app\api\middleware\StationOpenMiddleware::class)
+    ->middleware(\app\api\middleware\AuthTokenMiddleware::class)
+    ->option(['mark' => 'yfth_franchise_opening_user', 'mark_name' => 'YFTH franchise opening user-token API']);

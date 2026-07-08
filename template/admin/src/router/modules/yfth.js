@@ -61,5 +61,14 @@ export default {
       },
       component: () => import('@/pages/yfth/supplyChain/index'),
     },
+    {
+      path: 'franchise-opening',
+      name: `${pre}franchise_opening`,
+      meta: {
+        auth: ['yfth-franchise-opening-index'],
+        title: 'Franchise Opening',
+      },
+      component: () => import('@/pages/yfth/franchiseOpening/index'),
+    },
   ],
 };

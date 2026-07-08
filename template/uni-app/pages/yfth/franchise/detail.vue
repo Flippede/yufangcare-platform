@@ -11,6 +11,7 @@
 		<view class="panel">
 			<view class="panel-title">申请进度</view>
 			<view class="step">{{ application.next_step }}</view>
+			<button v-if="canOpenOpening" class="opening-btn" @click="goOpening">查看签约筹备进度</button>
 			<view class="line">联系人：{{ application.name }}</view>
 			<view class="line">联系电话：{{ application.phone_masked }}</view>
 			<view class="line">城市区域：{{ application.city }} {{ application.region }}</view>
@@ -48,6 +49,11 @@ export default {
 			follows: []
 		};
 	},
+	computed: {
+		canOpenOpening() {
+			return ['pending_contract', 'signed', 'preparing', 'opened'].indexOf(this.application.status) !== -1;
+		}
+	},
 	onLoad(options) {
 		this.id = Number(options.id || 0);
 		this.load();
@@ -68,6 +74,9 @@ export default {
 			const date = new Date(ts * 1000);
 			const pad = (n) => (n < 10 ? '0' + n : '' + n);
 			return date.getFullYear() + '-' + pad(date.getMonth() + 1) + '-' + pad(date.getDate()) + ' ' + pad(date.getHours()) + ':' + pad(date.getMinutes());
+		},
+		goOpening() {
+			uni.navigateTo({ url: '/pages/yfth/franchise/opening/index' });
 		}
 	}
 };
@@ -81,6 +90,7 @@ export default {
 .muted, .line { color: #786b73; font-size: 24rpx; margin-top: 10rpx; line-height: 1.6; }
 .status { color: #7b4e25; font-weight: 700; font-size: 24rpx; }
 .step { margin-top: 18rpx; background: #fff7e9; color: #7b4e25; border-radius: 12rpx; padding: 16rpx; font-size: 26rpx; }
+.opening-btn { margin: 18rpx 0 0; background: #7b4e25; color: #fff; border-radius: 12rpx; height: 68rpx; line-height: 68rpx; font-size: 26rpx; }
 .follow { background: #fffaf2; border-radius: 12rpx; padding: 18rpx; margin-top: 16rpx; }
 .content { color: #3a3029; font-size: 26rpx; line-height: 1.6; margin-top: 10rpx; }
 .empty { color: #786b73; text-align: center; padding: 28rpx 0 8rpx; font-size: 24rpx; }

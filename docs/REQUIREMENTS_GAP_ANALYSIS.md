@@ -229,3 +229,10 @@ V2.0 复用比例估算：约 15%-25%。现有分销/事业部只能提供技术
 - 推荐关系、有效新客观察期、只读奖励台账、冲正和结算仍未实现。
 - 库存、采购、补货、产品额度、加盟合同、开店验收仍未实现。
 - 支付路由真实分账执行仍未实现；当前仍只是业务校验和成交快照元数据。
+## 2026-07-09 Franchise Contract Preparation Opening V1 Gap Update
+
+- Franchise application is now extended after `pending_contract` by the new opening workflow foundation.
+- New covered capabilities: offline contract record, applicant confirmation, headquarters confirmation/signing, offline payment proof, finance confirmation/reject, store preparation profile, fixed preparation tasks, opening acceptance, and controlled store-bound identity grant.
+- New data tables: `yfth_franchise_contract`, `yfth_franchise_payment_proof`, `yfth_franchise_store_profile`, `yfth_franchise_preparation_task`, `yfth_franchise_preparation_task_record`, `yfth_store_opening_acceptance`, `yfth_store_opening_acceptance_item`, and `yfth_franchise_identity_grant`.
+- Remaining gaps: real electronic signing, online franchise fee payment, settlement, revenue sharing, recommendation rewards, product quota, procurement payment, purchase after-sale reversal, and production deployment.
+- Boundary retained: this module does not create CRMEB `store_order`, does not modify CRMEB payment/refund/order flows, and does not mutate CRMEB product or SKU stock.

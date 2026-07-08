@@ -209,6 +209,36 @@
 					"style": {
 						"navigationBarTitleText": "加盟申请详情"
 					}
+				},
+				{
+					"path": "franchise/opening/index",
+					"style": {
+						"navigationBarTitleText": "签约筹备进度"
+					}
+				},
+				{
+					"path": "franchise/opening/contract",
+					"style": {
+						"navigationBarTitleText": "加盟合同确认"
+					}
+				},
+				{
+					"path": "franchise/opening/payment",
+					"style": {
+						"navigationBarTitleText": "付款凭证"
+					}
+				},
+				{
+					"path": "franchise/opening/tasks",
+					"style": {
+						"navigationBarTitleText": "筹备任务"
+					}
+				},
+				{
+					"path": "franchise/opening/acceptance",
+					"style": {
+						"navigationBarTitleText": "开店验收"
+					}
 				}
 			]
 		}, {

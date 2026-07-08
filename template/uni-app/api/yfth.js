@@ -214,6 +214,38 @@ export function submitYfthFranchiseApplication(data) {
 	return request.post('yfth/franchise/application', data || {});
 }
 
+export function getYfthFranchiseOpening() {
+	return request.get('yfth/franchise/opening/my');
+}
+
+export function getYfthFranchiseOpeningContract(id) {
+	return request.get('yfth/franchise/opening/contract/' + id);
+}
+
+export function confirmYfthFranchiseOpeningContract(id) {
+	return request.post('yfth/franchise/opening/contract/' + id + '/confirm', {});
+}
+
+export function uploadYfthFranchisePaymentProof(id, data) {
+	return request.post('yfth/franchise/opening/payment/' + id + '/proof', data || {});
+}
+
+export function getYfthFranchiseOpeningTasks() {
+	return request.get('yfth/franchise/opening/tasks');
+}
+
+export function submitYfthFranchiseOpeningTask(id, data) {
+	return request.post('yfth/franchise/opening/tasks/' + id + '/submit', data || {});
+}
+
+export function getYfthFranchiseOpeningAcceptance() {
+	return request.get('yfth/franchise/opening/acceptance');
+}
+
+export function submitYfthFranchiseOpeningAcceptance(data) {
+	return request.post('yfth/franchise/opening/acceptance/submit', data || {});
+}
+
 export function getYfthSupplyCatalog(data) {
 	return request.get('yfth/supply/catalog', data || {});
 }

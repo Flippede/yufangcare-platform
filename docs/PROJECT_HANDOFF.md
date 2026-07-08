@@ -1,5 +1,24 @@
 # 项目交接文档
 
+## Current Fact Snapshot - Franchise Contract Preparation Opening V1
+
+- Current development branch: `codex/yfth-franchise-contract-opening-v1`.
+- Start commit: `0dc2572dc445c8944983b2a4a3436571646cc5a1`.
+- Scope: offline franchise contract record, applicant contract confirmation, headquarters contract confirmation/signing, offline payment proof, finance confirmation/reject, store preparation profile, fixed preparation tasks, opening acceptance, and controlled store-bound identity grant.
+- New migration: `crmeb/database/migrations/20260709100000_create_yfth_franchise_opening_tables.php`.
+- New tables: `yfth_franchise_contract`, `yfth_franchise_payment_proof`, `yfth_franchise_store_profile`, `yfth_franchise_preparation_task`, `yfth_franchise_preparation_task_record`, `yfth_store_opening_acceptance`, `yfth_store_opening_acceptance_item`, and `yfth_franchise_identity_grant`.
+- New backend service: `app/services/yfth/FranchiseOpeningServices.php`.
+- New user-token APIs: `/api/yfth/franchise/opening/my`, contract detail/confirm, payment proof upload, preparation tasks, task submit, acceptance detail, and acceptance submit.
+- New admin-token APIs: `/adminapi/yfth/franchise_opening/*` for contract, payment, store profile, task review, acceptance review, and identity grant.
+- Application status boundary: Franchise Application V1 remains responsible up to `pending_contract`; this opening V1 alone advances `pending_contract -> signed -> preparing -> opened`.
+- Identity boundary: final grant writes concrete store-bound `yfth_user_store_role` rows and `yfth_franchise_identity_grant`; no global franchisee identity is created.
+- Store boundary: user side cannot create or enable CRMEB `system_store`; headquarters must bind an existing valid `system_store_id` before identity grant.
+- Supply-chain boundary: first-purchase preparation can read an existing YFTH purchase order and require `stocked`; it does not create, audit, ship, receive, or mutate inventory.
+- Frozen boundaries: no electronic signing, no online payment, no CRMEB `store_order`, no balance/points/brokerage/distribution/settlement writes, no CRMEB product/SKU stock or sales mutation, no recommendation reward, no product quota, no production deployment, and no production database migration.
+- Documentation added: `docs/YFTH_FRANCHISE_OPENING_ARCHITECTURE.md`.
+- Tests added: `crmeb/tests/yfth_franchise_opening_contract_check.php` and `crmeb/tests/yfth_franchise_opening_real_flow_check.php`.
+- Final commit and verification results should be read from real Git status after this feature-branch commit.
+
 ## Current Fact Snapshot - Final Supply Chain And Store Inventory V1 Closure
 
 - Current branch after merge: `main`.

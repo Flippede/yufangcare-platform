@@ -592,3 +592,127 @@ export function yfthInventoryAlertRuleSave(data) {
     data,
   });
 }
+
+export function yfthFranchiseOpeningContractList(params) {
+  return request({
+    url: 'yfth/franchise_opening/contract',
+    method: 'get',
+    params,
+  });
+}
+
+export function yfthFranchiseOpeningContractDetail(id) {
+  return request({
+    url: `yfth/franchise_opening/contract/${id}`,
+    method: 'get',
+  });
+}
+
+export function yfthFranchiseOpeningContractCreate(data) {
+  return request({
+    url: 'yfth/franchise_opening/contract/create',
+    method: 'post',
+    data,
+  });
+}
+
+export function yfthFranchiseOpeningContractConfirm(id, data) {
+  return request({
+    url: `yfth/franchise_opening/contract/${id}/confirm`,
+    method: 'post',
+    data,
+  });
+}
+
+export function yfthFranchiseOpeningPaymentList(params) {
+  return request({
+    url: 'yfth/franchise_opening/payment',
+    method: 'get',
+    params,
+  });
+}
+
+export function yfthFranchiseOpeningPaymentConfirm(id) {
+  return request({
+    url: `yfth/franchise_opening/payment/${id}/confirm`,
+    method: 'post',
+  });
+}
+
+export function yfthFranchiseOpeningPaymentReject(id, data) {
+  return request({
+    url: `yfth/franchise_opening/payment/${id}/reject`,
+    method: 'post',
+    data,
+  });
+}
+
+export function yfthFranchiseOpeningProfileDetail(applicationId) {
+  return request({
+    url: `yfth/franchise_opening/profile/${applicationId}`,
+    method: 'get',
+  });
+}
+
+export function yfthFranchiseOpeningProfileSave(data) {
+  return request({
+    url: 'yfth/franchise_opening/profile/save',
+    method: 'post',
+    data,
+  });
+}
+
+export function yfthFranchiseOpeningProfileBindStore(id, data) {
+  return request({
+    url: `yfth/franchise_opening/profile/${id}/bind_store`,
+    method: 'post',
+    data,
+  });
+}
+
+export function yfthFranchiseOpeningTaskList(params) {
+  return request({
+    url: 'yfth/franchise_opening/task',
+    method: 'get',
+    params,
+  });
+}
+
+export function yfthFranchiseOpeningTaskReview(id, data) {
+  return request({
+    url: `yfth/franchise_opening/task/${id}/review`,
+    method: 'post',
+    data,
+  });
+}
+
+export function yfthFranchiseOpeningAcceptanceList(params) {
+  return request({
+    url: 'yfth/franchise_opening/acceptance',
+    method: 'get',
+    params,
+  });
+}
+
+export function yfthFranchiseOpeningAcceptanceDetail(id) {
+  return request({
+    url: `yfth/franchise_opening/acceptance/${id}`,
+    method: 'get',
+  });
+}
+
+export function yfthFranchiseOpeningAcceptanceReview(id, data) {
+  return request({
+    url: `yfth/franchise_opening/acceptance/${id}/review`,
+    method: 'post',
+    data,
+  });
+}
+
+export function yfthFranchiseOpeningIdentityGrant(data) {
+  return request({
+    url: 'yfth/franchise_opening/identity_grant',
+    method: 'post',
+    data,
+  });
+}
