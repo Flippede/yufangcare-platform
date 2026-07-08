@@ -1,5 +1,24 @@
 # 项目交接文档
 
+## Current Fact Snapshot - Final Supply Chain And Store Inventory V1 Closure
+
+- Current branch after merge: `main`.
+- Preserved feature branch: `codex/yfth-supply-chain-inventory-v1`.
+- Main before merge: `fc001260ff56dfc7b4a6a39358cebb612f9f4131`.
+- Final reviewed feature commit: `effbd26bdfa9bfc86be5122146885ca3368719c5`.
+- Final merged feature commit: `5c02f429c2a10c1eb2534cb1e4432532d9399bab`.
+- Merge method: `git merge --ff-only codex/yfth-supply-chain-inventory-v1`; no merge commit, squash, rebase, or history rewrite was used.
+- Architecture review conclusion: A, passed; no Blocker/P1/P2 remains for Supply Chain And Store Inventory V1.
+- P3 EOF whitespace cleanup commit: `5c02f429c2a10c1eb2534cb1e4432532d9399bab`.
+- Verification fact: Architecture Auditor completed PHP/MySQL 8.0.46 isolated validation at `effbd26bdfa9bfc86be5122146885ca3368719c5`; `5c02f429c2a10c1eb2534cb1e4432532d9399bab` only removes trailing EOF blank lines and does not change business logic, permission rules, state transitions, API behavior, or migration structure.
+- Completed capabilities: headquarters supply catalog, store purchase order, headquarters audit, headquarters shipment, store receipt and stock-in, store inventory balance, immutable inventory ledger, inventory alert rules, headquarters admin pages, and mobile store purchase/inventory entry.
+- New tables: `yfth_supply_catalog`, `yfth_purchase_order`, `yfth_purchase_order_item`, `yfth_stock_location`, `yfth_inventory_balance`, `yfth_inventory_ledger`, `yfth_purchase_shipment`, `yfth_purchase_receipt`, and `yfth_inventory_alert_rule`.
+- P1 closure retained in main: shipment and receipt lock the purchase order row inside the transaction; duplicate shipment returns the existing shipment; duplicate receipt returns the existing receipt; inventory is not increased repeatedly; `store_purchase` capability is mandatory for purchase writes; unique constraints guard duplicate shipment, receipt, and ledger rows.
+- Boundary: this V1 does not create CRMEB `store_order` rows, does not modify CRMEB product stock, SKU stock, or sales, does not modify CRMEB order/payment/refund main flows, and does not write balance, points, brokerage, distribution, commission, settlement, or revenue-sharing data.
+- Not implemented: procurement payment, product quota, recommendation rewards, revenue sharing, settlement, procurement after-sale reversal, multi-shipment/partial receiving, CRMEB consumer order auto-deducting store inventory, production deployment, and production database migration.
+- Production status: no production deployment, no production database connection, no production migration, and no server modification were performed in this closure.
+- Final main and origin/main commit should be read from real Git HEAD after this documentation closure commit and push.
+
 ## Current Fact Snapshot - Supply Chain And Store Inventory V1
 
 - Current development branch: `codex/yfth-supply-chain-inventory-v1`.
