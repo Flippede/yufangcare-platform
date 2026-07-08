@@ -1,11 +1,15 @@
 # 项目交接文档
 
-## Current Fact Snapshot - 2026-07-08 Franchise Application Workflow V1
+## Current Fact Snapshot - Franchise Application Workflow V1 Closure
 
-- Current branch: `feature/yfth-franchise-application-v1`.
-- Start baseline: `main` / `origin/main` at `15143d4a6a28e07b606ba4e934a5f3c31c63ae36`.
-- Latest feature commit: read from real Git HEAD after the feature commit and push.
-- Scope: first headquarters franchise application workflow only: user application submission, headquarters list/detail, owner assignment, status advancement, follow records, user-side progress lookup, permissions, audit, migration, and minimal real pages.
+- Current branch: `main`.
+- Preserved feature branch: `feature/yfth-franchise-application-v1`.
+- Main before merge: `15143d4a6a28e07b606ba4e934a5f3c31c63ae36`.
+- Final reviewed feature commit: `666c2f2e11b5dbf7ba940afb6b8d5c687233c842`.
+- Merge method: `git merge --ff-only feature/yfth-franchise-application-v1`; no merge commit, squash, rebase, or history rewrite was used.
+- Architecture review conclusion: B, allowed to merge; remaining P2 items are retained for later and do not block the current merge.
+- Franchise Application Workflow V1 is completed and merged into `main`.
+- Scope completed: first headquarters franchise application workflow only: user application submission, headquarters list/detail, owner assignment, status advancement, follow records, user-side progress lookup, permissions, audit, migration, and minimal real pages.
 - New tables: `yfth_franchise_application` and `yfth_franchise_follow_record`.
 - Identity boundary: applicant identity remains CRMEB `user.uid`; an application is not a franchisee identity, not a store, not a contract, and not an account grant.
 - User API boundary: user-token routes read the applicant from `Request::uid()` and reject client-submitted `uid`, `applicant_uid`, `assigned_uid`, `status`, and `store_id`.
@@ -17,12 +21,15 @@
 - P2 closure in this round: follow records now carry `visible_type = internal | public`; headquarters defaults new follow records to `internal`, while user-side detail returns only `public` records.
 - P2 closure in this round: application audit history lookup now matches exact `object_type/object_id` pairs and follow-record ids; it no longer uses `after_state LIKE application_id`, preventing `application_id = 1` from matching `10`.
 - Documentation added: `docs/YFTH_FRANCHISE_APPLICATION_ARCHITECTURE.md`.
+- Completed capabilities: user franchise application, headquarters franchise management backend, status workflow, owner assignment, follow records, unified audit, user-token permission boundary, and headquarters admin permission boundary.
 - Verification executed in this feature branch: PHP syntax passed for changed backend/migration/test files; the P1/P2 closure `yfth_franchise_application_contract_check.php` passed with 163 assertions; isolated MySQL 8.0.46 migration `up/down/up` passed for `20260708110000_create_yfth_franchise_application_tables.php` plus `20260708113000_add_yfth_franchise_follow_visibility.php`, including `visible_type`, `idx_yfth_franchise_follow_visible_time`, and seeded franchise-application menu/API permissions; isolated MySQL 8.0.46 service-level detail validation passed for `adminDetail()` with/without audit records, exact audit exclusion of application `10` while reading application `1`, `add_time` audit DTOs, `assignOwner()`, `changeStatus()`, and `addFollow()`; admin production build passed with existing CSS order, asset-size, and Browserslist warnings; uni-app H5 production build passed with 350 files / 11,140,968 bytes; mp-weixin production compile passed with 1,145 files / 7,653,679 bytes and existing CRMEB skeleton key/component placement warnings.
 - Explicitly not implemented: electronic contracts, online signing, franchise fee payment, store creation, store decoration/opening acceptance tasks, recommendation rewards, procurement, inventory, product quota, settlement, revenue sharing, distribution rebate, and production deployment.
 - Not modified: CRMEB user/login/order/payment/refund core flows, 5980 package activation, service appointment state machine, service writeoff state machine, store workbench adapter, and existing customer CRM attribution model.
+- Branch handling: local and remote feature branches are retained for stage history; no branch was deleted.
 - Production status: no production deployment, no production database connection, no server modification, no WeChat upload.
-- Historical note: older unfinished-module sections that listed franchise application as future work are superseded by this V1 snapshot for the basic application workflow only; franchise contract/payment/opening and settlement modules remain future work.
-- Current merge status: this branch is still not merged into `main`; after the P1/P2 closure commit is pushed, run a read-only architecture re-review before any main merge decision.
+- Historical note: older unfinished-module sections that listed franchise application as future work are superseded by this V1 closure snapshot for the basic application workflow only; franchise contract/payment/opening and settlement modules remain future work.
+- Final `main` and `origin/main` commit should be read from real Git HEAD after this documentation closure commit and push.
+- Next business module should be decided separately by the project controller.
 
 ## Current Fact Snapshot - Franchise Customer CRM V1 Closure
 
