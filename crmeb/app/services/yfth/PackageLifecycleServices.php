@@ -58,6 +58,7 @@ class PackageLifecycleServices extends PackageBenefitBaseServices
                 $this->assertTransition('purchase', (string)$purchase['purchase_status'], 'refunded');
                 $purchaseDao->update((int)$purchase['id'], ['purchase_status' => 'refunded', 'update_time' => time()]);
                 $this->recordPackageAudit('package_purchase', (string)$purchase['id'], 'refund_succeeded_unactivated', $purchase, $eventData, 0, 'system', (int)$purchase['store_id']);
+                $this->recordReferralPackageNegativeEventSafely((int)$purchase['id'], 'package_refunded');
                 return;
             }
 
@@ -78,6 +79,7 @@ class PackageLifecycleServices extends PackageBenefitBaseServices
             }
             app()->make(PackageInstanceServices::class)->recomputeMemberIdentity((int)$purchase['uid']);
             $this->recordPackageAudit('package_purchase', (string)$purchase['id'], 'refund_succeeded', $purchase, array_merge($eventData, ['used_count' => $usedCount]), 0, 'system', (int)$purchase['store_id']);
+            $this->recordReferralPackageNegativeEventSafely((int)$purchase['id'], 'package_refunded');
         });
     }
 
@@ -123,8 +125,30 @@ class PackageLifecycleServices extends PackageBenefitBaseServices
             $after = $this->requireRow($instanceDao->get($instanceId), 'package_instance_not_found');
             $this->recordPackageAudit('package_instance', (string)$instanceId, 'lifecycle_state', $before, $after, $operatorUid, 'admin', (int)$instance['store_id'], $reason);
             app()->make(PackageInstanceServices::class)->recomputeMemberIdentity((int)$instance['uid']);
+            if (in_array($toStatus, ['frozen', 'suspended'], true) && (int)$after['purchase_id'] > 0) {
+                $this->recordReferralPackageNegativeEventSafely((int)$after['purchase_id'], 'package_frozen');
+            }
+            if (in_array($toStatus, ['closed', 'expired'], true) && (int)$after['purchase_id'] > 0) {
+                $this->recordReferralPackageNegativeEventSafely((int)$after['purchase_id'], 'package_closed');
+            }
             return $after;
         });
+    }
+
+    private function recordReferralPackageNegativeEventSafely(int $purchaseId, string $eventType): void
+    {
+        if ($purchaseId <= 0) {
+            return;
+        }
+        try {
+            app()->make(ReferralRewardServices::class)->recordPackageNegativeEvent($purchaseId, $eventType, $eventType . ':package_purchase:' . $purchaseId);
+        } catch (\Throwable $e) {
+            $this->recordPackageAudit('package_purchase', (string)$purchaseId, 'referral_reward_event_failed', [], [
+                'event_type' => $eventType,
+                'purchase_id' => $purchaseId,
+                'error' => substr($e->getMessage(), 0, 255),
+            ], 0, 'system', 0, 'referral_reward_event_failed');
+        }
     }
 
     private function lockPurchase(int $purchaseId): array

@@ -58,6 +58,7 @@ foreach ([
     'uniq_yfth_referral_attr_candidate_business',
     'uniq_yfth_reward_rule_scene_version',
     'uniq_yfth_reward_ledger_no',
+    'uniq_yfth_reward_ledger_unique_key',
     'uniq_yfth_reward_ledger_active_key',
     'uniq_yfth_reward_adjustment_dedupe',
     'uniq_yfth_reward_settlement_no',
@@ -86,16 +87,27 @@ $assert($contains($service, 'reward_reverse'), 'service_audits_reverse');
 $assert($contains($service, 'sanitizeState'), 'service_sanitizes_snapshots');
 
 $assert($contains($service, 'published_reward_rule_immutable'), 'service_blocks_published_rule_update');
+$assert($contains($service, 'reward_rule_save_published_forbidden'), 'service_blocks_direct_published_rule_save');
 $assert($contains($service, 'amount_cent') && !$contains($service, '(float)'), 'service_uses_integer_cents_without_float');
 $assert($contains($service, 'active_key') && $contains($service, 'candidateActiveKey'), 'service_has_candidate_active_key_guard');
 $assert($contains($service, 'idempotency_key') && $contains($migration, 'uniq_yfth_referral_event_idempotency'), 'service_and_migration_cover_event_idempotency');
-$assert($contains($service, 'createLedgerForAttribution') && $contains($service, 'activeKey = implode'), 'service_generates_unique_ledger_active_key');
+$assert($contains($migration, 'ledger_unique_key') && $contains($service, 'ledgerUniqueKey') && $contains($service, "getOne(['ledger_unique_key'"), 'service_generates_immutable_ledger_unique_key');
 $assert($contains($service, 'YfthRewardLedgerSnapshotDao::class') && $contains($migration, 'yfth_reward_ledger_snapshot'), 'service_writes_ledger_snapshots');
 $assert($contains($service, 'YfthRewardAdjustmentDao::class'), 'service_writes_append_only_adjustments');
 $assert($contains($service, 'marked_settled') && $contains($service, 'offline_ref_no'), 'service_marks_offline_settlement_only');
 $assert($contains($service, 'package_activated') && $contains($service, 'franchise_opened'), 'service_creates_observing_ledger_only_on_valid_business_events');
 $assert($contains($service, 'package_refunded') && $contains($service, 'franchise_terminated'), 'service_reverses_on_negative_business_events');
-$assert($contains($service, 'adminScan') && $contains($service, 'observe_end_time'), 'service_supports_observing_scan_to_valid');
+$assert($contains($service, 'resolveTrustedBusinessEvent') && $contains($service, 'resolveTrustedPackageEvent') && $contains($service, 'resolveTrustedFranchiseEvent'), 'business_events_are_resolved_from_trusted_sources');
+$assert($contains($service, 'referral_candidate_business_mismatch') && !$contains($service, "(int)($data['referred_uid']"), 'client_referred_uid_not_trusted_for_business_events');
+$assert($contains($service, 'revalidateLedgerBusiness') && $contains($service, 'markLedgerInvalid') && $contains($service, 'reward_ledger_invalid'), 'observing_scan_revalidates_business_before_valid');
+$assert($contains($service, 'dedupe_key') && $contains($service, "reverse:' . (int)$before['id']"), 'reverse_adjustments_are_idempotent');
+
+$packageActivation = $read('app/services/yfth/PackageActivationServices.php');
+$packageLifecycle = $read('app/services/yfth/PackageLifecycleServices.php');
+$franchiseOpening = $read('app/services/yfth/FranchiseOpeningServices.php');
+$assert($contains($packageActivation, 'recordReferralPackageActivatedEventSafely') && $contains($packageActivation, 'recordPackageActivatedEvent'), 'package_activation_emits_referral_event_after_success');
+$assert($contains($packageLifecycle, 'recordReferralPackageNegativeEventSafely') && $contains($packageLifecycle, 'recordPackageNegativeEvent'), 'package_refund_close_freeze_emit_negative_referral_events');
+$assert($contains($franchiseOpening, 'recordReferralFranchiseOpenedEventSafely') && $contains($franchiseOpening, 'recordFranchiseOpenedEvent'), 'franchise_opening_identity_grant_emits_referral_event');
 
 foreach ([
     'user_spread',

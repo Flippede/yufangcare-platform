@@ -584,7 +584,7 @@ class FranchiseOpeningServices extends YfthFoundationBaseServices
                 throw new ApiException('franchise_identity_grant_role_invalid');
             }
         }
-        return Db::transaction(function () use ($applicationId, $roles, $adminId, $data) {
+        $result = Db::transaction(function () use ($applicationId, $roles, $adminId, $data) {
             $application = $this->lockApplication($applicationId);
             $contract = $this->latestContract($applicationId);
             $payment = $this->latestPayment($applicationId);
@@ -616,6 +616,24 @@ class FranchiseOpeningServices extends YfthFoundationBaseServices
             $this->advanceApplication($applicationId, 'opened');
             return ['grants' => array_map([$this, 'formatGrant'], $grants)];
         });
+        $this->recordReferralFranchiseOpenedEventSafely($applicationId, $adminId);
+        return $result;
+    }
+
+    private function recordReferralFranchiseOpenedEventSafely(int $applicationId, int $adminId): void
+    {
+        if ($applicationId <= 0) {
+            return;
+        }
+        try {
+            app()->make(ReferralRewardServices::class)->recordFranchiseOpenedEvent($applicationId, 'franchise_opened:franchise_application:' . $applicationId);
+        } catch (\Throwable $e) {
+            $this->audit('franchise_application', $applicationId, 'referral_reward_event_failed', [], [
+                'event_type' => 'franchise_opened',
+                'application_id' => $applicationId,
+                'error' => substr($e->getMessage(), 0, 255),
+            ], $adminId, 'headquarter_operator', 0, 'referral_reward_event_failed');
+        }
     }
 
     private function activateStoreRoleGrant(array $application, array $acceptance, int $storeId, string $roleCode, int $adminId, string $reason): array

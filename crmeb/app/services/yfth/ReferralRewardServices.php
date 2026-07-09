@@ -22,6 +22,21 @@ class ReferralRewardServices extends YfthFoundationBaseServices
     private const SCENES = ['package_5980', 'franchise_opening'];
     private const ACTIVE_CANDIDATE_STATUSES = ['candidate', 'registered', 'bound', 'attributed'];
     private const LEDGER_VISIBLE_STATUSES = ['observing', 'valid', 'pending_settlement', 'settled', 'invalid', 'reversed'];
+    private const EVENT_SOURCE_MAP = [
+        'package_5980' => [
+            'package_activated' => ['package_purchase', 'package_instance'],
+            'package_refunded' => ['package_purchase', 'package_instance'],
+            'package_closed' => ['package_purchase', 'package_instance'],
+            'package_frozen' => ['package_purchase', 'package_instance'],
+        ],
+        'franchise_opening' => [
+            'franchise_opened' => ['franchise_application'],
+            'franchise_terminated' => ['franchise_application'],
+            'franchise_revoked' => ['franchise_application'],
+        ],
+    ];
+    private const POSITIVE_EVENTS = ['package_activated', 'franchise_opened'];
+    private const NEGATIVE_EVENTS = ['package_refunded', 'package_closed', 'package_frozen', 'franchise_terminated', 'franchise_revoked'];
 
     public function __construct(YfthReferralCodeDao $dao)
     {
@@ -466,9 +481,18 @@ class ReferralRewardServices extends YfthFoundationBaseServices
             ->select()
             ->toArray();
         $changed = 0;
+        $valid = 0;
+        $invalid = 0;
         if (!$dryRun) {
             foreach ($rows as $row) {
-                $this->markLedgerValid((int)$row['id'], $adminId, 'reward_scan');
+                $check = $this->revalidateLedgerBusiness($row);
+                if (!empty($check['valid'])) {
+                    $this->markLedgerValid((int)$row['id'], $adminId, 'reward_scan');
+                    $valid++;
+                } else {
+                    $this->markLedgerInvalid((int)$row['id'], $adminId, (string)($check['reason'] ?? 'business_not_rewardable'), (array)($check['snapshot'] ?? []));
+                    $invalid++;
+                }
                 $changed++;
             }
         }
@@ -476,12 +500,104 @@ class ReferralRewardServices extends YfthFoundationBaseServices
             'dry_run' => $dryRun ? 1 : 0,
             'matched' => count($rows),
             'changed' => $changed,
+            'valid' => $valid,
+            'invalid' => $invalid,
         ];
         $this->audit('reward_scan', 0, 'reward_scan', [], $summary, $adminId, 'headquarter_admin', 0, $dryRun ? 'dry_run' : 'run');
         return $summary;
     }
 
+    public function recordPackageActivatedEvent(int $purchaseId, string $idempotencyKey = ''): array
+    {
+        return $this->recordBusinessEvent([
+            'scene' => 'package_5980',
+            'event_type' => 'package_activated',
+            'source_type' => 'package_purchase',
+            'source_id' => $purchaseId,
+            'idempotency_key' => $idempotencyKey ?: 'package_activated:package_purchase:' . $purchaseId,
+        ]);
+    }
+
+    public function recordPackageNegativeEvent(int $purchaseId, string $eventType, string $idempotencyKey = ''): array
+    {
+        return $this->recordBusinessEvent([
+            'scene' => 'package_5980',
+            'event_type' => $eventType,
+            'source_type' => 'package_purchase',
+            'source_id' => $purchaseId,
+            'idempotency_key' => $idempotencyKey ?: $eventType . ':package_purchase:' . $purchaseId,
+        ]);
+    }
+
+    public function recordFranchiseOpenedEvent(int $applicationId, string $idempotencyKey = ''): array
+    {
+        return $this->recordBusinessEvent([
+            'scene' => 'franchise_opening',
+            'event_type' => 'franchise_opened',
+            'source_type' => 'franchise_application',
+            'source_id' => $applicationId,
+            'idempotency_key' => $idempotencyKey ?: 'franchise_opened:franchise_application:' . $applicationId,
+        ]);
+    }
+
+    public function recordFranchiseNegativeEvent(int $applicationId, string $eventType, string $idempotencyKey = ''): array
+    {
+        return $this->recordBusinessEvent([
+            'scene' => 'franchise_opening',
+            'event_type' => $eventType,
+            'source_type' => 'franchise_application',
+            'source_id' => $applicationId,
+            'idempotency_key' => $idempotencyKey ?: $eventType . ':franchise_application:' . $applicationId,
+        ]);
+    }
+
     public function recordBusinessEvent(array $data): array
+    {
+        $trusted = $this->resolveTrustedBusinessEvent($data);
+        if ((string)$trusted['event_type'] === '' || (string)$trusted['source_type'] === '' || (int)$trusted['source_id'] <= 0 || (string)$trusted['idempotency_key'] === '') {
+            throw new ApiException('referral_event_source_required');
+        }
+
+        return Db::transaction(function () use ($trusted) {
+            $eventDao = app()->make(YfthReferralEventDao::class);
+            $existing = $eventDao->getOne([
+                'scene' => (string)$trusted['scene'],
+                'event_type' => (string)$trusted['event_type'],
+                'idempotency_key' => (string)$trusted['idempotency_key'],
+            ]);
+            if ($existing) {
+                return ['event' => $this->formatEvent($this->rowArray($existing), true), 'replay' => 1];
+            }
+            $now = time();
+            $candidate = (array)($trusted['candidate'] ?? []);
+            $event = $this->rowArray($eventDao->save([
+                'scene' => (string)$trusted['scene'],
+                'candidate_id' => (int)($candidate['id'] ?? 0),
+                'event_type' => (string)$trusted['event_type'],
+                'source_type' => (string)$trusted['source_type'],
+                'source_id' => (int)$trusted['source_id'],
+                'idempotency_key' => (string)$trusted['idempotency_key'],
+                'payload_snapshot' => $this->jsonEncode($this->sanitizeState((array)$trusted['business_snapshot'])),
+                'status' => $candidate ? 'recorded' : 'ignored',
+                'error_code' => $candidate ? '' : 'candidate_missing',
+                'error_message' => $candidate ? '' : 'No active referral candidate',
+                'create_time' => $now,
+                'update_time' => $now,
+            ]));
+            if ($candidate) {
+                $this->audit('referral_event', (int)$event['id'], 'referral_event_record', [], $event, 0, 'system', (int)$candidate['referrer_store_id'], '');
+                if (in_array((string)$trusted['event_type'], self::POSITIVE_EVENTS, true)) {
+                    $this->createAttributionAndLedger($candidate, (string)$trusted['scene'], (string)$trusted['source_type'], (int)$trusted['source_id'], (array)$trusted['business_snapshot']);
+                }
+                if (in_array((string)$trusted['event_type'], self::NEGATIVE_EVENTS, true)) {
+                    $this->reverseLedgersForBusiness((string)$trusted['scene'], (string)$trusted['source_type'], (int)$trusted['source_id'], 'source_event:' . (string)$trusted['event_type']);
+                }
+            }
+            return ['event' => $this->formatEvent($event, true), 'replay' => 0];
+        });
+    }
+
+    private function resolveTrustedBusinessEvent(array $data): array
     {
         $scene = $this->normalizeScene((string)($data['scene'] ?? ''));
         $eventType = trim((string)($data['event_type'] ?? ''));
@@ -491,45 +607,205 @@ class ReferralRewardServices extends YfthFoundationBaseServices
         if ($eventType === '' || $sourceType === '' || $sourceId <= 0 || $idempotencyKey === '') {
             throw new ApiException('referral_event_source_required');
         }
-        $candidateId = (int)($data['candidate_id'] ?? 0);
-        $candidate = $candidateId > 0 ? $this->requireCandidate($candidateId) : $this->activeCandidateForReferred($scene, (int)($data['referred_uid'] ?? 0));
+        $allowed = self::EVENT_SOURCE_MAP[$scene][$eventType] ?? [];
+        if (!in_array($sourceType, $allowed, true)) {
+            throw new ApiException('referral_event_source_forbidden');
+        }
 
-        return Db::transaction(function () use ($scene, $eventType, $sourceType, $sourceId, $idempotencyKey, $candidate, $data) {
-            $eventDao = app()->make(YfthReferralEventDao::class);
-            $existing = $eventDao->getOne([
-                'scene' => $scene,
-                'event_type' => $eventType,
-                'idempotency_key' => $idempotencyKey,
-            ]);
-            if ($existing) {
-                return ['event' => $this->formatEvent($this->rowArray($existing), true), 'replay' => 1];
+        if ($scene === 'package_5980') {
+            $business = $this->resolveTrustedPackageEvent($eventType, $sourceType, $sourceId);
+        } else {
+            $business = $this->resolveTrustedFranchiseEvent($eventType, $sourceType, $sourceId);
+        }
+
+        $candidate = $this->activeCandidateForReferred($scene, (int)$business['referred_uid']);
+        $candidateId = (int)($data['candidate_id'] ?? 0);
+        if ($candidateId > 0) {
+            $provided = $this->requireCandidate($candidateId);
+            if ((string)$provided['scene'] !== $scene || (int)$provided['referred_uid'] !== (int)$business['referred_uid']) {
+                throw new ApiException('referral_candidate_business_mismatch');
             }
-            $now = time();
-            $event = $this->rowArray($eventDao->save([
-                'scene' => $scene,
-                'candidate_id' => (int)($candidate['id'] ?? 0),
-                'event_type' => $eventType,
-                'source_type' => $sourceType,
-                'source_id' => $sourceId,
-                'idempotency_key' => $idempotencyKey,
-                'payload_snapshot' => $this->jsonEncode($this->sanitizeState((array)($data['payload_snapshot'] ?? []))),
-                'status' => $candidate ? 'recorded' : 'ignored',
-                'error_code' => $candidate ? '' : 'candidate_missing',
-                'error_message' => $candidate ? '' : 'No active referral candidate',
-                'create_time' => $now,
-                'update_time' => $now,
-            ]));
-            if ($candidate) {
-                $this->audit('referral_event', (int)$event['id'], 'referral_event_record', [], $event, 0, 'system', (int)$candidate['referrer_store_id'], '');
-                if (in_array($eventType, ['package_activated', 'franchise_opened'], true)) {
-                    $this->createAttributionAndLedger($candidate, $scene, $sourceType, $sourceId, (array)($data['business_snapshot'] ?? []));
-                }
-                if (in_array($eventType, ['package_refunded', 'package_closed', 'package_frozen', 'franchise_terminated', 'franchise_revoked'], true)) {
-                    $this->reverseLedgersForBusiness($scene, $sourceType, $sourceId, 'source_event:' . $eventType);
-                }
+            $candidate = $provided;
+        }
+
+        return [
+            'scene' => $scene,
+            'event_type' => $eventType,
+            'source_type' => (string)$business['business_type'],
+            'source_id' => (int)$business['business_id'],
+            'idempotency_key' => $idempotencyKey,
+            'referred_uid' => (int)$business['referred_uid'],
+            'candidate' => $candidate,
+            'business_snapshot' => (array)$business['snapshot'],
+        ];
+    }
+
+    private function resolveTrustedPackageEvent(string $eventType, string $sourceType, int $sourceId): array
+    {
+        $resolved = $this->loadPackageBusiness($sourceType, $sourceId);
+        $purchase = (array)$resolved['purchase'];
+        $instance = (array)$resolved['instance'];
+        $uid = (int)($purchase['uid'] ?? ($instance['uid'] ?? 0));
+        if ($uid <= 0) {
+            throw new ApiException('referral_package_uid_missing');
+        }
+        if ($instance && (int)$instance['uid'] > 0 && (int)$instance['uid'] !== $uid) {
+            throw new ApiException('referral_package_uid_mismatch');
+        }
+
+        $purchaseStatus = (string)($purchase['purchase_status'] ?? '');
+        $activationStatus = (string)($purchase['activation_status'] ?? '');
+        $instanceStatus = (string)($instance['status'] ?? '');
+        $refundStatus = (string)($instance['refund_status'] ?? '');
+        if ($eventType === 'package_activated') {
+            if (!in_array($purchaseStatus, ['activated'], true) || $activationStatus !== 'succeeded' || !$instance || $instanceStatus !== 'active') {
+                throw new ApiException('referral_package_not_activated');
             }
-            return ['event' => $this->formatEvent($event, true), 'replay' => 0];
-        });
+        } elseif ($eventType === 'package_refunded') {
+            if (!in_array($purchaseStatus, ['refunding', 'refunded', 'closed_after_partial_refund', 'partial_fulfillment_refunded'], true)
+                && !in_array($instanceStatus, ['refunding', 'refunded', 'closed'], true)
+                && in_array($refundStatus, ['', 'none'], true)) {
+                throw new ApiException('referral_package_not_refunded');
+            }
+        } elseif ($eventType === 'package_closed') {
+            if (!in_array($purchaseStatus, ['closed', 'closed_after_partial_refund'], true) && !in_array($instanceStatus, ['closed', 'expired'], true)) {
+                throw new ApiException('referral_package_not_closed');
+            }
+        } elseif ($eventType === 'package_frozen') {
+            if (!in_array($instanceStatus, ['frozen', 'suspended'], true)) {
+                throw new ApiException('referral_package_not_frozen');
+            }
+        }
+
+        $businessId = (int)($purchase['id'] ?? 0);
+        if ($businessId <= 0) {
+            throw new ApiException('referral_package_purchase_missing');
+        }
+        return [
+            'business_type' => 'package_purchase',
+            'business_id' => $businessId,
+            'referred_uid' => $uid,
+            'snapshot' => $this->packageBusinessSnapshot($purchase, $instance),
+        ];
+    }
+
+    private function loadPackageBusiness(string $sourceType, int $sourceId): array
+    {
+        if ($sourceType === 'package_purchase') {
+            $purchase = $this->rowArray(Db::name('yfth_package_purchase')->where('id', $sourceId)->find());
+            if (!$purchase) {
+                throw new ApiException('referral_package_purchase_not_found');
+            }
+            $instance = $this->rowArray(Db::name('yfth_package_instance')->where('purchase_id', $sourceId)->find());
+            if (!$instance && (int)($purchase['instance_id'] ?? 0) > 0) {
+                $instance = $this->rowArray(Db::name('yfth_package_instance')->where('id', (int)$purchase['instance_id'])->find());
+            }
+            return ['purchase' => $purchase, 'instance' => $instance];
+        }
+
+        $instance = $this->rowArray(Db::name('yfth_package_instance')->where('id', $sourceId)->find());
+        if (!$instance) {
+            throw new ApiException('referral_package_instance_not_found');
+        }
+        $purchase = $this->rowArray(Db::name('yfth_package_purchase')->where('id', (int)$instance['purchase_id'])->find());
+        if (!$purchase) {
+            throw new ApiException('referral_package_purchase_not_found');
+        }
+        return ['purchase' => $purchase, 'instance' => $instance];
+    }
+
+    private function packageBusinessSnapshot(array $purchase, array $instance): array
+    {
+        return [
+            'purchase_id' => (int)($purchase['id'] ?? 0),
+            'instance_id' => (int)($instance['id'] ?? ($purchase['instance_id'] ?? 0)),
+            'uid' => (int)($purchase['uid'] ?? ($instance['uid'] ?? 0)),
+            'order_id' => (int)($purchase['order_id'] ?? ($instance['order_id'] ?? 0)),
+            'order_sn' => (string)($purchase['order_sn'] ?? ($instance['order_sn'] ?? '')),
+            'purchase_status' => (string)($purchase['purchase_status'] ?? ''),
+            'activation_status' => (string)($purchase['activation_status'] ?? ''),
+            'instance_status' => (string)($instance['status'] ?? ''),
+            'refund_status' => (string)($instance['refund_status'] ?? ''),
+            'store_id' => (int)($purchase['store_id'] ?? ($instance['store_id'] ?? 0)),
+        ];
+    }
+
+    private function resolveTrustedFranchiseEvent(string $eventType, string $sourceType, int $sourceId): array
+    {
+        if ($sourceType !== 'franchise_application') {
+            throw new ApiException('referral_franchise_source_forbidden');
+        }
+        $business = $this->loadFranchiseBusiness($sourceId);
+        if ($eventType === 'franchise_opened' && !$this->franchiseBusinessIsOpened($business)) {
+            throw new ApiException('referral_franchise_not_opened');
+        }
+        if (in_array($eventType, ['franchise_terminated', 'franchise_revoked'], true) && $this->franchiseBusinessIsOpened($business)) {
+            throw new ApiException('referral_franchise_negative_state_invalid');
+        }
+        return [
+            'business_type' => 'franchise_application',
+            'business_id' => $sourceId,
+            'referred_uid' => (int)$business['application']['applicant_uid'],
+            'snapshot' => $this->franchiseBusinessSnapshot($business),
+        ];
+    }
+
+    private function loadFranchiseBusiness(int $applicationId): array
+    {
+        $application = $this->rowArray(Db::name('yfth_franchise_application')->where('id', $applicationId)->find());
+        if (!$application) {
+            throw new ApiException('referral_franchise_application_not_found');
+        }
+        $profile = $this->rowArray(Db::name('yfth_franchise_store_profile')->where('application_id', $applicationId)->find());
+        $grant = $this->rowArray(Db::name('yfth_franchise_identity_grant')
+            ->where('application_id', $applicationId)
+            ->where('status', 'active')
+            ->order('id desc')
+            ->find());
+        $storeId = (int)($profile['system_store_id'] ?? ($grant['store_id'] ?? 0));
+        $store = $storeId > 0 ? $this->rowArray(Db::name('system_store')->where('id', $storeId)->find()) : [];
+        return [
+            'application' => $application,
+            'profile' => $profile,
+            'grant' => $grant,
+            'store' => $store,
+        ];
+    }
+
+    private function franchiseBusinessIsOpened(array $business): bool
+    {
+        $application = (array)$business['application'];
+        $profile = (array)$business['profile'];
+        $grant = (array)$business['grant'];
+        $store = (array)$business['store'];
+        $storeId = (int)($profile['system_store_id'] ?? ($grant['store_id'] ?? 0));
+        return (string)($application['status'] ?? '') === 'opened'
+            && $storeId > 0
+            && (string)($profile['status'] ?? '') === 'bound'
+            && (string)($grant['status'] ?? '') === 'active'
+            && $store
+            && (int)($store['is_del'] ?? 0) === 0
+            && (int)($store['is_show'] ?? 1) === 1;
+    }
+
+    private function franchiseBusinessSnapshot(array $business): array
+    {
+        $application = (array)$business['application'];
+        $profile = (array)$business['profile'];
+        $grant = (array)$business['grant'];
+        $store = (array)$business['store'];
+        return [
+            'application_id' => (int)($application['id'] ?? 0),
+            'applicant_uid' => (int)($application['applicant_uid'] ?? 0),
+            'application_status' => (string)($application['status'] ?? ''),
+            'profile_id' => (int)($profile['id'] ?? 0),
+            'profile_status' => (string)($profile['status'] ?? ''),
+            'system_store_id' => (int)($profile['system_store_id'] ?? ($grant['store_id'] ?? 0)),
+            'grant_id' => (int)($grant['id'] ?? 0),
+            'grant_status' => (string)($grant['status'] ?? ''),
+            'store_is_show' => (int)($store['is_show'] ?? 0),
+            'store_is_del' => (int)($store['is_del'] ?? 0),
+        ];
     }
 
     private function createAttributionAndLedger(array $candidate, string $scene, string $businessType, int $businessId, array $businessSnapshot): void
@@ -576,43 +852,46 @@ class ReferralRewardServices extends YfthFoundationBaseServices
             if ((string)$item['status'] !== 'active') {
                 continue;
             }
-            $activeKey = implode(':', [
-                (string)$attribution['scene'],
-                (string)$attribution['business_type'],
-                (int)$attribution['business_id'],
-                (int)$attribution['referrer_uid'],
-                (int)$item['id'],
-            ]);
-            if (app()->make(YfthRewardLedgerDao::class)->getOne(['active_key' => $activeKey])) {
+            $ledgerUniqueKey = $this->ledgerUniqueKey($attribution, $item);
+            $activeKey = $ledgerUniqueKey;
+            if (app()->make(YfthRewardLedgerDao::class)->getOne(['ledger_unique_key' => $ledgerUniqueKey])) {
                 continue;
             }
             $now = time();
             $observeDays = max(0, (int)$item['observe_days']);
-            $ledger = $this->rowArray(app()->make(YfthRewardLedgerDao::class)->save([
-                'ledger_no' => $this->makeNo('RL'),
-                'scene' => (string)$attribution['scene'],
-                'attribution_id' => (int)$attribution['id'],
-                'candidate_id' => (int)$attribution['candidate_id'],
-                'referrer_uid' => (int)$attribution['referrer_uid'],
-                'referrer_store_id' => (int)$attribution['referrer_store_id'],
-                'referred_uid' => (int)$attribution['referred_uid'],
-                'business_type' => (string)$attribution['business_type'],
-                'business_id' => (int)$attribution['business_id'],
-                'rule_version_id' => (int)$rule['id'],
-                'rule_item_id' => (int)$item['id'],
-                'amount_cent' => (int)$item['amount_cent'],
-                'status' => 'observing',
-                'observe_start_time' => $now,
-                'observe_end_time' => $now + ($observeDays * 86400),
-                'valid_time' => 0,
-                'settled_time' => 0,
-                'settled_uid' => 0,
-                'reversed_time' => 0,
-                'reversed_uid' => 0,
-                'active_key' => $activeKey,
-                'create_time' => $now,
-                'update_time' => $now,
-            ]));
+            try {
+                $ledger = $this->rowArray(app()->make(YfthRewardLedgerDao::class)->save([
+                    'ledger_no' => $this->makeNo('RL'),
+                    'scene' => (string)$attribution['scene'],
+                    'attribution_id' => (int)$attribution['id'],
+                    'candidate_id' => (int)$attribution['candidate_id'],
+                    'referrer_uid' => (int)$attribution['referrer_uid'],
+                    'referrer_store_id' => (int)$attribution['referrer_store_id'],
+                    'referred_uid' => (int)$attribution['referred_uid'],
+                    'business_type' => (string)$attribution['business_type'],
+                    'business_id' => (int)$attribution['business_id'],
+                    'rule_version_id' => (int)$rule['id'],
+                    'rule_item_id' => (int)$item['id'],
+                    'amount_cent' => (int)$item['amount_cent'],
+                    'status' => 'observing',
+                    'observe_start_time' => $now,
+                    'observe_end_time' => $now + ($observeDays * 86400),
+                    'valid_time' => 0,
+                    'settled_time' => 0,
+                    'settled_uid' => 0,
+                    'reversed_time' => 0,
+                    'reversed_uid' => 0,
+                    'ledger_unique_key' => $ledgerUniqueKey,
+                    'active_key' => $activeKey,
+                    'create_time' => $now,
+                    'update_time' => $now,
+                ]));
+            } catch (\Throwable $e) {
+                if ($this->isUniqueConflict($e)) {
+                    continue;
+                }
+                throw $e;
+            }
             app()->make(YfthRewardLedgerSnapshotDao::class)->save([
                 'ledger_id' => (int)$ledger['id'],
                 'rule_snapshot' => $this->jsonEncode($this->sanitizeState(['rule' => $rule, 'item' => $item])),
@@ -649,7 +928,7 @@ class ReferralRewardServices extends YfthFoundationBaseServices
                 'active_key' => null,
                 'update_time' => $now,
             ]);
-            $this->adjustment((int)$before['id'], 'reverse', 0 - (int)$before['amount_cent'], $reason, 0, (string)$before['status'], 'reversed', ['source_event' => $reason]);
+            $this->adjustment((int)$before['id'], 'reverse', 0 - (int)$before['amount_cent'], $reason, 0, (string)$before['status'], 'reversed', ['source_event' => $reason], 'reverse:' . (int)$before['id'] . ':' . md5($reason));
         }
     }
 
@@ -672,11 +951,36 @@ class ReferralRewardServices extends YfthFoundationBaseServices
         $this->audit('reward_ledger', $id, 'reward_ledger_valid', $before, $after, $operatorUid, $operatorUid > 0 ? 'headquarter_admin' : 'system', (int)$before['referrer_store_id'], $reason);
     }
 
-    private function adjustment(int $ledgerId, string $type, int $amountCent, string $reason, int $operatorUid, string $beforeStatus, string $afterStatus, array $payload = []): void
+    private function markLedgerInvalid(int $id, int $operatorUid, string $reason, array $snapshot = []): void
+    {
+        $before = $this->lockLedger($id);
+        if ((string)$before['status'] !== 'observing') {
+            return;
+        }
+        $now = time();
+        $after = $before;
+        $after['status'] = 'invalid';
+        $after['active_key'] = null;
+        $after['update_time'] = $now;
+        app()->make(YfthRewardLedgerDao::class)->update($id, [
+            'status' => 'invalid',
+            'active_key' => null,
+            'update_time' => $now,
+        ]);
+        $dedupeKey = 'invalid:' . $id . ':' . md5($reason);
+        $this->adjustment($id, 'void', 0, $reason, $operatorUid, (string)$before['status'], 'invalid', ['business_snapshot' => $snapshot], $dedupeKey);
+        $this->audit('reward_ledger', $id, 'reward_ledger_invalid', $before, $after, $operatorUid, $operatorUid > 0 ? 'headquarter_admin' : 'system', (int)$before['referrer_store_id'], $reason);
+    }
+
+    private function adjustment(int $ledgerId, string $type, int $amountCent, string $reason, int $operatorUid, string $beforeStatus, string $afterStatus, array $payload = [], string $dedupeKey = ''): void
     {
         $reason = trim($reason);
         if ($reason === '') {
             throw new ApiException('reward_adjustment_reason_required');
+        }
+        $dedupeKey = trim($dedupeKey);
+        if ($dedupeKey !== '' && app()->make(YfthRewardAdjustmentDao::class)->getOne(['dedupe_key' => $dedupeKey])) {
+            return;
         }
         app()->make(YfthRewardAdjustmentDao::class)->save([
             'ledger_id' => $ledgerId,
@@ -687,9 +991,63 @@ class ReferralRewardServices extends YfthFoundationBaseServices
             'before_status' => $beforeStatus,
             'after_status' => $afterStatus,
             'payload_snapshot' => $this->jsonEncode($this->sanitizeState($payload)),
-            'dedupe_key' => null,
+            'dedupe_key' => $dedupeKey === '' ? null : $dedupeKey,
             'create_time' => time(),
         ]);
+    }
+
+    private function ledgerUniqueKey(array $attribution, array $item): string
+    {
+        return implode(':', [
+            (string)$attribution['scene'],
+            (string)$attribution['business_type'],
+            (int)$attribution['business_id'],
+            (int)$attribution['referrer_uid'],
+            (int)$item['id'],
+        ]);
+    }
+
+    private function revalidateLedgerBusiness(array $ledger): array
+    {
+        $businessType = (string)($ledger['business_type'] ?? '');
+        $businessId = (int)($ledger['business_id'] ?? 0);
+        try {
+            if ((string)($ledger['scene'] ?? '') === 'package_5980' && $businessType === 'package_purchase') {
+                $business = $this->resolveTrustedPackageEvent('package_activated', 'package_purchase', $businessId);
+                return [
+                    'valid' => (int)$business['referred_uid'] === (int)($ledger['referred_uid'] ?? 0),
+                    'reason' => 'reward_scan_package_revalidated',
+                    'snapshot' => (array)$business['snapshot'],
+                ];
+            }
+            if ((string)($ledger['scene'] ?? '') === 'franchise_opening' && $businessType === 'franchise_application') {
+                $business = $this->resolveTrustedFranchiseEvent('franchise_opened', 'franchise_application', $businessId);
+                return [
+                    'valid' => (int)$business['referred_uid'] === (int)($ledger['referred_uid'] ?? 0),
+                    'reason' => 'reward_scan_franchise_revalidated',
+                    'snapshot' => (array)$business['snapshot'],
+                ];
+            }
+        } catch (\Throwable $e) {
+            return [
+                'valid' => false,
+                'reason' => $e->getMessage() ?: 'business_not_rewardable',
+                'snapshot' => [
+                    'scene' => (string)($ledger['scene'] ?? ''),
+                    'business_type' => $businessType,
+                    'business_id' => $businessId,
+                ],
+            ];
+        }
+        return [
+            'valid' => false,
+            'reason' => 'unsupported_reward_business',
+            'snapshot' => [
+                'scene' => (string)($ledger['scene'] ?? ''),
+                'business_type' => $businessType,
+                'business_id' => $businessId,
+            ],
+        ];
     }
 
     private function resolveReferralOwner(Request $request, string $scene): array
@@ -734,7 +1092,7 @@ class ReferralRewardServices extends YfthFoundationBaseServices
             'scene' => $scene,
             'name' => $name,
             'version_no' => $versionNo,
-            'status' => $this->normalizeRuleStatus((string)($data['status'] ?? ($before['status'] ?? 'draft')), 'draft'),
+            'status' => $this->normalizeRuleSaveStatus((string)($data['status'] ?? ($before['status'] ?? 'draft')), 'draft'),
             'effective_start' => $this->parseTime($data['effective_start'] ?? ($before['effective_start'] ?? 0)),
             'effective_end' => $this->parseTime($data['effective_end'] ?? ($before['effective_end'] ?? 0)),
             'published_time' => (int)($before['published_time'] ?? 0),
@@ -890,6 +1248,15 @@ class ReferralRewardServices extends YfthFoundationBaseServices
     {
         $status = trim($status);
         return in_array($status, ['draft', 'published', 'disabled', 'archived'], true) ? $status : $default;
+    }
+
+    private function normalizeRuleSaveStatus(string $status, string $default): string
+    {
+        $status = trim($status);
+        if ($status === 'published') {
+            throw new ApiException('reward_rule_save_published_forbidden');
+        }
+        return in_array($status, ['draft', 'disabled', 'archived'], true) ? $status : $default;
     }
 
     private function assertNoClientOwnerFields(array $data): void

@@ -27,7 +27,7 @@ It does not implement automatic payment, withdrawal, revenue sharing, product qu
 - `yfth_referral_attribution`: final read-only attribution binding a candidate to a business object.
 - `yfth_reward_rule_version`: reward rule versions. Published versions are immutable.
 - `yfth_reward_rule_item`: fixed rule items. Amounts use integer `amount_cent`.
-- `yfth_reward_ledger`: read-only reward ledger. It is not a withdrawable balance.
+- `yfth_reward_ledger`: read-only reward ledger. It is not a withdrawable balance. `ledger_unique_key` is an immutable business reward uniqueness key; `active_key` only represents the current active ledger guard.
 - `yfth_reward_ledger_snapshot`: append-only rule/referral/business snapshots.
 - `yfth_reward_adjustment`: append-only reverse, void, manual adjustment, and remark records.
 - `yfth_reward_settlement_record`: headquarters offline settlement marker, not system payment.
@@ -50,6 +50,12 @@ Only `package_activated` and `franchise_opened` create an observing ledger in V1
 
 Negative events such as package refund/close/freeze or franchise termination/revoke reverse existing ledgers through append-only adjustment records.
 
+Event sources are trusted-source only:
+
+- `package_5980`: `package_activated`, `package_refunded`, `package_closed`, and `package_frozen` are accepted only from `package_purchase` or `package_instance` and are re-read from the YFTH package tables. The referred uid comes from the real package purchase/instance, not from the caller payload.
+- `franchise_opening`: `franchise_opened`, `franchise_terminated`, and `franchise_revoked` are accepted only from `franchise_application`. `franchise_opened` requires the application to be `opened`, the store profile to be `bound`, an active identity grant to exist, and the bound CRMEB `system_store` to be active.
+- If a caller supplies `candidate_id`, the service requires that candidate to match the real scene and referred uid. A mismatched candidate is rejected.
+
 ## Attribution Boundary
 
 C-side attribution is allowed only when the referred uid has an active candidate in `package_5980` and the business object belongs to that user.
@@ -58,9 +64,18 @@ B-side attribution is allowed only when the referred uid has an active candidate
 
 Attribution only binds YFTH referral records to existing business objects. It does not change package, refund, franchise application, contract, payment, acceptance, opening, supply-chain, or inventory state.
 
+Real event hooks are intentionally one-way and best-effort:
+
+- `PackageActivationServices` emits `package_activated` after package activation succeeds.
+- `PackageLifecycleServices` emits `package_refunded`, `package_closed`, or `package_frozen` only after the corresponding lifecycle state change.
+- `FranchiseOpeningServices` emits `franchise_opened` only after headquarters grants concrete store-bound identity.
+- Hook failures are audited with `referral_reward_event_failed` and do not roll back the completed source business operation.
+
 ## Reward Rules
 
 Rules are created as drafts. Publishing a rule makes the version immutable. Later edits must copy a new draft version.
+
+The save API cannot create or update a rule directly into `published`; `published` is rejected with `reward_rule_save_published_forbidden`. The only publishing path remains the explicit publish API.
 
 Ledgers store rule snapshots through `yfth_reward_ledger_snapshot`; they do not read mutable rule definitions after creation.
 
@@ -151,10 +166,18 @@ Snapshots are sanitized through the existing `YfthFoundationBaseServices::saniti
 Idempotency and duplicate guards:
 
 - Referral event: `scene + event_type + idempotency_key`.
-- Ledger: `scene + business_type + business_id + referrer_uid + rule_item_id`.
+- Ledger immutable business reward key: `scene + business_type + business_id + referrer_uid + rule_item_id` stored in `ledger_unique_key`.
+- Ledger `active_key`: tracks current active state only and may be cleared on reverse/invalid without permitting duplicate ledger recreation.
 - Candidate active relation: `scene + referred_uid` or server-side phone hash key.
 - Settlement marker: one active settlement key per ledger.
-- Adjustment: append-only, no physical deletion of the original ledger.
+- Adjustment: append-only, no physical deletion of the original ledger. Source-event reversals and scan invalidations use deterministic `dedupe_key` values.
+
+Observing scan:
+
+- `adminScan()` only considers due `observing` ledgers.
+- Before promotion, it re-reads the trusted package/franchise business object.
+- If the source business remains rewardable, the ledger becomes `valid`.
+- If the source business is refunded, closed, frozen, no longer opened, missing an active store/grant, or otherwise invalid, the ledger becomes `invalid` with a void adjustment and audit event.
 
 ## Frontend
 
@@ -181,6 +204,8 @@ Added checks:
 
 They validate migration shape, indexes, permissions, user-forbidden fields, admin permission assertions, published-rule immutability, integer-cent amounts, event idempotency, read-only ledger snapshots, append-only adjustments, offline settlement markers, and CRMEB distribution/balance/order/stock non-mutation boundaries.
 
+The real-flow script performs source guards by default and can execute an isolated MySQL service-level package flow when `YFTH_REFERRAL_REWARD_REAL_FLOW_EXECUTE=1` and the documented `YFTH_REAL_FLOW_*` database environment variables are set.
+
 ## Not Implemented
 
 - Automatic cash payment.
@@ -190,6 +215,5 @@ They validate migration shape, indexes, permissions, user-forbidden fields, admi
 - Product quota return.
 - Recommendation reward automatic payment.
 - Complex multi-level team reward.
-- Full external event listener integration into package/franchise flows.
 - Production deployment.
 - Production database migration.

@@ -18,7 +18,13 @@
 - Settlement boundary: `settled` means headquarters offline settlement marker only; it is not system payment and does not trigger withdrawal or balance changes.
 - Documentation added: `docs/YFTH_REFERRAL_REWARD_ARCHITECTURE.md`.
 - Tests added: `crmeb/tests/yfth_referral_reward_contract_check.php` and `crmeb/tests/yfth_referral_reward_real_flow_check.php`.
-- Not implemented: automatic payment, withdrawal, CRMEB distribution integration, online settlement, revenue sharing, product quota return, complex multi-level reward, complete package/franchise event listener integration, production deployment, and production database migration.
+- P1 architecture-review closure in this round: `recordBusinessEvent()` no longer trusts client/caller supplied `referred_uid`, `candidate_id`, business snapshots, or arbitrary `source_type`; it now whitelists trusted package/franchise business events and derives the real referred uid from `yfth_package_purchase` / `yfth_package_instance` or `yfth_franchise_application` / opening grant / bound CRMEB store state.
+- Real event hooks added: successful package activation emits `package_activated`; successful package refund/close/freeze emits the matching negative package event; final headquarters store-bound franchise identity grant emits `franchise_opened`. Hook failures are audited and do not roll back the original package or franchise operation.
+- Duplicate ledger P1 closure: `yfth_reward_ledger` now has immutable `ledger_unique_key` with unique index `uniq_yfth_reward_ledger_unique_key`; `active_key` may be cleared for reversed/invalid rows without allowing the same business reward to be recreated.
+- Observing scan P1 closure: scan revalidates the current package/franchise business state before promoting a ledger to `valid`; failed revalidation marks the ledger `invalid` with an append-only, deduped adjustment and audit event.
+- P2 closure: admin rule save rejects direct `published` status via `reward_rule_save_published_forbidden`; rules must still go through the publish API. Reverse adjustments use deterministic `dedupe_key` values.
+- Verification in this P1/P2 closure: `git diff --check` passed; bundled Node checks `template/uni-app/tests/yfth_multi_role_shell_contract_check.js` and `template/uni-app/tests/yfth_request_fallback_check.js` passed. PHP CLI and isolated MySQL were not available in the current shell, so PHP syntax, PHP contract scripts, PHP real-flow script, and MySQL migration run/rollback/rerun were not executed in this local round.
+- Not implemented: automatic payment, withdrawal, CRMEB distribution integration, online settlement, revenue sharing, product quota return, complex multi-level reward, production deployment, and production database migration.
 - Final commit and verification results should be read from real Git status after this feature-branch commit.
 
 ## Current Fact Snapshot - Final Franchise Contract Preparation Opening V1 Closure
