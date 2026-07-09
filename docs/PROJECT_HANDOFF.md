@@ -1,5 +1,27 @@
 # 项目交接文档
 
+## Current Fact Snapshot - Monthly Benefit Claim And Fulfillment V1
+
+- Current development branch: `codex/yfth-monthly-benefit-fulfillment-v1`.
+- Start commit: `fa3edef7d9e48427f235cd458dbdead384b83341`.
+- Scope: product-type monthly benefit claim, headquarters fulfillment workflow, store self-pickup confirmation, fulfillment events, audit, idempotency, admin page, user pages, and store workbench pickup page.
+- New migration: `crmeb/database/migrations/20260712100000_create_yfth_monthly_benefit_fulfillment_tables.php`.
+- New tables: `yfth_benefit_fulfillment` and `yfth_benefit_fulfillment_event`.
+- User-token APIs: `/api/yfth/monthly_benefit/current`, `/api/yfth/monthly_benefit/history`, `/api/yfth/monthly_benefit/fulfillment/:id`, `/api/yfth/monthly_benefit/claim`, and `/api/yfth/monthly_benefit/fulfillment/:id/cancel`.
+- Store workbench APIs: `/api/yfth/store_workbench/monthly_benefit/pickup`, detail, and confirm.
+- Headquarters admin APIs: `/adminapi/yfth/monthly_benefit/fulfillment` list/detail plus `confirm`, `reject`, `prepare`, `ship`, `complete`, `exception`, and `cancel`.
+- Trust boundary: user claim treats `benefit_item_id` as selector only; UID, store, package instance, plan, period, benefit, and quantity state are re-read and locked server-side.
+- Completion boundary: final product benefit consumption updates only `yfth_benefit_item`, `yfth_benefit_period`, and `yfth_package_instance` counters; it does not create CRMEB orders or mutate CRMEB stock.
+- Audit and idempotency: claim, user cancel, headquarters status changes, and store self-pickup confirmation all use `yfth_idempotency_record`; fulfillment events use `yfth_benefit_fulfillment_event`; unified audit uses `yfth_audit_event` with domain `yfth_monthly_benefit_fulfillment`.
+- Frontend added: admin `template/admin/src/pages/yfth/monthlyBenefitFulfillment/index.vue`; uni-app `monthly_benefit` pages and store workbench pickup page.
+- Documentation added: `docs/YFTH_MONTHLY_BENEFIT_FULFILLMENT_ARCHITECTURE.md`.
+- Tests added: `crmeb/tests/yfth_monthly_benefit_fulfillment_contract_check.php` and `crmeb/tests/yfth_monthly_benefit_fulfillment_real_flow_check.php`.
+- Validation executed: PHP syntax checks for new/modified PHP files; monthly benefit contract check; monthly benefit real-flow source guard; MySQL 8.0.46 isolated migration run / rollback -t 0 / rerun / duplicate run and unique-index guards on temporary database `yfth_monthly_benefit_validation`; package benefit, service appointment, supply chain, and product quota contract checks; admin production build; uni-app multi-role shell and request fallback Node checks; `git diff --check main..HEAD`.
+- H5 and mp-weixin production compilation were not rerun in this branch because `template/uni-app/package.json` has no npm build scripts and no local uni-app dependency tree; no WeChat upload was performed.
+- Frozen boundaries: no CRMEB order/payment/refund/product/SKU stock changes; no supply-chain inventory ledger changes; no product quota deduction; no recommendation reward, balance, points, brokerage, commission, withdrawal, settlement, or revenue-sharing writes.
+- Not implemented: CRMEB logistics order integration, automatic shipment, product quota offset, supply-chain stock deduction for delivery, delivery after-sale reversal, benefit recovery after completed fulfillment, message notification, production deployment, and production database migration.
+- Final commit and verification results should be read from real Git status after this feature-branch commit.
+
 ## Current Fact Snapshot - Final Product Quota / Return Goods Quota Ledger V1 Closure
 
 - Current branch after merge: `main`.

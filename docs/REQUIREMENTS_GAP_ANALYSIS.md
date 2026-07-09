@@ -1,5 +1,15 @@
 # 需求差距分析
 
+## Monthly Benefit Claim / Fulfillment V1 Delta
+
+- `5980` monthly product benefits now have an independent YFTH claim and fulfillment domain under development on `codex/yfth-monthly-benefit-fulfillment-v1`.
+- New tables are `yfth_benefit_fulfillment` and `yfth_benefit_fulfillment_event`; existing package benefit rows remain the authoritative source for ownership, availability, and final consumption.
+- User claim does not trust client `uid`, `store_id`, package instance, benefit plan, benefit period, status, quantity, or product snapshot fields. The server re-reads locked YFTH rows and derives all ownership fields.
+- Completion consumes product benefits through `yfth_benefit_item` and package counters only. It does not create CRMEB orders, does not modify CRMEB product/SKU stock, and does not use product quota, balance, points, brokerage, commission, settlement, or revenue-sharing fields.
+- Claim, cancel, headquarters fulfillment actions, and store self-pickup confirmation use YFTH idempotency records and unified audit/events; duplicate active fulfillment is guarded by the fulfillment active key.
+- MySQL 8.0.46 isolated migration run / rollback / rerun and duplicate-run checks were executed on temporary database `yfth_monthly_benefit_validation`.
+- Remaining gap after V1: automatic shipping integration, CRMEB logistics order linkage, supply-chain stock deduction for product benefit dispatch, delivery after-sale reversal, completed-benefit recovery, and production rollout.
+
 - 产品依据：`docs/PRODUCT_REQUIREMENTS.md` 与原始 DOCX
 - 代码依据：`docs/PROJECT_INVENTORY.md`
 - 结论类型：基于真实仓库的开发前判断，不代表已完成开发。

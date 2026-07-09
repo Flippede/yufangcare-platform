@@ -911,3 +911,74 @@ export function yfthProductQuotaAccountClose(id, data) {
     data,
   });
 }
+
+export function yfthMonthlyBenefitFulfillmentList(params) {
+  return request({
+    url: 'yfth/monthly_benefit/fulfillment',
+    method: 'get',
+    params,
+  });
+}
+
+export function yfthMonthlyBenefitFulfillmentDetail(id) {
+  return request({
+    url: `yfth/monthly_benefit/fulfillment/${id}`,
+    method: 'get',
+  });
+}
+
+export function yfthMonthlyBenefitFulfillmentConfirm(id, data) {
+  return request({
+    url: `yfth/monthly_benefit/fulfillment/${id}/confirm`,
+    method: 'post',
+    data,
+  });
+}
+
+export function yfthMonthlyBenefitFulfillmentReject(id, data) {
+  return request({
+    url: `yfth/monthly_benefit/fulfillment/${id}/reject`,
+    method: 'post',
+    data,
+  });
+}
+
+export function yfthMonthlyBenefitFulfillmentPrepare(id, data) {
+  return request({
+    url: `yfth/monthly_benefit/fulfillment/${id}/prepare`,
+    method: 'post',
+    data,
+  });
+}
+
+export function yfthMonthlyBenefitFulfillmentShip(id, data) {
+  return request({
+    url: `yfth/monthly_benefit/fulfillment/${id}/ship`,
+    method: 'post',
+    data,
+  });
+}
+
+export function yfthMonthlyBenefitFulfillmentComplete(id, data) {
+  return request({
+    url: `yfth/monthly_benefit/fulfillment/${id}/complete`,
+    method: 'post',
+    data,
+  });
+}
+
+export function yfthMonthlyBenefitFulfillmentException(id, data) {
+  return request({
+    url: `yfth/monthly_benefit/fulfillment/${id}/exception`,
+    method: 'post',
+    data,
+  });
+}
+
+export function yfthMonthlyBenefitFulfillmentCancel(id, data) {
+  return request({
+    url: `yfth/monthly_benefit/fulfillment/${id}/cancel`,
+    method: 'post',
+    data,
+  });
+}

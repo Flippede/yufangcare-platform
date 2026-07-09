@@ -142,6 +142,17 @@ Route::group('yfth', function () {
         Route::post('account/:id/unfreeze', 'v1.yfth.ProductQuota/accountUnfreeze')->option(['real_name' => 'Product quota account unfreeze']);
         Route::post('account/:id/close', 'v1.yfth.ProductQuota/accountClose')->option(['real_name' => 'Product quota account close']);
     })->option(['parent' => 'yfth', 'cate_name' => 'Product Quota']);
+    Route::group('monthly_benefit', function () {
+        Route::get('fulfillment', 'v1.yfth.MonthlyBenefitFulfillment/index')->option(['real_name' => 'Monthly benefit fulfillment list']);
+        Route::get('fulfillment/:id', 'v1.yfth.MonthlyBenefitFulfillment/detail')->option(['real_name' => 'Monthly benefit fulfillment detail']);
+        Route::post('fulfillment/:id/confirm', 'v1.yfth.MonthlyBenefitFulfillment/confirm')->option(['real_name' => 'Monthly benefit fulfillment confirm']);
+        Route::post('fulfillment/:id/reject', 'v1.yfth.MonthlyBenefitFulfillment/reject')->option(['real_name' => 'Monthly benefit fulfillment reject']);
+        Route::post('fulfillment/:id/prepare', 'v1.yfth.MonthlyBenefitFulfillment/prepare')->option(['real_name' => 'Monthly benefit fulfillment prepare']);
+        Route::post('fulfillment/:id/ship', 'v1.yfth.MonthlyBenefitFulfillment/ship')->option(['real_name' => 'Monthly benefit fulfillment ship']);
+        Route::post('fulfillment/:id/complete', 'v1.yfth.MonthlyBenefitFulfillment/complete')->option(['real_name' => 'Monthly benefit fulfillment complete']);
+        Route::post('fulfillment/:id/exception', 'v1.yfth.MonthlyBenefitFulfillment/exception')->option(['real_name' => 'Monthly benefit fulfillment exception']);
+        Route::post('fulfillment/:id/cancel', 'v1.yfth.MonthlyBenefitFulfillment/cancel')->option(['real_name' => 'Monthly benefit fulfillment cancel']);
+    })->option(['parent' => 'yfth', 'cate_name' => 'Monthly Benefit Fulfillment']);
 })->middleware([
     \app\http\middleware\AllowOriginMiddleware::class,
     \app\adminapi\middleware\AdminAuthTokenMiddleware::class,

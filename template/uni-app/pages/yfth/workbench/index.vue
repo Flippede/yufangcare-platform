@@ -42,6 +42,7 @@
 							<button @click="openPane('orders')">门店订单</button>
 							<button @click="goPurchase">采购库存</button>
 							<button v-if="canReadProductQuota" @click="goProductQuota">产品额度</button>
+							<button @click="goMonthlyBenefitPickup">权益自提</button>
 						</view>
 					</view>
 				</view>
@@ -293,6 +294,7 @@ export default {
 				{ key: 'today_writeoffs', title: '今日核销', value: metrics.today_writeoffs || 0, desc: '今日服务权益核销记录', pane: 'writeoff' },
 				{ key: 'today_store_orders', title: '今日支付订单', value: metrics.today_store_orders || 0, desc: '门店今日已支付主订单', pane: 'orders' },
 				{ key: 'pending_store_orders', title: '待处理订单', value: metrics.pending_store_orders || 0, desc: '门店待发货或待核销订单', pane: 'orders' },
+				{ key: 'monthly_benefit_pickup', title: '权益自提', value: '领', desc: '当前门店产品类月度权益自提确认', pane: 'monthly_benefit_pickup' },
 				{ key: 'customers', title: '客户关系', value: 'CRM', desc: '当前门店客户、状态和跟进记录', pane: 'customers' }
 			];
 		},
@@ -562,6 +564,9 @@ export default {
 		goProductQuota() {
 			uni.navigateTo({ url: '/pages/yfth/product_quota/index' });
 		},
+		goMonthlyBenefitPickup() {
+			uni.navigateTo({ url: '/pages/yfth/workbench/monthly_benefit_pickup' });
+		},
 		backCustomer() {
 			clearYfthContext();
 			uni.reLaunch({ url: '/pages/index/index' });
@@ -580,6 +585,10 @@ export default {
 		openPane(pane) {
 			if (pane === 'customers') {
 				this.goCustomers();
+				return;
+			}
+			if (pane === 'monthly_benefit_pickup') {
+				this.goMonthlyBenefitPickup();
 				return;
 			}
 			this.pane = pane || 'dashboard';

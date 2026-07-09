@@ -3,6 +3,7 @@
 namespace app\api\controller\v1\yfth;
 
 use app\Request;
+use app\services\yfth\MonthlyBenefitFulfillmentServices;
 use app\services\yfth\StoreWorkbenchBusinessAdapterServices;
 
 class StoreWorkbenchController
@@ -120,5 +121,28 @@ class StoreWorkbenchController
     public function orderDetail(Request $request, StoreWorkbenchBusinessAdapterServices $services, $id)
     {
         return app('json')->success($services->orderDetail($request, (int)$id));
+    }
+
+    public function monthlyBenefitPickup(Request $request, MonthlyBenefitFulfillmentServices $services)
+    {
+        return app('json')->success($services->storePickupList($request, $request->getMore([
+            ['status', ''],
+        ])));
+    }
+
+    public function monthlyBenefitPickupDetail(Request $request, MonthlyBenefitFulfillmentServices $services, $id)
+    {
+        return app('json')->success($services->storePickupDetail($request, (int)$id));
+    }
+
+    public function monthlyBenefitPickupConfirm(Request $request, MonthlyBenefitFulfillmentServices $services, $id)
+    {
+        $data = $request->postMore([
+            ['reason', ''],
+            ['idempotency_key', ''],
+            ['client_operation_key', ''],
+        ]);
+        $data['idempotency_key'] = $data['idempotency_key'] ?: (string)$request->header('Idempotency-Key', '');
+        return app('json')->success($services->storePickupConfirm($request, (int)$id, $data));
     }
 }

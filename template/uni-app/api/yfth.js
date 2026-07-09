@@ -322,6 +322,39 @@ export function getYfthProductQuotaLedger(data) {
 	return request.get('yfth/product_quota/ledger', data || {});
 }
 
+export function getYfthMonthlyBenefitCurrent(data) {
+	return request.get('yfth/monthly_benefit/current', data || {});
+}
+
+export function getYfthMonthlyBenefitHistory(data) {
+	return request.get('yfth/monthly_benefit/history', data || {});
+}
+
+export function getYfthMonthlyBenefitFulfillment(id, data) {
+	return request.get('yfth/monthly_benefit/fulfillment/' + id, data || {});
+}
+
+export function claimYfthMonthlyBenefit(data) {
+	return request.post('yfth/monthly_benefit/claim', data || {});
+}
+
+export function cancelYfthMonthlyBenefitFulfillment(id, data) {
+	return request.post('yfth/monthly_benefit/fulfillment/' + id + '/cancel', data || {});
+}
+
+export function getYfthStoreWorkbenchMonthlyBenefitPickup(data) {
+	return request.get('yfth/store_workbench/monthly_benefit/pickup', data || {});
+}
+
+export function getYfthStoreWorkbenchMonthlyBenefitPickupDetail(id, data) {
+	return request.get('yfth/store_workbench/monthly_benefit/pickup/' + id, data || {});
+}
+
+export function confirmYfthStoreWorkbenchMonthlyBenefitPickup(id, data) {
+	const payload = splitYfthContext(data || {});
+	return request.post('yfth/store_workbench/monthly_benefit/pickup/' + id + '/confirm' + payload.query, payload.body);
+}
+
 function splitYfthContext(data) {
 	const body = Object.assign({}, data || {});
 	const query = {};

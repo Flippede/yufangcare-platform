@@ -43,6 +43,9 @@ Route::group(function () {
     Route::get('yfth/store_workbench/writeoff/result/:id', 'v1.yfth.StoreWorkbenchController/writeoffResult')->option(['real_name' => 'YFTH store workbench writeoff result']);
     Route::get('yfth/store_workbench/orders', 'v1.yfth.StoreWorkbenchController/orderList')->option(['real_name' => 'YFTH store workbench order list']);
     Route::get('yfth/store_workbench/orders/:id', 'v1.yfth.StoreWorkbenchController/orderDetail')->option(['real_name' => 'YFTH store workbench order detail']);
+    Route::get('yfth/store_workbench/monthly_benefit/pickup', 'v1.yfth.StoreWorkbenchController/monthlyBenefitPickup')->option(['real_name' => 'YFTH store workbench monthly benefit pickup list']);
+    Route::get('yfth/store_workbench/monthly_benefit/pickup/:id', 'v1.yfth.StoreWorkbenchController/monthlyBenefitPickupDetail')->option(['real_name' => 'YFTH store workbench monthly benefit pickup detail']);
+    Route::post('yfth/store_workbench/monthly_benefit/pickup/:id/confirm', 'v1.yfth.StoreWorkbenchController/monthlyBenefitPickupConfirm')->option(['real_name' => 'YFTH store workbench monthly benefit pickup confirm']);
 })->middleware(\app\http\middleware\AllowOriginMiddleware::class)
     ->middleware(\app\api\middleware\StationOpenMiddleware::class)
     ->middleware(\app\api\middleware\AuthTokenMiddleware::class)
@@ -116,3 +119,14 @@ Route::group(function () {
     ->middleware(\app\api\middleware\StationOpenMiddleware::class)
     ->middleware(\app\api\middleware\AuthTokenMiddleware::class)
     ->option(['mark' => 'yfth_product_quota_user', 'mark_name' => 'YFTH product quota user-token API']);
+
+Route::group(function () {
+    Route::get('yfth/monthly_benefit/current', 'v1.yfth.MonthlyBenefitFulfillmentController/current')->option(['real_name' => 'YFTH current monthly product benefits']);
+    Route::get('yfth/monthly_benefit/history', 'v1.yfth.MonthlyBenefitFulfillmentController/history')->option(['real_name' => 'YFTH monthly benefit fulfillment history']);
+    Route::get('yfth/monthly_benefit/fulfillment/:id', 'v1.yfth.MonthlyBenefitFulfillmentController/detail')->option(['real_name' => 'YFTH monthly benefit fulfillment detail']);
+    Route::post('yfth/monthly_benefit/claim', 'v1.yfth.MonthlyBenefitFulfillmentController/claim')->option(['real_name' => 'YFTH monthly benefit claim']);
+    Route::post('yfth/monthly_benefit/fulfillment/:id/cancel', 'v1.yfth.MonthlyBenefitFulfillmentController/cancel')->option(['real_name' => 'YFTH monthly benefit fulfillment cancel']);
+})->middleware(\app\http\middleware\AllowOriginMiddleware::class)
+    ->middleware(\app\api\middleware\StationOpenMiddleware::class)
+    ->middleware(\app\api\middleware\AuthTokenMiddleware::class)
+    ->option(['mark' => 'yfth_monthly_benefit_user', 'mark_name' => 'YFTH monthly benefit fulfillment user-token API']);

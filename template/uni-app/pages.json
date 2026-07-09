@@ -121,6 +121,24 @@
 					}
 				},
 				{
+					"path": "monthly_benefit/index",
+					"style": {
+						"navigationBarTitleText": "月度权益领取"
+					}
+				},
+				{
+					"path": "monthly_benefit/history",
+					"style": {
+						"navigationBarTitleText": "履约历史"
+					}
+				},
+				{
+					"path": "monthly_benefit/detail",
+					"style": {
+						"navigationBarTitleText": "履约详情"
+					}
+				},
+				{
 					"path": "appointment/list",
 					"style": {
 						"navigationBarTitleText": "我的预约"
@@ -190,6 +208,12 @@
 					"path": "workbench/purchase/inventory",
 					"style": {
 						"navigationBarTitleText": "Store Inventory"
+					}
+				},
+				{
+					"path": "workbench/monthly_benefit_pickup",
+					"style": {
+						"navigationBarTitleText": "权益自提"
 					}
 				},
 				{

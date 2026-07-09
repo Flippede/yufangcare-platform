@@ -88,5 +88,14 @@ export default {
       },
       component: () => import('@/pages/yfth/productQuota/index'),
     },
+    {
+      path: 'monthly-benefit-fulfillment',
+      name: `${pre}monthly_benefit_fulfillment`,
+      meta: {
+        auth: ['yfth-monthly-benefit-fulfillment-index'],
+        title: 'Monthly Benefit Fulfillment',
+      },
+      component: () => import('@/pages/yfth/monthlyBenefitFulfillment/index'),
+    },
   ],
 };
