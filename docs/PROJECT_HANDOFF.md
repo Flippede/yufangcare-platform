@@ -1,5 +1,26 @@
 # 项目交接文档
 
+## Current Fact Snapshot - Final Product Quota / Return Goods Quota Ledger V1 Closure
+
+- Current branch after merge: `main`.
+- Preserved feature branch: `codex/yfth-product-quota-ledger-v1`.
+- Main before merge: `3ebd2135ef9d8146ad655c5965f63d134db9c6b5`.
+- Final reviewed feature commit: `86104b28cf36b1f90f5340daef6e2ab3a18b256f`.
+- Merge method: `git merge --ff-only codex/yfth-product-quota-ledger-v1`.
+- Architecture review conclusion: A, passed; no Blocker/P1/P2/P3 remains.
+- Completed capabilities: independent product-equivalent quota account, immutable quota ledger, headquarters manual grant draft, grant confirm, grant reject, grant reverse, manual increase, manual decrease, freeze, unfreeze, close, source snapshots, headquarters admin page/API, and franchisee/store-manager read-only miniapp display.
+- New tables: `yfth_product_quota_account`, `yfth_product_quota_ledger`, `yfth_product_quota_grant_order`, `yfth_product_quota_adjustment`, and `yfth_product_quota_source_snapshot`.
+- P1 closure: grant creation requires a non-empty operation key; the grant operation key is normalized server-side; same-key/same-payload grant replay returns the existing result; same-key/different-payload grant replay is rejected.
+- P1 closure: manual adjustment requires a non-empty operation key; the manual adjustment key is normalized server-side; manual adjustment rechecks dedupe after locking the quota account row; duplicate manual adjustment does not mutate balance twice.
+- P1 closure: `idempotency_key` and `dedupe_key` are non-null mandatory fields with unique guards; the admin page generates operation keys and guards duplicate local submits.
+- Validation: Architecture Auditor A review passed; PHP syntax passed; product quota contract check passed with 104 assertions; product quota default source guard passed; isolated MySQL 8.0.46 product quota real-flow passed; MySQL 8.0.46 migration `run / rollback -t 0 / rerun / duplicate run` passed.
+- Validation: supply-chain, referral-reward, and franchise-opening contract checks passed; admin production build passed with existing warnings only; uni-app request/context Node checks passed; H5 production build passed; `mp-weixin` production compile passed; `git diff --check` passed.
+- CRMEB and financial boundary: no CRMEB `store_order` creation, no CRMEB order/payment/refund mutation, no CRMEB product/SKU stock mutation, no sales/quota mutation, and no user balance, points, brokerage, distribution, commission, withdrawal, settlement, or revenue-sharing writes.
+- Supply-chain / reward / opening boundary: no purchase quota offset, reservation, consumption, purchase release/recovery, purchase after-sale quota return, referral reward auto-conversion, or opening auto-grant.
+- Production status: no production deployment, no production database connection, no production migration, no server modification, no WeChat upload, and no production AppID, private key, or upload key was used.
+- Not implemented: purchase order quota offset, reservation, consumption, release, recovery, reward ledger conversion into product quota, franchise opening automatic quota grant, purchase after-sale return quota, online payment, withdrawal, settlement, revenue sharing, CRMEB distribution integration, production deployment, and production database migration.
+- Final main and origin/main commit should be read from real Git HEAD after this documentation closure commit and push.
+
 ## Current Fact Snapshot - Product Quota / Return Goods Quota Ledger V1 Independent Validation Evidence
 
 - Current development branch: `codex/yfth-product-quota-ledger-v1`.
