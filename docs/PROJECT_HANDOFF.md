@@ -1,5 +1,29 @@
 # 项目交接文档
 
+## Current Fact Snapshot - Product Quota / Return Goods Quota Ledger V1
+
+- Current development branch: `codex/yfth-product-quota-ledger-v1`.
+- Start commit: `3ebd2135ef9d8146ad655c5965f63d134db9c6b5`.
+- Scope: independent YFTH product-equivalent quota account, immutable quota ledger, headquarters manual grant workflow, manual correction, freeze/unfreeze/close, source snapshots, headquarters admin page/API, and franchisee/store-manager read-only miniapp display.
+- New migration: `crmeb/database/migrations/20260711100000_create_yfth_product_quota_tables.php`.
+- New tables: `yfth_product_quota_account`, `yfth_product_quota_ledger`, `yfth_product_quota_grant_order`, `yfth_product_quota_adjustment`, and `yfth_product_quota_source_snapshot`.
+- New backend service: `app/services/yfth/ProductQuotaServices.php`.
+- New user-token read-only APIs: `/api/yfth/product_quota/summary`, `/api/yfth/product_quota/account`, `/api/yfth/product_quota/account/:id`, and `/api/yfth/product_quota/ledger`.
+- New headquarters admin-token APIs: `/adminapi/yfth/product_quota/*` for account, ledger, grant order, adjustment, freeze, unfreeze, and close operations.
+- Frontend added: admin `template/admin/src/pages/yfth/productQuota/index.vue`; uni-app read-only pages under `template/uni-app/pages/yfth/product_quota/*`; store workbench links the quota entry only for `franchisee` and `store_manager`.
+- Permission boundary: headquarters writes require admin token, CRMEB API permission, and headquarters scope; user reads resolve store through `CurrentBusinessContextServices` and allow only franchisee/store manager for their current store.
+- Source boundary: V1 supports headquarters manual grants and manual `franchise_opening_initial_quota` grants only after revalidating opened franchise application, bound/verified store profile, active CRMEB store, and active store-bound identity grant. `referral_reward_converted` and `purchase_after_sale_return` are reserved and rejected in V1.
+- Ledger boundary: amount fields use integer cents; balance changes lock the account row; grant transitions lock the grant row; duplicate grant/ledger/adjustment operations are guarded by unique keys and deterministic idempotency/dedupe keys.
+- CRMEB and financial boundary: this V1 does not create CRMEB `store_order`, does not modify CRMEB product stock, SKU stock, sales, order, payment, or refund flows, and does not write user balance, points, brokerage, distribution, commission, withdrawal, settlement, or revenue-sharing data.
+- Supply-chain/reward/opening boundary: this V1 does not offset purchase orders, reserve quota, consume quota, release quota, auto-convert rewards, auto-grant opening quota, or create purchase after-sale quota returns.
+- UI boundary text: headquarters and miniapp pages label the module as product-equivalent quota only; it is not system payment, not extractable funds, and does not automatically offset purchase orders.
+- Documentation added: `docs/YFTH_PRODUCT_QUOTA_ARCHITECTURE.md`.
+- Tests added: `crmeb/tests/yfth_product_quota_contract_check.php` and `crmeb/tests/yfth_product_quota_real_flow_check.php`.
+- Verification executed in this feature branch: PHP 7.4 syntax passed for changed PHP files; `yfth_product_quota_contract_check.php` passed with 88 assertions; `yfth_product_quota_real_flow_check.php` passed in default source-guard mode and in isolated MySQL 8.0.46 mode; MySQL 8.0.46 migration `run -> rollback -t 0 -> run` passed on a temporary local database after importing the CRMEB install schema; rollback removed all five product quota tables; rerun restored all five tables plus the account, ledger, grant, and adjustment uniqueness guards; adjacent supply-chain, referral-reward, and franchise-opening contract checks passed; admin production build passed with existing CSS order, asset-size, and Browserslist warnings; uni-app request/context Node checks passed; `git diff --check` passed with only line-ending warnings.
+- Not implemented: purchase quota offset, reservation, consumption, reward conversion, opening auto-grant, after-sale quota return, online payment, withdrawal, settlement, revenue sharing, product quota payment, production deployment, and production database migration.
+- Production status: no production deployment, no production database connection, no production migration, and no server modification were performed.
+- Final commit and verification results should be read from real Git status after this feature-branch commit.
+
 ## Current Fact Snapshot - Final Referral Relationship And Read-only Reward Ledger V1 Closure
 
 - Current branch after merge: `main`.

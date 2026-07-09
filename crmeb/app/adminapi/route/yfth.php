@@ -128,6 +128,20 @@ Route::group('yfth', function () {
         Route::post('ledger/:id/reverse', 'v1.yfth.ReferralReward/ledgerReverse')->option(['real_name' => 'Reward ledger reverse']);
         Route::post('scan', 'v1.yfth.ReferralReward/scan')->option(['real_name' => 'Referral reward compensation scan']);
     })->option(['parent' => 'yfth', 'cate_name' => 'Referral Reward']);
+    Route::group('product_quota', function () {
+        Route::get('account', 'v1.yfth.ProductQuota/accountList')->option(['real_name' => 'Product quota account list']);
+        Route::get('account/:id', 'v1.yfth.ProductQuota/accountDetail')->option(['real_name' => 'Product quota account detail']);
+        Route::get('ledger', 'v1.yfth.ProductQuota/ledgerList')->option(['real_name' => 'Product quota ledger list']);
+        Route::get('grant', 'v1.yfth.ProductQuota/grantList')->option(['real_name' => 'Product quota grant list']);
+        Route::post('grant', 'v1.yfth.ProductQuota/grantCreate')->option(['real_name' => 'Product quota grant create']);
+        Route::post('grant/:id/confirm', 'v1.yfth.ProductQuota/grantConfirm')->option(['real_name' => 'Product quota grant confirm']);
+        Route::post('grant/:id/reject', 'v1.yfth.ProductQuota/grantReject')->option(['real_name' => 'Product quota grant reject']);
+        Route::post('grant/:id/reverse', 'v1.yfth.ProductQuota/grantReverse')->option(['real_name' => 'Product quota grant reverse']);
+        Route::post('adjustment', 'v1.yfth.ProductQuota/adjustmentCreate')->option(['real_name' => 'Product quota adjustment create']);
+        Route::post('account/:id/freeze', 'v1.yfth.ProductQuota/accountFreeze')->option(['real_name' => 'Product quota account freeze']);
+        Route::post('account/:id/unfreeze', 'v1.yfth.ProductQuota/accountUnfreeze')->option(['real_name' => 'Product quota account unfreeze']);
+        Route::post('account/:id/close', 'v1.yfth.ProductQuota/accountClose')->option(['real_name' => 'Product quota account close']);
+    })->option(['parent' => 'yfth', 'cate_name' => 'Product Quota']);
 })->middleware([
     \app\http\middleware\AllowOriginMiddleware::class,
     \app\adminapi\middleware\AdminAuthTokenMiddleware::class,

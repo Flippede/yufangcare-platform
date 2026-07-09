@@ -306,6 +306,22 @@ export function getYfthRewardLedgerDetail(id, data) {
 	return request.get('yfth/referral/ledger/' + id, data || {});
 }
 
+export function getYfthProductQuotaSummary(data) {
+	return request.get('yfth/product_quota/summary', data || {});
+}
+
+export function getYfthProductQuotaAccounts(data) {
+	return request.get('yfth/product_quota/account', data || {});
+}
+
+export function getYfthProductQuotaAccountDetail(id, data) {
+	return request.get('yfth/product_quota/account/' + id, data || {});
+}
+
+export function getYfthProductQuotaLedger(data) {
+	return request.get('yfth/product_quota/ledger', data || {});
+}
+
 function splitYfthContext(data) {
 	const body = Object.assign({}, data || {});
 	const query = {};

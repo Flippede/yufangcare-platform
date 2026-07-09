@@ -817,3 +817,97 @@ export function yfthReferralRewardScan(data) {
     data,
   });
 }
+
+export function yfthProductQuotaAccountList(params) {
+  return request({
+    url: 'yfth/product_quota/account',
+    method: 'get',
+    params,
+  });
+}
+
+export function yfthProductQuotaAccountDetail(id) {
+  return request({
+    url: `yfth/product_quota/account/${id}`,
+    method: 'get',
+  });
+}
+
+export function yfthProductQuotaLedgerList(params) {
+  return request({
+    url: 'yfth/product_quota/ledger',
+    method: 'get',
+    params,
+  });
+}
+
+export function yfthProductQuotaGrantList(params) {
+  return request({
+    url: 'yfth/product_quota/grant',
+    method: 'get',
+    params,
+  });
+}
+
+export function yfthProductQuotaGrantCreate(data) {
+  return request({
+    url: 'yfth/product_quota/grant',
+    method: 'post',
+    data,
+  });
+}
+
+export function yfthProductQuotaGrantConfirm(id) {
+  return request({
+    url: `yfth/product_quota/grant/${id}/confirm`,
+    method: 'post',
+  });
+}
+
+export function yfthProductQuotaGrantReject(id, data) {
+  return request({
+    url: `yfth/product_quota/grant/${id}/reject`,
+    method: 'post',
+    data,
+  });
+}
+
+export function yfthProductQuotaGrantReverse(id, data) {
+  return request({
+    url: `yfth/product_quota/grant/${id}/reverse`,
+    method: 'post',
+    data,
+  });
+}
+
+export function yfthProductQuotaAdjustmentCreate(data) {
+  return request({
+    url: 'yfth/product_quota/adjustment',
+    method: 'post',
+    data,
+  });
+}
+
+export function yfthProductQuotaAccountFreeze(id, data) {
+  return request({
+    url: `yfth/product_quota/account/${id}/freeze`,
+    method: 'post',
+    data,
+  });
+}
+
+export function yfthProductQuotaAccountUnfreeze(id, data) {
+  return request({
+    url: `yfth/product_quota/account/${id}/unfreeze`,
+    method: 'post',
+    data,
+  });
+}
+
+export function yfthProductQuotaAccountClose(id, data) {
+  return request({
+    url: `yfth/product_quota/account/${id}/close`,
+    method: 'post',
+    data,
+  });
+}

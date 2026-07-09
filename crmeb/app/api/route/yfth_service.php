@@ -106,3 +106,13 @@ Route::group(function () {
     ->middleware(\app\api\middleware\StationOpenMiddleware::class)
     ->middleware(\app\api\middleware\AuthTokenMiddleware::class)
     ->option(['mark' => 'yfth_referral_reward_user', 'mark_name' => 'YFTH referral reward user-token API']);
+
+Route::group(function () {
+    Route::get('yfth/product_quota/summary', 'v1.yfth.ProductQuotaController/summary')->option(['real_name' => 'YFTH product quota summary']);
+    Route::get('yfth/product_quota/account', 'v1.yfth.ProductQuotaController/account')->option(['real_name' => 'YFTH product quota accounts']);
+    Route::get('yfth/product_quota/ledger', 'v1.yfth.ProductQuotaController/ledger')->option(['real_name' => 'YFTH product quota ledgers']);
+    Route::get('yfth/product_quota/account/:id', 'v1.yfth.ProductQuotaController/accountDetail')->option(['real_name' => 'YFTH product quota account detail']);
+})->middleware(\app\http\middleware\AllowOriginMiddleware::class)
+    ->middleware(\app\api\middleware\StationOpenMiddleware::class)
+    ->middleware(\app\api\middleware\AuthTokenMiddleware::class)
+    ->option(['mark' => 'yfth_product_quota_user', 'mark_name' => 'YFTH product quota user-token API']);

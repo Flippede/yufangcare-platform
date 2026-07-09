@@ -41,6 +41,7 @@
 							<button @click="openPane('writeoff')">服务核销</button>
 							<button @click="openPane('orders')">门店订单</button>
 							<button @click="goPurchase">采购库存</button>
+							<button v-if="canReadProductQuota" @click="goProductQuota">产品额度</button>
 						</view>
 					</view>
 				</view>
@@ -266,6 +267,9 @@ export default {
 		},
 		storeRoleReady() {
 			return ['franchisee', 'store_manager', 'store_staff'].indexOf(this.context.role_code) !== -1 && Number(this.context.store_id) > 0;
+		},
+		canReadProductQuota() {
+			return ['franchisee', 'store_manager'].indexOf(this.context.role_code) !== -1;
 		},
 		storeIdentities() {
 			const role = this.context.role_code;
@@ -554,6 +558,9 @@ export default {
 		},
 		goPurchase() {
 			uni.navigateTo({ url: '/pages/yfth/workbench/purchase/index' });
+		},
+		goProductQuota() {
+			uni.navigateTo({ url: '/pages/yfth/product_quota/index' });
 		},
 		backCustomer() {
 			clearYfthContext();

@@ -79,5 +79,14 @@ export default {
       },
       component: () => import('@/pages/yfth/referralReward/index'),
     },
+    {
+      path: 'product-quota',
+      name: `${pre}product_quota`,
+      meta: {
+        auth: ['yfth-product-quota-index'],
+        title: '产品额度 / 返货额度',
+      },
+      component: () => import('@/pages/yfth/productQuota/index'),
+    },
   ],
 };

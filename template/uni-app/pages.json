@@ -269,6 +269,24 @@
 					"style": {
 						"navigationBarTitleText": "台账详情"
 					}
+				},
+				{
+					"path": "product_quota/index",
+					"style": {
+						"navigationBarTitleText": "产品额度"
+					}
+				},
+				{
+					"path": "product_quota/ledger",
+					"style": {
+						"navigationBarTitleText": "额度流水"
+					}
+				},
+				{
+					"path": "product_quota/detail",
+					"style": {
+						"navigationBarTitleText": "额度详情"
+					}
 				}
 			]
 		}, {
