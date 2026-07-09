@@ -12,6 +12,10 @@
 - `yfth_product_quota_grant_order.idempotency_key` and `yfth_product_quota_adjustment.dedupe_key` are now mandatory non-null strings with unique indexes rather than nullable optional columns.
 - The headquarters admin product quota page now generates operation keys for grant and adjustment writes and guards duplicate local submits.
 - This closure does not implement purchase offset, reward conversion, product quota payment, settlement, distribution, production deployment, or production database migration.
+- Independent validation evidence was supplemented after the P1 fix: PHP 7.4.33 with CLI-loaded `pdo_mysql` / `mysqli`, MySQL 8.0.46 isolated migration `run -> rollback -t 0 -> rerun -> duplicate run`, isolated product quota real-flow, admin production build, uni-app request/context checks, H5 production build, and `mp-weixin` production compile all passed.
+- The isolated migration evidence confirmed five product quota tables, mandatory non-null idempotency/dedupe columns, four unique guards, 12 product quota permissions, rollback removal, rerun restoration, and duplicate-run permission idempotency.
+- The isolated real-flow evidence confirmed missing key rejection, duplicate grant create replay, duplicate grant confirm single-ledger guard, duplicate manual increase/decrease one-time balance mutation, payload mismatch rejection, frozen account blocking, audit writes, and unchanged CRMEB order/product/SKU/user boundary snapshots.
+- No production deployment, production database connection, production migration, server modification, WeChat upload, production AppID, private key, or upload key was used for this validation evidence closure.
 
 - `产品额度 / 返货额度台账 V1` 已在功能分支 `codex/yfth-product-quota-ledger-v1` 进入实现阶段。
 - 本轮只建立独立 YFTH 产品等价额度账户、不可变流水、总部人工授予/确认/驳回/反冲/纠偏/冻结/解冻/关闭，以及加盟商/店长只读展示。

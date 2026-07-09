@@ -1,5 +1,27 @@
 # 项目交接文档
 
+## Current Fact Snapshot - Product Quota / Return Goods Quota Ledger V1 Independent Validation Evidence
+
+- Current development branch: `codex/yfth-product-quota-ledger-v1`.
+- Validation evidence commit basis before this documentation-only closure: `64441c0043c46766b04341a485d003ffaf6b1c52`.
+- Main baseline remains `3ebd2135ef9d8146ad655c5965f63d134db9c6b5`; this round does not merge or push `main`.
+- This round only supplements independent validation evidence for Product Quota / Return Goods Quota Ledger V1. No business code, migration structure, API contract, admin page behavior, uni-app page behavior, payment, inventory, order, reward, settlement, or quota business scope was changed.
+- PHP runtime used: `C:\Users\zhangxu\.codex\tools\yfth-runtime\php-7.4.33\php.exe`, PHP 7.4.33. No loaded `php.ini`; `pdo_mysql` and `mysqli` were enabled through CLI `-d extension_dir=C:\Users\zhangxu\.codex\tools\yfth-runtime\php-7.4.33\ext -d extension=pdo_mysql -d extension=mysqli`. `php -m` confirmed `PDO`, `pdo_mysql`, and `mysqlnd`.
+- MySQL runtime used: `C:\Users\zhangxu\.codex\tools\yfth-runtime\mysql-8.0.46-winx64\bin\mysqld.exe`, MySQL Community Server 8.0.46, temporary local port `33253`, temporary database `yfth_product_quota_validation_20260709192058`.
+- The CRMEB baseline schema was imported into the temporary database with `sql_mode=NO_ENGINE_SUBSTITUTION`. A temporary `.env` was written only for the isolated run, restored afterward, and verified by SHA256 hash; no temporary `.env`, data directory, database password, log, or MySQL data file entered Git.
+- MySQL 8.0.46 migration evidence: `php think migrate:run` created all five product quota tables; `idempotency_key` and `dedupe_key` were `NOT NULL` with empty-string defaults; all four unique guards existed; 12 `yfth-product-quota*` permissions existed.
+- Rollback evidence: `php think migrate:rollback -t 0` removed the five product quota tables and the `yfth-product-quota*` permissions. Rerun restored the five tables, 12 permissions, and unique guards. Duplicate `php think migrate:run` completed without duplicating product quota permissions.
+- Isolated MySQL real-flow evidence: `YFTH_PRODUCT_QUOTA_REAL_FLOW_EXECUTE=1` and `YFTH_REAL_FLOW_ISOLATED_DB=1 php crmeb/tests/yfth_product_quota_real_flow_check.php` passed on MySQL 8.0.46.
+- Real-flow coverage confirmed: missing grant key rejected; duplicate grant create returns the existing grant; same-key different-payload grant rejected; duplicate grant confirm keeps a single ledger and does not increase balance twice; missing adjustment key rejected; duplicate manual increase/decrease returns existing adjustment and mutates balance only once; same-key different-payload adjustment rejected; frozen account blocks amount adjustment; product quota audit events are written; CRMEB order/product/SKU/user boundary snapshots remain unchanged.
+- Regression evidence: PHP syntax check passed for all PHP files changed in `main..HEAD`; `yfth_product_quota_contract_check.php` passed with 104 assertions; default source-guard `yfth_product_quota_real_flow_check.php` passed; supply-chain, referral-reward, and franchise-opening contract checks passed.
+- Frontend evidence: `template/admin` `npm run build` passed with existing CSS order, asset-size, entrypoint-size, and Browserslist warnings only. Uni-app request/context Node checks passed.
+- Mobile production evidence: H5 production build using HBuilderX `uniapp-cli` and Node 18.20.8 passed; output directory `template/uni-app/unpackage/dist/build/h5` contained 427 files / 13,564,863 bytes, with existing asset-size warnings only.
+- Mobile production evidence: `mp-weixin` production compile using HBuilderX `uniapp-cli --no-opt` and Node 18.20.8 passed; output directory `template/uni-app/unpackage/dist/build/mp-weixin` contained 1,209 files / 7,731,104 bytes, with existing skeleton `:key` hints and component subpackage suggestions only.
+- No WeChat upload was performed. No production AppID, private key, or WeChat upload key was used.
+- Production status: no production deployment, no production database connection, no production migration, no server modification, no `main` merge, and no `main` push were performed.
+- Still not implemented: purchase quota offset, reservation, consumption, purchase after-sale quota return, referral reward auto-conversion, opening auto-grant, real payment, withdrawal, online settlement, revenue sharing, and production rollout.
+- Next gate: read-only architecture re-review can use this independent evidence to decide whether Product Quota / Return Goods Quota Ledger V1 is ready for controlled merge preparation.
+
 ## Current Fact Snapshot - Product Quota / Return Goods Quota Ledger V1 P1 Idempotency Closure
 
 - Current development branch: `codex/yfth-product-quota-ledger-v1`.

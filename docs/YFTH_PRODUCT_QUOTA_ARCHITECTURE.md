@@ -143,6 +143,19 @@ Added:
 
 The real-flow script runs source guards by default and can validate indexes, non-null idempotency columns, uniqueness, service-level duplicate grant creation, duplicate grant confirmation, duplicate manual increase/decrease, payload mismatch rejection, frozen-account write blocking, audit writes, and CRMEB boundary snapshots on isolated MySQL when `YFTH_PRODUCT_QUOTA_REAL_FLOW_EXECUTE=1` and `YFTH_REAL_FLOW_ISOLATED_DB=1` are set.
 
+Independent validation evidence closure:
+
+- PHP runtime: `C:\Users\zhangxu\.codex\tools\yfth-runtime\php-7.4.33\php.exe`, PHP 7.4.33. No loaded `php.ini`; `pdo_mysql` and `mysqli` were enabled through CLI `-d extension_dir=...\ext -d extension=pdo_mysql -d extension=mysqli`, and `php -m` confirmed `PDO`, `pdo_mysql`, and `mysqlnd`.
+- MySQL runtime: `C:\Users\zhangxu\.codex\tools\yfth-runtime\mysql-8.0.46-winx64\bin\mysqld.exe`, temporary local port `33253`, temporary database `yfth_product_quota_validation_20260709192058`.
+- CRMEB baseline schema import passed in the temporary database with `sql_mode=NO_ENGINE_SUBSTITUTION`.
+- `php think migrate:run` created the five product quota tables, 12 `yfth-product-quota*` permissions, mandatory non-null `idempotency_key` / `dedupe_key` columns, and the four unique guards.
+- `php think migrate:rollback -t 0` removed the five product quota tables and product quota permissions. Rerun restored them. Duplicate run completed without duplicating permissions.
+- Isolated MySQL real-flow passed on MySQL 8.0.46, including missing key rejection, duplicate grant create replay, duplicate grant confirm single-ledger guard, grant payload mismatch rejection, missing adjustment key rejection, duplicate manual increase/decrease one-time balance mutation, adjustment payload mismatch rejection, frozen account write blocking, audit writes, and unchanged CRMEB order/product/SKU/user boundary snapshots.
+- `template/admin` production build passed with existing CSS order, asset-size, entrypoint-size, and Browserslist warnings only.
+- H5 production build passed with 427 files / 13,564,863 bytes in `template/uni-app/unpackage/dist/build/h5`.
+- `mp-weixin` production compile passed with 1,209 files / 7,731,104 bytes in `template/uni-app/unpackage/dist/build/mp-weixin`, with existing skeleton `:key` hints and component subpackage suggestions only.
+- No WeChat upload, production AppID, private key, upload key, production database connection, production migration, server modification, or production deployment was used.
+
 Executed in this branch:
 
 - PHP 7.4 syntax check passed for changed PHP files.
