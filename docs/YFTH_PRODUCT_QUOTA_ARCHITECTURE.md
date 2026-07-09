@@ -27,6 +27,16 @@ Important uniqueness guards:
 - `uniq_yfth_product_quota_grant_idempotency`: duplicate grant draft guard.
 - `uniq_yfth_product_quota_adjustment_dedupe`: duplicate adjustment guard.
 
+P1 idempotency closure:
+
+- `yfth_product_quota_grant_order.idempotency_key` is mandatory, non-null, normalized server-side, and protected by `uniq_yfth_product_quota_grant_idempotency`.
+- `yfth_product_quota_adjustment.dedupe_key` is mandatory, non-null, normalized server-side, and protected by `uniq_yfth_product_quota_adjustment_dedupe`.
+- The service rejects missing grant idempotency keys and missing adjustment dedupe keys.
+- Reusing the same key with the same payload returns the existing grant or adjustment result.
+- Reusing the same key with a different payload is rejected with `product_quota_idempotency_payload_mismatch`.
+- Manual adjustment rechecks the dedupe key after locking the quota account row, before changing the balance, so duplicate HTTP retries cannot apply the amount twice.
+- Account creation also re-reads the existing active account after an `active_key` unique collision, preventing duplicate first-write races from failing before grant idempotency can be resolved.
+
 All amount columns use integer cents. The implementation does not use PHP float math for quota amounts.
 
 ## State Model
@@ -109,14 +119,18 @@ Frontend:
 
 ## Audit And Idempotency
 
-All sensitive headquarters operations write unified YFTH audit events with domain `yfth_product_quota`.
+All sensitive headquarters operations write unified YFTH audit events to `yfth_audit_event.business_domain = yfth_product_quota`.
 
 Amount changes use idempotency or dedupe keys:
 
+- Grant draft creation requires a client operation key from the admin UI/API and stores the server-normalized `product_quota_grant_create:{admin_id}:{hash}` key.
 - Grant confirmation ledger key: `product_quota_grant_confirm:{grant_id}`.
 - Grant reverse ledger key: `product_quota_grant_reverse:{grant_id}`.
+- Manual correction requires a client operation key from the admin UI/API and stores the server-normalized `product_quota_adjustment_post:{admin_id}:{hash}` key.
 - Adjustment ledger key: `product_quota_adjustment:{adjustment_id}`.
-- Freeze, unfreeze, and close use adjustment dedupe keys.
+- Freeze, unfreeze, and close use deterministic version-scoped adjustment dedupe keys.
+
+The admin page generates operation keys when the grant or manual-adjustment dialog opens and also guards repeated local submits with `grantSubmitting` and `adjustSubmitting`.
 
 Audit snapshots are sanitized to avoid storing raw internal source snapshots in the audit event payload.
 
@@ -127,7 +141,7 @@ Added:
 - `crmeb/tests/yfth_product_quota_contract_check.php`.
 - `crmeb/tests/yfth_product_quota_real_flow_check.php`.
 
-The real-flow script runs source guards by default and can validate indexes/uniqueness on isolated MySQL when `YFTH_PRODUCT_QUOTA_REAL_FLOW_EXECUTE=1` and `YFTH_REAL_FLOW_ISOLATED_DB=1` are set.
+The real-flow script runs source guards by default and can validate indexes, non-null idempotency columns, uniqueness, service-level duplicate grant creation, duplicate grant confirmation, duplicate manual increase/decrease, payload mismatch rejection, frozen-account write blocking, audit writes, and CRMEB boundary snapshots on isolated MySQL when `YFTH_PRODUCT_QUOTA_REAL_FLOW_EXECUTE=1` and `YFTH_REAL_FLOW_ISOLATED_DB=1` are set.
 
 Executed in this branch:
 
@@ -140,6 +154,12 @@ Executed in this branch:
 - Admin production build passed with existing CSS order, asset-size, and Browserslist warnings.
 - Uni-app request/context Node checks passed.
 - `git diff --check` passed with only line-ending warnings.
+
+P1 idempotency closure validation added in this round:
+
+- Contract assertions now cover mandatory non-null grant idempotency and adjustment dedupe keys, service-side normalization, duplicate-result replay, payload-mismatch rejection, admin controller pass-through, and admin page operation-key generation.
+- Real-flow isolated MySQL mode now covers missing key rejection, duplicate grant create returning the existing grant, duplicate grant confirm keeping one ledger, duplicate manual increase/decrease preserving a single balance mutation, same-key different-payload rejection, frozen-account write blocking, unified audit writes, and unchanged CRMEB order/product/SKU/user boundary snapshots.
+- Latest P1 closure execution: PHP 7.4 syntax passed for changed PHP files; product quota contract check passed with 104 assertions; product quota real-flow check passed in default and isolated MySQL 8.0.46 modes; MySQL migration `run -> rollback -t 0 -> rerun -> duplicate run` passed; adjacent supply-chain, referral-reward, and franchise-opening contract checks passed; admin production build passed with existing warnings; uni-app Node checks, H5 production build, and mp-weixin production compile passed; `git diff --check main..HEAD` passed.
 
 ## Not Implemented
 

@@ -61,6 +61,7 @@ class ProductQuota extends AuthController
             [['source_id', 'd'], 0],
             ['reason', ''],
             ['idempotency_key', ''],
+            ['client_operation_key', ''],
         ]), (int)$this->adminId, $this->adminInfo ?: []));
     }
 
@@ -95,6 +96,7 @@ class ProductQuota extends AuthController
             ['amount_cent', 0],
             ['reason', ''],
             ['dedupe_key', ''],
+            ['client_operation_key', ''],
         ]), (int)$this->adminId, $this->adminInfo ?: []));
     }
 

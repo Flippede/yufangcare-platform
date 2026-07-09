@@ -1,5 +1,22 @@
 # 项目交接文档
 
+## Current Fact Snapshot - Product Quota / Return Goods Quota Ledger V1 P1 Idempotency Closure
+
+- Current development branch: `codex/yfth-product-quota-ledger-v1`.
+- Main baseline remains `3ebd2135ef9d8146ad655c5965f63d134db9c6b5`; this feature branch is not merged to `main` in this P1 closure round.
+- P1 root cause: headquarters grant creation and manual quota adjustment accepted optional or empty operation keys, while `yfth_product_quota_grant_order.idempotency_key` and `yfth_product_quota_adjustment.dedupe_key` were nullable unique columns, allowing multiple `NULL` writes and repeated balance changes through double click, retry, or replay.
+- P1 closure: grant creation now requires a client operation key, normalizes it server-side into `product_quota_grant_create:{admin_id}:{hash}`, returns the existing grant for same-key/same-payload replay, and rejects same-key/different-payload replay.
+- P1 closure: manual adjustment now requires a client operation key, normalizes it server-side into `product_quota_adjustment_post:{admin_id}:{hash}`, rechecks dedupe after locking the quota account row, returns the existing adjustment result for duplicate replay, and rejects payload mismatch.
+- P1 closure: `idempotency_key` and `dedupe_key` are non-null mandatory strings in the migration and remain protected by unique indexes.
+- P1 closure: admin `productQuota` page generates operation keys for grant and adjustment dialogs and guards duplicate local submits with `grantSubmitting` and `adjustSubmitting`.
+- P1 closure: service-level real-flow coverage was extended for missing keys, duplicate grant create, duplicate grant confirm, duplicate manual increase/decrease, payload mismatch, frozen-account write blocking, audit writes, and unchanged CRMEB order/product/SKU/user boundary snapshots in isolated MySQL mode.
+- Verification executed in this P1 closure: PHP 7.4 syntax passed for changed PHP files; `yfth_product_quota_contract_check.php` passed with 104 assertions; `yfth_product_quota_real_flow_check.php` passed in default source-guard mode and isolated MySQL 8.0.46 mode; MySQL 8.0.46 migration `run -> rollback -t 0 -> rerun -> duplicate run` passed on temporary database `yfth_product_quota_validation`; after rollback the five product quota tables and `yfth-product-quota*` permissions were removed; after rerun the five tables, 12 permissions, mandatory non-null idempotency/dedupe columns, and four unique guards were present; adjacent supply-chain, referral-reward, and franchise-opening contract checks passed; admin production build passed with existing CSS order, asset-size, and Browserslist warnings; uni-app request/context Node checks passed; H5 production build passed; mp-weixin production compile passed with existing skeleton `:key` and component-subpackage hints; `git diff --check main..HEAD` passed.
+- CRMEB and financial boundary remains frozen: no CRMEB `store_order`, product stock, SKU stock, sales, order, payment, refund, user balance, points, brokerage, distribution, commission, withdrawal, settlement, or revenue-sharing writes.
+- Still not implemented: purchase quota offset, reservation, consumption, reward conversion, opening auto-grant, purchase after-sale quota return, online payment, withdrawal, settlement, revenue sharing, product quota payment, production deployment, and production database migration.
+- Production status: no production deployment, no production database connection, no production migration, and no server modification were performed.
+- Next gate: run read-only architecture re-review for this P1 closure before any `main` merge decision.
+- Final commit and validation results should be read from real Git status after this feature-branch commit.
+
 ## Current Fact Snapshot - Product Quota / Return Goods Quota Ledger V1
 
 - Current development branch: `codex/yfth-product-quota-ledger-v1`.

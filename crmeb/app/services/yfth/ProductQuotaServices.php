@@ -121,24 +121,32 @@ class ProductQuotaServices extends YfthFoundationBaseServices
         $reason = $this->requiredReason($data['reason'] ?? '', 'product_quota_grant_reason_required');
         $sourceType = $this->normalizeGrantSource((string)($data['source_type'] ?? 'headquarters_manual_grant'));
         $sourceId = (int)($data['source_id'] ?? 0);
-        $idempotencyKey = trim((string)($data['idempotency_key'] ?? ''));
+        $idempotencyKey = $this->normalizeOperationKey($data, 'idempotency_key', 'product_quota_grant_create', $adminId, 'product_quota_idempotency_key_required');
 
         return Db::transaction(function () use ($storeId, $quotaType, $amount, $reason, $sourceType, $sourceId, $adminId, $idempotencyKey) {
             $account = $this->ensureAccount($storeId, $quotaType, $adminId, 'grant_create');
+            $expectedPayload = [
+                'account_id' => (int)$account['id'],
+                'store_id' => $storeId,
+                'quota_type' => $quotaType,
+                'amount_cent' => $amount,
+                'source_type' => $sourceType,
+                'source_id' => $sourceId,
+                'reason' => $reason,
+            ];
+            $existing = $this->findGrantByIdempotencyKey($idempotencyKey);
+            if ($existing) {
+                $this->assertGrantIdempotentPayload($existing, $expectedPayload);
+                return ['grant' => $this->formatGrant($existing, true)];
+            }
             if ((string)$account['status'] !== 'active') {
                 throw new ApiException('product_quota_account_amount_change_forbidden');
             }
             $this->validateGrantSource($sourceType, $sourceId, $storeId);
-            if ($idempotencyKey !== '') {
-                $existing = app()->make(YfthProductQuotaGrantOrderDao::class)->getOne(['idempotency_key' => $idempotencyKey]);
-                if ($existing) {
-                    return ['grant' => $this->formatGrant($this->rowArray($existing), true)];
-                }
-            }
             $now = time();
-            $grant = $this->rowArray(app()->make(YfthProductQuotaGrantOrderDao::class)->save([
+            $grantData = [
                 'grant_no' => $this->makeNo('PQG'),
-                'account_id' => (int)$account['id'],
+                'account_id' => $expectedPayload['account_id'],
                 'store_id' => $storeId,
                 'quota_type' => $quotaType,
                 'amount_cent' => $amount,
@@ -153,10 +161,20 @@ class ProductQuotaServices extends YfthFoundationBaseServices
                 'confirmed_time' => 0,
                 'rejected_time' => 0,
                 'reversed_time' => 0,
-                'idempotency_key' => $idempotencyKey === '' ? null : $idempotencyKey,
+                'idempotency_key' => $idempotencyKey,
                 'create_time' => $now,
                 'update_time' => $now,
-            ]));
+            ];
+            try {
+                $grant = $this->rowArray(app()->make(YfthProductQuotaGrantOrderDao::class)->save($grantData));
+            } catch (\Throwable $e) {
+                $existing = $this->findGrantByIdempotencyKey($idempotencyKey);
+                if ($existing) {
+                    $this->assertGrantIdempotentPayload($existing, $expectedPayload);
+                    return ['grant' => $this->formatGrant($existing, true)];
+                }
+                throw $e;
+            }
             $this->writeSnapshot((int)$account['id'], 0, (int)$grant['id'], 0, $sourceType, $sourceId, [
                 'source_type' => $sourceType,
                 'source_id' => $sourceId,
@@ -308,15 +326,31 @@ class ProductQuotaServices extends YfthFoundationBaseServices
         }
         $amount = $this->positiveCent($data['amount_cent'] ?? 0, 'product_quota_adjustment_amount_invalid');
         $reason = $this->requiredReason($data['reason'] ?? '', 'product_quota_adjustment_reason_required');
-        $dedupeKey = trim((string)($data['dedupe_key'] ?? ''));
+        $dedupeKey = $this->normalizeOperationKey($data, 'dedupe_key', 'product_quota_adjustment_post', $adminId, 'product_quota_dedupe_key_required');
+        $expectedPayload = [
+            'account_id' => $accountId,
+            'action_type' => $action,
+            'amount_cent' => $amount,
+            'reason' => $reason,
+        ];
+        $existing = $this->findAdjustmentByDedupeKey($dedupeKey);
+        if ($existing) {
+            $this->assertAdjustmentDedupePayload($existing, $expectedPayload);
+            return $this->formatExistingAdjustmentResult($existing);
+        }
         return Db::transaction(function () use ($accountId, $action, $amount, $reason, $dedupeKey, $adminId) {
-            if ($dedupeKey !== '') {
-                $existing = app()->make(YfthProductQuotaAdjustmentDao::class)->getOne(['dedupe_key' => $dedupeKey]);
-                if ($existing) {
-                    return ['adjustment' => $this->formatAdjustment($this->rowArray($existing), true)];
-                }
-            }
             $account = $this->lockAccount($accountId);
+            $expectedPayload = [
+                'account_id' => $accountId,
+                'action_type' => $action,
+                'amount_cent' => $amount,
+                'reason' => $reason,
+            ];
+            $existing = $this->findAdjustmentByDedupeKey($dedupeKey);
+            if ($existing) {
+                $this->assertAdjustmentDedupePayload($existing, $expectedPayload);
+                return $this->formatExistingAdjustmentResult($existing);
+            }
             $this->assertAccountAmountWritable($account);
             $before = $account;
             $delta = $action === 'manual_increase' ? $amount : -$amount;
@@ -432,8 +466,7 @@ class ProductQuotaServices extends YfthFoundationBaseServices
     {
         $this->assertHeadquarterAdmin($adminInfo);
         $reason = $this->requiredReason($data['reason'] ?? '', 'product_quota_status_reason_required');
-        $dedupeKey = trim((string)($data['dedupe_key'] ?? 'product_quota_' . $action . ':' . $id));
-        return Db::transaction(function () use ($id, $action, $targetStatus, $reason, $dedupeKey, $adminId) {
+        return Db::transaction(function () use ($id, $action, $targetStatus, $reason, $adminId) {
             $account = $this->lockAccount($id);
             if ((string)$account['status'] === $targetStatus) {
                 return ['account' => $this->formatAccount($account, true)];
@@ -455,6 +488,7 @@ class ProductQuotaServices extends YfthFoundationBaseServices
                 'version' => (int)$account['version'] + 1,
                 'update_time' => $now,
             ]);
+            $dedupeKey = 'product_quota_account_status:' . $action . ':' . $id . ':' . (int)$account['version'];
             app()->make(YfthProductQuotaAccountDao::class)->update($id, [
                 'status' => $after['status'],
                 'active_key' => $after['active_key'],
@@ -494,24 +528,32 @@ class ProductQuotaServices extends YfthFoundationBaseServices
             return $existing;
         }
         $now = time();
-        $account = $this->rowArray(app()->make(YfthProductQuotaAccountDao::class)->save([
-            'account_no' => $this->makeNo('PQA'),
-            'store_id' => $storeId,
-            'quota_type' => $quotaType,
-            'status' => 'active',
-            'total_granted_cent' => 0,
-            'total_adjusted_cent' => 0,
-            'total_reversed_cent' => 0,
-            'reserved_cent' => 0,
-            'consumed_cent' => 0,
-            'available_cent' => 0,
-            'frozen_cent' => 0,
-            'version' => 1,
-            'active_key' => $activeKey,
-            'remark' => '',
-            'create_time' => $now,
-            'update_time' => $now,
-        ]));
+        try {
+            $account = $this->rowArray(app()->make(YfthProductQuotaAccountDao::class)->save([
+                'account_no' => $this->makeNo('PQA'),
+                'store_id' => $storeId,
+                'quota_type' => $quotaType,
+                'status' => 'active',
+                'total_granted_cent' => 0,
+                'total_adjusted_cent' => 0,
+                'total_reversed_cent' => 0,
+                'reserved_cent' => 0,
+                'consumed_cent' => 0,
+                'available_cent' => 0,
+                'frozen_cent' => 0,
+                'version' => 1,
+                'active_key' => $activeKey,
+                'remark' => '',
+                'create_time' => $now,
+                'update_time' => $now,
+            ]));
+        } catch (\Throwable $e) {
+            $existing = $this->rowArray(app()->make(YfthProductQuotaAccountDao::class)->getOne(['active_key' => $activeKey]));
+            if ($existing) {
+                return $existing;
+            }
+            throw $e;
+        }
         $this->audit('product_quota_account', (int)$account['id'], 'account_create', [], $account, $adminId, 'headquarter_operator', $storeId, $reason);
         return $account;
     }
@@ -525,9 +567,25 @@ class ProductQuotaServices extends YfthFoundationBaseServices
 
     private function createLedger(array $account, string $direction, string $actionType, int $amount, int $before, int $after, string $sourceType, int $sourceId, string $idempotencyKey, int $operatorUid, string $reason): array
     {
+        if (trim($idempotencyKey) === '') {
+            throw new ApiException('product_quota_idempotency_key_required');
+        }
         $existing = app()->make(YfthProductQuotaLedgerDao::class)->getOne(['idempotency_key' => $idempotencyKey]);
         if ($existing) {
-            return $this->rowArray($existing);
+            $existing = $this->rowArray($existing);
+            $this->assertLedgerIdempotentPayload($existing, [
+                'account_id' => (int)$account['id'],
+                'store_id' => (int)$account['store_id'],
+                'quota_type' => (string)$account['quota_type'],
+                'direction' => $direction,
+                'action_type' => $actionType,
+                'amount_cent' => $amount,
+                'balance_before_cent' => $before,
+                'balance_after_cent' => $after,
+                'source_type' => $sourceType,
+                'source_id' => $sourceId,
+            ]);
+            return $existing;
         }
         $now = time();
         return $this->rowArray(app()->make(YfthProductQuotaLedgerDao::class)->save([
@@ -553,11 +611,12 @@ class ProductQuotaServices extends YfthFoundationBaseServices
 
     private function createAdjustmentRecord(array $account, string $actionType, int $amount, array $before, array $after, string $reason, int $operatorUid, string $dedupeKey): array
     {
-        if ($dedupeKey !== '') {
-            $existing = app()->make(YfthProductQuotaAdjustmentDao::class)->getOne(['dedupe_key' => $dedupeKey]);
-            if ($existing) {
-                return $this->rowArray($existing);
-            }
+        if (trim($dedupeKey) === '') {
+            throw new ApiException('product_quota_dedupe_key_required');
+        }
+        $existing = $this->findAdjustmentByDedupeKey($dedupeKey);
+        if ($existing) {
+            return $existing;
         }
         return $this->rowArray(app()->make(YfthProductQuotaAdjustmentDao::class)->save([
             'adjustment_no' => $this->makeNo('PQAJS'),
@@ -570,9 +629,104 @@ class ProductQuotaServices extends YfthFoundationBaseServices
             'after_state' => $this->jsonEncode($this->sanitizeState($after)),
             'reason' => $reason,
             'operator_uid' => $operatorUid,
-            'dedupe_key' => $dedupeKey === '' ? null : $dedupeKey,
+            'dedupe_key' => $dedupeKey,
             'create_time' => time(),
         ]));
+    }
+
+    private function normalizeOperationKey(array $data, string $primaryField, string $scope, int $adminId, string $error): string
+    {
+        $clientKey = trim((string)($data[$primaryField] ?? ($data['client_operation_key'] ?? '')));
+        if ($clientKey === '') {
+            throw new ApiException($error);
+        }
+        if (strlen($clientKey) > 191) {
+            $clientKey = hash('sha256', $clientKey);
+        }
+        return $scope . ':' . $adminId . ':' . hash('sha256', $clientKey);
+    }
+
+    private function findGrantByIdempotencyKey(string $idempotencyKey): array
+    {
+        return $this->rowArray(app()->make(YfthProductQuotaGrantOrderDao::class)->getOne(['idempotency_key' => $idempotencyKey]));
+    }
+
+    private function findAdjustmentByDedupeKey(string $dedupeKey): array
+    {
+        return $this->rowArray(app()->make(YfthProductQuotaAdjustmentDao::class)->getOne(['dedupe_key' => $dedupeKey]));
+    }
+
+    private function assertGrantIdempotentPayload(array $existing, array $expected): void
+    {
+        $this->assertIdempotentPayload($existing, $expected, [
+            'account_id',
+            'store_id',
+            'quota_type',
+            'amount_cent',
+            'source_type',
+            'source_id',
+            'reason',
+        ]);
+    }
+
+    private function assertAdjustmentDedupePayload(array $existing, array $expected): void
+    {
+        $this->assertIdempotentPayload($existing, $expected, [
+            'account_id',
+            'action_type',
+            'amount_cent',
+            'reason',
+        ]);
+    }
+
+    private function assertLedgerIdempotentPayload(array $existing, array $expected): void
+    {
+        $this->assertIdempotentPayload($existing, $expected, [
+            'account_id',
+            'store_id',
+            'quota_type',
+            'direction',
+            'action_type',
+            'amount_cent',
+            'balance_before_cent',
+            'balance_after_cent',
+            'source_type',
+            'source_id',
+        ]);
+    }
+
+    private function assertIdempotentPayload(array $existing, array $expected, array $fields): void
+    {
+        foreach ($fields as $field) {
+            $left = $existing[$field] ?? null;
+            $right = $expected[$field] ?? null;
+            if (is_numeric($left) || is_numeric($right)) {
+                if ((string)(int)$left !== (string)(int)$right) {
+                    throw new ApiException('product_quota_idempotency_payload_mismatch');
+                }
+                continue;
+            }
+            if ((string)$left !== (string)$right) {
+                throw new ApiException('product_quota_idempotency_payload_mismatch');
+            }
+        }
+    }
+
+    private function formatExistingAdjustmentResult(array $adjustment): array
+    {
+        $result = ['adjustment' => $this->formatAdjustment($adjustment, true)];
+        $account = $this->rowArray(app()->make(YfthProductQuotaAccountDao::class)->get((int)$adjustment['account_id']));
+        if ($account) {
+            $result['account'] = $this->formatAccount($account, true);
+        }
+        $ledger = $this->rowArray(app()->make(YfthProductQuotaLedgerDao::class)->getOne([
+            'source_type' => 'correction_adjustment',
+            'source_id' => (int)$adjustment['id'],
+        ]));
+        if ($ledger) {
+            $result['ledger'] = $this->formatLedger($ledger, true);
+        }
+        return $result;
     }
 
     private function updateAccountTotals(int $accountId, array $changes, array $before): array

@@ -6,6 +6,13 @@
 
 ## 2026-07-09 Product Quota V1 Update
 
+- Product Quota / Return Goods Quota V1 P1 idempotency closure has been implemented on `codex/yfth-product-quota-ledger-v1`.
+- Headquarters grant creation no longer accepts a missing or empty idempotency key; the backend normalizes the client operation key by write scene and admin id, returns an existing grant for same-key/same-payload replay, and rejects mismatched replay.
+- Manual adjustment no longer accepts a missing or empty dedupe key; the backend rechecks dedupe after locking the quota account row, preventing duplicate HTTP retry or double click from applying the same balance change twice.
+- `yfth_product_quota_grant_order.idempotency_key` and `yfth_product_quota_adjustment.dedupe_key` are now mandatory non-null strings with unique indexes rather than nullable optional columns.
+- The headquarters admin product quota page now generates operation keys for grant and adjustment writes and guards duplicate local submits.
+- This closure does not implement purchase offset, reward conversion, product quota payment, settlement, distribution, production deployment, or production database migration.
+
 - `产品额度 / 返货额度台账 V1` 已在功能分支 `codex/yfth-product-quota-ledger-v1` 进入实现阶段。
 - 本轮只建立独立 YFTH 产品等价额度账户、不可变流水、总部人工授予/确认/驳回/反冲/纠偏/冻结/解冻/关闭，以及加盟商/店长只读展示。
 - 本轮不实现采购单自动抵扣、额度预占/消耗/释放、推荐奖励兑换、开店自动授予、采购售后返还、线上支付、提现、结算或分账。

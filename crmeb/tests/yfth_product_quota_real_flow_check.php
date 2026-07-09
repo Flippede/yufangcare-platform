@@ -112,7 +112,9 @@ if (!$executeFlow) {
 
         if (!$failures) {
             pqAssertRealIndexes($assert, $database, $prefix);
+            pqAssertMandatoryKeyColumns($assert, $database, $prefix);
             pqAssertUniquenessGuards($assert);
+            pqAssertServiceIdempotency($assert);
         }
     } catch (Throwable $e) {
         $failures[] = 'real_flow_exception:' . $e->getMessage() . ':' . $e->getFile() . ':' . $e->getLine();
@@ -153,6 +155,22 @@ function pqAssertRealIndexes(callable $assert, string $database, string $prefix)
             [$database, $index[0], $index[1]]
         );
         $assert((int)($rows[0]['cnt'] ?? 0) > 0, 'real_index_exists:' . $index[0] . '.' . $index[1]);
+    }
+}
+
+function pqAssertMandatoryKeyColumns(callable $assert, string $database, string $prefix): void
+{
+    foreach ([
+        [$prefix . 'yfth_product_quota_grant_order', 'idempotency_key'],
+        [$prefix . 'yfth_product_quota_adjustment', 'dedupe_key'],
+    ] as $column) {
+        $rows = Db::query(
+            'SELECT IS_NULLABLE, COLUMN_DEFAULT FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ?',
+            [$database, $column[0], $column[1]]
+        );
+        $row = $rows[0] ?? [];
+        $assert((string)($row['IS_NULLABLE'] ?? '') === 'NO', 'real_column_not_nullable:' . $column[0] . '.' . $column[1]);
+        $assert(array_key_exists('COLUMN_DEFAULT', $row) && (string)$row['COLUMN_DEFAULT'] === '', 'real_column_default_empty_string:' . $column[0] . '.' . $column[1]);
     }
 }
 
@@ -252,7 +270,171 @@ function pqAssertUniquenessGuards(callable $assert): void
     }
 }
 
+function pqAssertServiceIdempotency(callable $assert): void
+{
+    $runId = time() . random_int(1000, 9999);
+    $storeId = pqEnsureActiveStore($runId);
+    $adminInfo = ['id' => 1, 'level' => 0];
+    $adminId = 1;
+    $service = app()->make(\app\services\yfth\ProductQuotaServices::class);
+    $boundaryBefore = pqCrmebBoundarySnapshot();
+
+    pqExpectException(function () use ($service, $storeId, $adminId, $adminInfo) {
+        $service->adminCreateGrant([
+            'store_id' => $storeId,
+            'quota_type' => 'return_goods',
+            'amount_cent' => 10000,
+            'source_type' => 'headquarters_manual_grant',
+            'source_id' => 0,
+            'reason' => 'missing idempotency key check',
+        ], $adminId, $adminInfo);
+    }, $assert, 'grant_create_missing_idempotency_key_rejected');
+
+    $grantPayload = [
+        'store_id' => $storeId,
+        'quota_type' => 'return_goods',
+        'amount_cent' => 10000,
+        'source_type' => 'headquarters_manual_grant',
+        'source_id' => 0,
+        'reason' => 'real service idempotency grant',
+        'idempotency_key' => 'grant-' . $runId,
+    ];
+    $grantFirst = $service->adminCreateGrant($grantPayload, $adminId, $adminInfo);
+    $grantSecond = $service->adminCreateGrant($grantPayload, $adminId, $adminInfo);
+    $grantId = (int)($grantFirst['grant']['id'] ?? 0);
+    $assert($grantId > 0 && $grantId === (int)($grantSecond['grant']['id'] ?? 0), 'duplicate_grant_create_returns_existing_grant');
+
+    pqExpectException(function () use ($service, $grantPayload, $adminId, $adminInfo) {
+        $payload = $grantPayload;
+        $payload['amount_cent'] = 12000;
+        $service->adminCreateGrant($payload, $adminId, $adminInfo);
+    }, $assert, 'grant_create_same_key_different_payload_rejected');
+
+    $confirmFirst = $service->adminConfirmGrant($grantId, $adminId, $adminInfo);
+    $confirmSecond = $service->adminConfirmGrant($grantId, $adminId, $adminInfo);
+    $accountId = (int)($confirmFirst['account']['id'] ?? 0);
+    $assert($accountId > 0, 'grant_confirm_returns_account');
+    $assert((int)($confirmSecond['account']['available_cent'] ?? 0) === 10000, 'duplicate_grant_confirm_does_not_increase_balance_twice');
+    $ledgerCount = (int)Db::name('yfth_product_quota_ledger')->where('idempotency_key', 'product_quota_grant_confirm:' . $grantId)->count();
+    $assert($ledgerCount === 1, 'duplicate_grant_confirm_keeps_single_ledger');
+
+    pqExpectException(function () use ($service, $accountId, $adminId, $adminInfo) {
+        $service->adminCreateAdjustment([
+            'account_id' => $accountId,
+            'action_type' => 'manual_increase',
+            'amount_cent' => 500,
+            'reason' => 'missing dedupe key check',
+        ], $adminId, $adminInfo);
+    }, $assert, 'adjustment_missing_dedupe_key_rejected');
+
+    $adjustPayload = [
+        'account_id' => $accountId,
+        'action_type' => 'manual_increase',
+        'amount_cent' => 500,
+        'reason' => 'real service idempotency adjustment',
+        'dedupe_key' => 'adjust-' . $runId,
+    ];
+    $adjustFirst = $service->adminCreateAdjustment($adjustPayload, $adminId, $adminInfo);
+    $adjustSecond = $service->adminCreateAdjustment($adjustPayload, $adminId, $adminInfo);
+    $adjustId = (int)($adjustFirst['adjustment']['id'] ?? 0);
+    $assert($adjustId > 0 && $adjustId === (int)($adjustSecond['adjustment']['id'] ?? 0), 'duplicate_adjustment_returns_existing_adjustment');
+    $assert((int)($adjustSecond['account']['available_cent'] ?? 0) === 10500, 'duplicate_adjustment_does_not_increase_balance_twice');
+    $adjustLedgerCount = (int)Db::name('yfth_product_quota_ledger')->where('source_type', 'correction_adjustment')->where('source_id', $adjustId)->count();
+    $assert($adjustLedgerCount === 1, 'duplicate_adjustment_keeps_single_ledger');
+
+    pqExpectException(function () use ($service, $adjustPayload, $adminId, $adminInfo) {
+        $payload = $adjustPayload;
+        $payload['amount_cent'] = 600;
+        $service->adminCreateAdjustment($payload, $adminId, $adminInfo);
+    }, $assert, 'adjustment_same_key_different_payload_rejected');
+
+    $decreasePayload = [
+        'account_id' => $accountId,
+        'action_type' => 'manual_decrease',
+        'amount_cent' => 300,
+        'reason' => 'real service idempotency decrease',
+        'dedupe_key' => 'decrease-' . $runId,
+    ];
+    $decreaseFirst = $service->adminCreateAdjustment($decreasePayload, $adminId, $adminInfo);
+    $decreaseSecond = $service->adminCreateAdjustment($decreasePayload, $adminId, $adminInfo);
+    $assert((int)($decreaseFirst['adjustment']['id'] ?? 0) === (int)($decreaseSecond['adjustment']['id'] ?? -1), 'duplicate_decrease_returns_existing_adjustment');
+    $assert((int)($decreaseSecond['account']['available_cent'] ?? 0) === 10200, 'duplicate_decrease_does_not_decrease_balance_twice');
+
+    $service->adminFreezeAccount($accountId, ['reason' => 'freeze write guard'], $adminId, $adminInfo);
+    pqExpectException(function () use ($service, $accountId, $adminId, $adminInfo, $runId) {
+        $service->adminCreateAdjustment([
+            'account_id' => $accountId,
+            'action_type' => 'manual_increase',
+            'amount_cent' => 100,
+            'reason' => 'blocked while frozen',
+            'dedupe_key' => 'frozen-adjust-' . $runId,
+        ], $adminId, $adminInfo);
+    }, $assert, 'frozen_account_blocks_amount_adjustment');
+    $service->adminUnfreezeAccount($accountId, ['reason' => 'unfreeze after guard'], $adminId, $adminInfo);
+
+    $auditCount = (int)Db::name('yfth_audit_event')->where('business_domain', 'yfth_product_quota')->count();
+    $assert($auditCount > 0, 'product_quota_audit_events_written');
+    $assert(pqCrmebBoundarySnapshot() === $boundaryBefore, 'crmeb_order_product_stock_boundary_unchanged');
+}
+
+function pqEnsureActiveStore(string $runId): int
+{
+    $now = time();
+    Db::name('system_store')->insert([
+        'name' => 'YFTH Product Quota Test Store ' . $runId,
+        'introduction' => 'isolated product quota idempotency test',
+        'phone' => '1380000' . substr($runId, -4),
+        'address' => 'isolated test city',
+        'detailed_address' => 'isolated test address',
+        'image' => '',
+        'oblong_image' => '',
+        'latitude' => '30.000000',
+        'longitude' => '120.000000',
+        'valid_time' => '',
+        'day_time' => '08:00-20:00',
+        'add_time' => $now,
+        'is_show' => 1,
+        'is_del' => 0,
+    ]);
+    return (int)Db::name('system_store')->getLastInsID();
+}
+
+function pqCrmebBoundarySnapshot(): array
+{
+    $snapshot = [];
+    foreach (['store_order', 'store_product', 'store_product_attr_value', 'user'] as $table) {
+        try {
+            $snapshot[$table . '_count'] = (int)Db::name($table)->count();
+        } catch (Throwable $e) {
+            $snapshot[$table . '_count'] = 'table_missing';
+        }
+    }
+    foreach ([
+        'store_product_stock' => ['store_product', 'stock'],
+        'store_product_sales' => ['store_product', 'sales'],
+        'store_product_attr_stock' => ['store_product_attr_value', 'stock'],
+        'store_product_attr_sales' => ['store_product_attr_value', 'sales'],
+    ] as $key => $target) {
+        try {
+            $snapshot[$key] = (string)Db::name($target[0])->sum($target[1]);
+        } catch (Throwable $e) {
+            $snapshot[$key] = 'table_missing';
+        }
+    }
+    return $snapshot;
+}
+
 function pqExpectDuplicate(callable $callback, callable $assert, string $label): void
+{
+    try {
+        $callback();
+        $assert(false, $label);
+    } catch (Throwable $e) {
+        $assert(true, $label);
+    }
+}
+
+function pqExpectException(callable $callback, callable $assert, string $label): void
 {
     try {
         $callback();

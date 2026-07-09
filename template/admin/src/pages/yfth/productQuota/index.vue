@@ -199,8 +199,10 @@ export default {
       detailVisible: false,
       detail: {},
       grantVisible: false,
+      grantSubmitting: false,
       grantForm: {},
       adjustVisible: false,
+      adjustSubmitting: false,
       adjustForm: {},
     };
   },
@@ -241,15 +243,23 @@ export default {
         source_type: 'headquarters_manual_grant',
         source_id: 0,
         reason: '',
+        idempotency_key: this.makeOperationKey('grant'),
       };
       this.grantVisible = true;
     },
     createGrant() {
+      if (this.grantSubmitting) return;
+      if (!this.grantForm.idempotency_key) {
+        this.grantForm.idempotency_key = this.makeOperationKey('grant');
+      }
+      this.grantSubmitting = true;
       yfthProductQuotaGrantCreate(this.grantForm).then(() => {
         this.$message.success('授予单草稿已创建');
         this.grantVisible = false;
         this.loadAccounts();
         this.loadGrants();
+      }).finally(() => {
+        this.grantSubmitting = false;
       });
     },
     confirmGrant(row) {
@@ -275,15 +285,22 @@ export default {
       });
     },
     openAdjustment(row) {
-      this.adjustForm = { account_id: row.id, action_type: 'manual_increase', amount_cent: '', reason: '' };
+      this.adjustForm = { account_id: row.id, action_type: 'manual_increase', amount_cent: '', reason: '', dedupe_key: this.makeOperationKey('adjust') };
       this.adjustVisible = true;
     },
     createAdjustment() {
+      if (this.adjustSubmitting) return;
+      if (!this.adjustForm.dedupe_key) {
+        this.adjustForm.dedupe_key = this.makeOperationKey('adjust');
+      }
+      this.adjustSubmitting = true;
       yfthProductQuotaAdjustmentCreate(this.adjustForm).then(() => {
         this.$message.success('已记录纠偏');
         this.adjustVisible = false;
         this.loadAccounts();
         this.loadLedger();
+      }).finally(() => {
+        this.adjustSubmitting = false;
       });
     },
     statusAction(row, action) {
@@ -308,6 +325,12 @@ export default {
       const date = new Date(ts * 1000);
       const pad = (n) => (n < 10 ? '0' + n : '' + n);
       return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+    },
+    makeOperationKey(prefix) {
+      const now = Date.now().toString(36);
+      const perf = typeof performance !== 'undefined' && performance.now ? Math.floor(performance.now() * 1000).toString(36) : '0';
+      const random = Math.random().toString(36).slice(2, 12);
+      return `${prefix}:${now}:${perf}:${random}`;
     },
   },
 };

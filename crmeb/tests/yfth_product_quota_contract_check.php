@@ -102,6 +102,14 @@ $assert($contains($service, 'AuditEventServices::class'), 'service_reuses_yfth_a
 $assert($contains($service, 'writeSnapshot'), 'service_writes_source_snapshot');
 $assert($contains($service, 'sanitizeState($before)') && $contains($service, 'sanitizeState($after)'), 'service_sanitizes_audit_payload');
 $assert($contains($service, 'idempotency_key'), 'service_uses_idempotency_keys');
+$assert($contains($service, 'normalizeOperationKey'), 'service_normalizes_client_operation_keys_server_side');
+$assert($contains($service, 'product_quota_idempotency_key_required'), 'grant_create_requires_non_empty_idempotency_key');
+$assert($contains($service, 'product_quota_dedupe_key_required'), 'adjustment_requires_non_empty_dedupe_key');
+$assert($contains($service, 'product_quota_idempotency_payload_mismatch'), 'service_rejects_reused_key_payload_mismatch');
+$assert($contains($service, 'findGrantByIdempotencyKey') && $contains($service, 'assertGrantIdempotentPayload'), 'grant_create_returns_existing_by_idempotency_key');
+$assert($contains($service, 'findAdjustmentByDedupeKey') && $contains($service, 'assertAdjustmentDedupePayload'), 'manual_adjustment_returns_existing_by_dedupe_key');
+$assert($contains($service, 'formatExistingAdjustmentResult'), 'duplicate_adjustment_returns_existing_balance_result');
+$assert($contains($service, 'product_quota_grant_create') && $contains($service, 'product_quota_adjustment_post'), 'idempotency_keys_are_scoped_by_write_scene');
 $assert($contains($service, 'grant_confirm') && $contains($service, 'grant_reverse') && $contains($service, 'manual_increase') && $contains($service, 'manual_decrease'), 'service_has_expected_actions');
 
 foreach ([
@@ -125,6 +133,12 @@ $assert($contains($adminRoute, 'AdminAuthTokenMiddleware::class') && $contains($
 $assert($contains($adminController, 'assertApiAuthForAdmin'), 'admin_controller_explicit_permission_assertion');
 $assert($contains($adminController, "yfth/product_quota/grant/<id>/confirm"), 'admin_controller_asserts_grant_confirm_permission');
 $assert($contains($adminController, "yfth/product_quota/account/<id>/freeze"), 'admin_controller_asserts_account_freeze_permission');
+$assert($contains($adminController, 'client_operation_key'), 'admin_controller_accepts_client_operation_key_for_write_idempotency');
+
+$assert(!$contains($migration, "'idempotency_key', 'string', ['limit' => 160, 'null' => true"), 'grant_idempotency_key_is_not_nullable_optional_column');
+$assert(!$contains($migration, "'dedupe_key', 'string', ['limit' => 160, 'null' => true"), 'adjustment_dedupe_key_is_not_nullable_optional_column');
+$assert($contains($migration, "mandatory request idempotency key"), 'grant_idempotency_column_is_mandatory');
+$assert($contains($migration, "mandatory dedupe key"), 'adjustment_dedupe_column_is_mandatory');
 
 $assert($contains($apiRoute, 'yfth/product_quota/summary') && $contains($apiRoute, 'AuthTokenMiddleware::class'), 'user_routes_use_user_token');
 $assert($contains($apiController, 'get()') && !$contains($apiController, 'post('), 'user_controller_is_read_only');
@@ -133,6 +147,9 @@ $assert($contains($adminApi, 'yfthProductQuotaAccountList') && $contains($adminA
 $assert($contains($adminRouter, 'product-quota') && $contains($adminRouter, 'yfth-product-quota-index'), 'admin_router_registers_product_quota_page');
 $assert($contains($adminPage, 'yfthProductQuotaAccountList') && $contains($adminPage, 'yfthProductQuotaGrantCreate'), 'admin_page_uses_real_api');
 $assert($contains($adminPage, '不代表系统付款') && $contains($adminPage, '不自动抵扣采购单'), 'admin_page_displays_required_boundary_text');
+$assert($contains($adminPage, 'makeOperationKey') && $contains($adminPage, 'idempotency_key'), 'admin_page_sends_grant_idempotency_key');
+$assert($contains($adminPage, 'makeOperationKey') && $contains($adminPage, 'dedupe_key'), 'admin_page_sends_adjustment_dedupe_key');
+$assert($contains($adminPage, 'grantSubmitting') && $contains($adminPage, 'adjustSubmitting'), 'admin_page_guards_duplicate_submit');
 
 $quotaFrontend = $adminPage . $quotaIndex . $quotaLedger . $quotaDetail;
 foreach (['余额到账', '可用现金', '提现', '打款'] as $forbiddenText) {
