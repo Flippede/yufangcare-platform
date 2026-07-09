@@ -175,16 +175,16 @@ function rrRunTrustedEventFlow(callable $assert): void
     rrCreateCandidate('package_5980', 810001, 810002, 'customer', 0);
     $service->recordPackageActivatedEvent($package['purchase_id'], 'real_package_activated:' . $package['purchase_id']);
     $service->recordPackageActivatedEvent($package['purchase_id'], 'real_package_activated_repeat:' . $package['purchase_id']);
-    $assert((int)Db::name('yfth_reward_ledger')->where('scene', 'package_5980')->where('business_id', $package['purchase_id'])->count() === 1, 'duplicate_package_event_does_not_create_duplicate_ledger');
+    $assert(rrCountLedgerByBusiness('package_5980', 'package_purchase', $package['purchase_id']) === 1, 'duplicate_package_event_does_not_create_duplicate_ledger');
 
     $earlyScan = $service->adminScan(['dry_run' => 0, 'limit' => 50], 1, $admin);
-    $assert((int)$earlyScan['matched'] === 0 && (int)Db::name('yfth_reward_ledger')->where('business_id', $package['purchase_id'])->where('status', 'observing')->count() === 1, 'package_scan_before_observe_end_keeps_observing');
+    $assert((int)$earlyScan['matched'] === 0 && rrCountLedgerByBusiness('package_5980', 'package_purchase', $package['purchase_id'], 'observing') === 1, 'package_scan_before_observe_end_keeps_observing');
 
-    Db::name('yfth_reward_ledger')->where('business_id', $package['purchase_id'])->update(['observe_end_time' => time() - 1]);
+    rrLedgerQuery('package_5980', 'package_purchase', $package['purchase_id'])->update(['observe_end_time' => time() - 1]);
     $scan = $service->adminScan(['dry_run' => 0, 'limit' => 50], 1, $admin);
-    $assert((int)$scan['valid'] >= 1 && (int)Db::name('yfth_reward_ledger')->where('business_id', $package['purchase_id'])->where('status', 'valid')->count() === 1, 'package_scan_after_observe_end_promotes_valid');
+    $assert((int)$scan['valid'] >= 1 && rrCountLedgerByBusiness('package_5980', 'package_purchase', $package['purchase_id'], 'valid') === 1, 'package_scan_after_observe_end_promotes_valid');
 
-    $ledgerId = (int)Db::name('yfth_reward_ledger')->where('business_id', $package['purchase_id'])->value('id');
+    $ledgerId = rrLedgerIdByBusiness('package_5980', 'package_purchase', $package['purchase_id']);
     $service->adminSettleLedger($ledgerId, ['offline_ref_no' => 'OFFREAL' . time(), 'remark' => 'real flow settle'], 1, $admin);
     $assert((int)Db::name('yfth_reward_settlement_record')->where('ledger_id', $ledgerId)->count() === 1, 'settle_writes_only_yfth_settlement_record');
 
@@ -196,40 +196,41 @@ function rrRunTrustedEventFlow(callable $assert): void
         $service->recordPackageActivatedEvent($package['purchase_id'], 'real_package_activated_after_reverse:' . $package['purchase_id']);
     } catch (Throwable $e) {
     }
-    $assert((int)Db::name('yfth_reward_ledger')->where('business_id', $package['purchase_id'])->count() === 1, 'package_reactivation_after_reverse_does_not_create_second_ledger');
+    $assert(rrCountLedgerByBusiness('package_5980', 'package_purchase', $package['purchase_id']) === 1, 'package_reactivation_after_reverse_does_not_create_second_ledger');
     $assert((int)Db::name('yfth_reward_adjustment')->where('ledger_id', $ledgerId)->where('adjustment_type', 'reverse')->count() === 1, 'package_reverse_adjustment_deduped');
 
     $invalidPackage = rrCreatePackageBusiness(810004, 1);
     rrCreateCandidate('package_5980', 810003, 810004, 'customer', 0);
     $service->recordPackageActivatedEvent($invalidPackage['purchase_id'], 'real_package_invalid_scan:' . $invalidPackage['purchase_id']);
-    Db::name('yfth_reward_ledger')->where('business_id', $invalidPackage['purchase_id'])->update(['observe_end_time' => time() - 1]);
+    rrLedgerQuery('package_5980', 'package_purchase', $invalidPackage['purchase_id'])->update(['observe_end_time' => time() - 1]);
     Db::name('yfth_package_instance')->where('id', $invalidPackage['instance_id'])->update(['status' => 'refunded', 'refund_status' => 'succeeded']);
     Db::name('yfth_package_purchase')->where('id', $invalidPackage['purchase_id'])->update(['purchase_status' => 'refunded']);
     $service->adminScan(['dry_run' => 0, 'limit' => 50], 1, $admin);
     $service->adminScan(['dry_run' => 0, 'limit' => 50], 1, $admin);
-    $invalidLedgerId = (int)Db::name('yfth_reward_ledger')->where('business_id', $invalidPackage['purchase_id'])->value('id');
+    $invalidLedgerId = rrLedgerIdByBusiness('package_5980', 'package_purchase', $invalidPackage['purchase_id']);
     $assert((int)Db::name('yfth_reward_ledger')->where('id', $invalidLedgerId)->where('status', 'invalid')->count() === 1, 'package_scan_invalidates_failed_business');
     $assert((int)Db::name('yfth_reward_adjustment')->where('ledger_id', $invalidLedgerId)->where('adjustment_type', 'void')->count() === 1, 'package_invalid_scan_adjustment_deduped');
 
     rrCreateRewardRule($service, 'franchise_opening', 200, 1);
+    $assert(rrCountLedgerByBusiness('franchise_opening', 'franchise_application', $package['purchase_id']) === 0, 'package_business_id_does_not_pollute_franchise_ledger_query');
     rrCreateCandidate('franchise_opening', 820001, 820002, 'franchisee', 880001);
     $applicationId = rrCreateFranchiseApplication(820002, 'submitted', 880001, true, true);
     try {
         $service->recordFranchiseOpenedEvent($applicationId, 'real_franchise_before_opened:' . $applicationId);
         $assert(false, 'franchise_before_opened_rejected');
     } catch (Throwable $e) {
-        $assert((int)Db::name('yfth_reward_ledger')->where('scene', 'franchise_opening')->count() === 0, 'franchise_before_opened_rejected');
+        $assert(rrCountLedgerByBusiness('franchise_opening', 'franchise_application', $applicationId) === 0, 'franchise_before_opened_rejected');
     }
 
     Db::name('yfth_franchise_application')->where('id', $applicationId)->update(['status' => 'opened', 'update_time' => time()]);
     $service->recordFranchiseOpenedEvent($applicationId, 'real_franchise_opened:' . $applicationId);
     $service->recordFranchiseOpenedEvent($applicationId, 'real_franchise_opened_repeat:' . $applicationId);
-    $assert((int)Db::name('yfth_reward_ledger')->where('scene', 'franchise_opening')->where('business_id', $applicationId)->count() === 1, 'duplicate_franchise_opened_does_not_create_duplicate_ledger');
+    $assert(rrCountLedgerByBusiness('franchise_opening', 'franchise_application', $applicationId) === 1, 'duplicate_franchise_opened_does_not_create_duplicate_ledger');
     $service->adminScan(['dry_run' => 0, 'limit' => 50], 1, $admin);
-    $assert((int)Db::name('yfth_reward_ledger')->where('business_id', $applicationId)->where('status', 'observing')->count() === 1, 'franchise_scan_before_observe_end_keeps_observing');
-    Db::name('yfth_reward_ledger')->where('business_id', $applicationId)->update(['observe_end_time' => time() - 1]);
+    $assert(rrCountLedgerByBusiness('franchise_opening', 'franchise_application', $applicationId, 'observing') === 1, 'franchise_scan_before_observe_end_keeps_observing');
+    rrLedgerQuery('franchise_opening', 'franchise_application', $applicationId)->update(['observe_end_time' => time() - 1]);
     $scan = $service->adminScan(['dry_run' => 0, 'limit' => 50], 1, $admin);
-    $assert((int)$scan['valid'] >= 1 && (int)Db::name('yfth_reward_ledger')->where('business_id', $applicationId)->where('status', 'valid')->count() === 1, 'franchise_scan_after_observe_end_promotes_valid');
+    $assert((int)$scan['valid'] >= 1 && rrCountLedgerByBusiness('franchise_opening', 'franchise_application', $applicationId, 'valid') === 1, 'franchise_scan_after_observe_end_promotes_valid');
 
     Db::name('yfth_franchise_application')->where('id', $applicationId)->update(['status' => 'revoked', 'update_time' => time()]);
     Db::name('yfth_franchise_identity_grant')->where('application_id', $applicationId)->update(['status' => 'revoked', 'active_key' => null, 'update_time' => time()]);
@@ -238,16 +239,16 @@ function rrRunTrustedEventFlow(callable $assert): void
         $service->recordFranchiseOpenedEvent($applicationId, 'real_franchise_reopened_after_reverse:' . $applicationId);
     } catch (Throwable $e) {
     }
-    $assert((int)Db::name('yfth_reward_ledger')->where('business_id', $applicationId)->count() === 1, 'franchise_reopened_after_reverse_does_not_create_second_ledger');
+    $assert(rrCountLedgerByBusiness('franchise_opening', 'franchise_application', $applicationId) === 1, 'franchise_reopened_after_reverse_does_not_create_second_ledger');
 
     rrCreateCandidate('franchise_opening', 820003, 820004, 'franchisee', 880002);
     $invalidApplicationId = rrCreateFranchiseApplication(820004, 'opened', 880002, true, true);
     $service->recordFranchiseOpenedEvent($invalidApplicationId, 'real_franchise_invalid_scan:' . $invalidApplicationId);
-    Db::name('yfth_reward_ledger')->where('business_id', $invalidApplicationId)->update(['observe_end_time' => time() - 1]);
+    rrLedgerQuery('franchise_opening', 'franchise_application', $invalidApplicationId)->update(['observe_end_time' => time() - 1]);
     Db::name('yfth_franchise_identity_grant')->where('application_id', $invalidApplicationId)->update(['status' => 'revoked', 'active_key' => null, 'update_time' => time()]);
     $service->adminScan(['dry_run' => 0, 'limit' => 50], 1, $admin);
     $service->adminScan(['dry_run' => 0, 'limit' => 50], 1, $admin);
-    $invalidFranchiseLedgerId = (int)Db::name('yfth_reward_ledger')->where('business_id', $invalidApplicationId)->value('id');
+    $invalidFranchiseLedgerId = rrLedgerIdByBusiness('franchise_opening', 'franchise_application', $invalidApplicationId);
     $assert((int)Db::name('yfth_reward_ledger')->where('id', $invalidFranchiseLedgerId)->where('status', 'invalid')->count() === 1, 'franchise_scan_invalidates_inactive_grant');
     $assert((int)Db::name('yfth_reward_adjustment')->where('ledger_id', $invalidFranchiseLedgerId)->where('adjustment_type', 'void')->count() === 1, 'franchise_invalid_scan_adjustment_deduped');
 
@@ -332,7 +333,7 @@ function rrCreateFranchiseApplication(int $uid, string $status, int $storeId, bo
     $now = time();
     $suffix = $uid . $now . random_int(1000, 9999);
     rrEnsureSystemStore($storeId);
-    $applicationId = Db::name('yfth_franchise_application')->insertGetId([
+    $application = [
         'application_no' => 'FAREAL' . $suffix,
         'applicant_uid' => $uid,
         'name' => 'Real Flow Applicant',
@@ -347,7 +348,8 @@ function rrCreateFranchiseApplication(int $uid, string $status, int $storeId, bo
         'remark' => '',
         'create_time' => $now,
         'update_time' => $now,
-    ]);
+    ];
+    $applicationId = Db::name('yfth_franchise_application')->insertGetId($application);
     Db::name('yfth_franchise_store_profile')->insert([
         'application_id' => $applicationId,
         'contract_id' => 0,
@@ -422,6 +424,28 @@ function rrFundingSnapshot(): array
         $snapshot['user_money_rows'] = 'missing';
     }
     return $snapshot;
+}
+
+function rrLedgerQuery(string $scene, string $businessType, int $businessId)
+{
+    return Db::name('yfth_reward_ledger')
+        ->where('scene', $scene)
+        ->where('business_type', $businessType)
+        ->where('business_id', $businessId);
+}
+
+function rrCountLedgerByBusiness(string $scene, string $businessType, int $businessId, string $status = ''): int
+{
+    $query = rrLedgerQuery($scene, $businessType, $businessId);
+    if ($status !== '') {
+        $query->where('status', $status);
+    }
+    return (int)$query->count();
+}
+
+function rrLedgerIdByBusiness(string $scene, string $businessType, int $businessId): int
+{
+    return (int)rrLedgerQuery($scene, $businessType, $businessId)->value('id');
 }
 
 function rrCleanup(): void

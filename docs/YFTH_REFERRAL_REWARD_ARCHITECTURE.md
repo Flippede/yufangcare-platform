@@ -208,6 +208,8 @@ The real-flow script performs source guards by default. When `YFTH_REFERRAL_REWA
 
 The P2 validation hardening also fixes PHP 7.4 string-literal compatibility in both referral reward check scripts and supports both old and short real-flow DB environment aliases, for example `YFTH_REAL_FLOW_DB_HOSTNAME` or `YFTH_REAL_FLOW_DB_HOST`.
 
+The real-flow ledger assertions now use shared helper queries scoped by `scene`, `business_type`, and `business_id`. This prevents package `package_purchase` ledger rows and franchise `franchise_application` ledger rows from being miscounted when their auto-increment business ids overlap or are otherwise the same numeric value.
+
 ## Not Implemented
 
 - Automatic cash payment.
