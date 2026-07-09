@@ -204,7 +204,9 @@ Added checks:
 
 They validate migration shape, indexes, permissions, user-forbidden fields, admin permission assertions, published-rule immutability, integer-cent amounts, event idempotency, read-only ledger snapshots, append-only adjustments, offline settlement markers, and CRMEB distribution/balance/order/stock non-mutation boundaries.
 
-The real-flow script performs source guards by default and can execute an isolated MySQL service-level package flow when `YFTH_REFERRAL_REWARD_REAL_FLOW_EXECUTE=1` and the documented `YFTH_REAL_FLOW_*` database environment variables are set.
+The real-flow script performs source guards by default. When `YFTH_REFERRAL_REWARD_REAL_FLOW_EXECUTE=1`, `YFTH_REAL_FLOW_ISOLATED_DB=1`, and the documented `YFTH_REAL_FLOW_*` database environment variables are set, it executes isolated MySQL service-level package and franchise-opening flows. The package path covers duplicate activation idempotency, observing scan before and after due time, offline settlement marker creation, package refund reverse idempotency, invalid package scan void idempotency, and CRMEB funding boundary snapshots. The franchise path covers pre-open rejection, trusted `franchise_opened` attribution, duplicate opened-event idempotency, observing scan before and after due time, inactive grant/store revalidation, and invalidation adjustment idempotency.
+
+The P2 validation hardening also fixes PHP 7.4 string-literal compatibility in both referral reward check scripts and supports both old and short real-flow DB environment aliases, for example `YFTH_REAL_FLOW_DB_HOSTNAME` or `YFTH_REAL_FLOW_DB_HOST`.
 
 ## Not Implemented
 

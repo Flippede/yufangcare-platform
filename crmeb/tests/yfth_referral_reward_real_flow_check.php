@@ -42,7 +42,7 @@ try {
     $assert($contains($service, 'resolveTrustedPackageEvent') && $contains($service, 'referral_package_not_activated'), 'package_event_revalidates_real_purchase_and_instance');
     $assert($contains($service, 'resolveTrustedFranchiseEvent') && $contains($service, 'franchiseBusinessIsOpened'), 'franchise_event_revalidates_opened_business');
     $assert($contains($service, 'referral_candidate_business_mismatch'), 'candidate_id_must_match_real_business_uid');
-    $assert(!$contains($service, "(int)($data['referred_uid']"), 'client_referred_uid_is_not_trusted');
+    $assert(!$contains($service, '(int)($data[\'referred_uid\']'), 'client_referred_uid_is_not_trusted');
     $assert($contains($migration, 'ledger_unique_key') && $contains($migration, 'uniq_yfth_reward_ledger_unique_key'), 'immutable_ledger_unique_key_migration_exists');
     $assert($contains($service, "getOne(['ledger_unique_key'") && $contains($service, 'isUniqueConflict'), 'duplicate_ledger_guard_uses_immutable_key');
     $assert($contains($service, 'revalidateLedgerBusiness') && $contains($service, 'markLedgerInvalid'), 'observing_scan_revalidates_and_invalidates');
@@ -78,17 +78,19 @@ if (!$executeFlow) {
             {
                 parent::loadEnv($envName);
                 foreach ([
-                    'YFTH_REAL_FLOW_DB_HOSTNAME' => 'database.hostname',
-                    'YFTH_REAL_FLOW_DB_HOSTPORT' => 'database.hostport',
-                    'YFTH_REAL_FLOW_DB_USERNAME' => 'database.username',
-                    'YFTH_REAL_FLOW_DB_PASSWORD' => 'database.password',
-                    'YFTH_REAL_FLOW_DB_DATABASE' => 'database.database',
-                    'YFTH_REAL_FLOW_DB_PREFIX' => 'database.prefix',
-                    'YFTH_REAL_FLOW_DB_CHARSET' => 'database.charset',
-                ] as $envKey => $configKey) {
-                    $value = getenv($envKey);
+                    ['YFTH_REAL_FLOW_DB_HOSTNAME', 'YFTH_REAL_FLOW_DB_HOST', 'database.hostname'],
+                    ['YFTH_REAL_FLOW_DB_HOSTPORT', 'YFTH_REAL_FLOW_DB_PORT', 'database.hostport'],
+                    ['YFTH_REAL_FLOW_DB_USERNAME', 'YFTH_REAL_FLOW_DB_USER', 'database.username'],
+                    ['YFTH_REAL_FLOW_DB_PASSWORD', '', 'database.password'],
+                    ['YFTH_REAL_FLOW_DB_DATABASE', 'YFTH_REAL_FLOW_DB_NAME', 'database.database'],
+                    ['YFTH_REAL_FLOW_DB_PREFIX', '', 'database.prefix'],
+                    ['YFTH_REAL_FLOW_DB_CHARSET', '', 'database.charset'],
+                ] as $env) {
+                    $primary = getenv($env[0]);
+                    $alias = $env[1] !== '' ? getenv($env[1]) : false;
+                    $value = $primary !== false ? $primary : $alias;
                     if ($value !== false) {
-                        $this->env->set($configKey, $value);
+                        $this->env->set($env[2], $value);
                     }
                 }
                 if ((string)getenv('YFTH_REAL_FLOW_DB_PASSWORD_EMPTY') === '1') {
@@ -116,7 +118,7 @@ if (!$executeFlow) {
             rrRunTrustedEventFlow($assert);
         }
     } catch (Throwable $e) {
-        $failures[] = 'real_flow_exception:' . $e->getMessage() . ':' . $e->getFile() . ':' . $e->getLine();
+        $failures[] = 'real_flow_exception:' . $e->getMessage() . ':' . $e->getFile() . ':' . $e->getLine() . ':' . $e->getTraceAsString();
     }
 }
 
@@ -135,16 +137,23 @@ foreach ($passes as $pass) {
     echo "[PASS] {$pass}\n";
 }
 
-echo $executeFlow
-    ? "[OK] YFTH referral reward real-flow guards verified on isolated MySQL.\n"
-    : "[OK] YFTH referral reward P1/P2 source guards passed; isolated MySQL flow skipped.\n";
+if ($executeFlow) {
+    echo "[OK] YFTH referral reward real package flow verified.\n";
+    echo "[OK] YFTH referral reward real franchise flow verified.\n";
+    echo "[OK] YFTH referral reward CRMEB funding boundary verified.\n";
+} else {
+    echo "[OK] YFTH referral reward P1/P2 source guards passed; isolated MySQL flow skipped.\n";
+}
 
 function rrAssertIndexes(callable $assert, string $database, string $prefix): void
 {
     foreach ([
         [$prefix . 'yfth_reward_ledger', 'uniq_yfth_reward_ledger_unique_key'],
         [$prefix . 'yfth_reward_ledger', 'uniq_yfth_reward_ledger_active_key'],
+        [$prefix . 'yfth_referral_event', 'uniq_yfth_referral_event_idempotency'],
+        [$prefix . 'yfth_referral_candidate', 'uniq_yfth_referral_candidate_active_key'],
         [$prefix . 'yfth_reward_adjustment', 'uniq_yfth_reward_adjustment_dedupe'],
+        [$prefix . 'yfth_reward_settlement_record', 'uniq_yfth_reward_settlement_active'],
     ] as $index) {
         $rows = Db::query(
             'SELECT COUNT(*) AS cnt FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND INDEX_NAME = ?',
@@ -156,109 +165,298 @@ function rrAssertIndexes(callable $assert, string $database, string $prefix): vo
 
 function rrRunTrustedEventFlow(callable $assert): void
 {
-    $now = time();
-    $uid = 810002;
-    $referrerUid = 810001;
+    rrCleanup();
+    $service = app()->make(ReferralRewardServices::class);
+    $admin = ['id' => 1, 'level' => 0];
+    $fundingBefore = rrFundingSnapshot();
 
-    Db::startTrans();
+    rrCreateRewardRule($service, 'package_5980', 100, 1);
+    $package = rrCreatePackageBusiness(810002, 1);
+    rrCreateCandidate('package_5980', 810001, 810002, 'customer', 0);
+    $service->recordPackageActivatedEvent($package['purchase_id'], 'real_package_activated:' . $package['purchase_id']);
+    $service->recordPackageActivatedEvent($package['purchase_id'], 'real_package_activated_repeat:' . $package['purchase_id']);
+    $assert((int)Db::name('yfth_reward_ledger')->where('scene', 'package_5980')->where('business_id', $package['purchase_id'])->count() === 1, 'duplicate_package_event_does_not_create_duplicate_ledger');
+
+    $earlyScan = $service->adminScan(['dry_run' => 0, 'limit' => 50], 1, $admin);
+    $assert((int)$earlyScan['matched'] === 0 && (int)Db::name('yfth_reward_ledger')->where('business_id', $package['purchase_id'])->where('status', 'observing')->count() === 1, 'package_scan_before_observe_end_keeps_observing');
+
+    Db::name('yfth_reward_ledger')->where('business_id', $package['purchase_id'])->update(['observe_end_time' => time() - 1]);
+    $scan = $service->adminScan(['dry_run' => 0, 'limit' => 50], 1, $admin);
+    $assert((int)$scan['valid'] >= 1 && (int)Db::name('yfth_reward_ledger')->where('business_id', $package['purchase_id'])->where('status', 'valid')->count() === 1, 'package_scan_after_observe_end_promotes_valid');
+
+    $ledgerId = (int)Db::name('yfth_reward_ledger')->where('business_id', $package['purchase_id'])->value('id');
+    $service->adminSettleLedger($ledgerId, ['offline_ref_no' => 'OFFREAL' . time(), 'remark' => 'real flow settle'], 1, $admin);
+    $assert((int)Db::name('yfth_reward_settlement_record')->where('ledger_id', $ledgerId)->count() === 1, 'settle_writes_only_yfth_settlement_record');
+
+    Db::name('yfth_package_instance')->where('id', $package['instance_id'])->update(['status' => 'refunded', 'refund_status' => 'succeeded']);
+    Db::name('yfth_package_purchase')->where('id', $package['purchase_id'])->update(['purchase_status' => 'refunded']);
+    $service->recordPackageNegativeEvent($package['purchase_id'], 'package_refunded', 'real_package_refunded:' . $package['purchase_id']);
+    $service->recordPackageNegativeEvent($package['purchase_id'], 'package_refunded', 'real_package_refunded_repeat:' . $package['purchase_id']);
     try {
-        foreach ([
-            'yfth_reward_settlement_record',
-            'yfth_reward_adjustment',
-            'yfth_reward_ledger_snapshot',
-            'yfth_reward_ledger',
-            'yfth_reward_rule_item',
-            'yfth_reward_rule_version',
-            'yfth_referral_attribution',
-            'yfth_referral_event',
-            'yfth_referral_candidate',
-            'yfth_package_instance',
-            'yfth_package_purchase',
-        ] as $table) {
+        $service->recordPackageActivatedEvent($package['purchase_id'], 'real_package_activated_after_reverse:' . $package['purchase_id']);
+    } catch (Throwable $e) {
+    }
+    $assert((int)Db::name('yfth_reward_ledger')->where('business_id', $package['purchase_id'])->count() === 1, 'package_reactivation_after_reverse_does_not_create_second_ledger');
+    $assert((int)Db::name('yfth_reward_adjustment')->where('ledger_id', $ledgerId)->where('adjustment_type', 'reverse')->count() === 1, 'package_reverse_adjustment_deduped');
+
+    $invalidPackage = rrCreatePackageBusiness(810004, 1);
+    rrCreateCandidate('package_5980', 810003, 810004, 'customer', 0);
+    $service->recordPackageActivatedEvent($invalidPackage['purchase_id'], 'real_package_invalid_scan:' . $invalidPackage['purchase_id']);
+    Db::name('yfth_reward_ledger')->where('business_id', $invalidPackage['purchase_id'])->update(['observe_end_time' => time() - 1]);
+    Db::name('yfth_package_instance')->where('id', $invalidPackage['instance_id'])->update(['status' => 'refunded', 'refund_status' => 'succeeded']);
+    Db::name('yfth_package_purchase')->where('id', $invalidPackage['purchase_id'])->update(['purchase_status' => 'refunded']);
+    $service->adminScan(['dry_run' => 0, 'limit' => 50], 1, $admin);
+    $service->adminScan(['dry_run' => 0, 'limit' => 50], 1, $admin);
+    $invalidLedgerId = (int)Db::name('yfth_reward_ledger')->where('business_id', $invalidPackage['purchase_id'])->value('id');
+    $assert((int)Db::name('yfth_reward_ledger')->where('id', $invalidLedgerId)->where('status', 'invalid')->count() === 1, 'package_scan_invalidates_failed_business');
+    $assert((int)Db::name('yfth_reward_adjustment')->where('ledger_id', $invalidLedgerId)->where('adjustment_type', 'void')->count() === 1, 'package_invalid_scan_adjustment_deduped');
+
+    rrCreateRewardRule($service, 'franchise_opening', 200, 1);
+    rrCreateCandidate('franchise_opening', 820001, 820002, 'franchisee', 880001);
+    $applicationId = rrCreateFranchiseApplication(820002, 'submitted', 880001, true, true);
+    try {
+        $service->recordFranchiseOpenedEvent($applicationId, 'real_franchise_before_opened:' . $applicationId);
+        $assert(false, 'franchise_before_opened_rejected');
+    } catch (Throwable $e) {
+        $assert((int)Db::name('yfth_reward_ledger')->where('scene', 'franchise_opening')->count() === 0, 'franchise_before_opened_rejected');
+    }
+
+    Db::name('yfth_franchise_application')->where('id', $applicationId)->update(['status' => 'opened', 'update_time' => time()]);
+    $service->recordFranchiseOpenedEvent($applicationId, 'real_franchise_opened:' . $applicationId);
+    $service->recordFranchiseOpenedEvent($applicationId, 'real_franchise_opened_repeat:' . $applicationId);
+    $assert((int)Db::name('yfth_reward_ledger')->where('scene', 'franchise_opening')->where('business_id', $applicationId)->count() === 1, 'duplicate_franchise_opened_does_not_create_duplicate_ledger');
+    $service->adminScan(['dry_run' => 0, 'limit' => 50], 1, $admin);
+    $assert((int)Db::name('yfth_reward_ledger')->where('business_id', $applicationId)->where('status', 'observing')->count() === 1, 'franchise_scan_before_observe_end_keeps_observing');
+    Db::name('yfth_reward_ledger')->where('business_id', $applicationId)->update(['observe_end_time' => time() - 1]);
+    $scan = $service->adminScan(['dry_run' => 0, 'limit' => 50], 1, $admin);
+    $assert((int)$scan['valid'] >= 1 && (int)Db::name('yfth_reward_ledger')->where('business_id', $applicationId)->where('status', 'valid')->count() === 1, 'franchise_scan_after_observe_end_promotes_valid');
+
+    Db::name('yfth_franchise_application')->where('id', $applicationId)->update(['status' => 'revoked', 'update_time' => time()]);
+    Db::name('yfth_franchise_identity_grant')->where('application_id', $applicationId)->update(['status' => 'revoked', 'active_key' => null, 'update_time' => time()]);
+    $service->recordFranchiseNegativeEvent($applicationId, 'franchise_revoked', 'real_franchise_revoked:' . $applicationId);
+    try {
+        $service->recordFranchiseOpenedEvent($applicationId, 'real_franchise_reopened_after_reverse:' . $applicationId);
+    } catch (Throwable $e) {
+    }
+    $assert((int)Db::name('yfth_reward_ledger')->where('business_id', $applicationId)->count() === 1, 'franchise_reopened_after_reverse_does_not_create_second_ledger');
+
+    rrCreateCandidate('franchise_opening', 820003, 820004, 'franchisee', 880002);
+    $invalidApplicationId = rrCreateFranchiseApplication(820004, 'opened', 880002, true, true);
+    $service->recordFranchiseOpenedEvent($invalidApplicationId, 'real_franchise_invalid_scan:' . $invalidApplicationId);
+    Db::name('yfth_reward_ledger')->where('business_id', $invalidApplicationId)->update(['observe_end_time' => time() - 1]);
+    Db::name('yfth_franchise_identity_grant')->where('application_id', $invalidApplicationId)->update(['status' => 'revoked', 'active_key' => null, 'update_time' => time()]);
+    $service->adminScan(['dry_run' => 0, 'limit' => 50], 1, $admin);
+    $service->adminScan(['dry_run' => 0, 'limit' => 50], 1, $admin);
+    $invalidFranchiseLedgerId = (int)Db::name('yfth_reward_ledger')->where('business_id', $invalidApplicationId)->value('id');
+    $assert((int)Db::name('yfth_reward_ledger')->where('id', $invalidFranchiseLedgerId)->where('status', 'invalid')->count() === 1, 'franchise_scan_invalidates_inactive_grant');
+    $assert((int)Db::name('yfth_reward_adjustment')->where('ledger_id', $invalidFranchiseLedgerId)->where('adjustment_type', 'void')->count() === 1, 'franchise_invalid_scan_adjustment_deduped');
+
+    $fundingAfter = rrFundingSnapshot();
+    $assert($fundingBefore === $fundingAfter, 'crmeb_funding_tables_unchanged');
+}
+
+function rrCreateRewardRule(ReferralRewardServices $service, string $scene, int $amountCent, int $observeDays): void
+{
+    $rule = $service->adminRuleSave([
+        'scene' => $scene,
+        'name' => 'Real flow ' . $scene . ' reward',
+        'version_no' => 1,
+        'status' => 'draft',
+        'items' => [[
+            'reward_scene' => $scene,
+            'reward_type' => 'offline_reward',
+            'title' => 'Real flow reward',
+            'amount_cent' => $amountCent,
+            'observe_days' => $observeDays,
+            'condition_snapshot' => [],
+            'status' => 'active',
+        ]],
+    ], 1, ['id' => 1, 'level' => 0]);
+    $service->adminRulePublish((int)$rule['rule']['id'], 1, ['id' => 1, 'level' => 0]);
+}
+
+function rrCreateCandidate(string $scene, int $referrerUid, int $referredUid, string $roleCode, int $storeId): void
+{
+    Db::name('yfth_referral_candidate')->insert([
+        'scene' => $scene,
+        'referrer_uid' => $referrerUid,
+        'referrer_role_code' => $roleCode,
+        'referrer_store_id' => $storeId,
+        'referred_uid' => $referredUid,
+        'source' => 'code',
+        'status' => 'bound',
+        'active_key' => $scene . ':uid:' . $referredUid,
+        'bind_time' => time(),
+        'expire_time' => time() + 86400,
+        'create_time' => time(),
+        'update_time' => time(),
+    ]);
+}
+
+function rrCreatePackageBusiness(int $uid, int $storeId): array
+{
+    $now = time();
+    $suffix = $uid . $now . random_int(1000, 9999);
+    $purchaseId = Db::name('yfth_package_purchase')->insertGetId([
+        'purchase_no' => 'YPREAL' . $suffix,
+        'uid' => $uid,
+        'store_id' => $storeId,
+        'order_id' => (int)substr($suffix, -8),
+        'order_sn' => 'ORDERREAL' . $suffix,
+        'purchase_status' => 'activated',
+        'activation_status' => 'succeeded',
+        'add_time' => $now,
+        'update_time' => $now,
+    ]);
+    $instanceId = Db::name('yfth_package_instance')->insertGetId([
+        'instance_no' => 'YIREAL' . $suffix,
+        'purchase_id' => $purchaseId,
+        'uid' => $uid,
+        'store_id' => $storeId,
+        'order_id' => (int)substr($suffix, -8),
+        'order_sn' => 'ORDERREAL' . $suffix,
+        'status' => 'active',
+        'refund_status' => 'none',
+        'start_time' => $now,
+        'end_time' => $now + 86400,
+        'activated_time' => $now,
+        'add_time' => $now,
+        'update_time' => $now,
+    ]);
+    Db::name('yfth_package_purchase')->where('id', $purchaseId)->update(['instance_id' => $instanceId]);
+    return ['purchase_id' => $purchaseId, 'instance_id' => $instanceId];
+}
+
+function rrCreateFranchiseApplication(int $uid, string $status, int $storeId, bool $profileBound, bool $grantActive): int
+{
+    $now = time();
+    $suffix = $uid . $now . random_int(1000, 9999);
+    rrEnsureSystemStore($storeId);
+    $applicationId = Db::name('yfth_franchise_application')->insertGetId([
+        'application_no' => 'FAREAL' . $suffix,
+        'applicant_uid' => $uid,
+        'name' => 'Real Flow Applicant',
+        'phone' => '13800000000',
+        'city' => 'Shanghai',
+        'region' => 'Pudong',
+        'intention_area' => 'Real Flow Area',
+        'budget' => '0.00',
+        'source' => 'real_flow',
+        'status' => $status,
+        'assigned_uid' => 1,
+        'remark' => '',
+        'create_time' => $now,
+        'update_time' => $now,
+    ]);
+    Db::name('yfth_franchise_store_profile')->insert([
+        'application_id' => $applicationId,
+        'contract_id' => 0,
+        'intended_store_type' => 'standard',
+        'store_name' => 'Real Flow Store',
+        'province' => 'Shanghai',
+        'city' => 'Shanghai',
+        'district' => 'Pudong',
+        'address' => 'Real Flow Road',
+        'business_subject_id' => 0,
+        'system_store_id' => $storeId,
+        'status' => $profileBound ? 'bound' : 'verified',
+        'create_time' => $now,
+        'update_time' => $now,
+    ]);
+    Db::name('yfth_franchise_identity_grant')->insert([
+        'application_id' => $applicationId,
+        'acceptance_id' => 0,
+        'target_uid' => $uid,
+        'store_id' => $storeId,
+        'role_code' => 'franchisee',
+        'store_role_id' => 0,
+        'status' => $grantActive ? 'active' : 'pending',
+        'grant_uid' => 1,
+        'grant_time' => $now,
+        'revoke_uid' => 0,
+        'revoke_time' => 0,
+        'reason' => 'real_flow',
+        'active_key' => $grantActive ? $uid . ':' . $storeId . ':franchisee' : null,
+        'create_time' => $now,
+        'update_time' => $now,
+    ]);
+    return $applicationId;
+}
+
+function rrEnsureSystemStore(int $storeId): void
+{
+    $existing = Db::name('system_store')->where('id', $storeId)->find();
+    if ($existing) {
+        Db::name('system_store')->where('id', $storeId)->update(['is_show' => 1, 'is_del' => 0]);
+        return;
+    }
+    Db::name('system_store')->insert([
+        'id' => $storeId,
+        'name' => 'Real Flow Store ' . $storeId,
+        'introduction' => '',
+        'phone' => '13800000000',
+        'address' => 'Shanghai',
+        'detailed_address' => 'Real Flow Road',
+        'image' => '',
+        'oblong_image' => '',
+        'latitude' => '',
+        'longitude' => '',
+        'valid_time' => '',
+        'day_time' => '',
+        'add_time' => time(),
+        'is_show' => 1,
+        'is_del' => 0,
+    ]);
+}
+
+function rrFundingSnapshot(): array
+{
+    $snapshot = [];
+    foreach (['user_spread', 'user_brokerage', 'user_bill', 'store_order'] as $table) {
+        $snapshot[$table] = rrTableExists($table) ? (int)Db::name($table)->count() : 'missing';
+    }
+    if (rrTableExists('user')) {
+        $rows = Db::name('user')->field('uid,now_money,integral')->whereIn('uid', [810001, 810002, 820001, 820002])->select()->toArray();
+        $snapshot['user_money_rows'] = $rows;
+    } else {
+        $snapshot['user_money_rows'] = 'missing';
+    }
+    return $snapshot;
+}
+
+function rrCleanup(): void
+{
+    foreach ([
+        'yfth_reward_settlement_record',
+        'yfth_reward_adjustment',
+        'yfth_reward_ledger_snapshot',
+        'yfth_reward_ledger',
+        'yfth_reward_rule_item',
+        'yfth_reward_rule_version',
+        'yfth_referral_attribution',
+        'yfth_referral_event',
+        'yfth_referral_candidate',
+        'yfth_franchise_identity_grant',
+        'yfth_franchise_store_profile',
+        'yfth_franchise_application',
+        'yfth_package_instance',
+        'yfth_package_purchase',
+    ] as $table) {
+        if (rrTableExists($table)) {
             Db::name($table)->where('id', '>', 0)->delete();
         }
+    }
+    if (rrTableExists('system_store')) {
+        Db::name('system_store')->whereIn('id', [880001, 880002])->delete();
+    }
+}
 
-        $ruleId = Db::name('yfth_reward_rule_version')->insertGetId([
-            'rule_no' => 'RRREAL' . $now,
-            'scene' => 'package_5980',
-            'name' => 'real flow package reward',
-            'version_no' => 1,
-            'status' => 'published',
-            'effective_start' => 0,
-            'effective_end' => 0,
-            'published_time' => $now,
-            'created_uid' => 1,
-            'create_time' => $now,
-            'update_time' => $now,
-        ]);
-        Db::name('yfth_reward_rule_item')->insert([
-            'rule_version_id' => $ruleId,
-            'reward_scene' => 'package_5980',
-            'reward_type' => 'offline_reward',
-            'title' => 'Package reward',
-            'amount_cent' => 100,
-            'observe_days' => 1,
-            'condition_snapshot' => '{}',
-            'status' => 'active',
-            'create_time' => $now,
-            'update_time' => $now,
-        ]);
-        Db::name('yfth_referral_candidate')->insert([
-            'scene' => 'package_5980',
-            'referrer_uid' => $referrerUid,
-            'referrer_role_code' => 'customer',
-            'referrer_store_id' => 0,
-            'referred_uid' => $uid,
-            'source' => 'code',
-            'status' => 'bound',
-            'active_key' => 'package_5980:uid:' . $uid,
-            'bind_time' => $now,
-            'expire_time' => $now + 86400,
-            'create_time' => $now,
-            'update_time' => $now,
-        ]);
-        $purchaseId = Db::name('yfth_package_purchase')->insertGetId([
-            'purchase_no' => 'YPREAL' . $now,
-            'uid' => $uid,
-            'store_id' => 1,
-            'order_id' => 900001,
-            'order_sn' => 'ORDERREAL' . $now,
-            'purchase_status' => 'activated',
-            'activation_status' => 'succeeded',
-            'create_time' => $now,
-            'update_time' => $now,
-        ]);
-        $instanceId = Db::name('yfth_package_instance')->insertGetId([
-            'instance_no' => 'YIREAL' . $now,
-            'purchase_id' => $purchaseId,
-            'uid' => $uid,
-            'store_id' => 1,
-            'order_id' => 900001,
-            'order_sn' => 'ORDERREAL' . $now,
-            'status' => 'active',
-            'refund_status' => 'none',
-            'start_time' => $now,
-            'end_time' => $now + 86400,
-            'activated_time' => $now,
-            'create_time' => $now,
-            'update_time' => $now,
-        ]);
-        Db::name('yfth_package_purchase')->where('id', $purchaseId)->update(['instance_id' => $instanceId]);
-
-        $service = app()->make(ReferralRewardServices::class);
-        $service->recordPackageActivatedEvent($purchaseId, 'real_package_activated:' . $purchaseId);
-        $service->recordPackageActivatedEvent($purchaseId, 'real_package_activated_repeat:' . $purchaseId);
-        $assert((int)Db::name('yfth_reward_ledger')->count() === 1, 'duplicate_package_event_does_not_create_duplicate_ledger');
-
-        Db::name('yfth_package_instance')->where('id', $instanceId)->update(['status' => 'refunded', 'refund_status' => 'succeeded']);
-        Db::name('yfth_package_purchase')->where('id', $purchaseId)->update(['purchase_status' => 'refunded']);
-        $service->recordPackageNegativeEvent($purchaseId, 'package_refunded', 'real_package_refunded:' . $purchaseId);
-        $service->recordPackageNegativeEvent($purchaseId, 'package_refunded', 'real_package_refunded_repeat:' . $purchaseId);
-        $assert((int)Db::name('yfth_reward_ledger')->where('status', 'reversed')->count() === 1, 'refund_reverses_existing_ledger_once');
-        $assert((int)Db::name('yfth_reward_adjustment')->where('adjustment_type', 'reverse')->count() === 1, 'refund_reverse_adjustment_deduped');
-        Db::commit();
+function rrTableExists(string $table): bool
+{
+    try {
+        Db::name($table)->limit(1)->find();
+        return true;
     } catch (Throwable $e) {
-        Db::rollback();
-        throw $e;
+        return false;
     }
 }

@@ -98,9 +98,9 @@ $assert($contains($service, 'marked_settled') && $contains($service, 'offline_re
 $assert($contains($service, 'package_activated') && $contains($service, 'franchise_opened'), 'service_creates_observing_ledger_only_on_valid_business_events');
 $assert($contains($service, 'package_refunded') && $contains($service, 'franchise_terminated'), 'service_reverses_on_negative_business_events');
 $assert($contains($service, 'resolveTrustedBusinessEvent') && $contains($service, 'resolveTrustedPackageEvent') && $contains($service, 'resolveTrustedFranchiseEvent'), 'business_events_are_resolved_from_trusted_sources');
-$assert($contains($service, 'referral_candidate_business_mismatch') && !$contains($service, "(int)($data['referred_uid']"), 'client_referred_uid_not_trusted_for_business_events');
+$assert($contains($service, 'referral_candidate_business_mismatch') && !$contains($service, '(int)($data[\'referred_uid\']'), 'client_referred_uid_not_trusted_for_business_events');
 $assert($contains($service, 'revalidateLedgerBusiness') && $contains($service, 'markLedgerInvalid') && $contains($service, 'reward_ledger_invalid'), 'observing_scan_revalidates_business_before_valid');
-$assert($contains($service, 'dedupe_key') && $contains($service, "reverse:' . (int)$before['id']"), 'reverse_adjustments_are_idempotent');
+$assert($contains($service, 'dedupe_key') && $contains($service, 'reverse:\' . (int)$before[\'id\']'), 'reverse_adjustments_are_idempotent');
 
 $packageActivation = $read('app/services/yfth/PackageActivationServices.php');
 $packageLifecycle = $read('app/services/yfth/PackageLifecycleServices.php');
