@@ -1,5 +1,24 @@
 # 项目交接文档
 
+## Current Fact Snapshot - Final Referral Relationship And Read-only Reward Ledger V1 Closure
+
+- Current branch after merge: `main`.
+- Preserved feature branch: `codex/yfth-referral-reward-ledger-v1`.
+- Main before merge: `6827cfdc6d1e2e06d59cb80b781bcfa4598da231`.
+- Final reviewed feature commit: `786e5fe6d48cadf1e909cd7e56a4dfabd0c101b9`.
+- Merge method: `git merge --ff-only codex/yfth-referral-reward-ledger-v1`.
+- Architecture review conclusion: A, passed; no Blocker/P1/P2/P3 remains.
+- Completed capabilities: referral code, referral candidate, referral event, C-side `package_5980` attribution, B-side `franchise_opening` attribution, immutable reward rule version, observing-period read-only ledger, ledger snapshot, offline settlement marker, append-only adjustment/reverse, user/franchisee read-only pages, and headquarters referral reward management page/API.
+- New tables: `yfth_referral_code`, `yfth_referral_candidate`, `yfth_referral_event`, `yfth_referral_attribution`, `yfth_reward_rule_version`, `yfth_reward_rule_item`, `yfth_reward_ledger`, `yfth_reward_ledger_snapshot`, `yfth_reward_adjustment`, and `yfth_reward_settlement_record`.
+- P1 closure: trusted business event resolver; true package activation/refund/close/freeze hooks; true `franchise_opened` hook; `ledger_unique_key` duplicate guard; observing scan business-state revalidation; published rule save forbidden.
+- P2 closure: PHP 7.4 validation scripts fixed; contract check passed; isolated MySQL real-flow passed; franchise ledger assertions scoped by `scene + business_type + business_id`; H5/mp-weixin compile passed.
+- CRMEB funding boundary: no `user_spread`, `user_brokerage`, `user_bill`, `now_money`, points, balance, commission, withdrawal, reward order, payment/refund mutation, or product/SKU stock/sales mutation.
+- Package/franchise/supply-chain boundary: referral reward only consumes trusted events or read-only scans; it does not create package orders, mutate package/refund state, mutate franchise/opening state, create purchase orders, ship/receive inventory, or mutate inventory balances/ledgers.
+- Verification: Architecture Auditor A review passed; PHP syntax passed; referral reward contract check passed; referral reward source guard passed; isolated MySQL referral reward real-flow passed; MySQL 8.0.46 migration run/rollback/rerun/duplicate run passed; package/franchise/supply-chain contract checks passed; admin build passed; uni-app Node checks passed; H5 production build passed; mp-weixin production compile passed; `git diff --check` passed.
+- Not implemented: automatic payment, withdrawal, CRMEB distribution integration, online settlement, revenue sharing, product quota return, complex multi-level reward, production deployment, and production database migration.
+- Production status: no production deployment, no production database connection, no production migration, and no server modification were performed.
+- Final main and origin/main commit should be read from real Git HEAD after this documentation closure commit and push.
+
 ## Current Fact Snapshot - Referral Relationship And Read-only Reward Ledger V1
 
 - Current development branch: `codex/yfth-referral-reward-ledger-v1`.
