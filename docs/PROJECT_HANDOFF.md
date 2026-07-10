@@ -1,5 +1,15 @@
 # 项目交接文档
 
+## Current Fact Snapshot - 9800 Direct Referral Release Scope Draft
+
+- 本轮仅创建 `9800` 上线版需求冻结文档，不写业务代码、不改接口、数据库、前端页面或既有业务模块。
+- 新上线口径：C 端家庭康养套餐 `9800`，B 端标准加盟店 `98000`；历史 `5980` / `59800` 口径需在后续专项中受控迁移。
+- 只有开通 `9800` 店铺会员的 C 端用户拥有一级直推资格；开通后永久绑定 B 商家，并脱离此前直推人的 active 层级。
+- C 端只做一级直推；奖励仅记录应返台账、状态、凭证和线下结算，不做自动打款、钱包或 CRMEB 分销佣金。
+- B 商家负责发货、自提、门店库存和线下返现处理；B 商家倒闭后会员降级为普通用户，并由绑定城市合伙人按最小必要信息原则线下跟进。
+- 城市合伙人是招商合伙人，分省/市/县三级；其收益来源是绑定 B 商家补货实付金额，比例待配置并由项目主控确认。
+- 后续开发前，项目主控必须确认 [YFTH_RELEASE_SCOPE_9800_DIRECT_REFERRAL.md](YFTH_RELEASE_SCOPE_9800_DIRECT_REFERRAL.md) 中的价格迁移、支付主体、规则比例、观察期、库存扣减和区域数据治理事项。
+
 ## Current Fact Snapshot - Final Monthly Benefit Claim And Fulfillment V1 Closure
 
 - Current branch after merge: `main`.
