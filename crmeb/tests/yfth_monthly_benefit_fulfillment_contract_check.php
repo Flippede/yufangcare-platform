@@ -105,6 +105,11 @@ $assert($contains($service, "where('id', (int)\$item['period_id'])->lock(true)->
 $assert($contains($service, 'begin(self::FULFILLMENT_DOMAIN, $eventType') && $contains($service, "'fulfillment:' . \$id"), 'service_transition_uses_yfth_idempotency_record');
 $assert($contains($service, "'user_cancel:' . \$id") && $contains($service, "'store_pickup:' . \$id"), 'service_user_and_store_writes_have_scoped_idempotency_keys');
 $assert($contains($service, "'admin_' . \$action . ':' . \$fulfillmentId . ':' . \$adminId"), 'service_admin_default_idempotency_key_includes_fulfillment_id');
+$assert($contains($service, "adminComplete(int \$id") && $contains($service, '[self::STATUS_SHIPPED, self::STATUS_PICKED_UP]') && !$contains($service, '[self::STATUS_CONFIRMED, self::STATUS_PREPARING, self::STATUS_SHIPPED, self::STATUS_PICKED_UP]'), 'admin_complete_rejects_confirmed_and_preparing_sources');
+$assert($contains($service, 'assertCompletionPath') && $contains($service, 'monthly_benefit_complete_requires_shipped') && $contains($service, 'monthly_benefit_pickup_complete_requires_pickup_confirm'), 'service_enforces_method_specific_complete_path');
+$assert($contains($service, 'allow_pickup_direct_complete') && $contains($service, "'event_type' => 'pickup_confirm'"), 'store_pickup_confirm_path_is_explicit');
+$assert($contains($service, 'monthly_benefit_delivery_company_required') && $contains($service, 'monthly_benefit_delivery_no_required'), 'service_requires_delivery_company_and_no_for_express_ship');
+$assert($contains($service, "'active_key'"), 'service_claim_payload_rejects_active_key');
 
 foreach ([
     "Db::name('store_order')",
@@ -136,6 +141,7 @@ $assert($contains($adminApi, 'yfthMonthlyBenefitFulfillmentList') && $contains($
 $assert($contains($adminRouter, 'monthly-benefit-fulfillment') && $contains($adminRouter, 'yfth-monthly-benefit-fulfillment-index'), 'admin_router_registered');
 $assert($contains($adminPage, 'yfthMonthlyBenefitFulfillmentList') && $contains($adminPage, 'client_operation_key'), 'admin_page_uses_real_api_and_operation_keys');
 $assert($contains($adminPage, '不创建 CRMEB 订单') && $contains($adminPage, '不修改商品/SKU库存'), 'admin_page_displays_boundary_text');
+$assert($contains($adminPage, "row.status === 'preparing'") && $contains($adminPage, "row.status === 'shipped'") && $contains($adminPage, '请填写承运方'), 'admin_page_matches_hardened_state_machine_and_shipping_required_fields');
 
 $assert($contains($uniApi, 'getYfthMonthlyBenefitCurrent') && $contains($uniApi, 'confirmYfthStoreWorkbenchMonthlyBenefitPickup'), 'uni_api_wrappers_exist');
 foreach (['monthly_benefit/index', 'monthly_benefit/history', 'monthly_benefit/detail', 'workbench/monthly_benefit_pickup'] as $page) {

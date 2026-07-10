@@ -13,7 +13,9 @@ class CssHandler {
 			styles[item] = (styles[item] ? styles[item] + ';' : '') + tagStyle[item];
 		this.styles = styles;
 	}
-	getStyle = data => this.styles = new CssParser(data, this.styles).parse();
+	getStyle(data) {
+		return this.styles = new CssParser(data, this.styles).parse();
+	}
 	match(name, attrs) {
 		var tmp, matched = (tmp = this.styles[name]) ? tmp + ';' : '';
 		if (attrs.class) {
@@ -42,8 +44,12 @@ class CssParser {
 			this.state(c);
 		return this.res;
 	}
-	section = () => this.data.substring(this.start, this.i);
-	isLetter = c => (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
+	section() {
+		return this.data.substring(this.start, this.i);
+	}
+	isLetter(c) {
+		return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
+	}
 	// 状态机
 	Space(c) {
 		if (c == '.' || c == '#' || this.isLetter(c)) {

@@ -21,13 +21,26 @@ Authoritative benefit ownership remains in existing package-benefit tables: `yft
 
 V1 fulfillment statuses are `pending_confirm`, `confirmed`, `preparing`, `shipped`, `picked_up`, `completed`, `cancelled`, `rejected`, and `exception`.
 
+Architecture review P1 root cause was that headquarters `complete` could previously move `confirmed` directly to `completed`, and `completed` immediately called `consumeProductBenefit()`. That could consume a monthly product benefit before preparation, shipment, or pickup had actually happened.
+
+P1 closure:
+
+- Express delivery completion path is now `pending_confirm -> confirmed -> preparing -> shipped -> completed`.
+- Headquarters `complete` for express delivery accepts only `shipped`; `pending_confirm`, `confirmed`, and `preparing` cannot be completed.
+- Self pickup path is `pending_confirm -> confirmed -> preparing -> pickup_confirm -> completed` in V1. The store workbench `pickup_confirm` action is the explicit same-store pickup action and records event type `pickup_confirm`.
+- Headquarters `complete` no longer bypasses self-pickup confirmation from `confirmed` or `preparing`.
+- `cancelled`, `rejected`, `exception`, and already `completed` records cannot be completed through a new illegal source transition.
+- Express `ship` requires both non-empty `delivery_company` and non-empty `delivery_no`.
+
 Completion consumes the product benefit exactly once by updating `yfth_benefit_item.status = used`, `fulfillment_status = product_fulfilled`, `quantity_available = 0.00`, and `quantity_used = quantity_total`. It also increments `yfth_benefit_period.fulfilled_item_count` and `yfth_package_instance.fulfilled_count`.
+
+Repeated `complete` or repeated same-store `pickup_confirm` returns the already completed fulfillment and does not run a second benefit consumption. The benefit item, period fulfilled count, and package instance fulfilled count are guarded by locked YFTH rows plus idempotency records.
 
 ## Trust Boundary
 
 User claim accepts `benefit_item_id` only as a selector. The service locks and re-reads the benefit item, plan, period, and package instance, then derives `uid`, `store_id`, `package_instance_id`, `benefit_plan_id`, and `benefit_period_id` server-side.
 
-User payloads containing `uid`, `owner_uid`, `store_id`, package/plan/period ids, status, product snapshot, quantity-used fields, or active key are rejected.
+User payloads containing `uid`, `owner_uid`, `store_id`, package/plan/period ids, status, product snapshot, quantity-used fields, or `active_key` are rejected at service layer, not only by controllers.
 
 Express delivery requires a real CRMEB `user_address` record owned by the current user. Self pickup requires an active CRMEB `system_store` as pickup store.
 
@@ -97,12 +110,15 @@ Executed validation for this feature branch:
 - `php crmeb/tests/yfth_monthly_benefit_fulfillment_contract_check.php`.
 - `php crmeb/tests/yfth_monthly_benefit_fulfillment_real_flow_check.php` source guard mode.
 - MySQL 8.0.46 isolated validation on temporary database `yfth_monthly_benefit_validation`: migration run, rollback to 0, rerun, duplicate run, index checks, duplicate active fulfillment guard, and duplicate idempotency guard.
+- Isolated MySQL service-level real-flow coverage: user claim success, duplicate claim idempotency, claim payload mismatch, non-owner claim rejection, unopened/expired/frozen/closed/refunded claim rejection, service-layer `active_key` rejection, pending and confirmed user cancellation behavior, preparing/shipped/completed cancellation rejection, headquarters legal express path, `confirmed -> completed` rejection, `preparing -> completed` rejection, shipping field validation, repeated complete one-time benefit consumption, rejected/cancelled/exception complete rejection, same-store pickup confirmation, cross-store pickup rejection, customer/service-mentor rejection, store-staff/store-manager/franchisee pickup permission, final benefit consumption once, event timeline, audit writes, and unchanged CRMEB/order/stock/product-quota/supply-chain/reward boundary snapshots.
 - Adjacent contracts: package benefit, service appointment, supply chain, and product quota.
 - Admin production build from `template/admin`.
 - Existing uni-app Node checks: multi-role shell contract and request fallback.
+- H5 production build through repository-external HBuilderX `uniapp-cli` plus Node 18.20.8.
+- mp-weixin production compile through repository-external HBuilderX `uniapp-cli --no-opt` plus Node 18.20.8.
 - `git diff --check main..HEAD`.
 
-H5 and mp-weixin production compilation were not rerun in this feature branch because `template/uni-app/package.json` currently has no npm build scripts and no local uni-app dependency tree. The existing Node contract checks above were executed instead; no production upload was performed.
+No WeChat upload was performed, and no production AppID, private key, upload key, server, or production database was used.
 
 ## Not Implemented
 

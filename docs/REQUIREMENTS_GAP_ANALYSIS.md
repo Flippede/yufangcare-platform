@@ -7,7 +7,11 @@
 - User claim does not trust client `uid`, `store_id`, package instance, benefit plan, benefit period, status, quantity, or product snapshot fields. The server re-reads locked YFTH rows and derives all ownership fields.
 - Completion consumes product benefits through `yfth_benefit_item` and package counters only. It does not create CRMEB orders, does not modify CRMEB product/SKU stock, and does not use product quota, balance, points, brokerage, commission, settlement, or revenue-sharing fields.
 - Claim, cancel, headquarters fulfillment actions, and store self-pickup confirmation use YFTH idempotency records and unified audit/events; duplicate active fulfillment is guarded by the fulfillment active key.
+- Architecture-review P1 closure: headquarters `complete` no longer allows `confirmed -> completed` or `preparing -> completed`; express delivery must reach `shipped` before final consumption, and same-store self pickup must use the store workbench `pickup_confirm` path.
+- P2 boundary closure: service-layer claim validation rejects `active_key`; express `ship` requires both `delivery_company` and `delivery_no`.
+- Service-level real-flow coverage now includes claim idempotency, payload mismatch, non-owner/unavailable package rejection, user cancel boundaries, legal and illegal headquarters transitions, repeated complete one-time consumption, same-store pickup confirmation, cross-store rejection, role permissions, audit/event writes, and unchanged CRMEB/order/stock/product-quota/supply-chain/reward snapshots.
 - MySQL 8.0.46 isolated migration run / rollback / rerun and duplicate-run checks were executed on temporary database `yfth_monthly_benefit_validation`.
+- Admin production build, uni-app request/context checks, H5 production build, and mp-weixin production compile were executed after the P1/P2 closure; no WeChat upload was performed.
 - Remaining gap after V1: automatic shipping integration, CRMEB logistics order linkage, supply-chain stock deduction for product benefit dispatch, delivery after-sale reversal, completed-benefit recovery, and production rollout.
 
 - 产品依据：`docs/PRODUCT_REQUIREMENTS.md` 与原始 DOCX

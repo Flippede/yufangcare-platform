@@ -466,7 +466,9 @@ class MpHtmlParser {
 		}
 		return true;
 	}
-	getName = val => this.xml ? val : val.toLowerCase();
+	getName(val) {
+		return this.xml ? val : val.toLowerCase();
+	}
 	getUrl(url) {
 		if (url[0] == '/') {
 			if (url[1] == '/') url = this.protocol + ':' + url;
@@ -475,9 +477,15 @@ class MpHtmlParser {
 			url = this.domain + '/' + url;
 		return url;
 	}
-	isClose = () => this.data[this.i] == '>' || (this.data[this.i] == '/' && this.data[this.i + 1] == '>');
-	section = () => this.data.substring(this.start, this.i);
-	siblings = () => this.STACK.length ? this.STACK[this.STACK.length - 1].children : this.DOM;
+	isClose() {
+		return this.data[this.i] == '>' || (this.data[this.i] == '/' && this.data[this.i + 1] == '>');
+	}
+	section() {
+		return this.data.substring(this.start, this.i);
+	}
+	siblings() {
+		return this.STACK.length ? this.STACK[this.STACK.length - 1].children : this.DOM;
+	}
 	// 状态机
 	Text(c) {
 		if (c == '<') {

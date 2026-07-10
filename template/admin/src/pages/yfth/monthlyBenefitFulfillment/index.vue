@@ -86,8 +86,8 @@
 
     <el-dialog :visible.sync="shipVisible" title="填写物流" width="460px">
       <el-form :model="shipForm" label-width="90px">
-        <el-form-item label="物流公司"><el-input v-model="shipForm.delivery_company" /></el-form-item>
-        <el-form-item label="物流单号"><el-input v-model="shipForm.delivery_no" /></el-form-item>
+        <el-form-item label="物流公司" required><el-input v-model="shipForm.delivery_company" placeholder="请输入承运方" /></el-form-item>
+        <el-form-item label="物流单号" required><el-input v-model="shipForm.delivery_no" placeholder="请输入物流单号" /></el-form-item>
         <el-form-item label="备注"><el-input v-model="shipForm.reason" /></el-form-item>
       </el-form>
       <span slot="footer">
@@ -123,6 +123,7 @@ export default {
         { label: '已确认', value: 'confirmed' },
         { label: '备货中', value: 'preparing' },
         { label: '已发货', value: 'shipped' },
+        { label: '已自提', value: 'picked_up' },
         { label: '已完成', value: 'completed' },
         { label: '已取消', value: 'cancelled' },
         { label: '已驳回', value: 'rejected' },
@@ -180,6 +181,14 @@ export default {
       this.shipVisible = true;
     },
     submitShip() {
+      if (!this.shipForm.delivery_company || !this.shipForm.delivery_company.trim()) {
+        this.$message.warning('请填写承运方');
+        return;
+      }
+      if (!this.shipForm.delivery_no || !this.shipForm.delivery_no.trim()) {
+        this.$message.warning('请填写物流单号');
+        return;
+      }
       yfthMonthlyBenefitFulfillmentShip(this.shipRow.id, Object.assign({}, this.shipForm, {
         client_operation_key: this.operationKey('ship', this.shipRow.id),
       })).then(() => {
@@ -189,10 +198,13 @@ export default {
       });
     },
     canShip(row) {
-      return row.fulfillment_method === 'express_delivery' && ['confirmed', 'preparing'].indexOf(row.status) !== -1;
+      return row.fulfillment_method === 'express_delivery' && row.status === 'preparing';
     },
     canComplete(row) {
-      return ['confirmed', 'preparing', 'shipped', 'picked_up'].indexOf(row.status) !== -1;
+      if (row.fulfillment_method === 'express_delivery') {
+        return row.status === 'shipped';
+      }
+      return row.fulfillment_method === 'self_pickup' && row.status === 'picked_up';
     },
     canCancel(row) {
       return ['pending_confirm', 'confirmed', 'preparing', 'exception'].indexOf(row.status) !== -1;

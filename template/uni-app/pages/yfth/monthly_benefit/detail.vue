@@ -13,7 +13,7 @@
 		</view>
 		<view class="card">
 			<view class="section-title">进度</view>
-			<view v-for="item in events" :key="item.create_time + item.event_type" class="event">
+			<view v-for="(item, index) in events" :key="index" class="event">
 				<view class="event-title">{{ item.event_type }} · {{ item.to_status }}</view>
 				<view class="muted">{{ timeText(item.create_time) }} {{ item.reason }}</view>
 			</view>

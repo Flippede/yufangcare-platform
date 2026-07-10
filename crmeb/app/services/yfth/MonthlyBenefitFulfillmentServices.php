@@ -299,7 +299,7 @@ class MonthlyBenefitFulfillmentServices extends PackageBenefitBaseServices
     {
         $this->assertHeadquarterAdmin($adminInfo);
         $deliveryNo = trim((string)($data['delivery_no'] ?? ''));
-        return ['fulfillment' => $this->transition($id, [self::STATUS_CONFIRMED, self::STATUS_PREPARING], self::STATUS_SHIPPED, array_merge($this->adminOperator($adminId, $data, 'ship', $id), [
+        return ['fulfillment' => $this->transition($id, [self::STATUS_PREPARING], self::STATUS_SHIPPED, array_merge($this->adminOperator($adminId, $data, 'ship', $id), [
             'delivery_company' => trim((string)($data['delivery_company'] ?? '')),
             'delivery_no' => $deliveryNo,
         ]))];
@@ -308,7 +308,7 @@ class MonthlyBenefitFulfillmentServices extends PackageBenefitBaseServices
     public function adminComplete(int $id, array $data, int $adminId, array $adminInfo): array
     {
         $this->assertHeadquarterAdmin($adminInfo);
-        return ['fulfillment' => $this->transition($id, [self::STATUS_CONFIRMED, self::STATUS_PREPARING, self::STATUS_SHIPPED, self::STATUS_PICKED_UP], self::STATUS_COMPLETED, $this->adminOperator($adminId, $data, 'complete', $id))];
+        return ['fulfillment' => $this->transition($id, [self::STATUS_SHIPPED, self::STATUS_PICKED_UP], self::STATUS_COMPLETED, $this->adminOperator($adminId, $data, 'complete', $id))];
     }
 
     public function adminException(int $id, array $data, int $adminId, array $adminInfo): array
@@ -373,13 +373,15 @@ class MonthlyBenefitFulfillmentServices extends PackageBenefitBaseServices
             'pickup_store_required' => (int)$context['store_id'],
             'reason' => (string)($data['reason'] ?? 'store_pickup_confirm'),
             'idempotency_key' => $idempotencyKey,
+            'event_type' => 'pickup_confirm',
+            'allow_pickup_direct_complete' => true,
         ])];
     }
 
     private function transition(int $id, array $fromStatuses, string $toStatus, array $operator): array
     {
         $idempotencyKey = (string)($operator['idempotency_key'] ?? $this->normalizeClientKey('', 'transition:' . $id . ':' . $toStatus));
-        $eventType = $this->eventTypeForStatus($toStatus);
+        $eventType = (string)($operator['event_type'] ?? $this->eventTypeForStatus($toStatus));
         $idempotencyPayload = [
             'fulfillment_id' => $id,
             'to_status' => $toStatus,
@@ -411,8 +413,19 @@ class MonthlyBenefitFulfillmentServices extends PackageBenefitBaseServices
             if (!in_array((string)$row['status'], $fromStatuses, true)) {
                 throw new ApiException('invalid_fulfillment_status_transition');
             }
-            if ($toStatus === self::STATUS_SHIPPED && (string)$row['fulfillment_method'] === self::METHOD_EXPRESS && trim((string)($operator['delivery_no'] ?? '')) === '') {
-                throw new ApiException('delivery_no_required');
+            if ($toStatus === self::STATUS_SHIPPED) {
+                if ((string)$row['fulfillment_method'] !== self::METHOD_EXPRESS) {
+                    throw new ApiException('monthly_benefit_ship_only_express_delivery');
+                }
+                if (trim((string)($operator['delivery_company'] ?? '')) === '') {
+                    throw new ApiException('monthly_benefit_delivery_company_required');
+                }
+                if (trim((string)($operator['delivery_no'] ?? '')) === '') {
+                    throw new ApiException('monthly_benefit_delivery_no_required');
+                }
+            }
+            if ($toStatus === self::STATUS_COMPLETED) {
+                $this->assertCompletionPath($row, $operator);
             }
 
             $now = time();
@@ -481,6 +494,28 @@ class MonthlyBenefitFulfillmentServices extends PackageBenefitBaseServices
         if (!empty($operator['pickup_store_required']) && (int)$row['pickup_store_id'] !== (int)$operator['pickup_store_required']) {
             throw new ApiException('fulfillment_pickup_store_forbidden');
         }
+    }
+
+    private function assertCompletionPath(array $row, array $operator): void
+    {
+        $method = (string)$row['fulfillment_method'];
+        $status = (string)$row['status'];
+        if ($method === self::METHOD_EXPRESS) {
+            if ($status !== self::STATUS_SHIPPED) {
+                throw new ApiException('monthly_benefit_complete_requires_shipped');
+            }
+            return;
+        }
+        if ($method === self::METHOD_PICKUP) {
+            if ($status === self::STATUS_PICKED_UP) {
+                return;
+            }
+            if (!empty($operator['allow_pickup_direct_complete']) && in_array($status, [self::STATUS_CONFIRMED, self::STATUS_PREPARING], true)) {
+                return;
+            }
+            throw new ApiException('monthly_benefit_pickup_complete_requires_pickup_confirm');
+        }
+        throw new ApiException('monthly_benefit_unknown_fulfillment_method');
     }
 
     private function consumeProductBenefit(array $fulfillment, array $operator, string $requestId): void
@@ -850,7 +885,7 @@ class MonthlyBenefitFulfillmentServices extends PackageBenefitBaseServices
 
     private function assertClaimPayload(array $data): void
     {
-        foreach (['uid', 'owner_uid', 'store_id', 'package_instance_id', 'benefit_plan_id', 'benefit_period_id', 'status', 'product_snapshot', 'quantity_used'] as $field) {
+        foreach (['uid', 'owner_uid', 'store_id', 'package_instance_id', 'benefit_plan_id', 'benefit_period_id', 'status', 'product_snapshot', 'quantity_used', 'active_key'] as $field) {
             if (array_key_exists($field, $data)) {
                 throw new ApiException('monthly_benefit_claim_field_forbidden:' . $field);
             }
