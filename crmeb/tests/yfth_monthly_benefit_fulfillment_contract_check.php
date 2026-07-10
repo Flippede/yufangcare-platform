@@ -41,6 +41,7 @@ $userHistory = $read('../template/uni-app/pages/yfth/monthly_benefit/history.vue
 $userDetail = $read('../template/uni-app/pages/yfth/monthly_benefit/detail.vue');
 $pickupPage = $read('../template/uni-app/pages/yfth/workbench/monthly_benefit_pickup.vue');
 $workbench = $read('../template/uni-app/pages/yfth/workbench/index.vue');
+$architecture = $read('../docs/YFTH_MONTHLY_BENEFIT_FULFILLMENT_ARCHITECTURE.md');
 
 foreach (['yfth_benefit_fulfillment', 'yfth_benefit_fulfillment_event'] as $table) {
     $assert($contains($migration, $table), 'migration_contains_' . $table);
@@ -108,6 +109,8 @@ $assert($contains($service, "'admin_' . \$action . ':' . \$fulfillmentId . ':' .
 $assert($contains($service, "adminComplete(int \$id") && $contains($service, '[self::STATUS_SHIPPED, self::STATUS_PICKED_UP]') && !$contains($service, '[self::STATUS_CONFIRMED, self::STATUS_PREPARING, self::STATUS_SHIPPED, self::STATUS_PICKED_UP]'), 'admin_complete_rejects_confirmed_and_preparing_sources');
 $assert($contains($service, 'assertCompletionPath') && $contains($service, 'monthly_benefit_complete_requires_shipped') && $contains($service, 'monthly_benefit_pickup_complete_requires_pickup_confirm'), 'service_enforces_method_specific_complete_path');
 $assert($contains($service, 'allow_pickup_direct_complete') && $contains($service, "'event_type' => 'pickup_confirm'"), 'store_pickup_confirm_path_is_explicit');
+$assert($contains($service, '$this->transition($id, [self::STATUS_PREPARING], self::STATUS_COMPLETED') && !$contains($service, '$this->transition($id, [self::STATUS_CONFIRMED, self::STATUS_PREPARING], self::STATUS_COMPLETED'), 'store_pickup_confirm_requires_preparing_source');
+$assert($contains($service, "!empty(\$operator['allow_pickup_direct_complete']) && \$status === self::STATUS_PREPARING") && !$contains($service, "in_array(\$status, [self::STATUS_CONFIRMED, self::STATUS_PREPARING]"), 'pickup_direct_complete_guard_rejects_confirmed_source');
 $assert($contains($service, 'monthly_benefit_delivery_company_required') && $contains($service, 'monthly_benefit_delivery_no_required'), 'service_requires_delivery_company_and_no_for_express_ship');
 $assert($contains($service, "'active_key'"), 'service_claim_payload_rejects_active_key');
 
@@ -151,7 +154,9 @@ $assert($contains($userIndex, 'claimYfthMonthlyBenefit') && $contains($userIndex
 $assert($contains($userHistory, 'getYfthMonthlyBenefitHistory'), 'user_history_uses_real_api');
 $assert($contains($userDetail, 'getYfthMonthlyBenefitFulfillment') && $contains($userDetail, 'cancelYfthMonthlyBenefitFulfillment'), 'user_detail_uses_real_api');
 $assert($contains($pickupPage, 'getYfthStoreWorkbenchMonthlyBenefitPickup') && $contains($pickupPage, 'confirmYfthStoreWorkbenchMonthlyBenefitPickup'), 'pickup_page_uses_real_store_api');
+$assert($contains($pickupPage, "return item.status === 'preparing'") && !$contains($pickupPage, "['confirmed', 'preparing'].indexOf(item.status)"), 'pickup_page_only_allows_preparing_confirmation');
 $assert($contains($workbench, 'goMonthlyBenefitPickup') && $contains($workbench, 'monthly_benefit_pickup'), 'workbench_links_pickup_page');
+$assert($contains($architecture, 'pending_confirm -> confirmed -> preparing -> pickup_confirm -> completed'), 'architecture_requires_preparing_before_pickup_confirm');
 
 foreach (['完整手机号', 'openid', 'unionid', 'delivery_no:'] as $label) {
     $assert(!$contains($userIndex . $userHistory . $userDetail . $pickupPage, $label), 'mobile_pages_do_not_render_sensitive_label_' . $label);

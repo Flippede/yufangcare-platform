@@ -54,10 +54,10 @@ export default {
 			});
 		},
 		canConfirm(item) {
-			return ['confirmed', 'preparing'].indexOf(item.status) !== -1;
+			return item.status === 'preparing';
 		},
 		statusText(status) {
-			const map = { confirmed: '待自提', preparing: '备货中', completed: '已完成' };
+			const map = { confirmed: '待总部备货', preparing: '待自提', completed: '已完成' };
 			return map[status] || status;
 		}
 	}

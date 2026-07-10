@@ -365,7 +365,7 @@ class MonthlyBenefitFulfillmentServices extends PackageBenefitBaseServices
         $scope = $this->resolveStoreScope($request);
         $context = $scope['context'];
         $idempotencyKey = $this->normalizeClientKey($data['idempotency_key'] ?? ($data['client_operation_key'] ?? ''), 'store_pickup:' . $id . ':' . (int)$context['store_id']);
-        return ['fulfillment' => $this->transition($id, [self::STATUS_CONFIRMED, self::STATUS_PREPARING], self::STATUS_COMPLETED, [
+        return ['fulfillment' => $this->transition($id, [self::STATUS_PREPARING], self::STATUS_COMPLETED, [
             'operator_type' => 'user_store_role',
             'operator_uid' => (int)$context['uid'],
             'operator_role_code' => (string)$context['role_code'],
@@ -510,7 +510,7 @@ class MonthlyBenefitFulfillmentServices extends PackageBenefitBaseServices
             if ($status === self::STATUS_PICKED_UP) {
                 return;
             }
-            if (!empty($operator['allow_pickup_direct_complete']) && in_array($status, [self::STATUS_CONFIRMED, self::STATUS_PREPARING], true)) {
+            if (!empty($operator['allow_pickup_direct_complete']) && $status === self::STATUS_PREPARING) {
                 return;
             }
             throw new ApiException('monthly_benefit_pickup_complete_requires_pickup_confirm');

@@ -21,13 +21,14 @@ Authoritative benefit ownership remains in existing package-benefit tables: `yft
 
 V1 fulfillment statuses are `pending_confirm`, `confirmed`, `preparing`, `shipped`, `picked_up`, `completed`, `cancelled`, `rejected`, and `exception`.
 
-Architecture review P1 root cause was that headquarters `complete` could previously move `confirmed` directly to `completed`, and `completed` immediately called `consumeProductBenefit()`. That could consume a monthly product benefit before preparation, shipment, or pickup had actually happened.
+The initial architecture review P1 root cause was that headquarters `complete` could previously move `confirmed` directly to `completed`, and `completed` immediately called `consumeProductBenefit()`. The remaining P1 found during re-review was that store `pickup_confirm` still accepted `confirmed`, allowing a same-store operator to bypass headquarters preparation and reach the same final consumption.
 
 P1 closure:
 
 - Express delivery completion path is now `pending_confirm -> confirmed -> preparing -> shipped -> completed`.
 - Headquarters `complete` for express delivery accepts only `shipped`; `pending_confirm`, `confirmed`, and `preparing` cannot be completed.
 - Self pickup path is `pending_confirm -> confirmed -> preparing -> pickup_confirm -> completed` in V1. The store workbench `pickup_confirm` action is the explicit same-store pickup action and records event type `pickup_confirm`.
+- Store `pickup_confirm` accepts only `preparing`. A `confirmed` self-pickup fulfillment remains visible as waiting for headquarters preparation but cannot display or execute the pickup action.
 - Headquarters `complete` no longer bypasses self-pickup confirmation from `confirmed` or `preparing`.
 - `cancelled`, `rejected`, `exception`, and already `completed` records cannot be completed through a new illegal source transition.
 - Express `ship` requires both non-empty `delivery_company` and non-empty `delivery_no`.
@@ -109,8 +110,8 @@ Executed validation for this feature branch:
 - PHP syntax check for all new and modified PHP files.
 - `php crmeb/tests/yfth_monthly_benefit_fulfillment_contract_check.php`.
 - `php crmeb/tests/yfth_monthly_benefit_fulfillment_real_flow_check.php` source guard mode.
-- MySQL 8.0.46 isolated validation on temporary database `yfth_monthly_benefit_validation`: migration run, rollback to 0, rerun, duplicate run, index checks, duplicate active fulfillment guard, and duplicate idempotency guard.
-- Isolated MySQL service-level real-flow coverage: user claim success, duplicate claim idempotency, claim payload mismatch, non-owner claim rejection, unopened/expired/frozen/closed/refunded claim rejection, service-layer `active_key` rejection, pending and confirmed user cancellation behavior, preparing/shipped/completed cancellation rejection, headquarters legal express path, `confirmed -> completed` rejection, `preparing -> completed` rejection, shipping field validation, repeated complete one-time benefit consumption, rejected/cancelled/exception complete rejection, same-store pickup confirmation, cross-store pickup rejection, customer/service-mentor rejection, store-staff/store-manager/franchisee pickup permission, final benefit consumption once, event timeline, audit writes, and unchanged CRMEB/order/stock/product-quota/supply-chain/reward boundary snapshots.
+- MySQL 8.0.46 isolated validation on temporary database `yfth_monthly_benefit_validation`: migration run, rollback to 0, rerun, duplicate run, index checks, duplicate active fulfillment guard, and duplicate idempotency guard. The existing English menu seed exceeds CRMEB's 32-character `menu_name`; default strict mode rejects that pre-existing seed, so the test reused the project's historical `NO_ENGINE_SUBSTITUTION` compatibility mode without changing the migration. This is not claimed as a strict-mode migration pass.
+- Isolated MySQL service-level real-flow coverage: user claim success, duplicate claim idempotency, claim payload mismatch, non-owner claim rejection, unopened/expired/frozen/closed/refunded claim rejection, service-layer `active_key` rejection, pending and confirmed user cancellation behavior, preparing/shipped/completed cancellation rejection, headquarters legal express path, shipping field validation, repeated complete one-time benefit consumption, rejected/cancelled/exception complete rejection, `confirmed -> pickup_confirm` rejection before preparation, unchanged benefit/counter/event/audit state after rejection, legal `preparing -> pickup_confirm -> completed`, repeated pickup one-time consumption, exact pickup timeline and audit, cross-store pickup rejection, customer/service-mentor rejection, store-staff/store-manager/franchisee pickup permission, and unchanged CRMEB/order/stock/product-quota/supply-chain/reward boundary snapshots.
 - Adjacent contracts: package benefit, service appointment, supply chain, and product quota.
 - Admin production build from `template/admin`.
 - Existing uni-app Node checks: multi-role shell contract and request fallback.

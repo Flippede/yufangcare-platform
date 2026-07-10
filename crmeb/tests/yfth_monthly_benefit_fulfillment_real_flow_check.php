@@ -42,6 +42,8 @@ try {
         'admin_headquarter_required' => 'assertHeadquarterScope',
         'complete_rejects_unshipped_express' => 'monthly_benefit_complete_requires_shipped',
         'pickup_confirm_event' => "'event_type' => 'pickup_confirm'",
+        'pickup_confirm_requires_preparing_source' => '$this->transition($id, [self::STATUS_PREPARING], self::STATUS_COMPLETED',
+        'pickup_direct_complete_requires_preparing_source' => "!empty(\$operator['allow_pickup_direct_complete']) && \$status === self::STATUS_PREPARING",
         'delivery_company_required' => 'monthly_benefit_delivery_company_required',
         'delivery_no_required' => 'monthly_benefit_delivery_no_required',
         'no_crmeb_order_write' => "Db::name('store_order')",
@@ -54,6 +56,7 @@ try {
             $assert(strpos($service . $migration, $needle) !== false, $label);
         }
     }
+    $assert(strpos($service, '[self::STATUS_CONFIRMED, self::STATUS_PREPARING], self::STATUS_COMPLETED') === false, 'pickup_confirm_does_not_allow_confirmed_source');
 } catch (Throwable $e) {
     $failures[] = 'source_check_exception:' . $e->getMessage();
 }
@@ -424,6 +427,26 @@ function mbfAssertServiceLevelFlow(callable $assert): void
 
         $pickup = mbfClaimPickup($service, $uid, $storeA, 'pickup_staff_' . $run);
         $service->adminConfirm($pickup['fulfillment_id'], ['idempotency_key' => 'pickup_confirm_admin_' . $run], 1, $adminInfo);
+        $confirmedPickupCounters = mbfBenefitCounters($pickup);
+        $confirmedPickupEventCount = (int)Db::name('yfth_benefit_fulfillment_event')->where('fulfillment_id', $pickup['fulfillment_id'])->count();
+        $confirmedPickupAuditCount = (int)Db::name('yfth_audit_event')
+            ->where('business_domain', 'yfth_monthly_benefit_fulfillment')
+            ->where('object_type', 'benefit_fulfillment')
+            ->where('object_id', (string)$pickup['fulfillment_id'])
+            ->count();
+        $confirmedPickupConsumptionAuditCount = (int)Db::name('yfth_audit_event')
+            ->where('object_type', 'benefit_item')
+            ->where('object_id', (string)$pickup['item_id'])
+            ->where('action', 'product_fulfillment_complete')
+            ->count();
+        mbfExpectException(function () use ($service, $uid, $pickup, $storeA, $run) {
+            $service->storePickupConfirm(mbfRequest($uid + 10, 'store_staff', $storeA), $pickup['fulfillment_id'], ['idempotency_key' => 'pickup_before_prepare_' . $run]);
+        }, 'invalid_fulfillment_status_transition', $assert, 'real_confirmed_pickup_confirm_rejected_before_prepare');
+        $assert((string)mbfFulfillment($pickup['fulfillment_id'])['status'] === 'confirmed', 'real_rejected_confirmed_pickup_keeps_fulfillment_confirmed');
+        $assert(mbfBenefitCounters($pickup) === $confirmedPickupCounters, 'real_rejected_confirmed_pickup_keeps_benefit_and_package_counters');
+        $assert((int)Db::name('yfth_benefit_fulfillment_event')->where('fulfillment_id', $pickup['fulfillment_id'])->count() === $confirmedPickupEventCount, 'real_rejected_confirmed_pickup_writes_no_event');
+        $assert((int)Db::name('yfth_audit_event')->where('business_domain', 'yfth_monthly_benefit_fulfillment')->where('object_type', 'benefit_fulfillment')->where('object_id', (string)$pickup['fulfillment_id'])->count() === $confirmedPickupAuditCount, 'real_rejected_confirmed_pickup_writes_no_fulfillment_audit');
+        $assert((int)Db::name('yfth_audit_event')->where('object_type', 'benefit_item')->where('object_id', (string)$pickup['item_id'])->where('action', 'product_fulfillment_complete')->count() === $confirmedPickupConsumptionAuditCount, 'real_rejected_confirmed_pickup_writes_no_consumption_audit');
         mbfExpectException(function () use ($service, $pickup, $adminInfo, $run) {
             $service->adminComplete($pickup['fulfillment_id'], ['idempotency_key' => 'hq_pickup_direct_complete_' . $run], 1, $adminInfo);
         }, 'invalid_fulfillment_status_transition', $assert, 'real_hq_self_pickup_confirmed_complete_rejected');
@@ -444,6 +467,14 @@ function mbfAssertServiceLevelFlow(callable $assert): void
         $pickupAfter = mbfBenefitCounters($pickup);
         $assert((string)mbfFulfillment($pickup['fulfillment_id'])['status'] === 'completed', 'real_same_store_staff_pickup_confirm_completed');
         $assert($pickupAfter['period_fulfilled'] === $pickupBefore['period_fulfilled'] + 1 && $pickupAfter['instance_fulfilled'] === $pickupBefore['instance_fulfilled'] + 1, 'real_pickup_confirm_idempotent_consumes_once');
+        $pickupEvent = Db::name('yfth_benefit_fulfillment_event')
+            ->where('fulfillment_id', $pickup['fulfillment_id'])
+            ->where('event_type', 'pickup_confirm')
+            ->find();
+        $assert($pickupEvent && (string)$pickupEvent['from_status'] === 'preparing' && (string)$pickupEvent['to_status'] === 'completed', 'real_pickup_event_timeline_preparing_to_completed');
+        $assert((int)Db::name('yfth_benefit_fulfillment_event')->where('fulfillment_id', $pickup['fulfillment_id'])->where('event_type', 'pickup_confirm')->count() === 1, 'real_repeated_pickup_writes_one_pickup_event');
+        $assert((int)Db::name('yfth_audit_event')->where('business_domain', 'yfth_monthly_benefit_fulfillment')->where('object_type', 'benefit_fulfillment')->where('object_id', (string)$pickup['fulfillment_id'])->where('action', 'pickup_confirm')->count() === 1, 'real_pickup_confirm_writes_one_fulfillment_audit');
+        $assert((int)Db::name('yfth_audit_event')->where('object_type', 'benefit_item')->where('object_id', (string)$pickup['item_id'])->where('action', 'product_fulfillment_complete')->count() === 1, 'real_pickup_confirm_writes_one_consumption_audit');
 
         foreach ([
             [$uid + 11, 'store_manager'],
