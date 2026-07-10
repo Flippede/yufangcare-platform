@@ -1,5 +1,33 @@
 # 项目交接文档
 
+## Current Fact Snapshot - Final Monthly Benefit Claim And Fulfillment V1 Closure
+
+- Current branch after merge: `main`.
+- Preserved feature branch: `codex/yfth-monthly-benefit-fulfillment-v1` (local and remote).
+- Main before merge: `fa3edef7d9e48427f235cd458dbdead384b83341`.
+- Final reviewed feature commit: `4627ef8a5fafac3de2216ed6168af640a954f7b3`.
+- Merge method: `git merge --ff-only codex/yfth-monthly-benefit-fulfillment-v1`; no merge commit, squash, rebase, or history rewrite was used.
+- Architecture review conclusion: A, passed; no Blocker/P1/P2/P3 remains.
+- Completed capabilities: product-type monthly benefit claim; headquarters confirm, reject, prepare, ship, complete, cancel, and exception workflow; same-store pickup confirmation; fulfillment timeline; unified audit; idempotency; headquarters admin page; user monthly-benefit pages; and store-workbench pickup page.
+- New tables: `yfth_benefit_fulfillment` and `yfth_benefit_fulfillment_event`.
+- User APIs: `/api/yfth/monthly_benefit/current`, `/api/yfth/monthly_benefit/history`, `/api/yfth/monthly_benefit/fulfillment/:id`, `/api/yfth/monthly_benefit/claim`, and `/api/yfth/monthly_benefit/fulfillment/:id/cancel`.
+- Store-workbench APIs: `/api/yfth/store_workbench/monthly_benefit/pickup`, pickup detail, and pickup confirm.
+- Headquarters APIs: `/adminapi/yfth/monthly_benefit/fulfillment`, detail, confirm, reject, prepare, ship, complete, exception, and cancel.
+- Express state-machine closure: `pending_confirm -> confirmed -> preparing -> shipped -> completed`; headquarters complete accepts only `shipped` for express fulfillment.
+- Self-pickup state-machine closure: `pending_confirm -> confirmed -> preparing -> pickup_confirm -> completed`; store `pickup_confirm` accepts only `preparing`.
+- Forbidden transitions remain closed: `confirmed -> pickup_confirm -> completed` and headquarters `confirmed/preparing -> completed`. Illegal transitions do not consume the benefit, mutate counters, write a final event, or write a final-consumption audit.
+- Strict-migration closure: all monthly-fulfillment `menu_name` values are at most 32 characters; table creation is `hasTable` guarded; menu seeding is idempotent by `unique_auth`; `down()` removes all monthly permissions and both monthly tables.
+- MySQL 8.0.46 default strict-mode migration `run -> rollback -t 0 -> rerun -> duplicate run` passed. Half-state recovery from two existing tables, partial permissions, and no migration record also passed.
+- Concurrency closure: two independent PHP processes with distinct idempotency keys safely confirmed one `preparing` pickup. Only one final benefit consumption, one quantity/counter update set, one pickup event, one fulfillment audit, and one package-benefit consumption audit occurred.
+- Audit request-id closure: monthly idempotency records retain their normalized long keys; audit request ids exceeding shared `VARCHAR(64)` are deterministically SHA-256 normalized for both fulfillment and package-benefit consumption audits.
+- CRMEB boundary: no `store_order` creation; no payment, refund, logistics-order, product/SKU stock, sales, or quota mutation; no balance, points, brokerage, distribution, commission, withdrawal, settlement, or revenue-sharing write.
+- Adjacent YFTH boundary: no supply-chain inventory balance/ledger write, product-quota account/ledger write, or referral-reward ledger/settlement write.
+- Validation evidence: Architecture Auditor A review; PHP syntax; monthly contract check with 119 assertions; monthly source guard; MySQL 8.0.46 strict migration lifecycle and half-state recovery; isolated service-level real-flow; true two-process pickup concurrency; package-benefit, service-appointment, supply-chain, and product-quota contract checks; admin production build; uni-app multi-role shell and request fallback checks; H5 production build; mp-weixin production compile; and `git diff --check` all passed.
+- Merge-preparation rerun: monthly contract (119 assertions), monthly source guard, package-benefit, service-appointment, supply-chain, product-quota, uni-app multi-role shell, request fallback, and `git diff --check` passed. The already reviewed isolated MySQL and frontend production builds were not repeated during this merge-only closure.
+- Production status: no production deployment, production database connection, production migration, server modification, WeChat upload, production AppID, private key, or upload key was used.
+- Not implemented: CRMEB logistics-order integration, automatic shipping, real courier API, product-quota offset, supply-chain stock deduction, delivery after-sale reversal, completed-benefit recovery, notifications, production deployment, and production database migration.
+- Final main and origin/main commit should be read from real Git HEAD after this documentation closure commit and push.
+
 ## Current Fact Snapshot - Monthly Benefit Claim And Fulfillment V1 Strict Migration Closure
 
 - Current development branch: `codex/yfth-monthly-benefit-fulfillment-v1`; start HEAD for this closure: `753106099f88bc92f6cedd4c37b23642c2e85246`; stable `main` and `origin/main`: `fa3edef7d9e48427f235cd458dbdead384b83341`.
