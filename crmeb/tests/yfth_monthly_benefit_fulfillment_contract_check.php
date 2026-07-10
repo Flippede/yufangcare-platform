@@ -42,6 +42,7 @@ $userDetail = $read('../template/uni-app/pages/yfth/monthly_benefit/detail.vue')
 $pickupPage = $read('../template/uni-app/pages/yfth/workbench/monthly_benefit_pickup.vue');
 $workbench = $read('../template/uni-app/pages/yfth/workbench/index.vue');
 $architecture = $read('../docs/YFTH_MONTHLY_BENEFIT_FULFILLMENT_ARCHITECTURE.md');
+$realFlow = $read('tests/yfth_monthly_benefit_fulfillment_real_flow_check.php');
 
 foreach (['yfth_benefit_fulfillment', 'yfth_benefit_fulfillment_event'] as $table) {
     $assert($contains($migration, $table), 'migration_contains_' . $table);
@@ -74,6 +75,27 @@ foreach ([
 $assert($contains($migration, "'auth_type' => 2"), 'migration_seeds_api_permissions');
 $assert($contains($migration, 'yfth-monthly-benefit-fulfillment-index'), 'migration_seeds_admin_page_permission');
 $assert($contains($migration, 'DELETE FROM `') && $contains($migration, 'system_menus'), 'migration_down_removes_permissions');
+$menuNames = [];
+preg_match_all("/'menu_name'\\s*=>\\s*'([^']*)'/u", $migration, $literalMenuMatches);
+preg_match_all("/apiRow\\([^,]+,\\s*'([^']*)'/u", $migration, $apiMenuMatches);
+$menuNames = array_merge($literalMenuMatches[1] ?? [], $apiMenuMatches[1] ?? []);
+$assert(count($menuNames) === 10, 'migration_contract_covers_all_page_root_and_api_menu_names');
+foreach ($menuNames as $index => $menuName) {
+    $length = function_exists('mb_strlen') ? mb_strlen($menuName, 'UTF-8') : count(preg_split('//u', $menuName, -1, PREG_SPLIT_NO_EMPTY));
+    $assert($length <= 32, 'migration_menu_name_within_32_chars_' . $index . ':' . $menuName);
+}
+$assert(!$contains($migration, 'Monthly Benefit Fulfillment') && !$contains($migration, 'Monthly benefit fulfillment'), 'migration_removes_overlength_english_menu_names');
+$assert($contains($migration, "if (\$this->hasTable('yfth_benefit_fulfillment'))") && $contains($migration, "if (\$this->hasTable('yfth_benefit_fulfillment_event'))"), 'migration_table_creation_is_half_state_safe');
+$assert($contains($migration, 'SELECT `id` FROM ') && $contains($migration, 'WHERE `unique_auth` = ') && $contains($migration, 'UPDATE ') && $contains($migration, 'INSERT INTO '), 'migration_menu_seed_uses_idempotent_upsert');
+foreach (['yfth_benefit_fulfillment_event', 'yfth_benefit_fulfillment'] as $table) {
+    $assert($contains($migration, "\$this->table(\$table)->drop()"), 'migration_down_drops_' . $table);
+}
+$assert($contains($realFlow, "YFTH_MONTHLY_BENEFIT_WORKER") && $contains($realFlow, "pickup_confirm"), 'real_flow_has_pickup_worker_mode');
+$assert($contains($realFlow, 'proc_open') && $contains($realFlow, 'mbfAssertConcurrentPickup'), 'real_flow_has_true_multiprocess_pickup_test');
+$assert($contains($realFlow, "concurrent_pickup_worker_' . \$i"), 'real_flow_uses_distinct_worker_idempotency_keys');
+$assert($contains($service, 'private function auditRequestId') && $contains($service, 'strlen($requestId) <= 64'), 'audit_request_id_respects_varchar_64_boundary');
+$assert($contains($service, "hash('sha256', self::FULFILLMENT_DOMAIN . ':' . \$requestId)"), 'long_audit_request_id_is_stably_normalized');
+$assert($contains($realFlow, "'monthly_benefit:' . hash('sha256', \$key)"), 'concurrent_test_asserts_persisted_normalized_idempotency_keys');
 
 foreach ([
     "private const FULFILLMENT_DOMAIN = 'yfth_monthly_benefit_fulfillment'",

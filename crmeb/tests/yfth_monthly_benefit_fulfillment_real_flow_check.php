@@ -11,6 +11,18 @@ $failures = [];
 $passes = [];
 $notes = [];
 
+if ((string)getenv('YFTH_MONTHLY_BENEFIT_WORKER') === 'pickup_confirm') {
+    require $root . '/vendor/autoload.php';
+    try {
+        mbfBootstrapApplication();
+        mbfInstallRequestMacro();
+        mbfRunPickupConfirmWorker();
+    } catch (Throwable $e) {
+        fwrite(STDERR, '[WORKER_FAIL] ' . $e->getMessage() . "\n");
+        exit(1);
+    }
+}
+
 $assert = function ($condition, string $message) use (&$failures, &$passes): void {
     if ($condition) {
         $passes[] = $message;
@@ -57,6 +69,15 @@ try {
         }
     }
     $assert(strpos($service, '[self::STATUS_CONFIRMED, self::STATUS_PREPARING], self::STATUS_COMPLETED') === false, 'pickup_confirm_does_not_allow_confirmed_source');
+    preg_match_all("/'menu_name'\\s*=>\\s*'([^']*)'/u", $migration, $literalMenuMatches);
+    preg_match_all("/apiRow\\([^,]+,\\s*'([^']*)'/u", $migration, $apiMenuMatches);
+    $menuNames = array_merge($literalMenuMatches[1] ?? [], $apiMenuMatches[1] ?? []);
+    $assert(count($menuNames) === 10, 'migration_source_guard_covers_all_menu_names');
+    foreach ($menuNames as $index => $menuName) {
+        $length = function_exists('mb_strlen') ? mb_strlen($menuName, 'UTF-8') : count(preg_split('//u', $menuName, -1, PREG_SPLIT_NO_EMPTY));
+        $assert($length <= 32, 'migration_menu_name_within_32_chars_' . $index);
+    }
+    $assert(strpos($migration, 'Monthly Benefit Fulfillment') === false && strpos($migration, 'Monthly benefit fulfillment') === false, 'migration_overlength_english_menu_names_removed');
 } catch (Throwable $e) {
     $failures[] = 'source_check_exception:' . $e->getMessage();
 }
@@ -67,35 +88,7 @@ if (!$executeFlow) {
 } else {
     require $root . '/vendor/autoload.php';
     try {
-        $app = new class() extends App {
-            public function loadEnv(string $envName = ''): void
-            {
-                parent::loadEnv($envName);
-                foreach ([
-                    ['YFTH_REAL_FLOW_DB_HOSTNAME', 'YFTH_REAL_FLOW_DB_HOST', 'database.hostname'],
-                    ['YFTH_REAL_FLOW_DB_HOSTPORT', 'YFTH_REAL_FLOW_DB_PORT', 'database.hostport'],
-                    ['YFTH_REAL_FLOW_DB_USERNAME', 'YFTH_REAL_FLOW_DB_USER', 'database.username'],
-                    ['YFTH_REAL_FLOW_DB_PASSWORD', '', 'database.password'],
-                    ['YFTH_REAL_FLOW_DB_DATABASE', 'YFTH_REAL_FLOW_DB_NAME', 'database.database'],
-                    ['YFTH_REAL_FLOW_DB_PREFIX', '', 'database.prefix'],
-                    ['YFTH_REAL_FLOW_DB_CHARSET', '', 'database.charset'],
-                ] as $mapping) {
-                    [$primary, $alias, $configKey] = $mapping;
-                    $value = getenv($primary);
-                    if ($value === false && $alias !== '') {
-                        $value = getenv($alias);
-                    }
-                    if ($value !== false) {
-                        $this->env->set($configKey, $value);
-                    }
-                }
-                if ((string)getenv('YFTH_REAL_FLOW_DB_PASSWORD_EMPTY') === '1') {
-                    $this->env->set('database.password', '');
-                }
-                $this->env->set('cache.driver', 'file');
-            }
-        };
-        $app->initialize();
+        mbfBootstrapApplication();
 
         $versionRow = Db::query('SELECT VERSION() AS version');
         $mysqlVersion = (string)($versionRow[0]['version'] ?? '');
@@ -114,6 +107,7 @@ if (!$executeFlow) {
             mbfAssertIndexes($assert, $database, $prefix);
             mbfAssertUniqueness($assert);
             mbfAssertServiceLevelFlow($assert);
+            mbfAssertConcurrentPickup($assert, $notes);
         }
     } catch (Throwable $e) {
         $failures[] = 'real_flow_exception:' . $e->getMessage() . ':' . $e->getFile() . ':' . $e->getLine();
@@ -500,6 +494,162 @@ function mbfAssertServiceLevelFlow(callable $assert): void
     }
 }
 
+function mbfAssertConcurrentPickup(callable $assert, array &$notes): void
+{
+    $run = time() . random_int(1000, 9999);
+    $customerUid = 760000 + random_int(1, 999);
+    $operatorUid = $customerUid + 10;
+    $adminInfo = ['id' => 1, 'level' => 0];
+    /** @var MonthlyBenefitFulfillmentServices $service */
+    $service = app()->make(MonthlyBenefitFulfillmentServices::class);
+
+    $storeId = mbfSeedStore('Concurrent Pickup Store ' . $run);
+    mbfSeedStoreRoles($storeId, [$operatorUid => 'store_staff']);
+    $pickup = mbfClaimPickup($service, $customerUid, $storeId, 'concurrent_pickup_' . $run);
+    $service->adminConfirm($pickup['fulfillment_id'], ['idempotency_key' => 'concurrent_pickup_confirm_' . $run], 1, $adminInfo);
+    $service->adminPrepare($pickup['fulfillment_id'], ['idempotency_key' => 'concurrent_pickup_prepare_' . $run], 1, $adminInfo);
+
+    $before = mbfBenefitCounters($pickup);
+    $adjacentBefore = mbfSnapshotAdjacentTables();
+    $keys = [];
+    $workers = [];
+    $command = mbfBuildPhpCommand();
+    for ($i = 0; $i < 2; $i++) {
+        $key = 'concurrent_pickup_worker_' . $i . '_' . $run;
+        $keys[] = 'monthly_benefit:' . hash('sha256', $key);
+        $environment = mbfWorkerEnvironment([
+            'YFTH_MONTHLY_BENEFIT_WORKER' => 'pickup_confirm',
+            'YFTH_WORKER_UID' => (string)$operatorUid,
+            'YFTH_WORKER_STORE_ID' => (string)$storeId,
+            'YFTH_WORKER_FULFILLMENT_ID' => (string)$pickup['fulfillment_id'],
+            'YFTH_WORKER_IDEMPOTENCY_KEY' => $key,
+        ]);
+        $pipes = [];
+        $process = proc_open($command, [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes, dirname(__DIR__), $environment);
+        if (!is_resource($process)) {
+            $assert(false, 'real_concurrent_pickup_worker_started_' . $i);
+            return;
+        }
+        $workers[] = [$process, $pipes];
+    }
+
+    $workerResults = [];
+    foreach ($workers as $index => [$process, $pipes]) {
+        $stdout = stream_get_contents($pipes[1]);
+        $stderr = stream_get_contents($pipes[2]);
+        fclose($pipes[1]);
+        fclose($pipes[2]);
+        $exitCode = proc_close($process);
+        $assert($exitCode === 0, 'real_concurrent_pickup_worker_exits_safely_' . $index);
+        if ($exitCode !== 0) {
+            $notes[] = 'concurrent_pickup_worker_failed_' . $index . ':' . substr(trim($stderr ?: $stdout), 0, 200);
+            continue;
+        }
+        $decoded = json_decode(trim($stdout), true);
+        $assert(is_array($decoded) && ($decoded['status'] ?? '') === 'completed', 'real_concurrent_pickup_worker_returns_completed_' . $index);
+        $workerResults[] = $decoded;
+    }
+
+    $after = mbfBenefitCounters($pickup);
+    $assert(count($workerResults) === 2, 'real_concurrent_pickup_both_workers_return_safe_result');
+    $assert((string)mbfFulfillment($pickup['fulfillment_id'])['status'] === 'completed', 'real_concurrent_pickup_final_status_completed');
+    $assert($after['item_status'] === 'used' && $after['fulfillment_status'] === 'product_fulfilled', 'real_concurrent_pickup_benefit_item_used_once');
+    $assert($after['quantity_available'] === '0.00' && $after['item_used'] === $after['item_total'], 'real_concurrent_pickup_quantity_consumed_once');
+    $assert($after['period_fulfilled'] === $before['period_fulfilled'] + 1, 'real_concurrent_pickup_period_counter_increments_once');
+    $assert($after['instance_fulfilled'] === $before['instance_fulfilled'] + 1, 'real_concurrent_pickup_instance_counter_increments_once');
+    $assert((int)Db::name('yfth_benefit_fulfillment_event')->where('fulfillment_id', $pickup['fulfillment_id'])->where('event_type', 'pickup_confirm')->count() === 1, 'real_concurrent_pickup_writes_one_final_event');
+    $assert((int)Db::name('yfth_audit_event')->where('business_domain', 'yfth_monthly_benefit_fulfillment')->where('object_type', 'benefit_fulfillment')->where('object_id', (string)$pickup['fulfillment_id'])->where('action', 'pickup_confirm')->count() === 1, 'real_concurrent_pickup_writes_one_fulfillment_audit');
+    $assert((int)Db::name('yfth_audit_event')->where('object_type', 'benefit_item')->where('object_id', (string)$pickup['item_id'])->where('action', 'product_fulfillment_complete')->count() === 1, 'real_concurrent_pickup_writes_one_consumption_audit');
+    $assert((int)Db::name('yfth_idempotency_record')->where('business_domain', 'yfth_monthly_benefit_fulfillment')->where('action_type', 'pickup_confirm')->whereIn('idempotency_key', $keys)->count() === 2, 'real_concurrent_pickup_records_both_distinct_request_keys');
+    $assert(mbfSnapshotAdjacentTables() === $adjacentBefore, 'real_concurrent_pickup_keeps_adjacent_module_snapshots');
+}
+
+function mbfRunPickupConfirmWorker(): void
+{
+    /** @var MonthlyBenefitFulfillmentServices $service */
+    $service = app()->make(MonthlyBenefitFulfillmentServices::class);
+    $result = $service->storePickupConfirm(
+        mbfRequest((int)getenv('YFTH_WORKER_UID'), 'store_staff', (int)getenv('YFTH_WORKER_STORE_ID')),
+        (int)getenv('YFTH_WORKER_FULFILLMENT_ID'),
+        ['idempotency_key' => (string)getenv('YFTH_WORKER_IDEMPOTENCY_KEY')]
+    );
+    echo json_encode([
+        'fulfillment_id' => (int)($result['fulfillment']['id'] ?? 0),
+        'status' => (string)($result['fulfillment']['status'] ?? ''),
+    ], JSON_UNESCAPED_UNICODE) . "\n";
+    exit(0);
+}
+
+function mbfBootstrapApplication(): void
+{
+    $app = new class() extends App {
+        public function loadEnv(string $envName = ''): void
+        {
+            parent::loadEnv($envName);
+            foreach ([
+                ['YFTH_REAL_FLOW_DB_HOSTNAME', 'YFTH_REAL_FLOW_DB_HOST', 'database.hostname'],
+                ['YFTH_REAL_FLOW_DB_HOSTPORT', 'YFTH_REAL_FLOW_DB_PORT', 'database.hostport'],
+                ['YFTH_REAL_FLOW_DB_USERNAME', 'YFTH_REAL_FLOW_DB_USER', 'database.username'],
+                ['YFTH_REAL_FLOW_DB_PASSWORD', '', 'database.password'],
+                ['YFTH_REAL_FLOW_DB_DATABASE', 'YFTH_REAL_FLOW_DB_NAME', 'database.database'],
+                ['YFTH_REAL_FLOW_DB_PREFIX', '', 'database.prefix'],
+                ['YFTH_REAL_FLOW_DB_CHARSET', '', 'database.charset'],
+            ] as $mapping) {
+                [$primary, $alias, $configKey] = $mapping;
+                $value = getenv($primary);
+                if ($value === false && $alias !== '') {
+                    $value = getenv($alias);
+                }
+                if ($value !== false) {
+                    $this->env->set($configKey, $value);
+                }
+            }
+            if ((string)getenv('YFTH_REAL_FLOW_DB_PASSWORD_EMPTY') === '1') {
+                $this->env->set('database.password', '');
+            }
+            $this->env->set('cache.driver', 'file');
+        }
+    };
+    $app->initialize();
+}
+
+function mbfBuildPhpCommand(): array
+{
+    $command = [PHP_BINARY];
+    $iniFile = php_ini_loaded_file();
+    if (is_string($iniFile) && $iniFile !== '') {
+        $command[] = '-c';
+        $command[] = $iniFile;
+    }
+    $command[] = __FILE__;
+    return $command;
+}
+
+function mbfWorkerEnvironment(array $extra): array
+{
+    $environment = [];
+    foreach (['PATH', 'Path', 'SystemRoot', 'WINDIR', 'TEMP', 'TMP'] as $key) {
+        $value = getenv($key);
+        if ($value !== false) {
+            $environment[$key] = $value;
+        }
+    }
+    $connection = Config::get('database.default');
+    $database = (array)Config::get('database.connections.' . $connection);
+    $environment = array_merge($environment, [
+        'YFTH_REAL_FLOW_ISOLATED_DB' => '1',
+        'YFTH_REAL_FLOW_DB_HOSTNAME' => (string)($database['hostname'] ?? '127.0.0.1'),
+        'YFTH_REAL_FLOW_DB_HOSTPORT' => (string)($database['hostport'] ?? '3306'),
+        'YFTH_REAL_FLOW_DB_USERNAME' => (string)($database['username'] ?? 'root'),
+        'YFTH_REAL_FLOW_DB_PASSWORD' => (string)($database['password'] ?? ''),
+        'YFTH_REAL_FLOW_DB_PASSWORD_EMPTY' => (string)($database['password'] ?? '') === '' ? '1' : '0',
+        'YFTH_REAL_FLOW_DB_DATABASE' => (string)($database['database'] ?? ''),
+        'YFTH_REAL_FLOW_DB_PREFIX' => (string)($database['prefix'] ?? 'eb_'),
+        'YFTH_REAL_FLOW_DB_CHARSET' => (string)($database['charset'] ?? 'utf8mb4'),
+    ]);
+    return array_merge($environment, $extra);
+}
+
 function mbfInstallRequestMacro(): void
 {
     if (!Request::hasMacro('uid')) {
@@ -571,8 +721,9 @@ function mbfSeedBenefitRows(int $uid, int $storeId, array $options = []): array
 {
     $now = time();
     $case = preg_replace('/[^a-zA-Z0-9_]+/', '_', (string)($options['case'] ?? random_int(1000, 9999)));
+    $caseKey = substr(hash('sha256', $case), 0, 20);
     $instanceId = (int)Db::name('yfth_package_instance')->insertGetId([
-        'instance_no' => 'MBFI' . $uid . '_' . $case,
+        'instance_no' => 'MBFI' . $uid . '_' . $caseKey,
         'purchase_id' => random_int(100000, 999999),
         'uid' => $uid,
         'store_id' => $storeId,
@@ -594,7 +745,7 @@ function mbfSeedBenefitRows(int $uid, int $storeId, array $options = []): array
         'update_time' => $now,
     ]);
     $planId = (int)Db::name('yfth_benefit_plan')->insertGetId([
-        'plan_no' => 'MBFP' . $uid . '_' . $case,
+        'plan_no' => 'MBFP' . $uid . '_' . $caseKey,
         'package_instance_id' => $instanceId,
         'uid' => $uid,
         'store_id' => $storeId,

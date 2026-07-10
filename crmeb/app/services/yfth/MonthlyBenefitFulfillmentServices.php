@@ -549,7 +549,7 @@ class MonthlyBenefitFulfillmentServices extends PackageBenefitBaseServices
             'update_time' => time(),
         ]);
         $after = $this->requireRow($itemDao->get((int)$item['id']), 'benefit_item_not_found');
-        $this->recordPackageAudit('benefit_item', (string)$item['id'], 'product_fulfillment_complete', $item, $after, (int)$operator['operator_uid'], (string)$operator['operator_role_code'], (int)$fulfillment['store_id'], 'fulfillment:' . (int)$fulfillment['id'], $requestId);
+        $this->recordPackageAudit('benefit_item', (string)$item['id'], 'product_fulfillment_complete', $item, $after, (int)$operator['operator_uid'], (string)$operator['operator_role_code'], (int)$fulfillment['store_id'], 'fulfillment:' . (int)$fulfillment['id'], $this->auditRequestId($requestId));
     }
 
     private function assertProductBenefitClaimable(array $rows, bool $allowClaimed = false): void
@@ -733,7 +733,14 @@ class MonthlyBenefitFulfillmentServices extends PackageBenefitBaseServices
 
     private function recordAudit(string $objectType, string $objectId, string $action, array $before, array $after, int $operatorUid, string $roleCode, int $storeId, string $reason, string $requestId): void
     {
-        app()->make(AuditEventServices::class)->recordSafely(self::FULFILLMENT_DOMAIN, $objectType, $objectId, $action, $before, $after, $operatorUid, $roleCode, $storeId, $reason, $requestId);
+        app()->make(AuditEventServices::class)->recordSafely(self::FULFILLMENT_DOMAIN, $objectType, $objectId, $action, $before, $after, $operatorUid, $roleCode, $storeId, $reason, $this->auditRequestId($requestId));
+    }
+
+    private function auditRequestId(string $requestId): string
+    {
+        return strlen($requestId) <= 64
+            ? $requestId
+            : hash('sha256', self::FULFILLMENT_DOMAIN . ':' . $requestId);
     }
 
     private function eventsFor(int $id, string $scope): array

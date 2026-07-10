@@ -136,7 +136,7 @@ class CreateYfthMonthlyBenefitFulfillmentTables extends Migrator
         $pageId = $this->upsertMenu([
             'pid' => $rootId,
             'icon' => 'md-gift',
-            'menu_name' => 'Monthly Benefit Fulfillment',
+            'menu_name' => '月度权益履约',
             'module' => 'admin',
             'controller' => 'v1.yfth.MonthlyBenefitFulfillment',
             'action' => 'index',
@@ -158,14 +158,14 @@ class CreateYfthMonthlyBenefitFulfillmentTables extends Migrator
         ]);
 
         foreach ([
-            $this->apiRow($pageId, 'Monthly benefit fulfillment read', 'yfth/monthly_benefit/fulfillment', 'GET', 'yfth-monthly-benefit-fulfillment-read'),
-            $this->apiRow($pageId, 'Monthly benefit fulfillment confirm', 'yfth/monthly_benefit/fulfillment/<id>/confirm', 'POST', 'yfth-monthly-benefit-fulfillment-confirm'),
-            $this->apiRow($pageId, 'Monthly benefit fulfillment reject', 'yfth/monthly_benefit/fulfillment/<id>/reject', 'POST', 'yfth-monthly-benefit-fulfillment-reject'),
-            $this->apiRow($pageId, 'Monthly benefit fulfillment prepare', 'yfth/monthly_benefit/fulfillment/<id>/prepare', 'POST', 'yfth-monthly-benefit-fulfillment-prepare'),
-            $this->apiRow($pageId, 'Monthly benefit fulfillment ship', 'yfth/monthly_benefit/fulfillment/<id>/ship', 'POST', 'yfth-monthly-benefit-fulfillment-ship'),
-            $this->apiRow($pageId, 'Monthly benefit fulfillment complete', 'yfth/monthly_benefit/fulfillment/<id>/complete', 'POST', 'yfth-monthly-benefit-fulfillment-complete'),
-            $this->apiRow($pageId, 'Monthly benefit fulfillment exception', 'yfth/monthly_benefit/fulfillment/<id>/exception', 'POST', 'yfth-monthly-benefit-fulfillment-exception'),
-            $this->apiRow($pageId, 'Monthly benefit fulfillment cancel', 'yfth/monthly_benefit/fulfillment/<id>/cancel', 'POST', 'yfth-monthly-benefit-fulfillment-cancel'),
+            $this->apiRow($pageId, '查看月度权益履约', 'yfth/monthly_benefit/fulfillment', 'GET', 'yfth-monthly-benefit-fulfillment-read'),
+            $this->apiRow($pageId, '确认月度权益履约', 'yfth/monthly_benefit/fulfillment/<id>/confirm', 'POST', 'yfth-monthly-benefit-fulfillment-confirm'),
+            $this->apiRow($pageId, '驳回月度权益履约', 'yfth/monthly_benefit/fulfillment/<id>/reject', 'POST', 'yfth-monthly-benefit-fulfillment-reject'),
+            $this->apiRow($pageId, '月度权益备货', 'yfth/monthly_benefit/fulfillment/<id>/prepare', 'POST', 'yfth-monthly-benefit-fulfillment-prepare'),
+            $this->apiRow($pageId, '月度权益发货', 'yfth/monthly_benefit/fulfillment/<id>/ship', 'POST', 'yfth-monthly-benefit-fulfillment-ship'),
+            $this->apiRow($pageId, '完成月度权益履约', 'yfth/monthly_benefit/fulfillment/<id>/complete', 'POST', 'yfth-monthly-benefit-fulfillment-complete'),
+            $this->apiRow($pageId, '标记月度权益异常', 'yfth/monthly_benefit/fulfillment/<id>/exception', 'POST', 'yfth-monthly-benefit-fulfillment-exception'),
+            $this->apiRow($pageId, '取消月度权益履约', 'yfth/monthly_benefit/fulfillment/<id>/cancel', 'POST', 'yfth-monthly-benefit-fulfillment-cancel'),
         ] as $row) {
             $this->upsertMenu($row);
         }
