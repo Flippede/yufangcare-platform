@@ -1,5 +1,20 @@
 # 项目交接文档
 
+## Current Fact Snapshot - Final Headquarters Mall Stage 0 Investigation Closure
+
+- Final Stage 0 read-only architecture review conclusion: A, passed. The Stage 0 documentation is approved for merge only; this does not authorize Stage 1A implementation.
+- Final reviewed Stage 0 commit: `da0f6b366f351185dd1f7844dad278e2c061c4d9`.
+- Main before merge: `de3b2f04e231e7c3115f33b1ef1450ccf2fbb084`.
+- Merge method: `git merge --ff-only codex/yfth-hq-mall-stage0-investigation`. It produced no merge commit, squash, rebase or history rewrite.
+- The Stage 0 compatibility investigation and data-model proposal are formally complete: `docs/YFTH_HQ_MALL_STAGE0_COMPATIBILITY_INVESTIGATION.md` and `docs/YFTH_HQ_MALL_STAGE0_DATA_MODEL_PROPOSAL.md`.
+- Stage 1A architecture baseline is frozen: four authority current/event tables; one attribution current per UID; pristine versus historical unassigned isolation; atomic attribution/referral versions and events; canonical source ownership; numeric UID ascending locks only; shared processing idempotency ownership; referral eligibility fail-closed; no production entry; and zero automatic data migration.
+- Stage 1A explicitly excludes Controllers, routes, Commands, Listeners, Jobs, `system_menus`, API permissions, pages, permanent membership, dynamic codes, offline transactions, rewards, refunds, takeover, CRM projection, old-entry hiding and production deployment.
+- Existing 5980/package flows, `member_5980`, legacy referral rewards, customer CRM, appointment/writeoff, historical refund recovery and the CRMEB main chain remain preserved.
+- Remaining non-blocking P2: real business source allowlists must be frozen and reviewed in their own membership/package/referral/takeover stages; before Stage 1B production release, data handover, conflict reporting and grey rollout must be separately designed.
+- Stage 0 document merge does not automatically authorize Stage 1A. Stage 1A remains unstarted and requires separate project-control authorization. After Stage 1A is completed, an independent architecture review is mandatory before Stage 1B can be considered.
+- No production database connection, production migration, production deployment, server modification or WeChat-platform upload was performed.
+- Final `main` and `origin/main` commit values must be read from actual Git HEAD after this closure commit and push.
+
 ## Current Fact Snapshot - Headquarters Mall Stage 0 Third Review P1 Closure
 
 - The third Stage 0 read-only architecture review result remains B, conditionally passed; this round closes the remaining canonical source ownership P1 and migration/test P2/P3 documentation details.
