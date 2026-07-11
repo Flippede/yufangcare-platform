@@ -1,5 +1,20 @@
 # 项目交接文档
 
+## Current Fact Snapshot - Headquarters Mall Stage 1A Authority Foundation
+
+- Current branch: `codex/yfth-hq-mall-stage1a-authority-foundation`; start baseline: `ec1eeb61ad1755de35b5c8744bee6d51fe779b70`. The final feature commit must be read from actual Git HEAD after this snapshot is committed and pushed.
+- Implemented: four independent authority tables, Models, DAOs, internal Services, append-only versioned attribution/referral events, canonical source ownership, shared idempotency ownership, numeric UID lock ordering, fail-closed referral qualification, guarded migration recovery and isolated tests.
+- Attribution authority distinguishes pristine `unassigned` version 0 from historical `unassigned` with positive version. `active` and `paused` retain the store; paused, historical unassigned and closed cannot be rebound by ordinary paths.
+- Active referral authority enforces one active/paused owner per referred UID, rejects self and direct reverse relations, preserves the immutable relation-created source digest, and writes a matching event for every relation version.
+- Canonical domains are `hq_attribution_event`, `hq_active_referral_relation` and `hq_active_referral_event`. Digests are server-generated lowercase SHA-256 stored as nullable `CHAR(64) CHARACTER SET ascii COLLATE ascii_bin`; clients cannot supply them and general audit does not expose them.
+- Production source allowlist is empty and production referral qualification fails closed while permanent-membership authority is absent. Test source types and qualification are injected only by the explicit test bootstrap.
+- Verified on PHP 7.4.33 and isolated MySQL Community 8.0.46: full migration run, direct down/up, rollback `-t 0`, rerun, duplicate-up, compatible half-state recovery, unsafe recorded half-state rejection, real two-process competition, direct-cycle guard, lock-wait retry and deadlock retry.
+- Legacy contract/source guards and package, referral reward, franchise customer and service appointment real-flows passed. CRMEB commerce and inventory, 5980 package, `member_5980`, old referral reward, customer CRM, appointment and writeoff production code remain unchanged.
+- Not implemented: permanent membership, 9800 transaction activation, real attribution/referral sources, dynamic business code, reward calculation or ledger, refund reversal, takeover/recovery workflow, CRM projection, Stage 1B read APIs/pages, historical import or production rollout.
+- No Controller, route, Command, Listener, Job, menu, API permission, frontend page or production entry was added. The new services are not automatically invoked by old runtime paths.
+- Temporary MySQL databases, data directory, import SQL and logs were removed; the original `.env` was restored with matching SHA-256. No production database/Redis connection, production migration, deployment, server modification or WeChat upload occurred.
+- This branch is not merged into `main` and Stage 1A is not deployed. The only next action is an independent read-only Architecture Auditor review. Stage 1B requires Stage 1A approval, separately authorized merge and a new project-control instruction.
+
 ## Current Fact Snapshot - Final Headquarters Mall Stage 0 Investigation Closure
 
 - Final Stage 0 read-only architecture review conclusion: A, passed. The Stage 0 documentation is approved for merge only; this does not authorize Stage 1A implementation.

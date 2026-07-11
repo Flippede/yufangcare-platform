@@ -1,0 +1,99 @@
+<?php
+
+require_once dirname(__DIR__) . '/vendor/autoload.php';
+
+use app\dao\system\store\SystemStoreDao;
+use app\dao\user\UserDao;
+use app\dao\yfth\YfthHqActiveReferralCurrentDao;
+use app\dao\yfth\YfthHqActiveReferralEventDao;
+use app\dao\yfth\YfthHqCustomerAttributionCurrentDao;
+use app\dao\yfth\YfthHqCustomerAttributionEventDao;
+use app\services\yfth\AuditEventServices;
+use app\services\yfth\HqActiveReferralServices;
+use app\services\yfth\HqAuthorityMutation;
+use app\services\yfth\HqAuthorityOperationRunner;
+use app\services\yfth\HqAuthoritySource;
+use app\services\yfth\HqAuthoritySourceCanonicalizer;
+use app\services\yfth\HqCustomerAttributionServices;
+use app\services\yfth\ReferralQualificationPolicy;
+use think\App;
+
+class YfthHqAuthorityTestQualificationPolicy implements ReferralQualificationPolicy
+{
+    public function assertQualified(int $referrerUid, int $storeId): void
+    {
+        if ($referrerUid <= 0 || $storeId <= 0) {
+            throw new RuntimeException('test_referral_qualification_invalid');
+        }
+    }
+}
+
+function hqAuthorityBootTestApp(): App
+{
+    $app = new class() extends App {
+        public function loadEnv(string $envName = ''): void
+        {
+            parent::loadEnv($envName);
+            foreach ([
+                'YFTH_REAL_FLOW_DB_HOSTNAME' => 'database.hostname',
+                'YFTH_REAL_FLOW_DB_HOSTPORT' => 'database.hostport',
+                'YFTH_REAL_FLOW_DB_USERNAME' => 'database.username',
+                'YFTH_REAL_FLOW_DB_PASSWORD' => 'database.password',
+                'YFTH_REAL_FLOW_DB_DATABASE' => 'database.database',
+                'YFTH_REAL_FLOW_DB_PREFIX' => 'database.prefix',
+                'YFTH_REAL_FLOW_DB_CHARSET' => 'database.charset',
+            ] as $envKey => $configKey) {
+                $value = getenv($envKey);
+                if ($value !== false) {
+                    $this->env->set($configKey, $value);
+                }
+            }
+            if ((string)getenv('YFTH_REAL_FLOW_DB_PASSWORD_EMPTY') === '1') {
+                $this->env->set('database.password', '');
+            }
+            $this->env->set('cache.driver', 'file');
+        }
+    };
+    $app->initialize();
+    return $app;
+}
+
+function hqAuthorityTestServices(bool $qualified = true): array
+{
+    $canonicalizer = new HqAuthoritySourceCanonicalizer([
+        'test_attribution', 'test_referral', 'test_transition', 'test_concurrency', 'test_retry',
+    ]);
+    $runner = app()->make(HqAuthorityOperationRunner::class);
+    $attribution = new HqCustomerAttributionServices(
+        app()->make(YfthHqCustomerAttributionCurrentDao::class),
+        app()->make(YfthHqCustomerAttributionEventDao::class),
+        app()->make(UserDao::class),
+        app()->make(SystemStoreDao::class),
+        $canonicalizer,
+        $runner,
+        app()->make(AuditEventServices::class)
+    );
+    $policy = $qualified ? new YfthHqAuthorityTestQualificationPolicy() : null;
+    $referral = new HqActiveReferralServices(
+        app()->make(YfthHqActiveReferralCurrentDao::class),
+        app()->make(YfthHqActiveReferralEventDao::class),
+        $attribution,
+        $canonicalizer,
+        $runner,
+        app()->make(AuditEventServices::class),
+        $policy
+    );
+    return compact('canonicalizer', 'runner', 'attribution', 'referral');
+}
+
+function hqAuthorityTestMutation(string $sourceType, int $sourceId, string $idempotencyKey, string $reason = 'isolated_test'): HqAuthorityMutation
+{
+    return new HqAuthorityMutation(
+        HqAuthoritySource::fromTrusted($sourceType, $sourceId),
+        max(1, (int)(getenv('YFTH_HQ_TEST_OPERATOR_UID') ?: 1)),
+        'test_operator',
+        $reason,
+        'test-request-' . $idempotencyKey,
+        $idempotencyKey
+    );
+}
