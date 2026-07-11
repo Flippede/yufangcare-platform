@@ -171,7 +171,8 @@
 - 快照以 text JSON 保存，但权威关系、金额、状态和外键均为结构化列；新模型应沿用“结构化核心字段 + 不可变规则/凭证摘要快照”，不能用 JSON 代替关系约束。
 - migration 事实分层：较新的高风险迁移已形成 `hasTable/hasColumn`、权限 `unique_auth` upsert、精确 `down()` 和半迁移恢复模式；早期 foundation、package、customer 等 migration 部分仍使用一次性 `change()`，不能假设全部具备重复执行或半迁移恢复能力。Stage 1A 必须按当前最高标准重新实现，并在 MySQL 8 strict mode 验证名称/索引、run/rollback/rerun/duplicate run 和半迁移恢复。
 - 不应扩展旧表改变语义：`yfth_package_*`, `yfth_referral_candidate`, `yfth_referral_attribution`, `yfth_reward_ledger`, `yfth_customer_relation`, `yfth_service_dynamic_code`。
-- 若为兼容查询增加投影字段或关联，必须在具体阶段独立论证；阶段零建议优先新增表，rollback 只撤销新表和新菜单，不触碰旧历史数据。
+- 若为兼容查询增加投影字段或关联，必须在具体阶段独立论证。Stage 1A 没有菜单或 API 权限，其 rollback 只按依赖顺序删除四张新业务表；“删除新菜单/权限”仅适用于未来确实包含 UI/API 权限的阶段（例如 Stage 1B）。不得在 Stage 1A migration 中误加 `system_menus`，也不得触碰旧历史数据。
+- 第三次复核冻结 source key 责任：attribution current 不存 key；attribution event 使用事件域 key；referral current 只保留不可变的 relation-created 来源 key；referral event 使用事件域 key。具体 domain、字符集、迁移恢复与并发验收规则以数据模型提案为唯一设计依据。
 
 ## 9. 可直接复用的公共能力
 

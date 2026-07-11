@@ -1,6 +1,26 @@
 # 项目交接文档
 
-## Current Fact Snapshot - Headquarters Mall Stage 0 Second Review P1 Closure
+## Current Fact Snapshot - Headquarters Mall Stage 0 Third Review P1 Closure
+
+- The third Stage 0 read-only architecture review result remains B, conditionally passed; this round closes the remaining canonical source ownership P1 and migration/test P2/P3 documentation details.
+- Current branch: `codex/yfth-hq-mall-stage0-investigation`; start HEAD: `8a6f09e3360dfcff030144f604bffdcb9ee0e2fb`; stable `main` / `origin/main`: `de3b2f04e231e7c3115f33b1ef1450ccf2fbb084`.
+- This round only revises the same three Stage 0 Markdown files. No business code, migration, route, Controller, Command, Listener, Job, test, frontend, build artifact, database or old entry is changed.
+- `yfth_hq_customer_attribution_current` explicitly has no `source_unique_key` field or index. Its `source_type/source_id` are current-state source summaries only and do not provide event idempotency.
+- `yfth_hq_customer_attribution_event` alone stores event-specific attribution source digests using `hq_attribution_event|{event_type}|{source_type}|{canonical_source_id}`.
+- `yfth_hq_active_referral_current` stores only the immutable relation-created source digest using `hq_active_referral_relation|relation_created|{source_type}|{canonical_source_id}`; pause/resume/close/invalid never replace it.
+- `yfth_hq_active_referral_event` stores event-specific digests using `hq_active_referral_event|{event_type}|{source_type}|{canonical_source_id}`.
+- Source digests are nullable `CHAR(64) CHARACTER SET ascii COLLATE ascii_bin`, lowercase SHA-256. Sources without an applicable key use `NULL`; empty strings are invalid, client-supplied source keys are rejected, and no API role receives the digest.
+- Migration recovery is frozen for four paths: no record/no schema creates normally; no record/compatible partial schema performs full signature checks then fills only safe gaps; record/full schema is a no-op with direct duplicate-up harness evidence; record/incomplete schema blocks release and requires a separately reviewed forward repair migration.
+- A present migration record with incomplete schema must never be deleted or forged, and production tables must not be manually patched. Forward repair may only add compatible structure without overwriting business data.
+- MySQL DDL is not fully transactional. Failure means stop subsequent DDL immediately; already successful compatible DDL is not promised to roll back automatically and is recovered through the documented idempotent or forward-repair path.
+- Stage 1A uses one main migration for four tables in dependency order: attribution current, attribution event, referral current, referral event. It adds no foreign keys, menus, API permissions or fixture data.
+- Stage 1A concurrency evidence must use official MySQL Community 8.0.46, an isolated temporary database, two independent PHP processes and two independent database connections; SQLite, MariaDB and sequential single-process calls are not substitutes.
+- Full legacy regression is frozen for foundation contract; package benefit contract/real-flow; referral reward contract/real-flow; franchise customer contract/real-flow; and service appointment contract/real-flow. Contract/source guards are required for store workbench, monthly fulfillment, supply chain, product quota and franchise opening.
+- Stage 1A production code defines only the canonicalizer interface and fixed format. Test source types stay in a test-only namespace/config; real membership, package, referral-binding and takeover source allowlists are frozen in their later stages, and unknown/free-form composite sources fail closed.
+- Stage 1A remains unauthorized, and these Stage 0 documents remain blocked from main. Next action is another read-only architecture review; only after it passes may the documents merge, after which project control separately decides whether to authorize Stage 1A.
+- No production deployment, production database connection, production migration, server modification or WeChat upload was performed.
+
+## Historical Second Review P1 Closure Snapshot - Superseded By Third Review Closure Above
 
 - The second Stage 0 read-only architecture review result remains B, conditionally passed; this round closes its remaining P1/P2 documentation gates before another review.
 - Current branch: `codex/yfth-hq-mall-stage0-investigation`; start HEAD: `7cc91d7d681efa08a0555d8f809245261e881a4e`; stable `main` / `origin/main`: `de3b2f04e231e7c3115f33b1ef1450ccf2fbb084`.
@@ -11,7 +31,7 @@
 - Structured attribution reason codes are frozen, including `initial_placeholder`, `store_terminated_no_successor`, `temporary_risk_pause`, `temporary_qualification_pause`, `headquarters_correction_closed` and `account_closed`.
 - Attribution placeholder starts at authority version 0 without an event. First real attribution moves to version 1 and writes version-1 `attribution_created` in the same transaction; every later change increments exactly once and has the matching event version.
 - A new referral relation starts at `relation_version=1` and must atomically write version-1 `relation_created`. Resume/pause/close/invalid transitions increment the version and write `relation_resumed`, `relation_paused`, `relation_closed` or `relation_invalid`; membership activation is `relation_closed` with `close_reason=membership_activated`.
-- Attribution/referral `source_unique_key` is a nullable, lowercase 64-character canonical SHA-256 digest with fixed domain/event/source ordering. It is unique only within its own table; absent sources use NULL, never an empty string, and clients cannot supply the digest.
+- The second-review source-key wording is superseded by the third-review matrix above: attribution current has no source key; attribution event, immutable referral-creation current and referral event use distinct canonical domains.
 - Each request calls `IdempotencyRecordServices::begin()` once. Up to three deadlock/lock-wait transaction attempts reuse the same processing ownership; they do not begin, reacquire or fail early. Success completes once and final failure fails once.
 - Stage 1A creates only four business tables plus Model/DAO/domain services, qualification policy, idempotency, authority events, general audit, migration and tests. It creates no `system_menus`, API permission, Controller, route, Command, Listener, Job, schedule, page, config switch, production test provider or production recommendation entry.
 - Headquarters ordinary read and authority-event audit read are separate Stage 1B permission/DTO semantics. Ordinary readers cannot see event/version/operator/source-id/internal reason fields; explicitly authorized auditors receive a limited structured event DTO but still never receive source digests, idempotency secrets, raw audit JSON or private identity/payment data.
