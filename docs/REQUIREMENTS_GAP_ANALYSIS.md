@@ -4,6 +4,7 @@
 > **Superseded Product Scope Notice**
 >
 > 本文件保留历史差距分析，不代表当前产品范围。B 商家独立商城、在线 5980/9800 套餐、门店收取消费者线上款或单轮三人奖励等旧口径均不得作为当前开发依据。最新产品依据为 [YFTH_RELEASE_SCOPE_HQ_MALL_MEMBERSHIP_REFERRAL.md](YFTH_RELEASE_SCOPE_HQ_MALL_MEMBERSHIP_REFERRAL.md)。
+> `PRODUCT_REQUIREMENTS.md` 同样属于历史产品基线；现有 `5980` 技术标识及稳定兼容能力默认保留，未经独立调查、迁移方案和架构审核不得清理、重命名或重建。
 
 ## Monthly Benefit Claim / Fulfillment V1 Delta
 
