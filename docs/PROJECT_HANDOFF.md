@@ -1,5 +1,19 @@
 # 项目交接文档
 
+## Current Fact Snapshot - Final Headquarters Mall Scope Documentation Closure
+
+- 第三次只读架构复核结论为 A：仅批准本轮文档合并；当前没有 Blocker、P1 或 P3，剩余问题均为后续具体阶段的 P2 参数门禁。
+- 文档分支 `codex/yfth-hq-mall-membership-referral-scope-doc` 已通过 `git merge --ff-only` 合并进入 `main`；合并前 main 为 `30aa69de6037123eb8b593ceb66c03740912549e`，已审核文档提交为 `c60a7f9a03fadff3795cb86165d832cd208c2a74`。
+- 文档分支本地和远端均继续保留，不删除、不改写历史。
+- 当前最新产品依据为 [YFTH_RELEASE_SCOPE_HQ_MALL_MEMBERSHIP_REFERRAL.md](YFTH_RELEASE_SCOPE_HQ_MALL_MEMBERSHIP_REFERRAL.md)；当前事实入口为本文顶部最新 `Current Fact Snapshot`。
+- `PRODUCT_REQUIREMENTS.md`、原始 DOCX、`REQUIREMENTS_GAP_ANALYSIS.md` 历史正文和旧发布范围仅作为历史或兼容依据，不得覆盖当前范围或作为当前开发顺序。
+- 现有线上 `5980` 套餐、十个月权益、月度履约、产品额度、旧推荐台账、退款补偿和恢复能力继续保留；不得全局清理或重命名旧 `5980` 技术标识。
+- 当前未启动阶段零，也未启动阶段一至阶段七。文档合并不等于允许业务开发。
+- 下一步必须由项目主控单独授权阶段零；阶段零只能进行只读兼容与数据模型调查，完成后必须再次执行只读架构审核。只有阶段零审核通过且项目主控再次授权后，才允许进入阶段一。
+- 剩余 P2：B 商家总部商城收益比例和 C 端普通商品消费子分配比例待确认，均阻塞阶段五；三三制观察期默认天数待确认，阻塞阶段四真实解冻和上线；会员退款后已有下级 active 关系处置待确认，阻塞阶段二完整退款和阶段四真实解冻；部分退款比例冲正规则、会员福利具体配置待确认；无接管状态恢复条件和行政区 code 来源待确认，阻塞阶段七；隐私授权和结算凭证标准待确认，阻塞对应敏感页面和阶段六上线。开发人员不得自行选择上述业务参数。
+- 本轮未部署生产、未连接生产数据库、未执行生产迁移、未上传微信平台。
+- 最终 `main` 和 `origin/main` 提交应以本次文档闭环提交及推送后的真实 Git HEAD 为准。
+
 ## Current Fact Snapshot - Headquarters Mall Membership And Referral Scope Third Review Closure
 
 - Current `main` baseline for this documentation round: `30aa69de6037123eb8b593ceb66c03740912549e`.
