@@ -12,6 +12,7 @@
 - 主要冲突：旧 `member_5980` 是线上套餐实例派生身份；旧推荐候选固定 90 天且按场景绑定业务对象；`yfth_customer_relation` 是门店 CRM 经营关系；预约动态码表绑定预约核销状态机。四者都不能改释为新方案的权威对象。
 - 架构审核 P1 整改已把永久归属冻结为每数值 UID 一行 `yfth_hq_customer_attribution_current` + 独立 attribution event，把 active 推荐冻结为 `yfth_hq_active_referral_current` + 独立 referral event；不再使用独立 guard 表、字符串归属 active key 或共用 relationship event。
 - 实施门禁已拆分为 Stage 1A Authority Foundation 和后续单独授权的 Stage 1B Read-only Surface。永久会员权威完成前，生产推荐资格必须 fail closed，任何阶段均不得开放真实推荐绑定。
+- 第二次复核整改进一步冻结：只有 version 0 的 pristine `initial_placeholder` unassigned 可被未来普通可信首次归属；历史无接管 unassigned 和 closed 均禁止普通重绑。每个请求只 begin 一次幂等记录，deadlock/lock wait 事务重试复用同一 processing ownership。
 - 不得删除的稳定模块：线上 5980 套餐订单/支付/退款/恢复、十个月权益与月度履约、预约/容量/权益锁定/动态核销、旧推荐奖励兼容链路、客户 CRM、总部与门店工作台、统一审计和幂等。
 - 阶段零未读取生产数据库，无法证明生产数据为空。任何初始数据处理必须先做生产前只读盘点和人工核验，禁止依据代码仓库推断可自动迁移。
 
@@ -60,7 +61,7 @@
 结论：
 
 - `member_5980` 只由当前有效期内且 `status=active` 的线上套餐实例派生。套餐进入 `refunding`, `refunded`, `closed`, `expired` 等非 active 状态时，生命周期服务触发重新计算；只有仍存在 active 套餐实例时该身份继续有效。新 9800 永久会员第一版不续费，且由目标用户确认的线下成交激活，生命周期和资金事实完全不同。
-- 新永久会员不得原地复用 `member_5980`，也不得把旧实例批量改成新会员。建议建立独立会员实例权威表，并在身份投影中使用新的角色代码（建议名待架构审核，例如 `permanent_member`），`member_5980` 只继续表示历史线上套餐会员。
+- 新永久会员不得原地复用 `member_5980`，也不得把旧实例批量改成新会员。未来独立永久会员实例才是权威，身份投影代码统一为 `member_yfth`；同一用户允许同时拥有 `member_5980` 与 `member_yfth`。Stage 1A/1B 不实现该身份，未来会员阶段仍须验证 uni-app 身份标签和切换展示。
 - 不能只隐藏旧入口后删除底层判断：预约、权益领取、核销、客户状态、推荐事件、退款恢复和测试仍依赖旧对象。
 
 ## 4. 旧 referral/reward 实现清单
