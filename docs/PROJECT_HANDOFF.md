@@ -4,6 +4,7 @@
 
 - Current `main` baseline for this documentation round: `30aa69de6037123eb8b593ceb66c03740912549e`.
 - 第一次只读架构预审结论为 B；上一轮关闭旧文档引用、可信线下成交、三三制责任主体和 active 推荐有效期四个 P1。第二次只读架构审核结论仍为 B，本轮继续关闭 `PRODUCT_REQUIREMENTS` 权威性污染、目标 UID 可信绑定以及永久归属未纳入成交原子事务三个范围门禁。
+- 第三次复核前发现 `REQUIREMENTS_GAP_ANALYSIS.md` 仍保留旧“产品依据”和历史开发顺序的当前式表述，本轮已完成最终来源统一：当前唯一产品依据为 `docs/YFTH_RELEASE_SCOPE_HQ_MALL_MEMBERSHIP_REFERRAL.md`；`PRODUCT_REQUIREMENTS.md`、原始 DOCX 和差距分析历史正文只用于追溯早期产品与兼容实现，不得作为当前开发顺序。
 - 本轮只修订 Markdown 需求文档，不写业务代码、接口、迁移、测试或前端；旧 `9800 Direct Referral Release Scope - Frozen Draft` 已被新方案取代。
 - C 端始终只显示总部统一商城，总部商城收款进入总部支付主体；B 商家没有独立商城。
 - 首次注册用户默认不绑定商家，可正常浏览和购买总部商城商品，绑定前历史订单不追溯收益。
@@ -489,7 +490,7 @@
 - 当前工作区和推送状态：以 `git status`、当前 Git HEAD 和 origin/main 实时值为准；本轮在 `feature/yfth-miniapp-multi-role-shell-v1` 开发，不合并 `main`，不部署生产。
 - 当前禁止事项和冻结模块：不得在本阶段开发核销撤销/反冲、权益恢复、评价、自动爽约、提醒消息、独立付费服务订单、跨店核销、离线码、打印码、员工排班资源、家庭成员预约、推荐奖励、配送、库存补货、产品额度、加盟合同、真实分账或生产部署；不得修改 5980 套餐支付激活、CRMEB 订单/支付/退款、后台权限核心流程或生产部署配置。
 - 产品文档目录：`C:\Users\zhangxu\Desktop\御方通和\yufangcare-platform\项目文档`
-- 完整产品依据：`御方通和加盟小程序项目需求与产品设计文档_V1.0.docx`
+- 当时的历史完整产品依据：`御方通和加盟小程序项目需求与产品设计文档_V1.0.docx`；当前产品依据见本文顶部最新 `Current Fact Snapshot` 指向的 Headquarters Mall 最新范围文档。
 
 ## Current Fact Snapshot - 2026-07-04 HQ Admin Productization V1
 
