@@ -1,300 +1,525 @@
 # YFTH Headquarters Mall Stage 0 Data Model Proposal
 
-> 本文件是阶段零设计建议，不是已批准 migration。表名、字段名和状态枚举必须经过独立只读架构审核后才能进入实现。
+> 本文件是阶段零架构审核 P1/P2 整改后的冻结设计，不是已批准 migration，也不表示 Stage 1A 或 Stage 1B 已获开发授权。实现前仍须再次通过阶段零只读架构复核并取得项目主控的分阶段授权。
 
 ## 1. 设计原则
 
 1. CRMEB 商品、SKU、购物车、总部商城订单、支付、退款、物流、售后和页面装修主链不改。
 2. 新业务使用独立 YFTH 域；旧 5980、旧推荐、客户 CRM 和预约核销保持原语义并存。
-3. 不原地改释旧字段、角色代码或状态，不删除历史；关闭 active 行时清空可空唯一键并保留原行。
-4. UID、门店、角色、能力、规则、金额和业务状态只从服务端可信上下文与权威记录推导。
-5. 成交时固化不可变规则、金额、归属、推荐、凭证摘要和操作人快照。
-6. 所有写操作先取得统一幂等记录，业务事务内使用行锁和数据库唯一约束兜底。
-7. 跨店冲突不能“后写覆盖”；同店重放返回原结果，异店必须拒绝。
-8. 审计使用 `AuditEventServices`；关系/状态历史另写 append-only 业务事件。
-9. 金额统一使用整数分；禁止浮点、余额、积分、佣金、CRMEB 分销字段或订单备注承载。
+3. 不原地改释旧字段、角色代码或状态，不删除历史，不使用“最后写入者获胜”。
+4. UID、门店、角色、能力、规则和业务状态只从服务端可信上下文与权威记录推导。
+5. current authority 表示当前事实；独立 append-only authority event 表示权威历史；两者必须同事务更新。
+6. 所有写操作先取得统一幂等记录，业务事务内使用稳定行锁顺序和数据库唯一约束兜底。
+7. 跨店冲突不能覆盖：同店重放返回原结果，异店必须拒绝。
+8. authority event 与 `AuditEventServices` 职责分离；通用安全审计不能替代权威业务事件。
+9. 金额统一使用整数分；禁止余额、积分、佣金、CRMEB 分销字段或订单备注承载新业务。
 10. JSON 只保存不可变快照和最小私有凭证元数据，权威关系、状态、金额和唯一键必须结构化。
 
-## 2. 权威业务对象
+## 2. Stage 1A 冻结权威模型
 
-下表中的名称为建议名称。
+Stage 1A 只创建四张新表：
 
-| 权威对象 | 建议表 | 核心状态/唯一约束 | 与旧表关系 |
-| --- | --- | --- | --- |
-| 永久 B 商家归属 | `yfth_hq_customer_attribution` | `active/paused/closed`; unique nullable `active_key = uid:{uid}` | 不复用 `yfth_customer_relation`；后者仅 CRM/投影 |
-| active 一级推荐 | `yfth_hq_active_referral` | `active/paused/closed/invalid`; unique nullable `active_key = referred:{uid}` | 不迁旧 90 天 candidate |
-| 通用线下成交 | `yfth_offline_sale` | `pending_confirmation/confirmed/refund_pending/refunded/cancelled/invalid`; unique sale_no 和业务幂等键 | 不复用 package purchase/CRMEB order |
-| 会员产品规则 | `yfth_membership_rule_version` | `draft/published/disabled/archived`; template/version 与 published active key | 不复用旧 package rule |
-| 永久会员实例 | `yfth_permanent_membership` | `active/refund_pending/refunded/revoked`; unique nullable `active_key = uid:{uid}` | 与 `member_5980` 分离，可投影新身份代码 |
-| 客户身份码 | 统一 `yfth_business_dynamic_code` scene=`customer_identity` | `issued/used/expired/invalidated`; scene+business active key | 不复用预约动态码 |
-| 会员确认码 | 同表 scene=`membership_confirmation` | 每 pending sale 一个 active code | 绑定 pending membership sale |
-| 套餐成交确认码 | 同表 scene=`package_sale_confirmation` | 一个生成操作一个 active code；一个码一笔 sale | 套餐 sale 与会员分离 |
-| 退款/撤销申请 | `yfth_offline_sale_refund_request` | `submitted/approved/rejected/cancelled`; unique request_no/idempotency | 不接 CRMEB refund |
-| 归属与关系事件历史 | `yfth_hq_relationship_event` | append-only；event_no/idempotency unique | 与 unified audit 并行，不覆盖旧历史 |
+1. `yfth_hq_customer_attribution_current`
+2. `yfth_hq_customer_attribution_event`
+3. `yfth_hq_active_referral_current`
+4. `yfth_hq_active_referral_event`
 
-所有对象应包含 `id`, 结构化业务键, 状态, `add_time/update_time`（事件表只需 add_time）、`request_id` 或幂等关联。敏感凭证只保存私有附件 ID/哈希/最小摘要，API DTO 白名单输出。
+不创建独立 attribution guard 表，不创建通用 relationship event 表，不扩展任何旧表。
 
-### 2.1 对象级权威边界
+### 2.1 `yfth_hq_customer_attribution_current`
 
-1. **永久 B 商家归属**：建议新表，因为 CRM relation 缺少接管/无店/事件语义。权威字段为 UID、store、source、当前状态、前后归属和 operator；current 行由 UID active key 唯一。关闭只清 active key，历史由原行和 relationship event 保留。所有入口共用审计与业务幂等。
-2. **active 一级推荐**：建议新表，因为旧 candidate 固定 90 天且按 scene 唯一。权威字段为 referrer/referred/store/attribution/membership source/起止时间/关闭原因；referred UID active key 唯一。关闭或暂停保留原行和事件，不覆盖旧 candidate。
-3. **通用线下成交**：建议新表，因为旧 package purchase 强绑定 CRMEB order/payment。权威字段为 sale_no、business_type、目标 UID、门店、整数分金额、线下付款、私有凭证、operator、规则/归属/推荐快照和状态；sale_no、来源码和业务幂等唯一。原成交不可修改，退款另建申请/冲正记录。
-4. **会员产品规则**：建议新 version 表，因为旧 package rule 生成十个月权益且不是永久会员规则。权威字段为 rule_code/version/status/price_cent/term_type/benefit policy/confirmation text/effective range；template+version 唯一、published active key 唯一。成交保存规则快照；发布、停用和复制写统一审计，幂等发布不能生成重复版本。
-5. **永久会员实例**：建议新表，因为 `member_5980` 会随旧套餐实例重算。权威字段为 membership_no/UID/store/sale/rule/status/effective/refund/revoke 信息和福利快照；UID active key 唯一。退款/撤销关闭 active key但保留实例、事件和审计；身份表只作投影。
-6. **客户身份码**：建议新通用动态码表的独立 scene，因为预约码绑定 writeoff。权威字段为 hash、target UID、store、purpose、TTL、状态、used_by 和 business key；scene+hash、场景 active key 唯一。明文不落库，消费/失效/过期有审计和幂等。
-7. **会员确认码**：使用新动态码底座独立 scene，绑定 pending membership sale/target/store。pending sale active key 唯一；消费与会员激活同事务，重放返回原会员/成交，不重复审计业务结果。
-8. **套餐成交确认码**：使用新动态码底座独立 scene，绑定 target/expected store/规则与金额快照 key。来源码只能生成一个 sale；过期、异店、跨 scene 和重复消费拒绝，且不调用预约码或旧 package 服务。
-9. **退款/撤销申请**：建议新表，因为资金由 B 线下收取，CRMEB refund 没有该支付事实。权威字段为 request_no/sale_id/type/amount_cent/reason/private evidence/operator/status/auditor/times；request_no 和业务幂等唯一，不使用 active key。审批结果追加 sale/refund event 和审计，原 sale/奖励记录不物理修改。
-10. **归属与关系事件历史**：建议 append-only 新表，字段为 event_no/domain/object/event/source/before/after store/referrer/status/operator/reason/request/time；事件号与来源幂等唯一，无 active key。它提供业务时间线，`yfth_audit_event` 继续提供通用操作审计，两者不重复充当 current authority。
+每个 CRMEB 用户 UID 永久最多一行 current authority。该行同时承担当前归属权威、UID 级并发锁载体以及当前无店、暂停和关闭状态。
 
-## 3. 永久商家归属建议
+建议字段：
 
-### 3.1 建议字段
+- `id`
+- `uid`：与 CRMEB `eb_user.uid` 兼容的无符号数值类型
+- `store_id`
+- `status`
+- `authority_version`
+- `source_type`
+- `source_id`
+- `bound_at`
+- `paused_at`
+- `closed_at`
+- `close_reason`
+- `last_event_id`
+- `add_time`
+- `update_time`
 
-- `uid`, `store_id`, `status`, `source_type`, `source_id`, `source_sale_id`。
-- `bound_at`, `paused_at`, `closed_at`, `close_reason`, `previous_attribution_id`, `takeover_batch_id`。
-- `rule_version`, `source_snapshot`, `operator_uid`, `operator_role_code`, `request_id`。
-- `active_key`：仅 active/paused 且仍有门店归属的当前行写 `uid:{uid}`；closed 行置 `NULL`。
+唯一约束使用 `UNIQUE(uid)`，不使用字符串 `uid:{uid}` 或 nullable `active_key`。同一 UID 不通过新增第二条 current 行保存历史，也不物理删除后重新绑定。
 
-### 3.2 一致性规则
+#### 首次建行规则
 
-- 数据库唯一 `active_key` 保证同一 UID 同一时刻至多一个当前归属；服务层先锁“UID 归属保护行”。为避免首次无行无法锁，建议另建轻量 `yfth_hq_attribution_guard(uid unique)`，或使用等价的确定性用户级 guard。单靠查询空结果 `FOR UPDATE` 不足以稳定串行化首次绑定。
-- 直推绑定、会员确认和套餐成交三个入口必须调用同一个 `AttributionAuthorityServices::ensureAttribution(uid, storeId, source)`（建议类名），不能各自复制先查后写逻辑。
-- 同店已有归属返回原行并记录幂等结果；异店已有归属返回统一 `customer_attribution_store_conflict`，不得覆盖。
-- 总部接管（阶段七）应锁 guard 和旧归属，关闭旧行并清空 active key，再创建新行，写 takeover event；同一事务内保持“最多一个 current”。
-- 无店状态建议保留一条关闭后的历史归属并在独立 current-state/guard 上表达 `unassigned`，不要用 `store_id=0` 伪造 active 商家。是否需要独立 `yfth_hq_attribution_current` 表由架构审核决定。
-- `yfth_hq_relationship_event` 保存 `attribution_created/paused/closed/taken_over/unassigned/restored`，含 before/after store、source、operator、reason、batch。
+1. 首次需要处理某 UID 时，在业务事务外或事务开始阶段通过确定性的 insert-first/原子 upsert 语义确保 current 行存在。
+2. 初始占位行固定为 `status=unassigned`, `store_id=0`, `authority_version=0`。
+3. 并发唯一冲突表示其他请求已经创建该行；当前请求必须重新读取，不能当成业务失败或覆盖。
+4. 后续业务失败时保留无害占位行，不删除。
+5. 进入业务事务后按 UID 锁定 current 行；不得依赖对不存在记录执行 `FOR UPDATE` 来串行化首次绑定。
+6. 文档不预设超出现有框架能力的具体 SQL，Stage 1A 实现须用仓库可验证的 insert-first/冲突重读方式完成上述语义。
 
-### 3.3 与客户 CRM
+#### 状态语义
 
-- `yfth_customer_relation` 不参与永久归属唯一性，也不作为成交校验权威。
-- 阶段一 API 可组合查询 attribution + CRM 状态，不写自动投影。
-- 后续若需要同步：以 attribution event 为输入，幂等关闭原店 CRM active row、为新店创建独立 CRM row；旧 follow record 不移动。自动投影策略必须单独审核。
+| 状态 | store_id | 权威语义 | 允许的普通业务行为 |
+| --- | ---: | --- | --- |
+| `active` | `> 0` | 当前有效 B 商家归属 | 同店幂等复用；异店拒绝 |
+| `paused` | `> 0` | 保留原归属，但因无接管、风控或受控原因暂停部分能力 | 继续占用该 UID authority；禁止其他门店/推荐人抢占 |
+| `unassigned` | `0` | 当前没有 B 商家归属；可为初始空状态或未来受控无店状态 | 后续可信首次归属可转 active |
+| `closed` | `0` | 受控纠错、账号关闭或总部流程关闭 | 普通入口不得恢复；未来总部流程决定是否重开 |
 
-## 4. active 一级推荐建议
+明确禁止：
 
-### 4.1 建议字段
+- `store_id=0` 却解释为 active 商家。
+- paused 时清除归属或允许新门店抢占。
+- 新建第二条 current 行保存历史。
+- 物理删除 current 行后重新绑定。
+- 普通业务入口换店、覆盖或恢复 closed。
 
-- `referrer_uid`, `referred_uid`, `store_id`, `attribution_id`, `status`。
-- `source_type`, `source_id`, `started_at`, `paused_at`, `closed_at`, `close_reason`。
-- `referrer_membership_id`, `rule_version`, `relation_snapshot`, `request_id`, `active_key`。
-- `active_key = referred:{referred_uid}` 仅 active/paused 当前关系写值；closed/invalid 置 `NULL`。
+#### 归属变化规则
 
-### 4.2 规则
+每次状态、门店或来源变化必须：
 
-- 长期有效，不写固定 expire_time；只有会员激活、总部纠错/风控、无店暂停或明确无效事件改变状态。
-- 创建前校验 referrer 是 active 永久会员、具有直推资格，且 referrer 当前永久归属与目标将形成的归属门店一致。
-- 被推荐人一个 active 关系，数据库唯一兜底；禁止自推荐、循环（至少禁止 referrer=referred，并查询直接反向关系；更深环检测策略待审核）。
-- 会员激活事务内关闭关系，`close_reason=membership_activated`，不自动恢复。
-- 商家无接管时保留当前行但置 `paused`，active key 是否继续占用应由架构审核决定。建议继续占用，防止暂停期间被其他推荐人抢占；恢复时原行转 active。
-- 与旧 candidate 完全并存：不复制其 90 天 expire_time，不把旧 active candidate 自动升级。
+1. 锁定 current 行。
+2. 校验当前版本和状态转换。
+3. `authority_version` 严格加一。
+4. 更新 current 行。
+5. 同事务写入 `yfth_hq_customer_attribution_event`。
+6. event 成功后回写/确认 `last_event_id`。
+7. event 写入失败时整体回滚，不允许只有 current 变化。
 
-## 5. 通用线下成交建议
+### 2.2 `yfth_hq_customer_attribution_event`
 
-### 5.1 建议字段
+归属事件是 append-only 权威历史，不与推荐事件共表，不使用 `AuditEventServices::recordSafely()` 代替。
 
-- `sale_no`（不可变、唯一）、`business_type` (`membership/package`)。
-- `target_uid`, `store_id`, `attribution_id`, `active_referral_id`（可空）。
-- `amount_cent`, `currency`, `payment_method`, `paid_at`, `receipt_no`。
-- `private_voucher_attachment_id`, `voucher_hash`；不得在公开 DTO 返回私有凭证。
-- `operator_uid`, `operator_role_code`, `rule_version_id`, `membership_rule_version_id`（适用时）。
-- `attribution_snapshot`, `referral_snapshot`, `rule_snapshot`, `sale_snapshot`。
-- `status`, `confirmed_at`, `confirmed_by_uid`, `refund_status`, `request_id`, `idempotency_key`。
-- unique `sale_no`; unique `(business_type, store_id, idempotency_key)`；奖励候选后续 unique `(source_type='offline_sale', source_id=sale_id)`。
+建议字段：
 
-### 5.2 两类成交差异
+- `id`, `event_no`
+- `attribution_current_id`, `uid`, `authority_version`
+- `event_type`
+- `before_store_id`, `after_store_id`
+- `before_status`, `after_status`
+- `source_type`, `source_id`, `source_unique_key`
+- `operator_uid`, `operator_role_code`
+- `reason`, `request_id`, `add_time`
 
-- 会员：B 通过客户身份码得到可信 `target_uid`，登记真实线下收款后先创建 `pending_confirmation`；只有 pending 成功后才生成 `membership_confirmation` 码。目标用户本人确认后原子创建/复用归属、关闭 active 推荐、创建永久会员并确认成交。
-- 套餐：目标 C 用户选择预期门店并确认线下购买声明，先生成 `package_sale_confirmation` 码；B 在可信门店上下文扫描后，事务内创建 `confirmed` package sale 和首次归属。它不创建会员、不关闭 active 推荐、不创建 CRMEB order、不消费服务权益。
-- 两者共用结构化 sale 权威表，但用不同业务服务、动态码 scene、权限和状态转换。共享底层不可等于共享控制器入口。
+约束与索引：
 
-## 6. 永久会员实例建议
+- `UNIQUE(event_no)`
+- `UNIQUE(attribution_current_id, authority_version)`
+- nullable `UNIQUE(source_unique_key)`
+- `INDEX(uid, add_time)`
+- `INDEX(event_type, add_time)`
+- `INDEX(source_type, source_id)`
 
-- 新表 `yfth_permanent_membership`，字段建议：`membership_no`, `uid`, `store_id`, `sale_id`, `rule_version_id`, `status`, `effective_at`, `refund_pending_at`, `invalidated_at`, `invalid_reason`, `benefit_snapshot`, `active_key`。
-- 第一版永久有效且不续费，不设置自然 expire_at；可预留 `term_type`/`scheduled_expire_at` 但第一版固定 `permanent`/0，禁止开放期限型状态机。
-- active key 按 UID 唯一；唯一冲突后重读，已有 active 返回 already_member，不创建第二实例。
-- 直推资格由 active permanent membership 派生，可投影到 `yfth_user_identity` 的新角色代码，但会员表才是权威。身份投影失败需要可重试补偿，不能反向把身份表当会员权威。
-- 全额退款审核通过后会员失效、失去直推资格，但不恢复原上级 active relation。既有下级关系处置仍是业务门禁，未冻结前不得实现完整退款上线。
-- 与 `member_5980` 完全分离；旧身份继续由 package instance 重算。
-- 福利只保存已发布规则快照；具体内容尚未确认，不在阶段一实现。
+事件只追加，不更新原事件，不物理删除。`source_unique_key` 用于阻止同一可信来源重复改变归属；不适用时必须为 `NULL`，不能用空字符串制造全局冲突。
 
-## 7. 动态码统一底座建议
+### 2.3 `yfth_hq_active_referral_current`
 
-### 7.1 方案比较
+该表的一行表示一段当前或历史推荐关系。closed/invalid 后如未来允许建立新的合法关系，应创建新 relation 行；paused 恢复则更新原行。
 
-| 维度 | A. 一个通用表，scene 隔离 | B. 三个独立表 |
+建议字段：
+
+- `id`, `relation_no`
+- `referrer_uid`, `referred_uid`, `store_id`
+- `attribution_current_id`
+- `status`, `active_referred_uid`
+- `source_type`, `source_id`, `source_unique_key`
+- `started_at`, `paused_at`, `closed_at`, `close_reason`
+- `relation_version`, `request_id`
+- `add_time`, `update_time`
+
+约束与索引：
+
+- `UNIQUE(relation_no)`
+- nullable `UNIQUE(active_referred_uid)`
+- nullable `UNIQUE(source_unique_key)` 或语义等价的来源唯一约束
+- `INDEX(referrer_uid, status)`
+- `INDEX(referred_uid, status)`
+- `INDEX(store_id, status)`
+- `INDEX(status, update_time)`
+
+`active_referred_uid` 使用与 UID 一致的可空无符号数值类型，不使用字符串 `referred:{uid}`。
+
+#### 状态语义
+
+| 状态 | active_referred_uid | 语义 |
 | --- | --- | --- |
-| 安全实现 | 哈希、TTL、重放、清理、active key 一处实现 | 容易复制后分叉 |
-| 业务隔离 | 需强制 scene + business type + 服务类白名单 | 物理隔离更强 |
-| 索引/运维 | 统一扫描和过期清理 | 三套任务/索引/测试 |
-| 错误影响 | 通用服务缺陷影响三 scene | 单场景影响较小 |
-| 扩展 | 后续可信确认码可受控新增 scene | 每场景新增表 |
+| `active` | `referred_uid` | 长期有效一级推荐，不设置 90 天到期 |
+| `paused` | `referred_uid` | 关系保留并继续占位；暂停期间禁止其他推荐人抢占 |
+| `closed` | `NULL` | 正常业务关闭，例如未来 `membership_activated`；历史保留 |
+| `invalid` | `NULL` | 风控、无效绑定或总部纠错；历史保留 |
 
-推荐 A：新建独立于预约的统一 `yfth_business_dynamic_code`，业务操作仍由三套场景服务调用。理由是三者安全生命周期相同，差异可由 scene policy 隔离；统一实现能减少明文、TTL、重放和清理逻辑分叉。该建议待 Architecture Auditor 决定。
+冻结规则：
 
-### 7.2 建议字段与约束
+- paused -> active 更新原 relation 行并增加 `relation_version`。
+- active -> paused/closed/invalid 同事务写 referral event。
+- 因 `membership_activated` 关闭的原关系永不恢复。
+- closed/invalid 后只有未来明确合法入口才可创建新 relation。
+- 与旧 90 天 `yfth_referral_candidate` 完全并行，不自动转换。
 
-- `scene`, `business_type`, `business_id`, `business_key`, `target_uid`, `store_id`。
-- `token_hash`（unique 或 scene+hash unique），不保存明文 token。
-- `status`, `issued_at`, `expire_at`, `used_at`, `used_by_uid`, `used_by_role`, `invalidated_at`, `invalid_reason`。
-- `request_id`, `idempotency_key`, `active_key`。
-- active key 建议：
-  - `customer_identity:{target_uid}:{store_id}:{purpose}`
-  - `membership_confirmation:{pending_sale_id}`
-  - `package_sale_confirmation:{target_uid}:{store_id}:{client_operation_id}`
-- unique `(scene, token_hash)`；unique nullable `active_key`；unique `(scene, idempotency_key)`（若幂等表已全局保护，仍保留业务索引便于核对）。
-- 码消费必须先按 hash+scene 定位并锁行，再校验登录 UID、可信门店、业务对象、TTL 和 status；业务写、used 状态和 active key 清理同事务提交。
-- 重放：同幂等键同请求返回原业务结果；相同 token 已 used 且关联业务已成功时返回原结果，不再次写入；请求摘要不同则拒绝。
-- 过期：读取时 fail closed；后台扫描批量把 issued 且过期行置 expired 并清 active key。扫描幂等且不物理删历史。
-- 跨店：先解析可信上下文，再验证 code.store_id；错误响应不泄漏其他门店码是否存在。客户本人确认场景同时校验 target UID。
+### 2.4 `yfth_hq_active_referral_event`
 
-## 8. 原子事务与锁顺序
+推荐事件是独立 append-only 权威历史，不与 attribution event 共表。
 
-统一原则：先取得 `yfth_idempotency_record`；进入业务事务后，所有涉及同一 UID 的流程按 `attribution_guard -> current attribution -> active referral -> membership` 的相对顺序。业务码/成交是外层业务对象锁，但进入共享关系域后不得逆序。
+建议字段：
 
-### 8.1 一级直推绑定创建永久归属
+- `id`, `event_no`
+- `referral_current_id`, `relation_no`, `relation_version`
+- `referrer_uid`, `referred_uid`, `store_id`
+- `event_type`, `before_status`, `after_status`
+- `source_type`, `source_id`, `source_unique_key`
+- `operator_uid`, `operator_role_code`
+- `reason`, `request_id`, `add_time`
 
-1. 幂等 begin。
-2. 锁 `attribution_guard(target_uid)`。
-3. 锁 current attribution；同店复用、异店拒绝、无归属创建。
-4. 锁 `active referral guard/referred_uid` 并读取 active relation。
-5. 校验 referrer membership/attribution；创建 relation 和事件。
-6. 审计、幂等 complete。
+约束与索引：
 
-### 8.2 会员 pending 成交创建
+- `UNIQUE(event_no)`
+- `UNIQUE(referral_current_id, relation_version)`
+- nullable `UNIQUE(source_unique_key)`
+- `INDEX(referrer_uid, add_time)`
+- `INDEX(referred_uid, add_time)`
+- `INDEX(event_type, add_time)`
 
-1. 幂等 begin。
-2. 锁 `customer_identity` code。
-3. 校验目标 UID、可信门店和码未使用。
-4. 锁同店同收据/操作幂等键；校验 current attribution（异店拒绝，但此步不创建归属）。
-5. 创建 pending sale 与私有凭证摘要，消费身份码。
-6. 创建/刷新 membership confirmation code。
+关系状态变化和 event 写入必须同事务；事件失败则关系变化回滚。幂等重放返回原业务结果，不重复写 authority event。
 
-### 8.3 会员确认激活
+## 3. Authority Event 与统一审计边界
 
-1. 幂等 begin。
-2. 锁 membership confirmation code。
-3. 锁 pending sale。
-4. 锁 attribution guard 和 current attribution；无则创建，同店复用，异店拒绝。
-5. 锁 active referral；校验 store 一致。
-6. 锁 permanent membership guard/current membership；已有 active 拒绝。
-7. 固化快照；预留奖励候选唯一源（阶段四才落奖励表）。
-8. 关闭 active referral；创建 membership；确认 sale；消费 code；写事件/审计。
+- attribution event 和 referral event 分表，是 current 状态变化的业务权威历史。
+- authority event 必须在 current 状态变化的同一数据库事务中强制写入；不得用 `recordSafely()` 作为唯一事件路径。
+- `AuditEventServices::recordSafely()` 继续用于通用操作审计、观察和追责，但不成为 current authority 或关系时间线权威。
+- unified audit 写入失败不能删除、覆盖或回滚已在业务事务中成功持久化的 authority event；具体失败处置沿用统一审计策略。
+- 幂等重放不写新的 authority event。是否记录 replay audit 由现有统一审计策略决定，但不得伪造新业务状态事件。
+- authority event 的 before/after 字段应结构化，敏感完整快照不得通过普通用户或门店 DTO 输出。
 
-### 8.4 套餐成交确认
+## 4. 永久归属核心规则
 
-1. 幂等 begin。
-2. 锁 package confirmation code。
-3. 锁 attribution guard/current attribution；同店复用、异店拒绝、无则创建。
-4. 锁 active referral并校验门店一致。
-5. 按 code/business operation unique key 创建 confirmed package sale 和快照。
-6. 消费 code，写事件/审计；不锁/改 membership，不关闭 referral。
+- 直推绑定、未来会员确认和未来套餐成交必须调用同一归属 authority 服务，不复制先查后写逻辑。
+- `active` 同店请求幂等返回 current；异店请求拒绝。
+- `paused` 不允许普通入口重新归属，即使请求门店与原店不同；恢复只由未来受控流程更新同一行。
+- `unassigned` 可由可信首次归属转为 active；current 行不新增，`authority_version + 1` 并写事件。
+- `closed` 不允许 Stage 1A/1B 或普通业务入口恢复。
+- Stage 1A 不实现暂停、恢复、关闭、接管或总部人工改绑的生产入口；这些状态仅冻结模型和内部状态机边界。
 
-### 8.5 并发与重放
+## 5. 推荐资格策略与 fail-closed
 
-- 并发首次归属：两店同时请求都锁同一 UID guard；先提交者建立归属，后者重读，同店返回原归属，异店拒绝。唯一 active key 是最终兜底。
-- 同一目标重复扫码：code 行锁串行化；第二请求重读 used 状态并返回原 sale/membership。
-- 同一成交重放：幂等表 request hash 必须一致；sale unique key 和 code->business_id 双重保护。
-- 锁多个 UID（未来接管批次）时按 UID 升序；锁多个业务对象按表序和主键升序，禁止请求顺序决定锁序。
+Stage 1A 必须定义独立资格策略边界，建议名称 `ReferralQualificationPolicy`，或采用符合现有项目命名的等价接口。
 
-## 9. 唯一约束和幂等键建议
+生产实现必须：
 
-| 目标 | 数据库约束/键建议 |
-| --- | --- |
-| 一个 UID 一个 active 永久归属 | unique nullable `yfth_hq_customer_attribution.active_key = uid:{uid}` + guard.uid unique |
-| 一个 referred_uid 一个 current active/paused 推荐 | unique nullable `yfth_hq_active_referral.active_key = referred:{uid}` |
-| 一个 UID 一个 active 永久会员 | unique nullable `yfth_permanent_membership.active_key = uid:{uid}` |
-| 一个 pending 会员成交一个有效确认码 | dynamic code unique `active_key = membership_confirmation:{sale_id}` |
-| 一个套餐码一个成交 | code unique token hash + sale unique `source_code_id` |
-| 一个 source sale 一个奖励候选 | future unique `(source_type, source_id, reward_scene)` |
-| 一个业务请求一个幂等结果 | existing unique `(business_domain, action_type, idempotency_key)` + request hash |
-| 接管批次 | future unique `takeover_batch_no`; detail unique `(batch_id, uid)` |
-| 线下成交 | unique `sale_no`; unique `(business_type, store_id, idempotency_key)` |
-| 关系事件 | unique `event_no` 或 `(event_type, source_type, source_id, idempotency_key)` |
+1. 只查询未来永久会员权威实例。
+2. 永久会员权威尚未实现时 fail closed，返回“推荐资格不可用/尚未具备”。
+3. 不得以 `member_5980`、`yfth_user_identity` 投影、旧 candidate、CRM relation 或前端角色代替资格。
+4. 不得提供 `force_create_referral`, `skip_membership_check`、环境变量、命令、后台菜单或 HTTP 绕过入口。
 
-## 10. 新旧模型共存方案
+测试允许在测试代码或明确隔离的 test-only provider 中注入资格结果，但该 provider：
 
-- 旧线上 5980 不迁入新线下会员；旧 package tables、订单监听、退款、恢复、权益和履约保持运行。
-- `member_5980` 不转换为新永久会员；两个身份代码和两个权威实例并存。
-- 旧 referral candidate 不转换为长期 active relation；旧 `package_5980/franchise_opening` 事件继续进入旧 reward ledger。
-- 旧 reward ledger 不充当循环奖励序列；新奖励阶段建立独立 sequence authority。
-- `yfth_customer_relation` 不升级为永久归属；继续作为 CRM 关系，必要时通过后续受控投影同步。
-- 预约 `yfth_service_dynamic_code` 继续只服务预约核销；新确认码使用新表。
-- 新入口只调用新 attribution/referral authority services；不得调用 `PackagePurchaseServices`, `PackageActivationServices`, `ReferralRewardServices::userBindCandidate()` 或预约 writeoff 服务完成新业务。
-- 旧入口未来可受控隐藏 UI 和“新建”权限，但历史查询、退款、恢复、权益履约和 reconciliation API 必须保留。隐藏前应做入口契约和回滚专项。
+- 不注册到生产容器。
+- 不暴露 HTTP、后台菜单、命令或运行时开关。
+- 只用于验证模型、锁顺序、唯一约束和状态机。
 
-## 11. 初始数据策略建议
+因此 Stage 1A 可以实现和测试 referral authority 内部模型，但不能开放真实生产推荐关系创建。真实推荐绑定必须等永久会员权威完成并经过后续独立授权。
 
-- 仓库证明代码、migration、测试和历史 closure 存在，但没有生产库只读证据；不能断言生产无 package/customer/referral 数据。
-- 第一版建议**零自动迁移启动新模型**：新 attribution/referral/membership 表初始为空，只由新方案上线后的可信事件写入。
-- 现有 `yfth_customer_relation` 可生成“待人工核验候选报告”，但不得自动成为永久归属；核验至少需要 UID、门店主体有效性、来源记录、门店经营状态、冲突 relation 和用户授权证据。
-- 旧 referral candidate 即使未过期，也不得自动成为长期 active relation；若业务要求承接，应另立数据重建专项和用户确认/纠错机制。
-- 旧 `member_5980`、package purchase/instance、reward ledger、appointment/writeoff 和 fulfillment 数据只保留兼容读取与原生命周期处理。
-- 迁移前只读预检必须输出：同 UID 多来源冲突、失效门店、无效 UID、旧 active relation、旧 candidate、现有会员/套餐与隐私证据缺口。冲突数据不得自动删除或“最后写入者获胜”。
+## 6. Stage 1A 统一锁顺序与并发规则
 
-## 12. migration 与 rollback 边界建议
+### 6.1 双 UID 统一锁序
 
-- 阶段一建议新增：attribution guard/current/history（具体拆分待审核）、active referral、relationship event；不扩展旧业务表。
-- 后续阶段再新增 offline sale、membership rule/version、permanent membership、business dynamic code、refund request；不得在阶段一预建未使用表。
-- 明确禁止改变：旧 package/referral/customer/service dynamic code 的 status、active_key、scene、金额和外键语义；禁止重命名 `member_5980/package_5980`。
-- rollback 只删除本阶段新增菜单权限和新表；不修改、清理或回填旧表。
-- 菜单/API 权限按 `unique_auth` 幂等 seed，down 精确删除本模块权限；服务端仍须显式角色、门店和 capability 断言。
-- migration 必须支持 MySQL 8.0 strict mode `run -> rollback -t 0 -> rerun -> duplicate run`，并验证半迁移恢复。
-- 上线前先运行唯一冲突只读报告；发现冲突立即阻断 migration，不自动关闭或删除用户数据。
-- active key 长度需控制在现有索引安全范围；金额 `BIGINT/INTEGER` 分、时间按仓库 Unix integer 规范；私有凭证避免大 JSON。
+所有同时读取或修改 referrer/referred 关系的操作必须遵循：
 
-## 13. 阶段一建议范围
+1. 完成幂等 begin。
+2. 收集本次操作涉及的全部用户 UID。
+3. 去重并按数值 UID 升序排序。
+4. 以 insert-first/冲突重读方式确保每个 UID 的 attribution current 行存在。
+5. 按 UID 升序逐行锁定 `yfth_hq_customer_attribution_current`。
+6. 完成全部归属和门店一致性校验。
+7. 再锁 referred_uid 对应的 active referral current 或推荐唯一保护范围。
+8. 最后锁 referrer 的永久会员权威，或调用持锁语义明确的资格策略。
+9. 写 attribution/referral current。
+10. 同事务写对应 authority event。
+11. 提交后再执行非权威的安全审计、通知或异步投影。
 
-只允许：
+禁止：
 
-1. 永久 B 商家归属权威模型、UID guard、事件历史。
-2. active 一级推荐权威模型及其与归属的一致性服务。
-3. 共用核心服务：current attribution query、同店幂等、异店拒绝、可信上下文和审计。
-4. current attribution API 与最小只读展示。
-5. 必要 migration、权限、contract/real-flow/MySQL 并发测试。
+- 先锁 referred referral，再反向锁 referrer attribution。
+- 按请求参数顺序锁多个 UID。
+- 不同服务分别采用 referrer->referred 与 referred->referrer。
+- 持有 referral 锁后调用会反向锁较小 UID attribution 的服务。
+- 仅依赖唯一冲突替代稳定锁顺序。
 
-明确不做：会员码、客户身份码、会员成交、永久会员、套餐成交、套餐确认码、三三制金额、奖励候选/序号、总部商城收益、结算、退款、接管、CRM 投影自动同步、旧入口隐藏和生产部署。
+### 6.2 环路门禁
 
-## 14. 阶段一验收建议
+- 必须拒绝 `referrer_uid = referred_uid`。
+- 必须查询并拒绝直接反向 current 关系，禁止 A 推荐 B 与 B 同时推荐 A。
+- 系统只做一级推荐，更深层关系不产生多级奖励；领域服务仍应提供有限 current 关系环检查。
+- 是否扩展完整图遍历列为后续 P2，不阻塞 Stage 1A，但不得放过直接双向环。
 
-- MySQL 8 strict `run/rollback/rerun/duplicate run` 和半迁移恢复。
-- 同 UID active attribution 唯一、referred UID active relation 唯一。
-- 两进程并发跨店首次绑定：一店成功、另一店明确拒绝，无双 active。
-- 同店并发/重复幂等：返回同一 attribution/relation，不重复事件。
-- active referral.store_id 与 attribution.store_id 始终一致。
-- 普通顾客只读本人 current attribution；写入口仅限产品冻结的可信流程/角色，不能提交 owner/store/role。
-- DTO 白名单，不泄漏手机号、openid、unionid、私有凭证、内部 operator 或审计 payload。
-- 所有状态变更写 relationship event 和 unified audit；幂等重放不重复审计业务事件。
-- 全量旧 package/referral/customer/appointment contract 回归，证明旧 schema、服务和入口不变。
-- CRMEB 商品、订单、支付、退款、库存和分销主链 diff 为零。
+### 6.3 deadlock 与 lock wait retry
 
-## 15. 待架构审核决策
+- 只对数据库 deadlock 或 lock wait timeout 有限重试。
+- 最多重试 3 次，每次短随机退避。
+- 每次重试重新开启完整事务并重新读取权威状态。
+- 普通业务异常、权限异常、唯一业务冲突和数据不一致不得重试。
+- 最终失败写技术日志并返回失败，不伪造成功。
 
-以下是技术架构决策，不交给业务用户临场选择：
+### 6.4 并发测试矩阵
 
-1. 首次归属并发 guard 采用独立 `attribution_guard`，还是“current authority 单行 + 历史 event”双表模型。
-2. 无店状态是否保留 active key；建议用 guard/current state 表达 unassigned，避免 `store_id=0` active 归属。
-3. paused active referral 是否继续占用 referred UID active key；建议占用以防抢占。
-4. relationship event 是 attribution/referral 共表还是各自事件表；需权衡查询隔离与统一追踪。
-5. 通用动态码表的 scene policy 是否足够隔离，还是三表物理隔离；本建议倾向统一新表。
-6. permanent membership 是否投影新 `yfth_user_identity` role，以及投影失败补偿边界。
-7. `yfth_customer_relation` 的只读组合查询和未来投影同步契约，尤其接管后跟进历史归属。
-8. 循环奖励未来使用 `sequence account + candidate + ledger/adjustment` 的表边界，且是否复用旧 scan 基础类而不共表。
-9. 阶段一 current attribution API 的授权与隐私 DTO，是否允许未绑定用户看到推荐人最小展示信息。
-10. migration 表名、索引长度、锁顺序和两进程并发验证方案。
+Stage 1A 必须覆盖：
 
-## 16. 仍待项目主控确认的业务参数及阻塞阶段
+- referrer UID 小于 referred UID。
+- referrer UID 大于 referred UID。
+- 两个用户互相并发推荐。
+- 两个 referrer 同时竞争同一 referred。
+- 同一 referrer 同时处理多个 referred。
+- 两店并发首次绑定同一 referred。
+- 同店同来源重放。
+- authority event 写入失败回滚 current。
+
+## 7. Stage 1A / Stage 1B 实施范围
+
+### 7.1 Stage 1A - Authority Foundation
+
+允许：
+
+- 本文冻结的四张表。
+- 对应 Model、DAO、Repository 或符合现有结构的等价分层。
+- 永久归属 current authority 内部领域服务。
+- active 一级推荐内部领域服务。
+- `ReferralQualificationPolicy` 等价资格边界。
+- attribution/referral 一致性校验。
+- 幂等、authority event、统一审计。
+- migration、权限及 contract/real-flow/concurrency 测试。
+
+禁止：
+
+- 用户端或门店端真实推荐绑定 API。
+- 总部 fixture API、后台绕过资格的推荐创建入口或生产开关。
+- `customer_identity`, `membership_confirmation`, `package_sale_confirmation`。
+- 线下成交、永久会员、奖励金额/序号、收益、退款、结算、接管。
+- CRM 投影、旧入口隐藏和生产部署。
+
+### 7.2 Stage 1B - Read-only Surface
+
+Stage 1A 完成并通过独立架构审核后，项目主控才能决定是否授权 Stage 1B。
+
+允许：
+
+- 用户本人 current attribution 只读 API。
+- 门店 current attribution 最小只读 API。
+- 总部 attribution/referral/event 只读 API。
+- 最小只读页面或现有页面中的只读展示。
+- 权限、DTO、跨店隔离和 HTTP 验证。
+
+禁止：
+
+- 创建推荐关系或修改归属。
+- 暂停、恢复、关闭、接管、总部人工改绑或用户换店。
+- 会员、成交、奖励、退款或结算写入。
+
+阶段顺序固定为：Stage 1A 开发 -> 独立审核 -> 项目主控决定 Stage 1B -> Stage 1B 开发 -> 再次审核。永久会员权威完成前，任何阶段都不得开放真实推荐绑定。
+
+## 8. API、权限和隐私矩阵
+
+### 8.1 用户本人 API
+
+- 认证：CRMEB user-token，只能读取当前登录 UID。
+- 允许字段：`has_attribution`, `attribution_status`, 公开门店 display name/logo、现有公开接口允许的区县级位置、`bound_at`, paused/unassigned 安全提示、`has_active_referral`。
+- 第一版只显示是否有 active 推荐关系，不显示推荐人个人信息。
+- 禁止：`referrer_uid`、推荐人昵称/头像/手机号、`relation_no`, `source_id`, operator, reason, request_id 和原始事件内容。
+
+### 8.2 门店 API
+
+- 仅允许 `franchisee`, `store_manager`。
+- 默认拒绝 `store_staff`, `service_mentor`, 普通用户、城市合伙人和无 current store context 账号。
+- 服务端从 user-token 与 `CurrentBusinessContextServices` 解析 `current_store_id`，不信任前端 store_id。
+- 只返回当前门店归属客户的脱敏用户摘要、attribution status、bound_at、source_type 安全标签、has_active_referral 和必要业务状态摘要。
+- 禁止跨店列表、详情和统计。
+
+### 8.3 总部 API
+
+- 必须使用 admin-token、`AdminCheckRoleMiddleware`、显式 `SystemRoleServices::assertApiAuthForAdmin()` 和总部范围断言。
+- Stage 1B 只允许 current attribution 列表/详情、active referral 只读列表/详情，以及两类 event 只读时间线。
+- 禁止人工改绑、接管、暂停、恢复、关闭、fixture 创建、强制推荐和会员资格绕过。
+- 完整事件、操作人和内部 reason 仅允许具有独立明确权限的总部角色读取。
+
+### 8.4 所有 API 禁止输出
+
+- 完整手机号、地址明细、身份证、openid、unionid。
+- 私有付款凭证、request hash、幂等键、内部 operator payload、原始审计 JSON。
+- 其他门店数据、未经授权的 reason、内部锁/索引/异常细节。
+
+## 9. Stage 1A migration 与索引冻结
+
+### 9.1 `yfth_hq_customer_attribution_current`
+
+- `UNIQUE(uid)`
+- `INDEX(store_id, status, uid)`
+- `INDEX(status, update_time)`
+- UID/store 使用与仓库主键兼容的无符号整数类型
+- 不使用字符串 active_key
+
+### 9.2 `yfth_hq_customer_attribution_event`
+
+- `UNIQUE(event_no)`
+- `UNIQUE(attribution_current_id, authority_version)`
+- nullable `UNIQUE(source_unique_key)`
+- `INDEX(uid, add_time)`
+- `INDEX(event_type, add_time)`
+- `INDEX(source_type, source_id)`
+
+### 9.3 `yfth_hq_active_referral_current`
+
+- `UNIQUE(relation_no)`
+- nullable `UNIQUE(active_referred_uid)`
+- nullable `UNIQUE(source_unique_key)` 或等价来源唯一约束
+- `INDEX(referrer_uid, status)`
+- `INDEX(referred_uid, status)`
+- `INDEX(store_id, status)`
+- `INDEX(status, update_time)`
+
+### 9.4 `yfth_hq_active_referral_event`
+
+- `UNIQUE(event_no)`
+- `UNIQUE(referral_current_id, relation_version)`
+- nullable `UNIQUE(source_unique_key)`
+- `INDEX(referrer_uid, add_time)`
+- `INDEX(referred_uid, add_time)`
+- `INDEX(event_type, add_time)`
+
+其他迁移要求：
+
+- nullable unique 只用于 referral active/paused 占位和可空 source key。
+- 不强制新增数据库外键；引用完整性由服务层、索引和测试保证。
+- 使用显式 `up()/down()`；down 只删除本阶段新增权限和四张新表，不修改旧表或旧数据。
+- 同名表存在时必须校验列、类型和索引签名；签名不一致立即失败，不能只因 `hasTable()` 为 true 就跳过。
+- 必须在 MySQL 8.0.46 strict mode 验证 run、rollback、rerun、duplicate run 和构造半迁移恢复。
+- Stage 1A 按当前最高迁移标准实现，不能假定早期 foundation/package/customer `change()` migration 已具备重复执行或半迁移恢复能力。
+
+## 10. 旧数据与 schema migration 门禁
+
+- Stage 1A 新权威表采用零自动迁移（zero automatic migration），创建后为空是预期状态，不阻塞 schema migration。
+- 现有 `yfth_customer_relation`、旧 candidate、`member_5980` 或旧 ledger 的冲突不阻塞创建空新表。
+- 旧数据冲突报告用于阻塞旧数据导入、人工迁移、真实写入口开放和生产灰度。
+- 只有以下情况阻塞 schema migration：
+  - 新表同名但结构签名不一致。
+  - 新表内部已有不符合新唯一约束的数据。
+  - 半迁移状态无法安全恢复。
+  - 菜单权限或 migration 记录存在不可恢复冲突。
+- Stage 1A 不开发人工导入工具，不导入 customer relation、candidate、`member_5980` 或旧 ledger。
+- 生产前只读报告后仍需独立数据迁移专项和架构审核；不得自动删除、关闭或覆盖冲突数据。
+
+## 11. 后续通用线下成交与会员模型
+
+以下对象不是 Stage 1A/1B 范围，仅冻结后续边界：
+
+### 11.1 `yfth_offline_sale`
+
+- 支持 `membership/package`，使用不可变 `sale_no`、target UID、store、整数分金额、线下付款、私有凭证、operator、规则/归属/推荐快照、状态和幂等键。
+- 会员成交先 `pending_confirmation`，目标用户确认后激活；套餐成交由 C 生成目标门店确认码，B 在可信门店上下文确认。
+- 不复用 CRMEB order 或旧 package purchase，不创建 store_order，不消费预约权益。
+
+### 11.2 会员规则与永久会员
+
+- 会员规则使用独立 version authority；成交固化规则、价格和福利快照。
+- `yfth_permanent_membership` 是永久会员权威，同一 UID 至多一个 active 实例。
+- 第一版永久、不续费；退款不恢复原上级 active referral。
+- `member_5980` 继续只表示旧线上套餐身份，不能作为新会员或推荐资格。
+
+### 11.3 退款/撤销
+
+- 使用独立 `yfth_offline_sale_refund_request`，因为线下资金不在 CRMEB refund 主链。
+- 原 sale 不物理删除；退款、审核和后续冲正追加事件/调整。
+- 会员退款后既有下级关系处置和部分退款比例仍是业务门禁。
+
+## 12. 新动态码后续冻结
+
+- 未来采用一个新的 `yfth_business_dynamic_code`，与预约 `yfth_service_dynamic_code` 完全分离。
+- `token_hash` 全局唯一；不保存明文 token。
+- scene 只能由服务端场景服务设置，固定为 `customer_identity`, `membership_confirmation`, `package_sale_confirmation`。
+- 三个 scene 使用独立服务、权限、DTO 和必填字段策略，不跨 scene 消费。
+- 统一底座负责 hash、TTL、active 占位、行锁消费、幂等重放、过期清理和安全错误。
+- 该表不在 Stage 1A/1B 创建；其字段和 migration 仍需后续阶段审核。
+
+## 13. 永久会员身份投影冻结
+
+- 永久会员实例是权威，`yfth_user_identity` 只是可重建投影。
+- 新 role_code/identity_code 使用与价格和期限无关的 `member_yfth`。
+- 同一用户允许同时拥有 `member_5980` 与 `member_yfth`。
+- 推荐资格只查询永久会员权威，不查询身份投影。
+- 投影失败通过事件与幂等 reconciliation 补偿，不反向回滚永久会员权威。
+- Stage 1A/1B 不实现永久会员或身份投影。
+
+## 14. CRM 投影冻结
+
+- Stage 1A/1B 完全不写 `yfth_customer_relation`。
+- Stage 1B 可组合读取 attribution 与已有 CRM 摘要，但不能创建、迁移或覆盖 relation。
+- 后续 CRM 投影使用异步或可补偿的幂等投影；投影失败不得回滚永久归属。
+- 接管后旧 follow history 留在旧 relation，不搬迁。
+- CRM 投影需后续单独架构审核。
+
+## 15. 未来循环奖励权威边界
+
+- 新循环奖励完全独立于旧 `yfth_reward_ledger`，不共表、不直接继承旧服务类语义。
+- 后续独立建模：rule/version、sequence account、observing candidate、finalized ledger、append-only adjustment/reversal。
+- observing candidate 不占序号；最终确认时锁 sequence account 分配 `sequence_no`。
+- 冲正不回收序号；source sale 必须唯一化候选。
+- 只复用旧 scan、快照、观察和冲正模式。
+- Stage 1A/1B 不创建奖励表、不计算金额、不分配序号。
+
+## 16. 新旧模型共存方案
+
+- 旧线上 5980 不迁入新线下会员；旧 package tables、监听、退款、恢复、权益和履约保持运行。
+- `member_5980` 不转换为 `member_yfth`；两个身份可并存。
+- 旧 referral candidate 不转换为新 active referral；旧事件继续进入旧 reward ledger。
+- 旧 reward ledger 不充当循环 sequence authority。
+- `yfth_customer_relation` 保持 CRM 记录，Stage 1A/1B 只允许组合读取。
+- 预约动态码继续只服务预约核销；新业务码未来使用独立新表。
+- 新入口不得调用旧 `PackagePurchaseServices`、`ReferralRewardServices::userBindCandidate()` 或预约 writeoff 服务完成新业务。
+- 旧入口未来只可受控隐藏 UI/新建权限；历史查询、退款、恢复、权益履约和 reconciliation 必须保留。
+
+## 17. Stage 1A / 1B 验收建议
+
+### Stage 1A
+
+- MySQL 8.0.46 strict migration run/rollback/rerun/duplicate run 和半迁移恢复。
+- current UID 唯一、active_referred_uid 唯一、source_unique_key 幂等。
+- 双 UID 升序锁及全部并发矩阵。
+- active referral 与 attribution store 一致。
+- 资格策略在永久会员缺失时 fail closed。
+- current 与 authority event 原子一致，event 失败回滚。
+- unified audit 不能替代 authority event。
+- 无生产推荐创建入口或绕过开关。
+- 旧 package/referral/customer/appointment contract 回归，CRMEB 主链 diff 为零。
+
+### Stage 1B
+
+- user/store/admin token 和权限矩阵。
+- 用户本人、门店本店、总部范围隔离。
+- DTO 白名单和敏感字段负向断言。
+- 跨店枚举、前端 store_id 注入和无权限访问拒绝。
+- 所有 API 均只读，无状态变化、事件或审计业务写入。
+
+## 18. 仍待项目主控确认的业务参数
 
 | 参数 | 阻塞阶段 |
 | --- | --- |
-| B 商家总部商城收益比例、C 普通商品子分配比例 | 阶段五规则与上线 |
-| 三三制观察期默认天数 | 阶段四真实解冻与上线 |
-| 会员全额退款后既有下级 active 关系处置 | 阶段二完整退款、阶段四奖励 |
-| 部分退款冲正比例 | 阶段二退款与阶段四冲正 |
-| 会员福利具体内容 | 阶段二会员规则发布 |
-| 无接管状态恢复条件 | 阶段七接管 |
-| 行政区 code 来源 | 阶段七接管候选 |
+| B 商家总部商城收益比例、C 普通商品子分配比例 | 后续商城收益阶段 |
+| 三三制观察期默认天数 | 奖励真实解冻与上线 |
+| 会员全额退款后既有下级 active 关系处置 | 完整退款与奖励阶段 |
+| 部分退款冲正比例 | 退款与奖励冲正 |
+| 会员福利具体内容 | 会员规则发布 |
+| 无接管状态恢复条件 | 接管阶段 |
+| 行政区 code 来源 | 接管候选阶段 |
 | 隐私授权规则 | 对应敏感页面/API 上线前 |
-| 结算凭证标准 | 阶段六结算 |
+| 结算凭证标准 | 结算阶段 |
 
-这些参数不得由开发人员写入默认常量。阶段一归属与 active 推荐底座不得提前实现其业务结果。
+这些参数不得由开发人员写入默认常量。阶段零整改不授权 Stage 1A；Stage 1A 也不得提前实现上述业务结果。
+
+## 19. 后续架构审核节点
+
+1. 本文整改后再次执行阶段零只读架构复核。
+2. 复核通过并完成文档合并后，由项目主控单独决定是否授权 Stage 1A。
+3. Stage 1A 完成后进行独立架构审核。
+4. 只有 Stage 1A 审核通过，项目主控才可单独授权 Stage 1B。
+5. Stage 1B 完成后再次审核。
+6. 永久会员权威完成并审核通过前，不开放真实推荐绑定。
+
+更深层推荐环完整图遍历是后续 P2 技术事项，不阻塞 Stage 1A 的直接双向环防护。除此之外，current authority、事件分表、锁序、API 隐私和 migration 结构已按本文件冻结，不再作为并列备选方案。

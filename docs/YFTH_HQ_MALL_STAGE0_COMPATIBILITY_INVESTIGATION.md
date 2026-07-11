@@ -10,6 +10,8 @@
 - 本轮未修改 PHP、Vue、JavaScript、migration、路由、测试、数据库或既有入口；只输出兼容调查、数据模型建议和交接快照。
 - 总体可行性：**有条件可行**。CRMEB 商城主链、YFTH 基础上下文、审计、幂等、快照和行锁模式均可复用；永久 B 商家归属、长期 active 一级推荐、线下会员/套餐成交和新动态确认码必须独立建模。
 - 主要冲突：旧 `member_5980` 是线上套餐实例派生身份；旧推荐候选固定 90 天且按场景绑定业务对象；`yfth_customer_relation` 是门店 CRM 经营关系；预约动态码表绑定预约核销状态机。四者都不能改释为新方案的权威对象。
+- 架构审核 P1 整改已把永久归属冻结为每数值 UID 一行 `yfth_hq_customer_attribution_current` + 独立 attribution event，把 active 推荐冻结为 `yfth_hq_active_referral_current` + 独立 referral event；不再使用独立 guard 表、字符串归属 active key 或共用 relationship event。
+- 实施门禁已拆分为 Stage 1A Authority Foundation 和后续单独授权的 Stage 1B Read-only Surface。永久会员权威完成前，生产推荐资格必须 fail closed，任何阶段均不得开放真实推荐绑定。
 - 不得删除的稳定模块：线上 5980 套餐订单/支付/退款/恢复、十个月权益与月度履约、预约/容量/权益锁定/动态核销、旧推荐奖励兼容链路、客户 CRM、总部与门店工作台、统一审计和幂等。
 - 阶段零未读取生产数据库，无法证明生产数据为空。任何初始数据处理必须先做生产前只读盘点和人工核验，禁止依据代码仓库推断可自动迁移。
 
@@ -45,7 +47,7 @@
 | 分类 | 证据 | 当前语义 |
 | --- | --- | --- |
 | 常量 | `crmeb/app/services/yfth/YfthConstants.php:19,112` | 角色代码 `member_5980` 与套餐场景常量 |
-| 创建/重算 | `PackageInstanceServices::recomputeMemberIdentity()` | 根据用户是否仍有 active/refunding 套餐实例写入或关闭身份 active key |
+| 创建/重算 | `PackageInstanceServices::recomputeMemberIdentity()` | 只根据当前有效期内且 `status=active` 的套餐实例写入或关闭身份 active key |
 | 激活 | `PackageActivationServices::activateByPaidOrder()` | 支付并激活实例后触发身份重算 |
 | 退款/关闭/到期 | `PackageLifecycleServices` | 退款、关闭、到期后重算；不是永久身份 |
 | API/DTO | `PackageInstanceServices::myPackages()/userDetail()`; `FranchiseCustomerServices::hasPackage()` | 我的套餐与门店 CRM 客户套餐状态 |
@@ -57,7 +59,7 @@
 
 结论：
 
-- `member_5980` 由**线上套餐实例状态派生**，并会随退款、关闭和到期撤销或重算；新 9800 永久会员第一版不续费，且由目标用户确认的线下成交激活，生命周期和资金事实完全不同。
+- `member_5980` 只由当前有效期内且 `status=active` 的线上套餐实例派生。套餐进入 `refunding`, `refunded`, `closed`, `expired` 等非 active 状态时，生命周期服务触发重新计算；只有仍存在 active 套餐实例时该身份继续有效。新 9800 永久会员第一版不续费，且由目标用户确认的线下成交激活，生命周期和资金事实完全不同。
 - 新永久会员不得原地复用 `member_5980`，也不得把旧实例批量改成新会员。建议建立独立会员实例权威表，并在身份投影中使用新的角色代码（建议名待架构审核，例如 `permanent_member`），`member_5980` 只继续表示历史线上套餐会员。
 - 不能只隐藏旧入口后删除底层判断：预约、权益领取、核销、客户状态、推荐事件、退款恢复和测试仍依赖旧对象。
 
@@ -109,7 +111,7 @@
 3. `owner_uid` 是首次绑定操作人，不是商家主体或归属权利人。
 4. 直接改释会把已有订单/预约/核销形成的 CRM 客户误认为已完成永久归属。
 
-建议关系：新永久归属为权威模型；`yfth_customer_relation` 保持独立 CRM 记录。阶段一先由查询服务组合展示，**不自动把既有 relation 升级为归属，也不自动覆盖 relation**。待接管和 CRM 投影契约明确后，可由独立、幂等、可审计的投影同步服务关闭旧 CRM active 行并创建新店 CRM 行；跟进历史保留在原 relation，不搬迁或删除。
+建议关系：新永久归属为权威模型；`yfth_customer_relation` 保持独立 CRM 记录。Stage 1A/1B 完全不写 relation；Stage 1B 只能由查询服务组合展示 attribution 与既有 CRM 摘要。后续可补偿的幂等投影必须单独审核，投影失败不得回滚永久归属；接管后的旧跟进历史保留在原 relation，不搬迁或删除。
 
 ## 6. 动态码安全模式调查
 
@@ -138,7 +140,7 @@
 | `membership_confirmation` | `pending_sale_id`, `target_uid`, `store_id` | 仅目标 UID 登录确认；事务内激活会员 | 一个 pending membership sale 同时一个有效确认码 |
 | `package_sale_confirmation` | `target_uid`, `expected_store_id`, package/rule snapshot key | 目标用户生成，预期门店有能力角色扫描 | 一个客户端业务操作/目标/门店同时一个有效码；一个码最多创建一笔 sale |
 
-推荐统一“新 YFTH 业务动态码底座 + 独立业务对象”，以 `scene` 强隔离；不能复用预约码表。建议字段和锁顺序见数据模型建议文档。该选择仍待阶段零只读架构审核。
+后续技术方向冻结为“一个新的 `yfth_business_dynamic_code` + 三个独立场景服务”，与预约码表完全分离；`token_hash` 全局唯一，`scene` 只能由服务端设置。该表不在 Stage 1A/1B 创建，具体字段和 migration 仍须在后续动态码阶段审核。
 
 ## 7. 前端和菜单入口矩阵
 
@@ -155,8 +157,8 @@
 | 客户 CRM | workbench customer pages; `/api/yfth/customer/*` | 可访问 | 继续开放，标注 CRM 关系 | 不得显示为永久归属权威 |
 | 总部套餐后台 | admin packageBenefit 页面/API/菜单 | 可访问 | 继续开放配置、历史与恢复 | 隐藏新售入口不等于停运后台 |
 | 总部推荐后台 | admin referralReward 页面/API/菜单 | 可访问 | 历史查询/扫描/冲正继续开放；旧规则发布权限后续评估 | 兼容旧 ledger |
-| 新永久归属/active 推荐 | 尚无 | 不可达 | 阶段一新增最小 API/只读展示 | 不在阶段零实现 |
-| 新会员/线下成交/确认码 | 尚无 | 不可达 | 后续阶段新增 | 阶段一明确不做 |
+| 新永久归属/active 推荐 | 尚无 | 不可达 | Stage 1A 只建内部 authority；Stage 1B 才可增加只读展示 | 永久会员完成前不得开放真实推荐绑定 |
+| 新会员/线下成交/确认码 | 尚无 | 不可达 | 后续阶段新增 | Stage 1A/1B 明确不做 |
 
 `template/uni-app/api/yfth.js` 和 `template/admin/src/api/yfth.js` 已有 package/referral/customer/appointment/monthly API 封装；`pages.json` 已注册相关用户页，admin router 已注册套餐和推荐页。入口隐藏必须同时检查页面跳转、菜单、深链、API 权限、退款/恢复和历史查询，不可只删页面按钮。
 
@@ -166,7 +168,7 @@
 - 可空唯一 `active_key` 是现有标准模式：active 行写确定字符串，关闭后置 `NULL`，利用 MySQL 允许多个 `NULL` 保存历史。
 - 统一审计表 `yfth_audit_event` 包含 domain/object/action/before/after/operator/role/store/request/reason/IP；统一幂等表在 `(business_domain, action_type, idempotency_key)` 上唯一。
 - 快照以 text JSON 保存，但权威关系、金额、状态和外键均为结构化列；新模型应沿用“结构化核心字段 + 不可变规则/凭证摘要快照”，不能用 JSON 代替关系约束。
-- migration 习惯：`hasTable/hasColumn` 防半迁移，`down()` 删除本轮菜单权限和新增表，菜单按 `unique_auth` upsert。MySQL 8 strict mode 下必须验证名称长度、索引长度和重复执行。
+- migration 事实分层：较新的高风险迁移已形成 `hasTable/hasColumn`、权限 `unique_auth` upsert、精确 `down()` 和半迁移恢复模式；早期 foundation、package、customer 等 migration 部分仍使用一次性 `change()`，不能假设全部具备重复执行或半迁移恢复能力。Stage 1A 必须按当前最高标准重新实现，并在 MySQL 8 strict mode 验证名称/索引、run/rollback/rerun/duplicate run 和半迁移恢复。
 - 不应扩展旧表改变语义：`yfth_package_*`, `yfth_referral_candidate`, `yfth_referral_attribution`, `yfth_reward_ledger`, `yfth_customer_relation`, `yfth_service_dynamic_code`。
 - 若为兼容查询增加投影字段或关联，必须在具体阶段独立论证；阶段零建议优先新增表，rollback 只撤销新表和新菜单，不触碰旧历史数据。
 
@@ -248,7 +250,7 @@
 2. 若复用 90 天 candidate，会产生自动过期、跨 scene 重复关系和会员关闭语义错误。
 3. 若复用 `member_5980`，退款/到期重算会错误撤销永久会员，或永久会员污染旧套餐权益判断。
 4. 若复用预约码表，会把身份确认与核销权限、门店范围和状态机混杂。
-5. 仅靠服务层先查后写无法防并发跨店抢占，必须有按 UID 的数据库 active 唯一约束和冲突重读。
+5. 仅靠服务层先查后写无法防并发跨店抢占；Stage 1A 已冻结为每 UID 一行 attribution current、`UNIQUE(uid)`、insert-first/冲突重读和数值 UID 升序行锁。
 6. 自动迁移现有 customer relation/referral candidate 会产生无法证明的法律归属；必须默认零自动迁移。
 7. 新旧前端入口并存时，用户可能误走旧购买/推荐链；隐藏需单独审核且不能破坏历史查询和恢复。
 8. 待定业务参数不得进入默认常量：商城收益比例、C 子分配比例、观察期天数、会员退款下级处置、部分退款冲正、会员福利、无店恢复、行政区 code、隐私和结算凭证。
