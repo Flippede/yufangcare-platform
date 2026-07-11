@@ -1,5 +1,23 @@
 # 项目交接文档
 
+## Current Fact Snapshot - Headquarters Mall Stage 0 Investigation
+
+- Current Stage 0 branch: `codex/yfth-hq-mall-stage0-investigation`; stable `main` / `origin/main` baseline: `de3b2f04e231e7c3115f33b1ef1450ccf2fbb084`.
+- This round is a read-only compatibility and data-model investigation. No PHP, Vue, JavaScript, migration, route, test, database, existing entry, or business state machine was changed.
+- Stage 0 outputs: [YFTH_HQ_MALL_STAGE0_COMPATIBILITY_INVESTIGATION.md](YFTH_HQ_MALL_STAGE0_COMPATIBILITY_INVESTIGATION.md) and [YFTH_HQ_MALL_STAGE0_DATA_MODEL_PROPOSAL.md](YFTH_HQ_MALL_STAGE0_DATA_MODEL_PROPOSAL.md).
+- Investigated compatibility scope: legacy online 5980 package purchase/payment/refund/recovery and ten-month benefits; `member_5980`; old referral candidate/attribution/reward ledger; franchise customer CRM; service appointment dynamic codes; store workbench; user/admin routes, pages, menus, migrations, and regression checks.
+- Repository fact: `member_5980` remains an online-package-instance-derived identity; old referral candidates expire after 90 days; `yfth_customer_relation` is an operational store CRM relation; `yfth_service_dynamic_code` is appointment-writeoff specific. None is suitable for reinterpretation as the new permanent authority.
+- Proposed authorities, pending architecture review: separate permanent B-store attribution, long-lived active first-level referral, generic offline sale, versioned membership rule, permanent membership instance, a new scene-isolated business dynamic-code foundation, offline refund/revocation request, and append-only attribution/relation events.
+- Stable code that must remain: CRMEB mall/order/payment/refund/logistics/page-decoration core; legacy 5980 package services, listeners, routes, recovery commands, UI, migrations, tests, benefit lifecycle and monthly fulfillment; appointment/benefit lock/writeoff; old referral ledger compatibility; customer CRM; audit and idempotency foundations.
+- Coexistence recommendation: no automatic conversion of old 5980 instances, `member_5980`, old referral candidates/ledgers, customer relations, or appointment codes. Existing history, refund, recovery, benefit, appointment, writeoff, fulfillment, scan, and read-only paths remain operational. Future hiding of old new-purchase/referral-entry UI requires a separate reviewed task.
+- Initial-data recommendation: zero automatic migration into the new authorities. The repository cannot prove production data is empty; existing customer relations may only become manually verified candidates after a production-preflight read-only report.
+- Suggested Stage 1 scope is limited to permanent attribution authority, active first-level referral authority, shared core service, current-attribution API/minimum read-only view, necessary migration, permissions, audit, idempotency, and concurrency tests.
+- Stage 1 explicitly excludes identity/membership/package codes, offline sales, permanent membership activation, reward amounts/sequences, headquarters-mall revenue, settlement, refund, takeover, CRM projection automation, legacy-entry hiding, and production deployment.
+- Technical decisions still requiring Architecture Auditor review include first-bind guard/current-row design, unassigned/paused active-key semantics, relationship-event table boundary, new dynamic-code table isolation, membership identity projection, CRM projection contract, future cyclic sequence authority, exact API privacy boundary, lock order, and MySQL index/migration design.
+- Business parameters remain owned by project control and are not selected here: B/C revenue ratios, observation days, refund/downline handling, partial-refund adjustment, membership benefits, unassigned recovery, administrative-region source, privacy authorization, and settlement evidence.
+- Stage 1 is **not authorized** by this document. The next action is an independent Stage 0 read-only architecture review; implementation requires that review to pass and a new explicit project-control authorization.
+- No production deployment, production database connection, production migration, server modification, or WeChat upload was performed.
+
 ## Current Fact Snapshot - Final Headquarters Mall Scope Documentation Closure
 
 - 第三次只读架构复核结论为 A：仅批准本轮文档合并；当前没有 Blocker、P1 或 P3，剩余问题均为后续具体阶段的 P2 参数门禁。
