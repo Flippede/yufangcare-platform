@@ -1,5 +1,10 @@
 # 御方通和 5980 套餐与权益状态机
 
+> [!IMPORTANT]
+> **Compatibility Implementation Notice**
+>
+> 本文描述仓库已实现的线上 5980 套餐支付、激活、退款和权益状态机，必须保留且不得擅自删除，但不代表最新线下会员、线下套餐或循环三三制状态机。新业务开发须以 [YFTH_RELEASE_SCOPE_HQ_MALL_MEMBERSHIP_REFERRAL.md](YFTH_RELEASE_SCOPE_HQ_MALL_MEMBERSHIP_REFERRAL.md) 为产品依据，不得把旧线上套餐状态直接解释为新线下成交状态。审计、幂等、快照和冲正模式是否复用，由后续架构设计决定。
+
 ## 1. 购买状态
 
 | 状态 | 含义 |

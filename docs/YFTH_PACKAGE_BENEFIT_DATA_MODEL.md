@@ -1,5 +1,10 @@
 # 御方通和 5980 套餐与权益数据模型
 
+> [!IMPORTANT]
+> **Compatibility Implementation Notice**
+>
+> 本文描述仓库已实现的线上 5980 套餐、权益和快照兼容数据模型，必须保留且不得擅自删除，但不是最新线下会员、线下套餐或循环三三制的数据模型。新业务开发须以 [YFTH_RELEASE_SCOPE_HQ_MALL_MEMBERSHIP_REFERRAL.md](YFTH_RELEASE_SCOPE_HQ_MALL_MEMBERSHIP_REFERRAL.md) 为产品依据，不得仅修改旧字段语义完成新方案。快照、审计、幂等和冲正模式是否复用，由后续架构设计决定。
+
 ## 1. 表清单
 
 | 表 | 作用 |

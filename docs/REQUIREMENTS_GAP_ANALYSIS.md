@@ -1,5 +1,10 @@
 # 需求差距分析
 
+> [!IMPORTANT]
+> **Superseded Product Scope Notice**
+>
+> 本文件保留历史差距分析，不代表当前产品范围。B 商家独立商城、在线 5980/9800 套餐、门店收取消费者线上款或单轮三人奖励等旧口径均不得作为当前开发依据。最新产品依据为 [YFTH_RELEASE_SCOPE_HQ_MALL_MEMBERSHIP_REFERRAL.md](YFTH_RELEASE_SCOPE_HQ_MALL_MEMBERSHIP_REFERRAL.md)。
+
 ## Monthly Benefit Claim / Fulfillment V1 Delta
 
 - `5980` monthly product benefits now have an independent YFTH claim and fulfillment domain under development on `codex/yfth-monthly-benefit-fulfillment-v1`.

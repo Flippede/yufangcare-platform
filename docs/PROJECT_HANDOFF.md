@@ -3,20 +3,25 @@
 ## Current Fact Snapshot - Headquarters Mall Membership And Referral Scope Draft
 
 - Current `main` baseline for this documentation round: `30aa69de6037123eb8b593ceb66c03740912549e`.
+- 第一次只读架构预审结论为 B；本轮文档整改关闭旧文档引用、可信线下成交、三三制责任主体和 active 推荐有效期四个 P1。
 - 本轮只重写需求文档，不写业务代码；旧 `9800 Direct Referral Release Scope - Frozen Draft` 已被新方案取代。
 - C 端始终只显示总部统一商城，总部商城收款进入总部支付主体；B 商家没有独立商城。
 - 首次注册用户默认不绑定商家，可正常浏览和购买总部商城商品，绑定前历史订单不追溯收益。
-- 用户可通过有效一级直推、一次性动态会员码激活或 B 端业务套餐成交核销形成永久 B 商家归属。
+- 用户可通过有效一级直推、一次性动态会员码激活或 B 端线下套餐成交确认形成永久 B 商家归属。
 - 会员和业务套餐是两个独立的 `9800` 线下产品：会员赋予一级直推资格和总部福利；会员码扫码校验通过后立即生效；套餐由 B 端扫描 C 端身份码后核销。
 - 会员与套餐有效成交共用循环 15% / 25% / 60% 序列；同一非会员下级在 active 层级内重复购买套餐可重复产生奖励候选。
+- 三三制奖励由发生线下会员/套餐成交的 B 商家从该笔成交收入中承担，总部不是默认付款人。
+- active 推荐关系长期有效，直到被推荐人成为会员或由总部受控关闭；不采用旧候选 90 天自动到期。
 - 下级购买会员产生一次奖励候选后立即脱离原 active 直推层级，后续成交不再为原直推人产生奖励或消费分成。
+- 会员全额退款不恢复原 C1 active 推荐关系；无接管门店期间，总部商城新订单不产生 B/C 收益。
 - 总部商城订单的 B 商家总收益包含 C 端直推子分配，总部只向 B 商家结算一笔，不重复向 C 端支出。
 - B 商家终止时按区县、市、省顺序生成候选，由总部人工二次确认接管；历史订单和收益不追溯、不重算。
-- 当前仍未允许业务代码开发；下一步是对新冻结范围执行只读架构复核。
+- 当前仍未允许业务代码开发；下一步是第二次只读架构复核，复核通过后才允许合并文档分支。文档合并也不等于允许启动全部业务开发。
 
-## Current Fact Snapshot - 9800 Direct Referral Release Scope - Frozen Draft
+## Historical Superseded Snapshot - 9800 Direct Referral Release Scope - Frozen Draft
 
-- 中文说明：范围口径已冻结，但参数和状态门禁仍待开发前确认；不得将本快照理解为已允许代码开发或最终上线方案已完全定稿。
+- **Superseded：本历史快照已被 Headquarters Mall Membership And Referral Scope 取代，不得继续作为当前需求或代码开发依据。最新产品依据为 [YFTH_RELEASE_SCOPE_HQ_MALL_MEMBERSHIP_REFERRAL.md](YFTH_RELEASE_SCOPE_HQ_MALL_MEMBERSHIP_REFERRAL.md)。**
+- 历史说明：当时范围口径被标记为 Frozen Draft，但现已废弃，以下内容仅保留用于追踪当时决策。
 - 本轮为 Architecture Auditor B 审核后的文档修订，不写业务代码、不改接口、数据库、前端页面或既有业务模块。
 - 新上线口径：C 端家庭康养套餐 `9800`，B 端标准加盟店 `98000`；历史 `5980` / `59800` 口径需在后续专项中受控迁移。
 - P2 已补充：永久绑定与闭店重购生命周期、33 制序号边界与分配时点、B 商家结算角色与权限矩阵、城市合伙人三级收益归属基数。
@@ -25,7 +30,7 @@
 - B 商家负责发货、自提、门店库存和线下返现处理；B 商家倒闭后会员降级为普通用户，并由绑定城市合伙人按最小必要信息原则线下跟进。
 - 城市合伙人是招商合伙人，分省/市/县三级；B 商家仅直接绑定一个最低实际归属合伙人，上级关系由树推导，收益比例和收益层级待规则版本确认。
 - P3 已统一命名为 `9800 Direct Referral Release Scope - Frozen Draft`。
-- 后续开发前，项目主控必须确认 [YFTH_RELEASE_SCOPE_9800_DIRECT_REFERRAL.md](YFTH_RELEASE_SCOPE_9800_DIRECT_REFERRAL.md) 中的价格迁移、支付主体、规则比例、观察期、库存扣减和区域数据治理事项，并再次进行只读架构复核。
+- 历史门禁：该旧方案当时要求确认价格迁移、支付主体、比例、观察期、库存和区域治理；这些要求不得再解释为当前开发入口。
 
 ## Current Fact Snapshot - Final Monthly Benefit Claim And Fulfillment V1 Closure
 

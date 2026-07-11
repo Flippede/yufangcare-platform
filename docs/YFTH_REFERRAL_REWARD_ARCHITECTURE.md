@@ -1,5 +1,10 @@
 # YFTH Referral Relationship And Read-only Reward Ledger V1
 
+> [!IMPORTANT]
+> **Compatibility Implementation Notice**
+>
+> 本文描述仓库已实现的旧 referral candidate、线上 5980/加盟事件和只读奖励台账兼容能力，必须保留且不得擅自删除，但不代表最新长期 active 一级关系、线下会员/套餐和循环三三制方案。新业务开发须以 [YFTH_RELEASE_SCOPE_HQ_MALL_MEMBERSHIP_REFERRAL.md](YFTH_RELEASE_SCOPE_HQ_MALL_MEMBERSHIP_REFERRAL.md) 为产品依据；不得直接复用旧 candidate、旧奖励场景或一次多 rule-item ledger 作为新模型。审计、幂等、快照和冲正模式是否复用，由后续架构设计决定。
+
 ## Scope
 
 This V1 establishes an independent YFTH referral and reward-ledger domain:
