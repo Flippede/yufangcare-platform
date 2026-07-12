@@ -1,6 +1,14 @@
 # 御方通和总部统一商城 Stage 1B 运行验证
 
-## Second Review Final P1 Evidence - 2026-07-12
+## Final Merge Closure Evidence - 2026-07-12
+
+- Final independent Architecture Auditor conclusion: **A, passed**; Blocker, P1, P2 and P3 are all clear. The reviewed commit is `6402456db8687c90aec57ba21350dacbdb88ff61`.
+- Stage 1B was fast-forwarded from `codex/yfth-hq-mall-stage1b-readonly-surface` into `main`; main before merge was `328f5b658d1e260d9bd84bbe851f4c0b24980346`. Local and remote feature branches remain preserved.
+- The accepted isolated MySQL 8.0.46 evidence includes 192 real HTTP requests and unchanged full-row hashes for both authority current tables, both authority event tables and `yfth_idempotency_record`.
+- The merge closure reran only the documented lightweight contract, source-guard, PHP syntax, whitespace and sensitive-artifact checks. Full MySQL, 192-request HTTP, frontend-build and Stage 1A concurrency suites were inherited from the final Architecture Auditor A evidence and were not rerun.
+- Production source allowlist remains empty and production referral qualification remains fail closed. No production MySQL/Redis connection, production migration, deployment or WeChat upload occurred, and no later business stage is authorized.
+
+## Historical Snapshot - Second Review Final P1 Evidence - 2026-07-12
 
 - Second review conclusion remains B. The final P1 was the pre-validation `status=active` filter in referral summary reads; this round removes that filter and validates all related current rows before deriving the boolean.
 - On a fresh isolated MySQL Community Server 8.0.46 database, real HTTP scenarios for closed/paused/invalid current plus an active latest event all failed closed for the user endpoint and store list/detail. Responses used the existing safe business error and did not expose internal event/reason/schema details.

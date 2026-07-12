@@ -1,6 +1,15 @@
 # 御方通和总部统一商城 Stage 1B Read-only Surface
 
-## Second Review Final P1 Closure
+## Final Merge Closure
+
+- Final independent Architecture Auditor conclusion: **A, passed**; Blocker, P1, P2 and P3 are all clear. The reviewed commit is `6402456db8687c90aec57ba21350dacbdb88ff61`.
+- Main before merge was `328f5b658d1e260d9bd84bbe851f4c0b24980346`. Stage 1B was fast-forwarded into `main` with `git merge --ff-only codex/yfth-hq-mall-stage1b-readonly-surface`.
+- The local and remote feature branches remain preserved at the reviewed commit. The GET-only APIs, explicit permissions, DTO allowlists, headquarters pages, user page and trusted-store pages are complete.
+- Final isolated evidence covered 192 real HTTP requests with unchanged full-row hashes for the four authority current/event tables and `yfth_idempotency_record`.
+- Production source allowlist remains empty and production referral qualification remains fail closed. No production MySQL/Redis connection, production migration, deployment or WeChat upload occurred.
+- This merge closes Stage 1B only. Permanent membership, real referral, 9800 transactions, dynamic codes, rewards and all later business stages remain unauthorized.
+
+## Historical Snapshot - Second Review Final P1 Closure
 
 The second independent architecture review conclusion remains **B, conditionally passed**. The remaining P1 came from filtering referral current rows to `status=active` before consistency validation. A closed, paused or invalid current row whose latest event still said active could therefore disappear from validation and be reported as `has_active_referral=false`.
 

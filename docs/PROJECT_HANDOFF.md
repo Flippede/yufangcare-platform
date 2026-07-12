@@ -1,6 +1,16 @@
 # 项目交接文档
 
-## Current Fact Snapshot - Stage 1B Second Review Final P1 Closure
+## Current Fact Snapshot - Final Headquarters Mall Stage 1B Read-only Surface Closure
+
+- Final independent Architecture Auditor conclusion: A, passed; Blocker, P1, P2 and P3 are all clear. The reviewed Stage 1B commit is `6402456db8687c90aec57ba21350dacbdb88ff61`.
+- Main before merge was `328f5b658d1e260d9bd84bbe851f4c0b24980346`. Stage 1B entered `main` through `git merge --ff-only codex/yfth-hq-mall-stage1b-readonly-surface`; no merge commit, squash, rebase, cherry-pick or history rewrite was used.
+- The local and remote feature branches remain preserved at the reviewed commit. Stage 1B read-only APIs, permission boundaries, DTO allowlists, headquarters pages, user page and trusted-store pages are complete.
+- The final isolated MySQL 8.0.46 evidence completed 192 real HTTP requests. Before and after every request, full-row hashes remained identical for both authority current tables, both authority event tables and `yfth_idempotency_record`.
+- The production source allowlist remains empty and production referral qualification remains fail closed. Stage 1B does not create placeholders, repair data, or write authority current/event/idempotency state.
+- This closure did not connect to production MySQL or Redis, execute a production migration, deploy a server or upload to WeChat. Permanent membership, real referral, 9800 transactions, dynamic codes, rewards and every later business stage remain unauthorized.
+- Final `main` and `origin/main` commits must be read from actual Git HEAD after this documentation closure commit and push.
+
+## Historical Snapshot - Stage 1B Second Review Final P1 Closure
 
 - The second independent Stage 1B architecture review conclusion remains B, conditionally passed. Its only remaining P1 was that `activeReferralSummary()` filtered `status=active` before consistency validation, so inconsistent non-active referral current rows could be silently interpreted as no active referral.
 - The read order is now fixed: query every referral current related to the authenticated referred UID and trusted store scope, validate each row with `HqAuthorityConsistencyValidator`, fail closed on any inconsistency, and only then derive the active-referral boolean from consistent rows.
