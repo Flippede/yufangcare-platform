@@ -109,39 +109,46 @@ class HqCustomerAttributionServices extends YfthFoundationBaseServices
             ['uid' => $uid, 'store_id' => $storeId],
             'uid:' . $uid,
             function () use ($uid, $storeId, $sourceKey, $mutation) {
-                $row = $this->lockCurrents([$uid])[$uid];
-                if ((string)$row['status'] === 'active') {
-                    if ((int)$row['store_id'] === $storeId) {
-                        return $this->result($row, $row, false);
-                    }
-                    throw new ApiException('attribution_store_conflict');
-                }
-                if (!$this->isPristineShape($row)) {
-                    throw new ApiException('attribution_not_pristine');
-                }
-
-                $now = time();
-                $update = [
-                    'store_id' => $storeId,
-                    'status' => 'active',
-                    'status_reason_code' => '',
-                    'authority_version' => 1,
-                    'source_type' => $mutation->source()->type(),
-                    'source_id' => $mutation->source()->id(),
-                    'bound_at' => $now,
-                    'paused_at' => 0,
-                    'closed_at' => 0,
-                    'close_reason' => '',
-                    'update_time' => $now,
-                ];
-                $this->dao->update((int)$row['id'], $update);
-                $after = array_merge($row, $update);
-                $this->appendEvent($row, $after, 'attribution_created', $sourceKey, $mutation);
-                return $this->result($row, $after, true);
+                return $this->assignFirstInTransaction($uid, $storeId, $mutation, $sourceKey);
             }
         );
         $this->auditResult('assign_first', $result, $mutation);
         return $result;
+    }
+
+    public function assignFirstInTransaction(int $uid, int $storeId, HqAuthorityMutation $mutation, string $sourceKey = ''): array
+    {
+        $this->assertStoreActive($storeId);
+        $sourceKey = $sourceKey ?: $this->canonicalizer->attributionEvent('attribution_created', $mutation->source());
+        $row = $this->lockCurrents([$uid])[$uid];
+        if ((string)$row['status'] === 'active') {
+            if ((int)$row['store_id'] === $storeId) {
+                return $this->result($row, $row, false);
+            }
+            throw new ApiException('attribution_store_conflict');
+        }
+        if (!$this->isPristineShape($row)) {
+            throw new ApiException('attribution_not_pristine');
+        }
+
+        $now = time();
+        $update = [
+            'store_id' => $storeId,
+            'status' => 'active',
+            'status_reason_code' => '',
+            'authority_version' => 1,
+            'source_type' => $mutation->source()->type(),
+            'source_id' => $mutation->source()->id(),
+            'bound_at' => $now,
+            'paused_at' => 0,
+            'closed_at' => 0,
+            'close_reason' => '',
+            'update_time' => $now,
+        ];
+        $this->dao->update((int)$row['id'], $update);
+        $after = array_merge($row, $update);
+        $this->appendEvent($row, $after, 'attribution_created', $sourceKey, $mutation);
+        return $this->result($row, $after, true);
     }
 
     public function pause(int $uid, int $expectedVersion, string $reasonCode, HqAuthorityMutation $mutation): array

@@ -25,7 +25,7 @@ class HqActiveReferralServices extends YfthFoundationBaseServices
         HqAuthorityOperationRunner $runner,
         AuditEventServices $audit,
         HqAuthorityConsistencyValidator $consistency,
-        ReferralQualificationPolicy $qualification = null
+        $qualification = null
     ) {
         $this->dao = $dao;
         $this->eventDao = $eventDao;
@@ -150,6 +150,46 @@ class HqActiveReferralServices extends YfthFoundationBaseServices
             throw new ApiException('referral_invalid_reason_required');
         }
         return $this->transition($relationId, $expectedVersion, ['active', 'paused'], 'invalid', 'relation_invalid', $closeReason, false, $mutation);
+    }
+
+    public function closeForMembershipInTransaction(int $referredUid, int $storeId, HqAuthorityMutation $mutation): array
+    {
+        $snapshot = $this->row($this->dao->search([])
+            ->where('active_referred_uid', $referredUid)
+            ->order('id desc')->find());
+        if (!$snapshot) {
+            return ['relation' => [], 'before' => [], 'after' => [], 'changed' => false];
+        }
+
+        $attributions = $this->attribution->lockCurrents([(int)$snapshot['referrer_uid'], $referredUid]);
+        $row = $this->row($this->dao->search([])->where('id', (int)$snapshot['id'])->lock(true)->find());
+        if (!$row) {
+            throw new ApiException('referral_relation_not_found');
+        }
+        $this->assertConsistent($row);
+        if (!in_array((string)$row['status'], ['active', 'paused'], true)
+            || (int)$row['referred_uid'] !== $referredUid
+            || (int)$row['store_id'] !== $storeId) {
+            throw new ApiException('referral_membership_close_conflict');
+        }
+        $this->assertActiveAttribution($attributions[(int)$row['referrer_uid']], $storeId);
+        $this->assertActiveAttribution($attributions[$referredUid], $storeId);
+
+        $sourceKey = $this->canonicalizer->referralEvent('relation_closed', $mutation->source());
+        $now = time();
+        $update = [
+            'status' => 'closed',
+            'active_referred_uid' => null,
+            'closed_at' => $now,
+            'close_reason' => 'membership_activated',
+            'relation_version' => (int)$row['relation_version'] + 1,
+            'request_id' => $mutation->requestId(),
+            'update_time' => $now,
+        ];
+        $this->dao->update((int)$row['id'], $update);
+        $after = array_merge($row, $update);
+        $this->appendEvent($row, $after, 'relation_closed', $sourceKey, $mutation);
+        return $this->result($row, $after, true);
     }
 
     private function transition(

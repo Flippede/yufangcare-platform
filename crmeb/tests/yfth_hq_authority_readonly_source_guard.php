@@ -63,14 +63,17 @@ foreach (['INSERT INTO `' . 'eb_yfth', 'addColumn(', 'create()', 'seedFixture', 
 
 $canonicalizer = (string)file_get_contents($root . '/app/services/yfth/HqAuthoritySourceCanonicalizer.php');
 $qualification = (string)file_get_contents($root . '/app/services/yfth/FailClosedReferralQualificationPolicy.php');
-$assert(strpos($canonicalizer, '__construct(array $allowedSourceTypes = [])') !== false, 'production_source_allowlist_remains_empty_by_default');
+$assert(strpos($canonicalizer, "PERMANENT_MEMBERSHIP_SOURCE = 'permanent_membership_confirmation'") !== false, 'production_source_allowlist_opens_only_reviewed_stage2_membership_source');
+$assert(strpos($canonicalizer, 'test_') === false && strpos($canonicalizer, 'direct_referral') === false, 'production_source_allowlist_has_no_test_or_future_referral_source');
 $assert(strpos($qualification, 'permanent_membership_authority_unavailable') !== false, 'production_referral_qualification_remains_fail_closed');
 
 $adminApi = (string)file_get_contents($repo . '/template/admin/src/api/yfth.js');
 $uniApi = (string)file_get_contents($repo . '/template/uni-app/api/yfth.js');
-$adminStage = substr($adminApi, strpos($adminApi, 'export function yfthHqAuthorityAttributionList'));
+$adminStart = strpos($adminApi, 'export function yfthHqAuthorityAttributionList');
+$adminEnd = strpos($adminApi, 'export function yfthPermanentMembershipEnrollments', $adminStart);
+$adminStage = substr($adminApi, $adminStart, $adminEnd - $adminStart);
 $uniStart = strpos($uniApi, 'export function getYfthMyHqAuthority');
-$uniEnd = strpos($uniApi, 'function splitYfthContext', $uniStart);
+$uniEnd = strpos($uniApi, 'export function generateYfthPermanentMembershipIdentityCode', $uniStart);
 $uniStage = substr($uniApi, $uniStart, $uniEnd - $uniStart);
 $assert(strpos($adminStage, "method: 'post'") === false, 'admin_stage1b_api_get_only');
 $assert(strpos($uniStage, 'request.post') === false, 'uni_stage1b_api_get_only');

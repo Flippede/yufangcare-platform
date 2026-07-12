@@ -96,6 +96,20 @@ foreach ($diff as $path) {
         'template/uni-app/pages/yfth/workbench/customer_attribution/index.vue',
         'template/uni-app/libs/yfthRequestGeneration.js',
         'template/uni-app/tests/yfth_hq_authority_frontend_state_check.js',
+        'crmeb/app/api/route/yfth_service.php',
+        'crmeb/app/adminapi/route/yfth.php',
+        'crmeb/app/api/controller/v1/yfth/PermanentMembershipController.php',
+        'crmeb/app/api/controller/v1/yfth/PermanentMembershipStoreController.php',
+        'crmeb/app/adminapi/controller/v1/yfth/PermanentMembership.php',
+        'template/admin/src/api/yfth.js',
+        'template/admin/src/router/modules/yfth.js',
+        'template/admin/src/pages/yfth/permanentMembership/index.vue',
+        'template/uni-app/api/yfth.js',
+        'template/uni-app/pages.json',
+        'template/uni-app/pages/user/index.vue',
+        'template/uni-app/pages/yfth/workbench/index.vue',
+        'template/uni-app/pages/yfth/permanent_membership/index.vue',
+        'template/uni-app/pages/yfth/workbench/permanent_membership/index.vue',
     ], true);
     $forbiddenPath = preg_match('#^(crmeb/app/(api|adminapi)/(controller|route)|crmeb/app/(command|listener)|template/)#', $normalized)
         || strpos($normalized, 'crmeb/app/event.php') === 0;

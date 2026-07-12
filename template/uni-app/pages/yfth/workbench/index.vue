@@ -43,6 +43,7 @@
 							<button @click="goPurchase">采购库存</button>
 							<button v-if="canReadProductQuota" @click="goProductQuota">产品额度</button>
 							<button @click="goMonthlyBenefitPickup">权益自提</button>
+							<button v-if="canManagePermanentMembership" @click="goPermanentMembership">永久会员办理</button>
 						</view>
 					</view>
 				</view>
@@ -273,6 +274,9 @@ export default {
 			return ['franchisee', 'store_manager'].indexOf(this.context.role_code) !== -1;
 		},
 		canReadCustomerAttribution() {
+			return ['franchisee', 'store_manager'].indexOf(this.context.role_code) !== -1;
+		},
+		canManagePermanentMembership() {
 			return ['franchisee', 'store_manager'].indexOf(this.context.role_code) !== -1;
 		},
 		storeIdentities() {
@@ -573,6 +577,9 @@ export default {
 		},
 		goMonthlyBenefitPickup() {
 			uni.navigateTo({ url: '/pages/yfth/workbench/monthly_benefit_pickup' });
+		},
+		goPermanentMembership() {
+			uni.navigateTo({ url: '/pages/yfth/workbench/permanent_membership/index' });
 		},
 		goCustomerAttribution() {
 			if (!this.canReadCustomerAttribution) {

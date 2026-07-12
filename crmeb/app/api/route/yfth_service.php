@@ -36,6 +36,15 @@ Route::group(function () {
     ->option(['mark' => 'yfth_hq_authority_user_read', 'mark_name' => 'YFTH headquarters authority user read API']);
 
 Route::group(function () {
+    Route::post('yfth/permanent_membership/identity_code', 'v1.yfth.PermanentMembershipController/identityCode')->option(['real_name' => 'YFTH permanent membership customer identity code']);
+    Route::get('yfth/permanent_membership/me', 'v1.yfth.PermanentMembershipController/me')->option(['real_name' => 'YFTH my permanent membership']);
+    Route::post('yfth/permanent_membership/confirm', 'v1.yfth.PermanentMembershipController/confirm')->option(['real_name' => 'YFTH permanent membership customer confirmation']);
+})->middleware(\app\http\middleware\AllowOriginMiddleware::class)
+    ->middleware(\app\api\middleware\StationOpenMiddleware::class)
+    ->middleware(\app\api\middleware\AuthTokenMiddleware::class)
+    ->option(['mark' => 'yfth_permanent_membership_user', 'mark_name' => 'YFTH permanent membership user API']);
+
+Route::group(function () {
     Route::get('yfth/store_workbench/overview', 'v1.yfth.StoreWorkbenchController/overview')->option(['real_name' => 'YFTH store workbench overview']);
     Route::get('yfth/store_workbench/customer_attribution', 'v1.yfth.HqAuthorityStoreReadController/index')->option(['real_name' => 'YFTH store customer attribution list']);
     Route::get('yfth/store_workbench/customer_attribution/:id', 'v1.yfth.HqAuthorityStoreReadController/detail')->option(['real_name' => 'YFTH store customer attribution detail']);
@@ -55,6 +64,12 @@ Route::group(function () {
     Route::get('yfth/store_workbench/monthly_benefit/pickup', 'v1.yfth.StoreWorkbenchController/monthlyBenefitPickup')->option(['real_name' => 'YFTH store workbench monthly benefit pickup list']);
     Route::get('yfth/store_workbench/monthly_benefit/pickup/:id', 'v1.yfth.StoreWorkbenchController/monthlyBenefitPickupDetail')->option(['real_name' => 'YFTH store workbench monthly benefit pickup detail']);
     Route::post('yfth/store_workbench/monthly_benefit/pickup/:id/confirm', 'v1.yfth.StoreWorkbenchController/monthlyBenefitPickupConfirm')->option(['real_name' => 'YFTH store workbench monthly benefit pickup confirm']);
+    Route::get('yfth/store_workbench/permanent_membership', 'v1.yfth.PermanentMembershipStoreController/index')->option(['real_name' => 'YFTH store permanent membership enrollments']);
+    Route::get('yfth/store_workbench/permanent_membership/:id', 'v1.yfth.PermanentMembershipStoreController/detail')->option(['real_name' => 'YFTH store permanent membership enrollment detail']);
+    Route::post('yfth/store_workbench/permanent_membership', 'v1.yfth.PermanentMembershipStoreController/create')->option(['real_name' => 'YFTH store permanent membership enrollment create']);
+    Route::post('yfth/store_workbench/permanent_membership/:id/bind', 'v1.yfth.PermanentMembershipStoreController/bind')->option(['real_name' => 'YFTH store permanent membership bind customer']);
+    Route::post('yfth/store_workbench/permanent_membership/:id/payment', 'v1.yfth.PermanentMembershipStoreController/payment')->option(['real_name' => 'YFTH store permanent membership offline payment confirm']);
+    Route::post('yfth/store_workbench/permanent_membership/:id/confirmation_code', 'v1.yfth.PermanentMembershipStoreController/confirmationCode')->option(['real_name' => 'YFTH store permanent membership confirmation code']);
 })->middleware(\app\http\middleware\AllowOriginMiddleware::class)
     ->middleware(\app\api\middleware\StationOpenMiddleware::class)
     ->middleware(\app\api\middleware\AuthTokenMiddleware::class)

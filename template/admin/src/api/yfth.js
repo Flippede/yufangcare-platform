@@ -1006,3 +1006,31 @@ export function yfthHqAuthorityReferralDetail(id) {
 export function yfthHqAuthorityReferralEvents(id) {
   return request({ url: `yfth/hq_authority/referral/${id}/events`, method: 'get' });
 }
+
+export function yfthPermanentMembershipEnrollments(params) {
+  return request({ url: 'yfth/permanent_membership/enrollment', method: 'get', params });
+}
+
+export function yfthPermanentMembershipEnrollment(id) {
+  return request({ url: `yfth/permanent_membership/enrollment/${id}`, method: 'get' });
+}
+
+export function yfthPermanentMembershipMembers(params) {
+  return request({ url: 'yfth/permanent_membership/member', method: 'get', params });
+}
+
+export function yfthPermanentMembershipCreate(data) {
+  return request({ url: 'yfth/permanent_membership/enrollment', method: 'post', data });
+}
+
+export function yfthPermanentMembershipBind(id, data) {
+  return request({ url: `yfth/permanent_membership/enrollment/${id}/bind`, method: 'post', data });
+}
+
+export function yfthPermanentMembershipPayment(id, data) {
+  return request({ url: `yfth/permanent_membership/enrollment/${id}/payment`, method: 'post', data });
+}
+
+export function yfthPermanentMembershipConfirmationCode(id) {
+  return request({ url: `yfth/permanent_membership/enrollment/${id}/confirmation_code`, method: 'post' });
+}

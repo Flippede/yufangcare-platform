@@ -9,11 +9,15 @@ class HqAuthoritySourceCanonicalizer
     public const ATTRIBUTION_EVENT_DOMAIN = 'hq_attribution_event';
     public const REFERRAL_RELATION_DOMAIN = 'hq_active_referral_relation';
     public const REFERRAL_EVENT_DOMAIN = 'hq_active_referral_event';
+    public const PERMANENT_MEMBERSHIP_SOURCE = 'permanent_membership_confirmation';
 
     private $allowedSourceTypes;
 
     public function __construct(array $allowedSourceTypes = [])
     {
+        if (!$allowedSourceTypes) {
+            $allowedSourceTypes = [self::PERMANENT_MEMBERSHIP_SOURCE];
+        }
         $this->allowedSourceTypes = array_values(array_unique(array_map('strval', $allowedSourceTypes)));
     }
 

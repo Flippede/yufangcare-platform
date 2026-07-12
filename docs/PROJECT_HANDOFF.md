@@ -1,6 +1,19 @@
 # 项目交接文档
 
-## Current Fact Snapshot - Final Headquarters Mall Stage 1B Read-only Surface Closure
+## Current Fact Snapshot - Stage 2 Permanent Membership Minimum Loop V1
+
+- Current feature branch: `codex/yfth-hq-mall-stage2-permanent-membership-v1`; start baseline and stable `main` / `origin/main`: `3ec6c80dbfef4975788414f64ab70c9e439cf117`. The completed feature commit must be read from actual Git after commit and push.
+- Stage 2 implements the minimum offline permanent-membership loop: authenticated customer identity code, headquarters/store enrollment, fixed 9800-yuan offline payment confirmation, customer-bound membership confirmation code, atomic activation, permanent attribution, membership-activated referral close, referral qualification and one amount-free reward candidate.
+- Five independent tables are added: `yfth_permanent_membership_enrollment`, `yfth_permanent_membership`, `yfth_permanent_membership_event`, `yfth_business_dynamic_code` and `yfth_membership_reward_candidate`.
+- Customer identity cannot be supplied as UID or phone. Both business-code scenes persist hashes only, are short-lived and single-use, and reject replaced, expired, used and cross-scope use. The appointment writeoff code table is not reused.
+- Customer confirmation reuses the Stage 1A authority runner, consistency validator, numeric UID lock order and event semantics. Membership, attribution, referral close, candidate, code consumption and enrollment activation commit or roll back together; concurrent confirmation writes each authority fact once.
+- Store writes are limited to server-validated `franchisee` and `store_manager` context. Headquarters writes require explicit API permission and headquarters scope. Customer DTOs exclude source, event, operator, idempotency and reward data.
+- Verified on PHP 7.4.33 and isolated MySQL Community Server 8.0.46: full migration, direct down/up/rerun/duplicate run, real HTTP flow, two-process confirmation, cross-store rollback, Stage 1A real concurrency/deadlock regression, Stage 1B/5980/legacy reward contracts, Node checks and Admin/H5/mp-weixin production builds.
+- Explicitly not implemented: 9800 package sale, online payment, real referral binding, reward percentages or sequence, old reward-ledger posting, wallet/commission/settlement, refund/reversal/recovery, takeover, CRM projection, historical import or any production release activity.
+- This branch is not merged into `main` and has not received independent architecture review. No production MySQL/Redis connection, production migration, deployment, server change or WeChat upload occurred.
+- Next gate: independent read-only architecture review. Merge, production rollout and any later stage remain prohibited until that review passes.
+
+## Historical Snapshot - Final Headquarters Mall Stage 1B Read-only Surface Closure
 
 - Final independent Architecture Auditor conclusion: A, passed; Blocker, P1, P2 and P3 are all clear. The reviewed Stage 1B commit is `6402456db8687c90aec57ba21350dacbdb88ff61`.
 - Main before merge was `328f5b658d1e260d9bd84bbe851f4c0b24980346`. Stage 1B entered `main` through `git merge --ff-only codex/yfth-hq-mall-stage1b-readonly-surface`; no merge commit, squash, rebase, cherry-pick or history rewrite was used.

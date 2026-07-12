@@ -183,6 +183,13 @@
 						</view>
 						<text class="iconfont icon-jiantou"></text>
 					</view>
+					<view class="yfth-entry-card" v-if="isLogin" @click="goYfthPermanentMembership">
+						<view>
+							<view class="yfth-entry-title">永久会员</view>
+							<view class="yfth-entry-desc">生成身份码、确认办理并查看永久会员状态</view>
+						</view>
+						<text class="iconfont icon-jiantou"></text>
+					</view>
 					<view class="yfth-entry-card yfth-apply-card" v-if="isLogin" @click="goYfthFranchiseApplications">
 						<view>
 							<view class="yfth-entry-title">御方通和合作中心</view>
@@ -783,6 +790,14 @@ export default {
 			uni.navigateTo({
 				url: '/pages/yfth/authority/index'
 			});
+		},
+
+		goYfthPermanentMembership() {
+			if (!this.isLogin) {
+				toLogin();
+				return;
+			}
+			uni.navigateTo({ url: '/pages/yfth/permanent_membership/index' });
 		},
 
 		goPages(url) {
