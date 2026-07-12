@@ -1,5 +1,14 @@
 # 御方通和总部统一商城 Stage 1B 运行验证
 
+## Second Review Final P1 Evidence - 2026-07-12
+
+- Second review conclusion remains B. The final P1 was the pre-validation `status=active` filter in referral summary reads; this round removes that filter and validates all related current rows before deriving the boolean.
+- On a fresh isolated MySQL Community Server 8.0.46 database, real HTTP scenarios for closed/paused/invalid current plus an active latest event all failed closed for the user endpoint and store list/detail. Responses used the existing safe business error and did not expose internal event/reason/schema details.
+- Headquarters ordinary detail continued to return only `data_inconsistent=true`; referral audit remained independently authorized and readable. Consistent paused and closed histories returned business success with `has_active_referral=false`; no referral remained false and a consistent active referral remained true.
+- The real HTTP suite completed 192 request-level snapshots. Before and after every request, full-row hashes were identical for `yfth_hq_customer_attribution_current`, `yfth_hq_customer_attribution_event`, `yfth_hq_active_referral_current`, `yfth_hq_active_referral_event` and `yfth_idempotency_record`.
+- PHP syntax, Stage 1B contract/source guard/real HTTP flow, Stage 1A contract/source guard and `git diff --check` passed. The shared validator and Stage 1A writers were not modified, so Stage 1A real-flow was not rerun. No frontend changed, so Admin/H5/mp-weixin builds were not rerun.
+- This evidence awaits targeted independent architecture review. It does not claim A, authorize merge or represent production deployment.
+
 ## First Audit Findings Closure Evidence - 2026-07-12
 
 - The first independent architecture review result remains **B, conditionally passed**. This evidence supports a new independent review only; it does not claim A or authorize merge.

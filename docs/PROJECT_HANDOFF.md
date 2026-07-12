@@ -1,5 +1,15 @@
 # 项目交接文档
 
+## Current Fact Snapshot - Stage 1B Second Review Final P1 Closure
+
+- The second independent Stage 1B architecture review conclusion remains B, conditionally passed. Its only remaining P1 was that `activeReferralSummary()` filtered `status=active` before consistency validation, so inconsistent non-active referral current rows could be silently interpreted as no active referral.
+- The read order is now fixed: query every referral current related to the authenticated referred UID and trusted store scope, validate each row with `HqAuthorityConsistencyValidator`, fail closed on any inconsistency, and only then derive the active-referral boolean from consistent rows.
+- User-own reads and store list/detail now fail closed for closed/paused/invalid current plus an active latest event. Headquarters ordinary detail keeps the existing minimal `data_inconsistent=true` governance response; independently authorized event audit remains readable and no path repairs data.
+- Isolated MySQL Community Server 8.0.46 real HTTP coverage passed abnormal closed/paused/invalid states, consistent closed/paused states, no referral, active referral, store list/detail, headquarters governance and audit behavior. All 192 HTTP requests preserved exact hashes of the four authority current/event tables and `yfth_idempotency_record`.
+- Current feature branch remains `codex/yfth-hq-mall-stage1b-readonly-surface`; this closure started at `746509d5959c24e889be5bf608c11f9e1304e52f`. Stable `main` and `origin/main` remain `328f5b658d1e260d9bd84bbe851f4c0b24980346`; the completed feature commit must be read from real Git after commit and push.
+- This targeted closure adds no write entry, table, migration, permission, Controller, route or frontend change. It is not merged into `main`, has not been deployed, and has not connected to production MySQL/Redis or executed a production migration.
+- Next gate: a targeted independent read-only Architecture Auditor review of this P1. It is not yet approved for merge.
+
 ## Current Fact Snapshot - Headquarters Mall Stage 1B First Audit Findings Closure
 
 - First independent Stage 1B architecture review conclusion remains B, conditionally passed. This round closes P1-01, P2-01, P2-02, P2-03, P2-04 and P3-01 for another independent review; it does not claim review A or authorize merge.

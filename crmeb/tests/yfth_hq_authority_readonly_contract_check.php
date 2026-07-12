@@ -97,6 +97,12 @@ try {
         'stage1b_uses_shared_strict_consistency_validator');
     $assert((bool)preg_match("/ATTRIBUTION_FIELDS\\s*=\\s*'[^']*source_type,source_id,/", $readService),
         'attribution_projection_contains_consistency_source_id');
+    preg_match('/public function activeReferralSummary.*?public function attributionPage/s', $readService, $summaryMatch);
+    $summaryMethod = (string)($summaryMatch[0] ?? '');
+    $assert(strpos($summaryMethod, "where('status', 'active')") === false
+        && strpos($summaryMethod, 'isReferralConsistent($row)') !== false
+        && strpos($summaryMethod, "(string)\$row['status'] === 'active'") !== false,
+        'active_referral_summary_validates_all_related_currents_before_active_projection');
     foreach (["preg_match('/^[1-9][0-9]*$/D'", "createFromFormat('!Y-m-d'", 'authority_date_range_invalid', 'LIMIT_MAX = 50', 'authority_sort_invalid'] as $needle) {
         $assert(strpos($parameters, $needle) !== false, 'strict_parameter_rule:' . preg_replace('/\W+/', '_', $needle));
     }

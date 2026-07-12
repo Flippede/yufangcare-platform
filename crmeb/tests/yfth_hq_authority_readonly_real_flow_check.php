@@ -144,6 +144,7 @@ try {
     hqrAssertEventDto(($attrEvents['data']['list'][0] ?? []), $assert, 'attribution_event_dto');
     hqrAssertEventDto(($refEvents['data']['list'][0] ?? []), $assert, 'referral_event_dto');
 
+    hqrAssertNonActiveReferralSummaryScenarios($baseUrl, $fixture, $userTokens, $adminTokens, $assert);
     hqrAssertAdminPermissionMatrix($baseUrl, $fixture, $adminTokens, $assert);
     hqrAssertStrictHttpParameters($baseUrl, $fixture, $adminTokens['ordinary'], $assert);
     hqrAssertRoleAndStoreRevocation($baseUrl, $fixture, $userTokens, $assert);
@@ -385,6 +386,115 @@ function hqrAssertConsistencyCounterexamples(string $baseUrl, array $fixture, ar
     $adminRef = hqrExpectOk(hqrReadonlyRequest('GET', $baseUrl . '/adminapi/yfth/hq_authority/referral/' . $refCurrent['id'], $adminTokens['ordinary']), 'inconsistent_referral_hq_governance_allowed', $assert);
     $assert(($adminRef['data']['referral']['data_inconsistent'] ?? false) === true, 'inconsistent_referral_hq_flagged');
     Db::name('yfth_hq_active_referral_event')->where('id', $refEventId)->update(['after_status' => 'active', 'event_type' => 'relation_created']);
+}
+
+function hqrAssertNonActiveReferralSummaryScenarios(string $baseUrl, array $fixture, array $userTokens, array $adminTokens, callable $assert): void
+{
+    $current = Db::name('yfth_hq_active_referral_current')->where('id', $fixture['referral'])->find();
+    $event = Db::name('yfth_hq_active_referral_event')->where('referral_current_id', $fixture['referral'])->where('relation_version', 1)->find();
+    $userUrl = $baseUrl . '/api/yfth/hq_authority/me';
+    $managerQuery = '?role_code=store_manager&store_id=' . $fixture['stores']['A'];
+    $storeUrl = $baseUrl . '/api/yfth/store_workbench/customer_attribution';
+    $storeDetailUrl = $storeUrl . '/' . $fixture['attributions']['active'] . $managerQuery;
+    $adminUrl = $baseUrl . '/adminapi/yfth/hq_authority/referral/' . $fixture['referral'];
+
+    $withoutReferral = hqrExpectOk(hqrReadonlyRequest('GET', $userUrl, $userTokens['paused']), 'non_active_summary_no_referral_user_ok', $assert);
+    $assert(($withoutReferral['data']['has_active_referral'] ?? true) === false, 'non_active_summary_no_referral_is_false');
+    $active = hqrExpectOk(hqrReadonlyRequest('GET', $userUrl, $userTokens['active']), 'non_active_summary_active_user_ok', $assert);
+    $assert(($active['data']['has_active_referral'] ?? false) === true, 'non_active_summary_active_is_true');
+    $activeStore = hqrExpectOk(hqrReadonlyRequest('GET', $storeDetailUrl, $userTokens['manager']), 'non_active_summary_active_store_detail_ok', $assert);
+    $assert(($activeStore['data']['attribution']['has_active_referral'] ?? false) === true, 'non_active_summary_active_store_is_true');
+
+    foreach (['closed', 'paused', 'invalid'] as $status) {
+        $activeUid = $status === 'paused' ? (int)$current['referred_uid'] : null;
+        $closeReason = $status === 'paused' ? '' : 'account_closed';
+        Db::name('yfth_hq_active_referral_current')->where('id', $fixture['referral'])->update([
+            'status' => $status,
+            'active_referred_uid' => $activeUid,
+            'paused_at' => $status === 'paused' ? time() : 0,
+            'closed_at' => in_array($status, ['closed', 'invalid'], true) ? time() : 0,
+            'close_reason' => $closeReason,
+        ]);
+        $prefix = 'non_active_current_active_event_' . $status;
+        hqrExpectSafeConsistencyFailure(hqrReadonlyRequest('GET', $userUrl, $userTokens['active']), $prefix . '_user_fail_closed', $assert);
+        hqrExpectSafeConsistencyFailure(hqrReadonlyRequest('GET', $storeUrl . $managerQuery, $userTokens['manager']), $prefix . '_store_list_fail_closed', $assert);
+        hqrExpectSafeConsistencyFailure(hqrReadonlyRequest('GET', $storeDetailUrl, $userTokens['manager']), $prefix . '_store_detail_fail_closed', $assert);
+        $admin = hqrExpectOk(hqrReadonlyRequest('GET', $adminUrl, $adminTokens['ordinary']), $prefix . '_hq_governance_ok', $assert);
+        $assert(($admin['data']['referral']['data_inconsistent'] ?? false) === true, $prefix . '_hq_flagged');
+        if ($status === 'closed') {
+            hqrExpectOk(hqrReadonlyRequest('GET', $adminUrl . '/events', $adminTokens['audit']), $prefix . '_audit_unchanged', $assert);
+        }
+        hqrRestoreReferralCurrent($fixture['referral'], $current);
+    }
+
+    foreach ([
+        'paused' => ['event_type' => 'relation_paused', 'close_reason' => '', 'active_uid' => (int)$current['referred_uid']],
+        'closed' => ['event_type' => 'relation_closed', 'close_reason' => 'account_closed', 'active_uid' => null],
+    ] as $status => $state) {
+        $eventId = hqrInsertReferralSecondEvent($event, $status, $state['event_type']);
+        Db::name('yfth_hq_active_referral_current')->where('id', $fixture['referral'])->update([
+            'status' => $status,
+            'active_referred_uid' => $state['active_uid'],
+            'paused_at' => $status === 'paused' ? time() : 0,
+            'closed_at' => $status === 'closed' ? time() : 0,
+            'close_reason' => $state['close_reason'],
+            'relation_version' => 2,
+        ]);
+        $prefix = 'consistent_non_active_referral_' . $status;
+        $user = hqrExpectOk(hqrReadonlyRequest('GET', $userUrl, $userTokens['active']), $prefix . '_user_ok', $assert);
+        $assert(($user['data']['has_active_referral'] ?? true) === false, $prefix . '_user_false');
+        $storeList = hqrExpectOk(hqrReadonlyRequest('GET', $storeUrl . $managerQuery, $userTokens['manager']), $prefix . '_store_list_ok', $assert);
+        $storeRow = hqrFindAttributionRow($storeList['data']['list'] ?? [], $fixture['attributions']['active']);
+        $assert(($storeRow['has_active_referral'] ?? true) === false, $prefix . '_store_list_false');
+        $storeDetail = hqrExpectOk(hqrReadonlyRequest('GET', $storeDetailUrl, $userTokens['manager']), $prefix . '_store_detail_ok', $assert);
+        $assert(($storeDetail['data']['attribution']['has_active_referral'] ?? true) === false, $prefix . '_store_detail_false');
+        $admin = hqrExpectOk(hqrReadonlyRequest('GET', $adminUrl, $adminTokens['ordinary']), $prefix . '_hq_ok', $assert);
+        $assert(($admin['data']['referral']['data_inconsistent'] ?? true) === false, $prefix . '_hq_consistent');
+        Db::name('yfth_hq_active_referral_event')->where('id', $eventId)->delete();
+        hqrRestoreReferralCurrent($fixture['referral'], $current);
+    }
+}
+
+function hqrInsertReferralSecondEvent(array $first, string $status, string $eventType): int
+{
+    unset($first['id']);
+    $first['event_no'] = substr((string)$first['event_no'], 0, 27) . strtoupper(substr($status, 0, 1)) . 'V2';
+    $first['relation_version'] = 2;
+    $first['event_type'] = $eventType;
+    $first['before_status'] = 'active';
+    $first['after_status'] = $status;
+    $first['source_unique_key'] = hash('sha256', (string)$first['source_unique_key'] . ':' . $status . ':v2');
+    $first['request_id'] = 'readonly:non-active:' . $status;
+    $first['add_time'] = time();
+    return (int)Db::name('yfth_hq_active_referral_event')->insertGetId($first);
+}
+
+function hqrExpectSafeConsistencyFailure(array $response, string $label, callable $assert): void
+{
+    hqrExpectFailure($response, $label, $assert);
+    $assert((string)($response['json']['msg'] ?? '') === 'authority_data_requires_headquarters_review', $label . ':safe_consistency_error');
+}
+
+function hqrRestoreReferralCurrent(int $id, array $current): void
+{
+    Db::name('yfth_hq_active_referral_current')->where('id', $id)->update([
+        'status' => (string)$current['status'],
+        'active_referred_uid' => $current['active_referred_uid'],
+        'paused_at' => (int)$current['paused_at'],
+        'closed_at' => (int)$current['closed_at'],
+        'close_reason' => (string)$current['close_reason'],
+        'relation_version' => (int)$current['relation_version'],
+    ]);
+}
+
+function hqrFindAttributionRow(array $rows, int $attributionId): array
+{
+    foreach ($rows as $row) {
+        if ((int)($row['attribution_id'] ?? 0) === $attributionId) {
+            return $row;
+        }
+    }
+    return [];
 }
 
 function hqrExpectThrown(callable $operation, string $label, callable $assert): void

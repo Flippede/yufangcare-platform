@@ -82,18 +82,21 @@ class HqAuthorityReadServices
             return ['has_active_referral' => false, 'consistent' => true];
         }
         $query = $this->referralDao->search([])
-            ->where('referred_uid', $referredUid)
-            ->where('status', 'active');
+            ->where('referred_uid', $referredUid);
         if ($storeId > 0) {
             $query = $query->where('store_id', $storeId);
         }
         $rows = $query->field(self::REFERRAL_FIELDS)->select()->toArray();
+        $hasActiveReferral = false;
         foreach ($rows as $row) {
             if (!$this->consistency->isReferralConsistent($row)) {
                 return ['has_active_referral' => false, 'consistent' => false];
             }
+            if ((string)$row['status'] === 'active') {
+                $hasActiveReferral = true;
+            }
         }
-        return ['has_active_referral' => count($rows) > 0, 'consistent' => true];
+        return ['has_active_referral' => $hasActiveReferral, 'consistent' => true];
     }
 
     public function attributionPage(array $filters, int $forcedStoreId = 0, array $forcedStatuses = []): array

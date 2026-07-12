@@ -1,5 +1,13 @@
 # 御方通和总部统一商城 Stage 1B Read-only Surface
 
+## Second Review Final P1 Closure
+
+The second independent architecture review conclusion remains **B, conditionally passed**. The remaining P1 came from filtering referral current rows to `status=active` before consistency validation. A closed, paused or invalid current row whose latest event still said active could therefore disappear from validation and be reported as `has_active_referral=false`.
+
+`activeReferralSummary()` now queries all referral current rows for the authenticated referred UID within the trusted store scope. It validates every related row through `HqAuthorityConsistencyValidator`; any mismatch fails closed. Only after every row is consistent does it calculate whether one has `status=active`. User/store responses expose no event, reason, table or technical detail. Headquarters ordinary governance and separately authorized audit behavior are unchanged.
+
+No validator, Stage 1A writer, schema, migration, permission, route, Controller or frontend surface changed. Stage 1B remains GET-only, unmerged and pending a targeted independent review.
+
 ## First Audit Findings Closure
 
 The first independent architecture review conclusion remains **B, conditionally passed**. The following implementation closes the identified findings for another independent review; it does not claim an A result and does not authorize merging `main`.
