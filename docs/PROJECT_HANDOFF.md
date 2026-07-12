@@ -1,5 +1,22 @@
 # 项目交接文档
 
+## Current Fact Snapshot - Headquarters Mall Stage 1B Read-only Surface
+
+- Current feature branch: `codex/yfth-hq-mall-stage1b-readonly-surface`; start commit and stable `main` / `origin/main`: `328f5b658d1e260d9bd84bbe851f4c0b24980346`. The final feature commit must be read from actual Git HEAD after this snapshot is committed and pushed.
+- Implemented scope is strictly read-only: current-user attribution, trusted-store-scoped customer attribution, headquarters ordinary attribution/referral queries, and separately authorized headquarters authority-event timelines.
+- New routes are GET-only: `/api/yfth/hq_authority/me`, two `/api/yfth/store_workbench/customer_attribution` routes, four headquarters ordinary routes and two headquarters audit-event routes. No write Controller, Command, Job, Listener, timer or fixture API was added.
+- User UID comes only from the authenticated request. Store scope comes only from `CurrentBusinessContextServices`; only `franchisee` and `store_manager` may use the store surface. Headquarters controllers use Admin middleware plus explicit `SystemRoleServices::assertApiAuthForAdmin()` and headquarters-scope assertions.
+- Seven Stage 1B permissions are isolated by page, attribution list/detail, referral list/detail and two audit permissions. The permission migration writes only `system_menus`, is idempotent and rollback-safe, and does not modify the four Stage 1A authority tables or seed business data.
+- DTOs are centrally white-listed. User and store surfaces expose only safe state/store/customer summaries, masked phone and active-referral booleans. Headquarters ordinary DTOs omit event/version/operator/source-id/internal-reason data. Audit DTOs require separate permissions and still never expose `source_unique_key`, idempotency secrets, raw audit JSON, credentials or complete private identity data.
+- Read behavior creates no placeholder, performs no automatic repair or old-data handover, and does not call Stage 1A write services. Production source allowlist remains empty and production referral qualification remains fail closed.
+- Real HTTP validation passed for user, store, headquarters ordinary and headquarters audit permission matrices. Twenty-seven requests preserved exact before/after content hashes for both authority current tables, both authority event tables and `yfth_idempotency_record`. A real builder-return bug that could bypass conditional store/status filtering was found and fixed; cross-store denial is covered by the final HTTP flow.
+- Isolated MySQL Community 8.0.46 validation passed for Stage 1B permission migration full run, duplicate up, direct down, no-record/no-permission recovery, partial-permission recovery, rollback `-t 0`, rerun and duplicate run. Stage 1A table signatures and all unrelated YFTH menus remained unchanged.
+- Regression evidence passed: PHP 7.4 syntax; Stage 1B contract/source guard; Stage 1A contract/source guard/migration/real-flow; required legacy contracts; applicable legacy source guards; uni-app request/context checks; Admin production build; H5 production build; mp-weixin production compile; and `git diff --check`.
+- Browser evidence is deliberately limited: the Admin login surface rendered from the production build, and the unauthenticated H5 route followed existing customer-side authentication behavior. A static server has no CRMEB backend and returns HTML fallback for API/dynamic-config requests, so logged-in permission/state claims rely on the passed real HTTP suite rather than being misreported as full browser integration.
+- Architecture and runtime evidence are recorded in `docs/YFTH_HQ_MALL_STAGE1B_READONLY_SURFACE.md` and `docs/YFTH_HQ_MALL_STAGE1B_RUNTIME_VALIDATION.md`.
+- Stage 1B has not received an independent Architecture Auditor decision, has not been merged into `main`, and has not been deployed. No production MySQL/Redis connection, production migration, server deployment or WeChat upload occurred.
+- The only next gate is an independent read-only Architecture Auditor review. Before it passes, merging `main` or starting permanent membership, real referral binding, 9800 transactions, dynamic codes, rewards or any later stage is prohibited.
+
 ## Current Fact Snapshot - Final Headquarters Mall Stage 1A Authority Foundation Closure
 
 - Final independent architecture review conclusion: A, passed. Blocker, P1, P2 and P3 are all clear. The reviewed Stage 1A commit is `50b9f59d78509dfdcdb326d622325dcc4e5dba6b`.

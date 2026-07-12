@@ -153,6 +153,14 @@ Route::group('yfth', function () {
         Route::post('fulfillment/:id/exception', 'v1.yfth.MonthlyBenefitFulfillment/exception')->option(['real_name' => 'Monthly benefit fulfillment exception']);
         Route::post('fulfillment/:id/cancel', 'v1.yfth.MonthlyBenefitFulfillment/cancel')->option(['real_name' => 'Monthly benefit fulfillment cancel']);
     })->option(['parent' => 'yfth', 'cate_name' => 'Monthly Benefit Fulfillment']);
+    Route::group('hq_authority', function () {
+        Route::get('attribution', 'v1.yfth.HqAuthorityRead/attributionList')->option(['real_name' => 'Headquarters attribution list']);
+        Route::get('attribution/:id/events', 'v1.yfth.HqAuthorityRead/attributionEvents')->option(['real_name' => 'Headquarters attribution events']);
+        Route::get('attribution/:id', 'v1.yfth.HqAuthorityRead/attributionDetail')->option(['real_name' => 'Headquarters attribution detail']);
+        Route::get('referral', 'v1.yfth.HqAuthorityRead/referralList')->option(['real_name' => 'Headquarters referral list']);
+        Route::get('referral/:id/events', 'v1.yfth.HqAuthorityRead/referralEvents')->option(['real_name' => 'Headquarters referral events']);
+        Route::get('referral/:id', 'v1.yfth.HqAuthorityRead/referralDetail')->option(['real_name' => 'Headquarters referral detail']);
+    })->option(['parent' => 'yfth', 'cate_name' => 'HQ Authority Read']);
 })->middleware([
     \app\http\middleware\AllowOriginMiddleware::class,
     \app\adminapi\middleware\AdminAuthTokenMiddleware::class,

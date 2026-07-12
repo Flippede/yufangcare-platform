@@ -217,6 +217,18 @@
 					}
 				},
 				{
+					"path": "authority/index",
+					"style": {
+						"navigationBarTitleText": "我的归属"
+					}
+				},
+				{
+					"path": "workbench/customer_attribution/index",
+					"style": {
+						"navigationBarTitleText": "客户归属"
+					}
+				},
+				{
 					"path": "franchise/index",
 					"style": {
 						"navigationBarTitleText": "我的加盟申请"

@@ -97,5 +97,14 @@ export default {
       },
       component: () => import('@/pages/yfth/monthlyBenefitFulfillment/index'),
     },
+    {
+      path: 'hq-authority',
+      name: `${pre}hq_authority`,
+      meta: {
+        auth: ['yfth-hq-authority-readonly-index'],
+        title: '总部客户归属',
+      },
+      component: () => import('@/pages/yfth/hqAuthority/index'),
+    },
   ],
 };

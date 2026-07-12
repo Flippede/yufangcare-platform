@@ -982,3 +982,27 @@ export function yfthMonthlyBenefitFulfillmentCancel(id, data) {
     data,
   });
 }
+
+export function yfthHqAuthorityAttributionList(params) {
+  return request({ url: 'yfth/hq_authority/attribution', method: 'get', params });
+}
+
+export function yfthHqAuthorityAttributionDetail(id) {
+  return request({ url: `yfth/hq_authority/attribution/${id}`, method: 'get' });
+}
+
+export function yfthHqAuthorityAttributionEvents(id) {
+  return request({ url: `yfth/hq_authority/attribution/${id}/events`, method: 'get' });
+}
+
+export function yfthHqAuthorityReferralList(params) {
+  return request({ url: 'yfth/hq_authority/referral', method: 'get', params });
+}
+
+export function yfthHqAuthorityReferralDetail(id) {
+  return request({ url: `yfth/hq_authority/referral/${id}`, method: 'get' });
+}
+
+export function yfthHqAuthorityReferralEvents(id) {
+  return request({ url: `yfth/hq_authority/referral/${id}/events`, method: 'get' });
+}

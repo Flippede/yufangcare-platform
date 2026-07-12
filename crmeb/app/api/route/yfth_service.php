@@ -29,7 +29,16 @@ Route::group(function () {
     ->option(['mark' => 'yfth_service_appointment_user', 'mark_name' => 'YFTH service appointment user API']);
 
 Route::group(function () {
+    Route::get('yfth/hq_authority/me', 'v1.yfth.HqAuthorityReadController/me')->option(['real_name' => 'YFTH my headquarters attribution']);
+})->middleware(\app\http\middleware\AllowOriginMiddleware::class)
+    ->middleware(\app\api\middleware\StationOpenMiddleware::class)
+    ->middleware(\app\api\middleware\AuthTokenMiddleware::class)
+    ->option(['mark' => 'yfth_hq_authority_user_read', 'mark_name' => 'YFTH headquarters authority user read API']);
+
+Route::group(function () {
     Route::get('yfth/store_workbench/overview', 'v1.yfth.StoreWorkbenchController/overview')->option(['real_name' => 'YFTH store workbench overview']);
+    Route::get('yfth/store_workbench/customer_attribution', 'v1.yfth.HqAuthorityStoreReadController/index')->option(['real_name' => 'YFTH store customer attribution list']);
+    Route::get('yfth/store_workbench/customer_attribution/:id', 'v1.yfth.HqAuthorityStoreReadController/detail')->option(['real_name' => 'YFTH store customer attribution detail']);
     Route::get('yfth/store_workbench/appointments', 'v1.yfth.StoreWorkbenchController/appointmentList')->option(['real_name' => 'YFTH store workbench appointments']);
     Route::get('yfth/store_workbench/appointments/:id', 'v1.yfth.StoreWorkbenchController/appointmentDetail')->option(['real_name' => 'YFTH store workbench appointment detail']);
     Route::post('yfth/store_workbench/appointments/:id/confirm', 'v1.yfth.StoreWorkbenchController/appointmentConfirm')->option(['real_name' => 'YFTH store workbench appointment confirm']);

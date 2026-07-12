@@ -76,9 +76,25 @@ exec('git -C ' . escapeshellarg($repo) . ' diff --name-only main', $diff, $exit)
 $assert($exit === 0, 'git_diff_scope_readable');
 foreach ($diff as $path) {
     $normalized = str_replace('\\', '/', $path);
+    $stage1bReadonlyEntry = in_array($normalized, [
+        'crmeb/app/api/route/yfth_service.php',
+        'crmeb/app/adminapi/route/yfth.php',
+        'crmeb/app/api/controller/v1/yfth/HqAuthorityReadController.php',
+        'crmeb/app/api/controller/v1/yfth/HqAuthorityStoreReadController.php',
+        'crmeb/app/adminapi/controller/v1/yfth/HqAuthorityRead.php',
+        'template/admin/src/api/yfth.js',
+        'template/admin/src/router/modules/yfth.js',
+        'template/admin/src/pages/yfth/hqAuthority/index.vue',
+        'template/uni-app/api/yfth.js',
+        'template/uni-app/pages.json',
+        'template/uni-app/pages/user/index.vue',
+        'template/uni-app/pages/yfth/workbench/index.vue',
+        'template/uni-app/pages/yfth/authority/index.vue',
+        'template/uni-app/pages/yfth/workbench/customer_attribution/index.vue',
+    ], true);
     $forbiddenPath = preg_match('#^(crmeb/app/(api|adminapi)/(controller|route)|crmeb/app/(command|listener)|template/)#', $normalized)
         || strpos($normalized, 'crmeb/app/event.php') === 0;
-    $assert(!$forbiddenPath, 'no_forbidden_entry_diff:' . $normalized);
+    $assert(!$forbiddenPath || $stage1bReadonlyEntry, 'no_unapproved_entry_diff:' . $normalized);
 }
 
 if ($failures) {

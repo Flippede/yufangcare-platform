@@ -19,7 +19,7 @@ $read = function (string $path) use ($root): string {
 };
 
 try {
-    $migration = $read('database/migrations/20260713100000_create_yfth_hq_authority_foundation_tables.php');
+    $migration = str_replace("\r\n", "\n", $read('database/migrations/20260713100000_create_yfth_hq_authority_foundation_tables.php'));
     $attribution = $read('app/services/yfth/HqCustomerAttributionServices.php');
     $referral = $read('app/services/yfth/HqActiveReferralServices.php');
     $runner = $read('app/services/yfth/HqAuthorityOperationRunner.php');

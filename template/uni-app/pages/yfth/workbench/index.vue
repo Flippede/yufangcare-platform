@@ -272,12 +272,15 @@ export default {
 		canReadProductQuota() {
 			return ['franchisee', 'store_manager'].indexOf(this.context.role_code) !== -1;
 		},
+		canReadCustomerAttribution() {
+			return ['franchisee', 'store_manager'].indexOf(this.context.role_code) !== -1;
+		},
 		storeIdentities() {
 			const role = this.context.role_code;
 			return this.identities.filter((item) => item.role_code === role && item.store_id);
 		},
 		appointmentTabs() {
-			return [
+			const cards = [
 				{ label: '全部', value: '' },
 				{ label: '待确认', value: 'pending_confirm' },
 				{ label: '待到店', value: 'confirmed' },
@@ -297,6 +300,10 @@ export default {
 				{ key: 'monthly_benefit_pickup', title: '权益自提', value: '领', desc: '当前门店产品类月度权益自提确认', pane: 'monthly_benefit_pickup' },
 				{ key: 'customers', title: '客户关系', value: 'CRM', desc: '当前门店客户、状态和跟进记录', pane: 'customers' }
 			];
+			if (this.canReadCustomerAttribution) {
+				cards.push({ key: 'customer_attribution', title: '客户归属', value: '只读', desc: '当前门店正式归属客户与推荐状态', pane: 'customer_attribution' });
+			}
+			return cards;
 		},
 		paneTitle() {
 			const titles = {
@@ -567,6 +574,13 @@ export default {
 		goMonthlyBenefitPickup() {
 			uni.navigateTo({ url: '/pages/yfth/workbench/monthly_benefit_pickup' });
 		},
+		goCustomerAttribution() {
+			if (!this.canReadCustomerAttribution) {
+				uni.showToast({ title: '当前身份无权查看客户归属', icon: 'none' });
+				return;
+			}
+			uni.navigateTo({ url: '/pages/yfth/workbench/customer_attribution/index' });
+		},
 		backCustomer() {
 			clearYfthContext();
 			uni.reLaunch({ url: '/pages/index/index' });
@@ -583,6 +597,10 @@ export default {
 			this.openPane(item.pane || 'dashboard');
 		},
 		openPane(pane) {
+			if (pane === 'customer_attribution') {
+				this.goCustomerAttribution();
+				return;
+			}
 			if (pane === 'customers') {
 				this.goCustomers();
 				return;
