@@ -99,12 +99,13 @@ class HqCustomerAttributionServices extends YfthFoundationBaseServices
     public function assignFirst(int $uid, int $storeId, HqAuthorityMutation $mutation): array
     {
         $this->assertStoreActive($storeId);
+        $sourceKey = $this->canonicalizer->attributionEvent('attribution_created', $mutation->source());
         $result = $this->runner->run(
             'attribution_assign_first',
             $mutation,
             ['uid' => $uid, 'store_id' => $storeId],
             'uid:' . $uid,
-            function () use ($uid, $storeId, $mutation) {
+            function () use ($uid, $storeId, $sourceKey, $mutation) {
                 $row = $this->lockCurrents([$uid])[$uid];
                 if ((string)$row['status'] === 'active') {
                     if ((int)$row['store_id'] === $storeId) {
@@ -116,7 +117,6 @@ class HqCustomerAttributionServices extends YfthFoundationBaseServices
                     throw new ApiException('attribution_not_pristine');
                 }
 
-                $sourceKey = $this->canonicalizer->attributionEvent('attribution_created', $mutation->source());
                 $now = time();
                 $update = [
                     'store_id' => $storeId,
@@ -179,12 +179,13 @@ class HqCustomerAttributionServices extends YfthFoundationBaseServices
         if (!in_array($toStatus, self::STATUSES, true)) {
             throw new ApiException('attribution_status_invalid');
         }
+        $sourceKey = $this->canonicalizer->attributionEvent($eventType, $mutation->source());
         $result = $this->runner->run(
             $eventType,
             $mutation,
             ['uid' => $uid, 'expected_version' => $expectedVersion, 'to_status' => $toStatus, 'reason_code' => $reasonCode],
             'uid:' . $uid,
-            function () use ($uid, $expectedVersion, $fromStatuses, $toStatus, $reasonCode, $eventType, $mutation) {
+            function () use ($uid, $expectedVersion, $fromStatuses, $toStatus, $reasonCode, $eventType, $sourceKey, $mutation) {
                 $row = $this->lockCurrents([$uid])[$uid];
                 if ((int)$row['authority_version'] !== $expectedVersion) {
                     throw new ApiException('attribution_version_conflict');
@@ -209,7 +210,6 @@ class HqCustomerAttributionServices extends YfthFoundationBaseServices
                 ];
                 $this->dao->update((int)$row['id'], $update);
                 $after = array_merge($row, $update);
-                $sourceKey = $this->canonicalizer->attributionEvent($eventType, $mutation->source());
                 $this->appendEvent($row, $after, $eventType, $sourceKey, $mutation);
                 return $this->result($row, $after, true);
             }

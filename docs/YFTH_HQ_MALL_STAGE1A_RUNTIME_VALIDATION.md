@@ -1,5 +1,60 @@
 # 御方通和总部统一商城 Stage 1A 运行验证
 
+## 2026-07-12 第一次架构审核发现项整改验证
+
+第一次独立架构审核结论为 B，有条件通过。整改使用 PHP 7.4.33、MySQL Community Server 8.0.46、file cache 和本机隔离端口 33318；未连接生产数据库或 Redis。
+
+### 索引签名反例
+
+`yfth_hq_authority_foundation_migration_check.php` 在真实 MySQL 中构造并验证：
+
+- 同名索引应唯一但实际非唯一；
+- 同名索引列错误；
+- 同名索引列顺序错误；
+- 同名索引缺少列；
+- 同名索引多出列；
+- migration record 已存在且索引错误；
+- 缺失索引且数据满足约束时安全恢复；
+- 缺失唯一索引且存在重复数据时阻断，重复行保持不变；
+- 完整 schema duplicate-up no-op。
+
+全量 `migrate:run`、Stage 1A direct down/up、`migrate:rollback --target 0`、rerun、无 record/无 schema、无 record/compatible partial、有 record/full 和有 record/incomplete 路径全部通过。
+
+### 门禁与重试反例
+
+Stage 1A real-flow 新增并通过：existing active attribution 的 unknown source 拒绝且不创建幂等记录；existing active referral 的 unknown source 拒绝；合法测试 source 配合生产 fail-closed qualification 仍拒绝 existing relation；严格 attribution/referral replay 不增加事件，referral replay 不重复执行 qualification；paused referral 未通过资格不能 resume。
+
+普通业务异常消息包含 `deadlock`、`1213` 或 `1205` 时 callback 只执行一次。结构化 SQLSTATE `40001` exception chain 可重试；模拟 1205 的总事务尝试严格为三次。真实 MySQL lock-wait 和 deadlock 均在第二次事务成功，每个请求的幂等 `begin()` 仍为一次。
+
+### Package benefit 独立复现
+
+旧 `yfth_package_benefit_real_flow_check.php` 未修改。它要求父进程和十个 worker 共同读取仓库临时 `.env` 中的同一完整迁移数据库，并使用同一 portable PHP 扩展目录；仅设置 Stage 1A 的 `YFTH_REAL_FLOW_DB_*` 变量不能替代该 `.env` 约定。
+
+可复现命令顺序为：
+
+```text
+# .env 必须指向本机全新 validation 数据库，CACHE.DRIVER=file
+php -c <php-yfth-test.ini> crmeb/think migrate:run
+set PHPRC=<php-yfth-test.ini>
+set YFTH_REAL_FLOW_EXECUTE=1
+set YFTH_REAL_FLOW_ISOLATED_DB=1
+php -c <php-yfth-test.ini> crmeb/tests/yfth_package_benefit_real_flow_check.php
+```
+
+三次全新完整迁移数据库结果：
+
+- `yfth_package_audit_validation_1`，run `RF1302405ADA66`，exit 0，一个并发 intent、一个 attempt、一个 purchase、一个绑定 CRMEB order。
+- `yfth_package_audit_validation_2`，run `RF13033657A1BF`，exit 0，一个并发 intent、一个 attempt、一个 purchase、一个绑定 CRMEB order。
+- `yfth_package_audit_validation_3`，run `RF13044045B837`，exit 0，测试执行时全部并发断言通过。
+
+在完成 Stage 1A migration/real-flow 后，同库顺序运行 run `RF130128288D04` 通过；在 referral reward 和 service appointment 回归后的复用库再次运行 `RF130809E73A02` 也通过。五次均通过 `concurrent_intent_creates_only_one_crmeb_order`。
+
+审核方原单次失败在上述执行契约下未复现，现有证据不支持旧 5980 生产并发缺陷，因此未修改 package benefit 业务代码或测试。可确认的 P2 根因是原运行证据缺少可独立复制的完整环境/worker 契约；原审核命令不可得，不能进一步虚构某个具体缺失变量。后续复核必须为每个 real-flow 使用独立数据库，因为部分旧测试会清理其隔离库中的整张业务表，不能把共享数据库的事后状态当作另一测试的证据。
+
+### 本轮总结果
+
+Stage 1A contract、source guard、migration check、real-flow，foundation/package/referral/customer/appointment/store-workbench/monthly/supply-chain/product-quota/franchise-opening contract，以及 package、referral、customer、appointment real-flow 均通过。本轮尚未经过第二次只读架构复核，不代表允许合并。
+
 ## 1. 环境
 
 - 验证日期：2026-07-11
@@ -109,4 +164,4 @@ YFTH_HQ_AUTHORITY_REAL_FLOW_EXECUTE=1 YFTH_REAL_FLOW_ISOLATED_DB=1 php crmeb/tes
 
 ## 8. 结论与下一门禁
 
-Stage 1A 的结构、事务、事件、幂等、并发、迁移恢复和旧域兼容性验证通过。当前仍无生产入口，功能分支未合并 main。唯一下一步是独立只读架构审核；未经审核和项目主控授权，不得合并、启动 Stage 1B 或开放真实业务来源。
+Stage 1A 第一次架构审核发现项已完成整改和开发侧验证。当前仍无生产入口，功能分支未合并 main，也没有第二次复核结论。唯一下一步是独立只读 Architecture Auditor 复核；复核通过前不得合并、启动 Stage 1B 或开放真实业务来源。

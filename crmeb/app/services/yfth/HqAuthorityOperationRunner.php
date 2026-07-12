@@ -3,6 +3,7 @@
 namespace app\services\yfth;
 
 use crmeb\exceptions\ApiException;
+use think\db\exception\PDOException as ThinkPdoException;
 use think\facade\Db;
 use think\facade\Log;
 
@@ -68,11 +69,28 @@ class HqAuthorityOperationRunner
 
     private function isRetryable(\Throwable $e): bool
     {
-        $message = strtolower($e->getMessage());
-        return strpos($message, 'deadlock') !== false
-            || strpos($message, 'lock wait timeout') !== false
-            || strpos($message, '1213') !== false
-            || strpos($message, '1205') !== false
-            || (string)$e->getCode() === '40001';
+        for ($current = $e; $current instanceof \Throwable; $current = $current->getPrevious()) {
+            if ($current instanceof ThinkPdoException) {
+                $info = $current->getData()['PDO Error Info'] ?? [];
+                if ($this->isRetryableDatabaseCode($info['SQLSTATE'] ?? '', $info['Driver Error Code'] ?? 0)) {
+                    return true;
+                }
+                continue;
+            }
+            if ($current instanceof \PDOException) {
+                $info = is_array($current->errorInfo ?? null) ? $current->errorInfo : [];
+                $sqlState = $info[0] ?? (string)$current->getCode();
+                $driverCode = $info[1] ?? 0;
+                if ($this->isRetryableDatabaseCode($sqlState, $driverCode)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private function isRetryableDatabaseCode($sqlState, $driverCode): bool
+    {
+        return (string)$sqlState === '40001' || in_array((int)$driverCode, [1205, 1213], true);
     }
 }

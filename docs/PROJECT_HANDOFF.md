@@ -1,5 +1,21 @@
 # 项目交接文档
 
+## Current Fact Snapshot - Headquarters Mall Stage 1A First Audit Findings Closure
+
+- First independent architecture review conclusion: B, conditionally passed. This development round closes P1-01, P1-02, P2-01 and adds independent evidence for P2-02; it does not claim a second review has passed or authorize merge.
+- Current branch: `codex/yfth-hq-mall-stage1a-authority-foundation`; start commit for this closure: `d862d2eb880db0a36ce777f71ced29455027b221`; stable `main` and `origin/main`: `ec1eeb61ad1755de35b5c8744bee6d51fe779b70`.
+- P1-01 root cause and closure: migration completeness previously trusted index names. One frozen expected-index matrix now verifies name, UNIQUE/NON_UNIQUE, exact columns, exact order and BTREE type through `information_schema.STATISTICS`. Missing compatible indexes may be added; same-name wrong signatures fail closed and are never deleted or replaced automatically.
+- MySQL index counterexamples passed for wrong uniqueness, wrong column, wrong order, missing column and extra column. A recorded wrong schema requires forward repair; conflicting rows block missing unique-index recovery and remain untouched; complete duplicate-up remains a no-op.
+- P1-02 root cause and closure: canonical source and qualification could occur after existing-state shortcuts. Canonical digests are now computed before the idempotency runner. Existing same referral executes qualification after ordered attribution/referral locks and before returning; resume keeps the same qualification gate. Strict completed-idempotency replay still returns before domain execution.
+- Unknown source on existing attribution/referral and transitions now fails without current/event mutation or a newly succeeded idempotency record. Existing referral with legal test source still fails under production fail-closed qualification; failed resume leaves status/version/events unchanged.
+- P2-01 closure: retries only recognize native/ThinkPHP PDO exception chains with SQLSTATE `40001` or driver code `1205/1213`. Arbitrary business exception messages containing deadlock/1213/1205 are not retried. One begin, at most three total transaction attempts, transaction-local complete and one final fail remain frozen.
+- P2-02 investigation: unchanged package benefit real-flow passed three fresh fully migrated MySQL 8.0.46 databases, once after the complete Stage 1A validation sequence, and once after legacy real-flow reuse. Every run passed the single-CRMEB-order concurrency assertion. No old 5980 production or test code was changed.
+- Package reproducibility requires one temporary `.env` shared by parent and worker processes, a fully migrated isolated database, file cache and the same portable PHP extension configuration. The original auditor command is unavailable, so no more specific missing variable is asserted. Each legacy real-flow should use an independent database because some old tests clean whole isolated business tables.
+- Validation passed: PHP 7.4.33 syntax; Stage 1A contract/source guard/migration/real-flow; real MySQL index counterexamples; real two-process attribution/referral/cycle/lock-wait/deadlock; all required legacy contracts; package, referral reward, franchise customer and service appointment real-flows.
+- Production source allowlist remains empty and production referral qualification remains fail closed. No Controller, route, Command, Listener, Job, timer, menu, API permission, frontend or production entry was added.
+- No CRMEB commerce main-chain or old 5980 semantics changed. No production database/Redis connection, production migration, deployment, server modification or WeChat upload occurred. Stage 1B was not started and this branch remains unmerged.
+- Next gate: independent read-only Architecture Auditor review. Before that review passes, merging `main` and starting Stage 1B are prohibited. The final feature commit for this closure must be read from actual Git after commit and push.
+
 ## Current Fact Snapshot - Headquarters Mall Stage 1A Authority Foundation
 
 - Current branch: `codex/yfth-hq-mall-stage1a-authority-foundation`; start baseline: `ec1eeb61ad1755de35b5c8744bee6d51fe779b70`. The final feature commit must be read from actual Git HEAD after this snapshot is committed and pushed.

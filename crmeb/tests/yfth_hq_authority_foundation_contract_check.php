@@ -49,6 +49,8 @@ try {
     $assert(strpos($migration, 'CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NULL') !== false, 'source_key_uses_ascii_bin_char64');
     $assert(strpos($migration, 'migrationRecordExists') !== false && strpos($migration, 'forward_repair_required') !== false, 'migration_record_incomplete_blocks_for_forward_repair');
     $assert(strpos($migration, 'assertTableColumns') !== false && strpos($migration, 'assertNoDuplicates') !== false, 'partial_schema_signature_and_unique_conflict_checks_exist');
+    $assert(strpos($migration, 'assertIndexSignature') !== false && strpos($migration, 'expectedIndexes') !== false, 'migration_validates_expected_index_signatures');
+    $assert(strpos($migration, 'NON_UNIQUE,SEQ_IN_INDEX,COLUMN_NAME,INDEX_TYPE') !== false, 'index_signature_checks_uniqueness_columns_order_and_type');
     $assert(strpos($migration, "'yfth_hq_active_referral_event',\n            'yfth_hq_customer_attribution_event',\n            'yfth_hq_active_referral_current',\n            'yfth_hq_customer_attribution_current'") !== false, 'migration_down_order_is_frozen');
 
     foreach ([
@@ -66,7 +68,9 @@ try {
     $assert(substr_count($runner, '->begin(') === 1, 'operation_runner_calls_begin_once');
     $assert(strpos($runner, 'tryReacquire') === false, 'operation_runner_never_reacquires_during_retry');
     $assert(strpos($runner, '$attempt >= 3') !== false, 'operation_runner_limits_transaction_attempts_to_three');
-    $assert(strpos($runner, "'deadlock'") !== false && strpos($runner, "'lock wait timeout'") !== false, 'operation_runner_retries_deadlock_and_lock_wait_only');
+    $assert(strpos($runner, 'ThinkPdoException') !== false && strpos($runner, 'Driver Error Code') !== false, 'operation_runner_requires_structured_database_exception');
+    $assert(strpos($runner, 'isRetryableDatabaseCode') !== false && strpos($runner, '[1205, 1213]') !== false, 'operation_runner_retries_database_lock_codes_only');
+    $assert(strpos($runner, "strpos(\$message, 'deadlock')") === false && strpos($runner, "strpos(\$message, '1205')") === false, 'operation_runner_has_no_arbitrary_message_retry');
     $assert(strpos($runner, 'idempotency->complete') !== false && strpos($runner, 'Db::transaction') !== false, 'idempotency_completion_is_in_business_transaction');
 
     foreach (['assignFirst', 'markHistoricalUnassigned', 'pause', 'resume', 'close'] as $method) {
@@ -76,6 +80,10 @@ try {
     $assert(strpos($attribution, 'attribution_not_pristine') !== false && strpos($attribution, 'attribution_store_conflict') !== false, 'attribution_rebind_guards_exist');
     $assert(strpos($attribution, 'eventCount !== $version') !== false, 'attribution_current_event_versions_are_contiguous');
     $assert(strpos($attribution, 'lockCurrents') !== false && strpos($attribution, 'sort($uids, SORT_NUMERIC)') !== false, 'attribution_uid_locks_are_numeric_ascending');
+    $assignStart = strpos($attribution, 'public function assignFirst');
+    $assignRunner = strpos($attribution, '$this->runner->run', $assignStart);
+    $assignCanonical = strpos($attribution, "canonicalizer->attributionEvent('attribution_created'", $assignStart);
+    $assert($assignCanonical !== false && $assignCanonical < $assignRunner, 'attribution_source_is_canonicalized_before_runner_and_shortcut');
 
     foreach (['create', 'pause', 'resume', 'close', 'invalidate'] as $method) {
         $assert(strpos($referral, 'function ' . $method . '(') !== false, 'referral_method_' . $method);
@@ -90,6 +98,13 @@ try {
     $transitionText = substr($referral, $transitionStart, $transitionEnd - $transitionStart);
     $assert(strpos($transitionText, "'source_unique_key' =>") === false, 'referral_transitions_never_replace_current_source_key');
     $assert(strpos($referral, 'qualification->assertQualified') !== false, 'referral_create_and_resume_require_qualification');
+    $createStart = strpos($referral, 'public function create');
+    $createRunner = strpos($referral, '$this->runner->run', $createStart);
+    $createCanonical = strpos($referral, 'canonicalizer->referralRelation', $createStart);
+    $assert($createCanonical !== false && $createCanonical < $createRunner, 'referral_source_is_canonicalized_before_runner_and_shortcut');
+    $activeShortcut = strpos($referral, 'return $this->result($active, $active, false);', $createStart);
+    $activeQualification = strrpos(substr($referral, $createStart, $activeShortcut - $createStart), 'qualification->assertQualified');
+    $assert($activeShortcut !== false && $activeQualification !== false, 'existing_referral_shortcut_requires_qualification');
 
     foreach ([
         'YfthHqCustomerAttributionCurrent', 'YfthHqCustomerAttributionEvent',

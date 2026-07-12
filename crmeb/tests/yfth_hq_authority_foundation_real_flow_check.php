@@ -2,6 +2,8 @@
 
 use app\services\yfth\HqAuthoritySource;
 use app\services\yfth\HqAuthoritySourceCanonicalizer;
+use app\services\yfth\HqAuthorityOperationRunner;
+use crmeb\exceptions\ApiException;
 use think\facade\Config;
 use think\facade\Db;
 
@@ -82,6 +84,22 @@ try {
     $assert(hqCount('yfth_hq_customer_attribution_event', ['uid' => $uidA, 'authority_version' => 1, 'event_type' => 'attribution_created']) === 1, 'version_one_attribution_event_written');
     $replay = $services['attribution']->assignFirst($uidA, $storeA, $firstMutation);
     $assert(!empty($replay['idempotent_replay']) && hqCount('yfth_hq_customer_attribution_event', ['uid' => $uidA]) === 1, 'same_request_replays_without_event');
+    $assert(hqCount('yfth_idempotency_record', ['business_domain' => 'yfth_hq_authority', 'idempotency_key' => $key('assign-a'), 'process_status' => 'succeeded']) === 1, 'strict_attribution_replay_reuses_completed_idempotency');
+    $emptySourceServices = hqAuthorityTestServices(false, []);
+    $unknownAttributionKey = $key('existing-attribution-unknown-source');
+    $unknownAttributionMutation = hqAuthorityTestMutation('unknown_source', ++$sourceSeq, $unknownAttributionKey);
+    $attributionBefore = hqOne('yfth_hq_customer_attribution_current', ['uid' => $uidA]);
+    $attributionEventCountBefore = hqCount('yfth_hq_customer_attribution_event', ['uid' => $uidA]);
+    $expect(function () use ($emptySourceServices, $uidA, $storeA, $unknownAttributionMutation) {
+        $emptySourceServices['attribution']->assignFirst($uidA, $storeA, $unknownAttributionMutation);
+    }, 'authority_source_type_not_allowed', 'existing_attribution_unknown_source_rejected_before_shortcut');
+    $assert(hqCount('yfth_idempotency_record', ['business_domain' => 'yfth_hq_authority', 'idempotency_key' => $unknownAttributionKey]) === 0, 'unknown_attribution_source_creates_no_completed_idempotency');
+    $assert(hqOne('yfth_hq_customer_attribution_current', ['uid' => $uidA]) === $attributionBefore
+        && hqCount('yfth_hq_customer_attribution_event', ['uid' => $uidA]) === $attributionEventCountBefore, 'unknown_attribution_source_changes_no_authority_state');
+    $unknownTransitionMutation = hqAuthorityTestMutation('unknown_source', ++$sourceSeq, $key('attribution-transition-unknown-source'));
+    $expect(function () use ($emptySourceServices, $uidA, $unknownTransitionMutation) {
+        $emptySourceServices['attribution']->pause($uidA, 1, 'temporary_risk_pause', $unknownTransitionMutation);
+    }, 'authority_source_type_not_allowed', 'attribution_transition_unknown_source_rejected_before_state_check');
     $expect(function () use ($services, $uidA, $storeB, $mutation) {
         $services['attribution']->assignFirst($uidA, $storeB, $mutation('test_attribution', 'cross-store-a'));
     }, 'attribution_store_conflict', 'cross_store_attribution_rejected');
@@ -133,9 +151,39 @@ try {
     $relationId = (int)$relation['relation']['id'];
     $assert((int)$relation['relation']['relation_version'] === 1 && (string)$relation['relation']['status'] === 'active', 'referral_starts_active_at_version_one');
     $assert(hqCount('yfth_hq_active_referral_event', ['referral_current_id' => $relationId, 'relation_version' => 1, 'event_type' => 'relation_created']) === 1, 'relation_created_event_version_one');
+    $qualifiedBeforeReplay = (int)$services['qualification_policy']->assertionCount;
+    $relationReplay = $services['referral']->create($uidA, $uidB, $storeA, $relationMutation);
+    $assert(!empty($relationReplay['idempotent_replay'])
+        && (int)$services['qualification_policy']->assertionCount === $qualifiedBeforeReplay
+        && hqCount('yfth_hq_active_referral_event', ['referral_current_id' => $relationId]) === 1, 'strict_referral_replay_skips_qualification_and_event');
+    $unknownReferralKey = $key('existing-referral-unknown-source');
+    $unknownReferralMutation = hqAuthorityTestMutation('unknown_source', ++$sourceSeq, $unknownReferralKey);
+    $expect(function () use ($emptySourceServices, $uidA, $uidB, $storeA, $unknownReferralMutation) {
+        $emptySourceServices['referral']->create($uidA, $uidB, $storeA, $unknownReferralMutation);
+    }, 'authority_source_type_not_allowed', 'existing_referral_unknown_source_rejected_before_shortcut');
+    $assert(hqCount('yfth_idempotency_record', ['business_domain' => 'yfth_hq_authority', 'idempotency_key' => $unknownReferralKey]) === 0, 'unknown_referral_source_creates_no_completed_idempotency');
+    $failClosedExistingKey = $key('existing-referral-fail-closed');
+    $failClosedExistingMutation = hqAuthorityTestMutation('test_referral', ++$sourceSeq, $failClosedExistingKey);
+    $expect(function () use ($productionServices, $uidA, $uidB, $storeA, $failClosedExistingMutation) {
+        $productionServices['referral']->create($uidA, $uidB, $storeA, $failClosedExistingMutation);
+    }, 'permanent_membership_authority_unavailable', 'existing_referral_still_requires_production_qualification');
+    $failedExistingIdempotency = hqOne('yfth_idempotency_record', ['business_domain' => 'yfth_hq_authority', 'idempotency_key' => $failClosedExistingKey]);
+    $assert((string)($failedExistingIdempotency['process_status'] ?? '') === 'failed'
+        && hqCount('yfth_hq_active_referral_event', ['referral_current_id' => $relationId]) === 1, 'existing_referral_fail_closed_never_completes_or_writes_event');
+    $unknownPauseMutation = hqAuthorityTestMutation('unknown_source', ++$sourceSeq, $key('referral-pause-unknown-source'));
+    $expect(function () use ($emptySourceServices, $relationId, $unknownPauseMutation) {
+        $emptySourceServices['referral']->pause($relationId, 1, $unknownPauseMutation);
+    }, 'authority_source_type_not_allowed', 'referral_transition_unknown_source_rejected_before_state_check');
     $rawRelation = hqOne('yfth_hq_active_referral_current', ['id' => $relationId]);
     $creationKey = (string)$rawRelation['source_unique_key'];
     $services['referral']->pause($relationId, 1, $mutation('test_referral', 'relation-pause'));
+    $failedResumeMutation = $mutation('test_referral', 'relation-resume-fail-closed');
+    $expect(function () use ($productionServices, $relationId, $failedResumeMutation) {
+        $productionServices['referral']->resume($relationId, 2, $failedResumeMutation);
+    }, 'permanent_membership_authority_unavailable', 'paused_referral_resume_requires_qualification');
+    $pausedAfterFailedResume = hqOne('yfth_hq_active_referral_current', ['id' => $relationId]);
+    $assert((string)$pausedAfterFailedResume['status'] === 'paused' && (int)$pausedAfterFailedResume['relation_version'] === 2
+        && hqCount('yfth_hq_active_referral_event', ['referral_current_id' => $relationId]) === 2, 'failed_resume_changes_no_relation_or_event');
     $services['referral']->resume($relationId, 2, $mutation('test_referral', 'relation-resume'));
     $closedRelation = $services['referral']->close($relationId, 3, 'membership_activated', $mutation('test_referral', 'relation-close'));
     $rawClosed = hqOne('yfth_hq_active_referral_current', ['id' => $relationId]);
@@ -166,6 +214,7 @@ try {
     $assert((string)$invalidated['relation']['status'] === 'invalid' && $invalidated['relation']['active_referred_uid'] === null, 'invalid_relation_releases_active_slot');
 
     hqAssertNullAndAuditSafety($assert, $fixture, $creationKey);
+    hqAssertRunnerRetryClassification($assert, $mutation);
     hqRunConcurrencyMatrix($assert, $fixture, $services, $assign, $mutation, $notes);
 } catch (Throwable $e) {
     $failures[] = 'real_flow_exception:' . $e->getMessage() . ':' . $e->getFile() . ':' . $e->getLine();
@@ -305,6 +354,62 @@ function hqRunConcurrencyMatrix(callable $assert, array $fixture, array $service
         $assert((int)($row['attempt_count'] ?? 0) === 1, 'deadlock_retry_single_begin:' . $idempotencyKey);
     }
     $notes[] = 'concurrency_workers_used:' . PHP_BINARY;
+}
+
+function hqAssertRunnerRetryClassification(callable $assert, callable $mutation): void
+{
+    $recorder = new YfthHqAuthorityTestIdempotencyServices();
+    $runner = new HqAuthorityOperationRunner($recorder);
+    $successAttempts = 0;
+    $runner->run('test_success', $mutation('test_retry', 'runner-success'), [], 'test:success', function () use (&$successAttempts) {
+        $successAttempts++;
+        return ['ok' => true];
+    });
+    $assert($successAttempts === 1 && $recorder->beginCount === 1 && $recorder->completeCount === 1 && $recorder->failCount === 0, 'successful_operation_begins_and_completes_once');
+
+    foreach (['business deadlock marker', 'business code 1213 marker', 'business code 1205 marker'] as $index => $message) {
+        $recorder = new YfthHqAuthorityTestIdempotencyServices();
+        $runner = new HqAuthorityOperationRunner($recorder);
+        $attempts = 0;
+        try {
+            $runner->run('test_business_failure_' . $index, $mutation('test_retry', 'business-failure-' . $index), [], 'test:business:' . $index, function () use (&$attempts, $message) {
+                $attempts++;
+                throw new ApiException($message);
+            });
+            $assert(false, 'business_lock_marker_throws_' . $index);
+        } catch (Throwable $e) {
+            $assert($attempts === 1 && $recorder->beginCount === 1 && $recorder->completeCount === 0 && $recorder->failCount === 1, 'business_lock_marker_is_not_retried_' . $index);
+        }
+    }
+
+    $recorder = new YfthHqAuthorityTestIdempotencyServices();
+    $runner = new HqAuthorityOperationRunner($recorder);
+    $wrappedAttempts = 0;
+    $runner->run('test_wrapped_sqlstate', $mutation('test_retry', 'wrapped-sqlstate'), [], 'test:wrapped', function () use (&$wrappedAttempts) {
+        $wrappedAttempts++;
+        if ($wrappedAttempts === 1) {
+            $pdo = new PDOException('serialization failure');
+            $pdo->errorInfo = ['40001', 1213, 'deadlock found'];
+            throw new RuntimeException('database wrapper', 0, $pdo);
+        }
+        return ['ok' => true];
+    });
+    $assert($wrappedAttempts === 2 && $recorder->beginCount === 1 && $recorder->completeCount === 1 && $recorder->failCount === 0, 'structured_sqlstate_in_database_exception_chain_retries');
+
+    $recorder = new YfthHqAuthorityTestIdempotencyServices();
+    $runner = new HqAuthorityOperationRunner($recorder);
+    $timeoutAttempts = 0;
+    try {
+        $runner->run('test_retry_limit', $mutation('test_retry', 'retry-limit'), [], 'test:retry-limit', function () use (&$timeoutAttempts) {
+            $timeoutAttempts++;
+            $pdo = new PDOException('lock wait timeout');
+            $pdo->errorInfo = ['HY000', 1205, 'lock wait timeout exceeded'];
+            throw $pdo;
+        });
+        $assert(false, 'retry_limit_throws_after_three_attempts');
+    } catch (Throwable $e) {
+        $assert($timeoutAttempts === 3 && $recorder->beginCount === 1 && $recorder->completeCount === 0 && $recorder->failCount === 1, 'database_retry_is_limited_to_three_total_attempts');
+    }
 }
 
 function hqAssertNullAndAuditSafety(callable $assert, array $fixture, string $knownDigest): void

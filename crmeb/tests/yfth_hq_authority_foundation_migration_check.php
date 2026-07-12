@@ -57,6 +57,72 @@ try {
     hqMigrationAssertTables($assert, true, $prefix, 'record_present_full_schema_duplicate_up');
     $passes[] = 'duplicate_up_full_schema_is_noop';
 
+    hqMigrationReplaceIndex(
+        $prefix . 'yfth_hq_customer_attribution_event',
+        'uniq_yfth_hq_attr_event_version',
+        'ADD INDEX `uniq_yfth_hq_attr_event_version` (`attribution_current_id`,`authority_version`)'
+    );
+    $blocked = false;
+    try {
+        $migration->up();
+    } catch (Throwable $e) {
+        $blocked = strpos($e->getMessage(), 'forward_repair_required') !== false;
+    }
+    $assert($blocked, 'record_present_wrong_index_requires_forward_repair');
+    hqMigrationReplaceIndex(
+        $prefix . 'yfth_hq_customer_attribution_event',
+        'uniq_yfth_hq_attr_event_version',
+        'ADD UNIQUE INDEX `uniq_yfth_hq_attr_event_version` (`attribution_current_id`,`authority_version`)'
+    );
+
+    $badIndexCases = [
+        ['same_name_non_unique', 'yfth_hq_customer_attribution_event', 'uniq_yfth_hq_attr_event_version',
+            'ADD INDEX `uniq_yfth_hq_attr_event_version` (`attribution_current_id`,`authority_version`)',
+            'ADD UNIQUE INDEX `uniq_yfth_hq_attr_event_version` (`attribution_current_id`,`authority_version`)'],
+        ['same_name_wrong_column', 'yfth_hq_customer_attribution_current', 'idx_yfth_hq_attr_status_update',
+            'ADD INDEX `idx_yfth_hq_attr_status_update` (`status`,`add_time`)',
+            'ADD INDEX `idx_yfth_hq_attr_status_update` (`status`,`update_time`)'],
+        ['same_name_wrong_order', 'yfth_hq_customer_attribution_current', 'idx_yfth_hq_attr_store_status_uid',
+            'ADD INDEX `idx_yfth_hq_attr_store_status_uid` (`uid`,`status`,`store_id`)',
+            'ADD INDEX `idx_yfth_hq_attr_store_status_uid` (`store_id`,`status`,`uid`)'],
+        ['same_name_missing_column', 'yfth_hq_customer_attribution_current', 'idx_yfth_hq_attr_store_status_uid',
+            'ADD INDEX `idx_yfth_hq_attr_store_status_uid` (`store_id`,`status`)',
+            'ADD INDEX `idx_yfth_hq_attr_store_status_uid` (`store_id`,`status`,`uid`)'],
+        ['same_name_extra_column', 'yfth_hq_customer_attribution_current', 'idx_yfth_hq_attr_store_status_uid',
+            'ADD INDEX `idx_yfth_hq_attr_store_status_uid` (`store_id`,`status`,`uid`,`update_time`)',
+            'ADD INDEX `idx_yfth_hq_attr_store_status_uid` (`store_id`,`status`,`uid`)'],
+    ];
+    foreach ($badIndexCases as [$label, $table, $index, $badDefinition, $correctDefinition]) {
+        Db::execute('DELETE FROM `' . $migrationTable . '` WHERE `version` = 20260713100000');
+        hqMigrationReplaceIndex($prefix . $table, $index, $badDefinition);
+        $blocked = false;
+        try {
+            $migration->up();
+        } catch (Throwable $e) {
+            $blocked = strpos($e->getMessage(), 'index_signature_mismatch') !== false;
+        }
+        $assert($blocked, 'record_absent_bad_index_blocked:' . $label);
+        hqMigrationReplaceIndex($prefix . $table, $index, $correctDefinition);
+        $migration->up();
+        $adapter->migrated($migration, MigrationInterface::UP, date('Y-m-d H:i:s'), date('Y-m-d H:i:s'));
+    }
+
+    Db::execute('DELETE FROM `' . $migrationTable . '` WHERE `version` = 20260713100000');
+    Db::execute('ALTER TABLE `' . $prefix . 'yfth_hq_customer_attribution_current` DROP INDEX `uniq_yfth_hq_attr_current_uid`');
+    Db::execute('INSERT INTO `' . $prefix . 'yfth_hq_customer_attribution_current` (`uid`) VALUES (4294900000),(4294900000)');
+    $blocked = false;
+    try {
+        $migration->up();
+    } catch (Throwable $e) {
+        $blocked = strpos($e->getMessage(), 'unique_conflict') !== false;
+    }
+    $assert($blocked, 'missing_unique_index_with_conflicting_data_blocks_without_cleanup');
+    $assert((int)Db::name('yfth_hq_customer_attribution_current')->where('uid', 4294900000)->count() === 2, 'conflicting_rows_are_not_deleted_by_migration');
+    Db::name('yfth_hq_customer_attribution_current')->where('uid', 4294900000)->delete();
+    $migration->up();
+    $adapter->migrated($migration, MigrationInterface::UP, date('Y-m-d H:i:s'), date('Y-m-d H:i:s'));
+    $assert(hqMigrationIndexSignature($prefix . 'yfth_hq_customer_attribution_current', 'uniq_yfth_hq_attr_current_uid', ['uid'], true), 'missing_unique_index_restored_after_conflict_removed');
+
     Db::execute('ALTER TABLE `' . $prefix . 'yfth_hq_customer_attribution_current` DROP INDEX `idx_yfth_hq_attr_status_update`');
     $blocked = false;
     try {
@@ -124,6 +190,16 @@ function hqMigrationAssertTables(callable $assert, bool $expected, string $prefi
     ] as $table) {
         $assert(hqMigrationTableExists($prefix . $table) === $expected, $label . ':' . $table);
     }
+    if ($expected) {
+        foreach (hqMigrationExpectedIndexes() as $table => $indexes) {
+            foreach ($indexes as $name => $definition) {
+                $assert(
+                    hqMigrationIndexSignature($prefix . $table, $name, $definition['columns'], $definition['unique']),
+                    $label . ':index_signature:' . $table . ':' . $name
+                );
+            }
+        }
+    }
 }
 
 function hqMigrationTableExists(string $table): bool
@@ -136,4 +212,70 @@ function hqMigrationIndexExists(string $table, string $index): bool
 {
     $row = Db::query('SELECT COUNT(*) AS c FROM information_schema.STATISTICS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=? AND INDEX_NAME=?', [$table, $index]);
     return (int)$row[0]['c'] > 0;
+}
+
+function hqMigrationReplaceIndex(string $table, string $index, string $addDefinition): void
+{
+    if (hqMigrationIndexExists($table, $index)) {
+        Db::execute('ALTER TABLE `' . $table . '` DROP INDEX `' . $index . '`');
+    }
+    Db::execute('ALTER TABLE `' . $table . '` ' . $addDefinition);
+}
+
+function hqMigrationIndexSignature(string $table, string $index, array $columns, bool $unique): bool
+{
+    $rows = Db::query(
+        'SELECT NON_UNIQUE,SEQ_IN_INDEX,COLUMN_NAME,INDEX_TYPE FROM information_schema.STATISTICS '
+        . 'WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=? AND INDEX_NAME=? ORDER BY SEQ_IN_INDEX',
+        [$table, $index]
+    );
+    if (!$rows) {
+        return false;
+    }
+    $actualColumns = [];
+    foreach ($rows as $position => $row) {
+        if ((int)$row['NON_UNIQUE'] !== ($unique ? 0 : 1)
+            || (int)$row['SEQ_IN_INDEX'] !== $position + 1
+            || strtoupper((string)$row['INDEX_TYPE']) !== 'BTREE') {
+            return false;
+        }
+        $actualColumns[] = (string)$row['COLUMN_NAME'];
+    }
+    return $actualColumns === array_values($columns);
+}
+
+function hqMigrationExpectedIndexes(): array
+{
+    return [
+        'yfth_hq_customer_attribution_current' => [
+            'uniq_yfth_hq_attr_current_uid' => ['columns' => ['uid'], 'unique' => true],
+            'idx_yfth_hq_attr_store_status_uid' => ['columns' => ['store_id', 'status', 'uid'], 'unique' => false],
+            'idx_yfth_hq_attr_status_update' => ['columns' => ['status', 'update_time'], 'unique' => false],
+        ],
+        'yfth_hq_customer_attribution_event' => [
+            'uniq_yfth_hq_attr_event_no' => ['columns' => ['event_no'], 'unique' => true],
+            'uniq_yfth_hq_attr_event_version' => ['columns' => ['attribution_current_id', 'authority_version'], 'unique' => true],
+            'uniq_yfth_hq_attr_event_source' => ['columns' => ['source_unique_key'], 'unique' => true],
+            'idx_yfth_hq_attr_event_uid_time' => ['columns' => ['uid', 'add_time'], 'unique' => false],
+            'idx_yfth_hq_attr_event_type_time' => ['columns' => ['event_type', 'add_time'], 'unique' => false],
+            'idx_yfth_hq_attr_event_source' => ['columns' => ['source_type', 'source_id'], 'unique' => false],
+        ],
+        'yfth_hq_active_referral_current' => [
+            'uniq_yfth_hq_ref_current_no' => ['columns' => ['relation_no'], 'unique' => true],
+            'uniq_yfth_hq_ref_current_active_uid' => ['columns' => ['active_referred_uid'], 'unique' => true],
+            'uniq_yfth_hq_ref_current_source' => ['columns' => ['source_unique_key'], 'unique' => true],
+            'idx_yfth_hq_ref_current_referrer' => ['columns' => ['referrer_uid', 'status'], 'unique' => false],
+            'idx_yfth_hq_ref_current_referred' => ['columns' => ['referred_uid', 'status'], 'unique' => false],
+            'idx_yfth_hq_ref_current_store' => ['columns' => ['store_id', 'status', 'referred_uid'], 'unique' => false],
+            'idx_yfth_hq_ref_current_status_time' => ['columns' => ['status', 'update_time'], 'unique' => false],
+        ],
+        'yfth_hq_active_referral_event' => [
+            'uniq_yfth_hq_ref_event_no' => ['columns' => ['event_no'], 'unique' => true],
+            'uniq_yfth_hq_ref_event_version' => ['columns' => ['referral_current_id', 'relation_version'], 'unique' => true],
+            'uniq_yfth_hq_ref_event_source' => ['columns' => ['source_unique_key'], 'unique' => true],
+            'idx_yfth_hq_ref_event_referrer_time' => ['columns' => ['referrer_uid', 'add_time'], 'unique' => false],
+            'idx_yfth_hq_ref_event_referred_time' => ['columns' => ['referred_uid', 'add_time'], 'unique' => false],
+            'idx_yfth_hq_ref_event_type_time' => ['columns' => ['event_type', 'add_time'], 'unique' => false],
+        ],
+    ];
 }

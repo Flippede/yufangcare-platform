@@ -171,6 +171,23 @@ class CreateYfthHqAuthorityFoundationTables extends Migrator
 
     private function ensureIndexes(string $table): void
     {
+        foreach ($this->expectedIndexes()[$table] as $name => $definition) {
+            $columns = $definition['columns'];
+            $unique = $definition['unique'];
+            if ($this->getAdapter()->hasIndexByName($table, $name)) {
+                $this->assertIndexSignature($table, $name, $columns, $unique);
+                continue;
+            }
+            if ($unique) {
+                $this->assertNoDuplicates($table, $columns);
+            }
+            $this->table($table)->addIndex($columns, ['unique' => $unique, 'name' => $name])->update();
+            $this->assertIndexSignature($table, $name, $columns, $unique);
+        }
+    }
+
+    private function expectedIndexes(): array
+    {
         $definitions = [
             'yfth_hq_customer_attribution_current' => [
                 ['uniq_yfth_hq_attr_current_uid', ['uid'], true],
@@ -203,14 +220,36 @@ class CreateYfthHqAuthorityFoundationTables extends Migrator
                 ['idx_yfth_hq_ref_event_type_time', ['event_type', 'add_time'], false],
             ],
         ];
-        foreach ($definitions[$table] as [$name, $columns, $unique]) {
-            if ($this->getAdapter()->hasIndexByName($table, $name)) {
-                continue;
+        $result = [];
+        foreach ($definitions as $table => $indexes) {
+            foreach ($indexes as [$name, $columns, $unique]) {
+                $result[$table][$name] = ['columns' => $columns, 'unique' => $unique];
             }
-            if ($unique) {
-                $this->assertNoDuplicates($table, $columns);
+        }
+        return $result;
+    }
+
+    private function assertIndexSignature(string $table, string $name, array $columns, bool $unique): void
+    {
+        $rows = $this->getAdapter()->fetchAll(
+            'SELECT NON_UNIQUE,SEQ_IN_INDEX,COLUMN_NAME,INDEX_TYPE FROM information_schema.STATISTICS '
+            . 'WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ' . $this->quote($this->prefixed($table))
+            . ' AND INDEX_NAME = ' . $this->quote($name) . ' ORDER BY SEQ_IN_INDEX ASC'
+        );
+        if (!$rows) {
+            throw new RuntimeException('yfth_hq_authority_missing_index:' . $table . ':' . $name);
+        }
+        $actualColumns = [];
+        foreach ($rows as $position => $row) {
+            if ((int)$row['NON_UNIQUE'] !== ($unique ? 0 : 1)
+                || (int)$row['SEQ_IN_INDEX'] !== $position + 1
+                || strtoupper((string)$row['INDEX_TYPE']) !== 'BTREE') {
+                throw new RuntimeException('yfth_hq_authority_index_signature_mismatch:' . $table . ':' . $name);
             }
-            $this->table($table)->addIndex($columns, ['unique' => $unique, 'name' => $name])->update();
+            $actualColumns[] = (string)$row['COLUMN_NAME'];
+        }
+        if ($actualColumns !== array_values($columns)) {
+            throw new RuntimeException('yfth_hq_authority_index_signature_mismatch:' . $table . ':' . $name);
         }
     }
 
@@ -322,27 +361,14 @@ class CreateYfthHqAuthorityFoundationTables extends Migrator
                     return false;
                 }
                 $this->assertTableColumns($table);
-                foreach ($this->indexNames($table) as $indexName) {
-                    if (!$this->getAdapter()->hasIndexByName($table, $indexName)) {
-                        return false;
-                    }
+                foreach ($this->expectedIndexes()[$table] as $indexName => $definition) {
+                    $this->assertIndexSignature($table, $indexName, $definition['columns'], $definition['unique']);
                 }
             }
             return true;
         } catch (Throwable $e) {
             return false;
         }
-    }
-
-    private function indexNames(string $table): array
-    {
-        $map = [
-            'yfth_hq_customer_attribution_current' => ['uniq_yfth_hq_attr_current_uid', 'idx_yfth_hq_attr_store_status_uid', 'idx_yfth_hq_attr_status_update'],
-            'yfth_hq_customer_attribution_event' => ['uniq_yfth_hq_attr_event_no', 'uniq_yfth_hq_attr_event_version', 'uniq_yfth_hq_attr_event_source', 'idx_yfth_hq_attr_event_uid_time', 'idx_yfth_hq_attr_event_type_time', 'idx_yfth_hq_attr_event_source'],
-            'yfth_hq_active_referral_current' => ['uniq_yfth_hq_ref_current_no', 'uniq_yfth_hq_ref_current_active_uid', 'uniq_yfth_hq_ref_current_source', 'idx_yfth_hq_ref_current_referrer', 'idx_yfth_hq_ref_current_referred', 'idx_yfth_hq_ref_current_store', 'idx_yfth_hq_ref_current_status_time'],
-            'yfth_hq_active_referral_event' => ['uniq_yfth_hq_ref_event_no', 'uniq_yfth_hq_ref_event_version', 'uniq_yfth_hq_ref_event_source', 'idx_yfth_hq_ref_event_referrer_time', 'idx_yfth_hq_ref_event_referred_time', 'idx_yfth_hq_ref_event_type_time'],
-        ];
-        return $map[$table];
     }
 
     private function migrationRecordExists(): bool

@@ -39,12 +39,14 @@ class HqActiveReferralServices extends YfthFoundationBaseServices
         if ($referrerUid <= 0 || $referredUid <= 0 || $referrerUid === $referredUid) {
             throw new ApiException('referral_self_or_invalid_relation');
         }
+        $relationSourceKey = $this->canonicalizer->referralRelation($mutation->source());
+        $eventSourceKey = $this->canonicalizer->referralEvent('relation_created', $mutation->source());
         $result = $this->runner->run(
             'referral_create',
             $mutation,
             ['referrer_uid' => $referrerUid, 'referred_uid' => $referredUid, 'store_id' => $storeId],
             'referred_uid:' . $referredUid,
-            function () use ($referrerUid, $referredUid, $storeId, $mutation) {
+            function () use ($referrerUid, $referredUid, $storeId, $relationSourceKey, $eventSourceKey, $mutation) {
                 $attributions = $this->attribution->lockCurrents([$referrerUid, $referredUid]);
                 $this->assertActiveAttribution($attributions[$referrerUid], $storeId);
                 $this->assertActiveAttribution($attributions[$referredUid], $storeId);
@@ -53,6 +55,7 @@ class HqActiveReferralServices extends YfthFoundationBaseServices
                     ->where('active_referred_uid', $referredUid)->lock(true)->find());
                 if ($active) {
                     if ((int)$active['referrer_uid'] === $referrerUid && (int)$active['store_id'] === $storeId) {
+                        $this->qualification->assertQualified($referrerUid, $storeId);
                         return $this->result($active, $active, false);
                     }
                     throw new ApiException('referral_referred_already_occupied');
@@ -72,8 +75,6 @@ class HqActiveReferralServices extends YfthFoundationBaseServices
                 }
 
                 $this->qualification->assertQualified($referrerUid, $storeId);
-                $relationSourceKey = $this->canonicalizer->referralRelation($mutation->source());
-                $eventSourceKey = $this->canonicalizer->referralEvent('relation_created', $mutation->source());
                 $existingSource = $this->row($this->dao->getOne(['source_unique_key' => $relationSourceKey]));
                 if ($existingSource) {
                     if ((int)$existingSource['referrer_uid'] === $referrerUid
@@ -158,12 +159,13 @@ class HqActiveReferralServices extends YfthFoundationBaseServices
         bool $requireQualification,
         HqAuthorityMutation $mutation
     ): array {
+        $sourceKey = $this->canonicalizer->referralEvent($eventType, $mutation->source());
         $result = $this->runner->run(
             $eventType,
             $mutation,
             ['relation_id' => $relationId, 'expected_version' => $expectedVersion, 'to_status' => $toStatus, 'close_reason' => $closeReason],
             'relation:' . $relationId,
-            function () use ($relationId, $expectedVersion, $fromStatuses, $toStatus, $eventType, $closeReason, $requireQualification, $mutation) {
+            function () use ($relationId, $expectedVersion, $fromStatuses, $toStatus, $eventType, $closeReason, $requireQualification, $sourceKey, $mutation) {
                 $snapshot = $this->row($this->dao->get($relationId));
                 if (!$snapshot) {
                     throw new ApiException('referral_relation_not_found');
@@ -200,7 +202,6 @@ class HqActiveReferralServices extends YfthFoundationBaseServices
                 ];
                 $this->dao->update($relationId, $update);
                 $after = array_merge($row, $update);
-                $sourceKey = $this->canonicalizer->referralEvent($eventType, $mutation->source());
                 $this->appendEvent($row, $after, $eventType, $sourceKey, $mutation);
                 return $this->result($row, $after, true);
             }
