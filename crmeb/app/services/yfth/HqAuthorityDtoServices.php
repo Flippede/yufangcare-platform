@@ -73,6 +73,24 @@ class HqAuthorityDtoServices extends YfthFoundationBaseServices
 
     public function adminAttribution(array $row, array $user, array $store, bool $hasActiveReferral, bool $consistent): array
     {
+        if (!$consistent) {
+            return [
+                'attribution_id' => (int)$row['id'],
+                'uid' => (int)$row['uid'],
+                'customer' => $this->userSummary($user),
+                'store_id' => 0,
+                'store' => null,
+                'attribution_status' => 'inconsistent',
+                'attribution_status_label' => '数据异常',
+                'bound_at' => 0,
+                'paused_at' => 0,
+                'closed_at' => 0,
+                'source_label' => '系统来源',
+                'has_active_referral' => false,
+                'data_inconsistent' => true,
+                'data_inconsistent_label' => '数据异常，需总部治理',
+            ];
+        }
         return [
             'attribution_id' => (int)$row['id'],
             'uid' => (int)$row['uid'],
@@ -86,13 +104,34 @@ class HqAuthorityDtoServices extends YfthFoundationBaseServices
             'closed_at' => (int)$row['closed_at'],
             'source_label' => $this->sourceLabel((string)$row['source_type']),
             'has_active_referral' => $hasActiveReferral,
-            'data_anomaly' => !$consistent,
-            'data_anomaly_label' => $consistent ? '' : '数据异常，需总部治理',
+            'data_inconsistent' => false,
+            'data_inconsistent_label' => '',
         ];
     }
 
     public function adminReferral(array $row, array $referrer, array $referred, array $store, bool $consistent): array
     {
+        if (!$consistent) {
+            return [
+                'referral_id' => (int)$row['id'],
+                'relation_display' => $this->safeRelationDisplay((string)$row['relation_no']),
+                'referrer_uid' => (int)$row['referrer_uid'],
+                'referrer' => $this->userSummary($referrer),
+                'referred_uid' => (int)$row['referred_uid'],
+                'referred' => $this->userSummary($referred),
+                'store_id' => 0,
+                'store' => null,
+                'relation_status' => 'inconsistent',
+                'relation_status_label' => '数据异常',
+                'started_at' => 0,
+                'paused_at' => 0,
+                'closed_at' => 0,
+                'close_label' => '',
+                'source_label' => '系统来源',
+                'data_inconsistent' => true,
+                'data_inconsistent_label' => '数据异常，需总部治理',
+            ];
+        }
         return [
             'referral_id' => (int)$row['id'],
             'relation_display' => $this->safeRelationDisplay((string)$row['relation_no']),
@@ -109,8 +148,8 @@ class HqAuthorityDtoServices extends YfthFoundationBaseServices
             'closed_at' => (int)$row['closed_at'],
             'close_label' => $this->closeLabel((string)$row['close_reason']),
             'source_label' => $this->sourceLabel((string)$row['source_type']),
-            'data_anomaly' => !$consistent,
-            'data_anomaly_label' => $consistent ? '' : '数据异常，需总部治理',
+            'data_inconsistent' => false,
+            'data_inconsistent_label' => '',
         ];
     }
 

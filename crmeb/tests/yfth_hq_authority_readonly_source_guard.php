@@ -19,6 +19,8 @@ $relativeFiles = [
     'app/services/yfth/HqAuthorityStoreReadServices.php',
     'app/services/yfth/HqAuthorityAdminReadServices.php',
     'app/services/yfth/HqAuthorityAuditReadServices.php',
+    'app/services/yfth/HqAuthorityConsistencyValidator.php',
+    'app/services/yfth/HqAuthorityReadParameterServices.php',
     'app/api/controller/v1/yfth/HqAuthorityReadController.php',
     'app/api/controller/v1/yfth/HqAuthorityStoreReadController.php',
     'app/adminapi/controller/v1/yfth/HqAuthorityRead.php',

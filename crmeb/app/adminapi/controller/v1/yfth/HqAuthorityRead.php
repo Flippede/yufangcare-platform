@@ -6,49 +6,50 @@ use app\adminapi\controller\AuthController;
 use app\services\system\admin\SystemRoleServices;
 use app\services\yfth\HqAuthorityAdminReadServices;
 use app\services\yfth\HqAuthorityAuditReadServices;
+use app\services\yfth\HqAuthorityReadParameterServices;
 
 class HqAuthorityRead extends AuthController
 {
-    public function attributionList(HqAuthorityAdminReadServices $services)
+    public function attributionList(HqAuthorityAdminReadServices $services, HqAuthorityReadParameterServices $parameters)
     {
         $this->assertAuth('yfth/hq_authority/attribution', 'GET');
-        return app('json')->success($services->attributionList($this->request->getMore([
-            [['uid', 'd'], 0], [['store_id', 'd'], 0], ['status', ''],
-            ['start_date', ''], ['end_date', ''], [['page', 'd'], 1], [['limit', 'd'], 20],
-        ]), $this->adminInfo ?: []));
+        return app('json')->success($services->attributionList(
+            $parameters->attributionFilters($this->request->get()),
+            $this->adminInfo ?: []
+        ));
     }
 
-    public function attributionDetail(HqAuthorityAdminReadServices $services, $id)
+    public function attributionDetail(HqAuthorityAdminReadServices $services, HqAuthorityReadParameterServices $parameters, $id)
     {
         $this->assertAuth('yfth/hq_authority/attribution/<id>', 'GET');
-        return app('json')->success($services->attributionDetail((int)$id, $this->adminInfo ?: []));
+        return app('json')->success($services->attributionDetail($parameters->positiveId($id, 'attribution_id'), $this->adminInfo ?: []));
     }
 
-    public function referralList(HqAuthorityAdminReadServices $services)
+    public function referralList(HqAuthorityAdminReadServices $services, HqAuthorityReadParameterServices $parameters)
     {
         $this->assertAuth('yfth/hq_authority/referral', 'GET');
-        return app('json')->success($services->referralList($this->request->getMore([
-            [['store_id', 'd'], 0], [['referrer_uid', 'd'], 0], [['referred_uid', 'd'], 0],
-            ['status', ''], ['start_date', ''], ['end_date', ''], [['page', 'd'], 1], [['limit', 'd'], 20],
-        ]), $this->adminInfo ?: []));
+        return app('json')->success($services->referralList(
+            $parameters->referralFilters($this->request->get()),
+            $this->adminInfo ?: []
+        ));
     }
 
-    public function referralDetail(HqAuthorityAdminReadServices $services, $id)
+    public function referralDetail(HqAuthorityAdminReadServices $services, HqAuthorityReadParameterServices $parameters, $id)
     {
         $this->assertAuth('yfth/hq_authority/referral/<id>', 'GET');
-        return app('json')->success($services->referralDetail((int)$id, $this->adminInfo ?: []));
+        return app('json')->success($services->referralDetail($parameters->positiveId($id, 'referral_id'), $this->adminInfo ?: []));
     }
 
-    public function attributionEvents(HqAuthorityAuditReadServices $services, $id)
+    public function attributionEvents(HqAuthorityAuditReadServices $services, HqAuthorityReadParameterServices $parameters, $id)
     {
         $this->assertAuth('yfth/hq_authority/attribution/<id>/events', 'GET');
-        return app('json')->success($services->attributionEvents((int)$id, $this->adminInfo ?: []));
+        return app('json')->success($services->attributionEvents($parameters->positiveId($id, 'attribution_id'), $this->adminInfo ?: []));
     }
 
-    public function referralEvents(HqAuthorityAuditReadServices $services, $id)
+    public function referralEvents(HqAuthorityAuditReadServices $services, HqAuthorityReadParameterServices $parameters, $id)
     {
         $this->assertAuth('yfth/hq_authority/referral/<id>/events', 'GET');
-        return app('json')->success($services->referralEvents((int)$id, $this->adminInfo ?: []));
+        return app('json')->success($services->referralEvents($parameters->positiveId($id, 'referral_id'), $this->adminInfo ?: []));
     }
 
     private function assertAuth(string $rule, string $method): void

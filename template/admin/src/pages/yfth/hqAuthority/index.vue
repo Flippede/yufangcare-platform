@@ -31,7 +31,7 @@
           </el-table-column>
           <el-table-column label="数据状态" width="160">
             <template slot-scope="{ row }">
-              <el-tag :type="row.data_anomaly ? 'danger' : 'success'" size="mini">{{ row.data_anomaly ? row.data_anomaly_label : '正常' }}</el-tag>
+              <el-tag :type="row.data_inconsistent ? 'danger' : 'success'" size="mini">{{ row.data_inconsistent ? row.data_inconsistent_label : '正常' }}</el-tag>
             </template>
           </el-table-column>
           <el-table-column label="操作" width="170" fixed="right">
@@ -113,6 +113,7 @@ import {
   yfthHqAuthorityReferralEvents,
   yfthHqAuthorityReferralList,
 } from '@/api/yfth';
+const { createRequestGeneration } = require('./requestGeneration');
 
 export default {
   name: 'YfthHqAuthorityRead',
@@ -156,7 +157,7 @@ export default {
           { label: '来源', value: this.detail.source_label },
           { label: '一级推荐', value: this.detail.has_active_referral ? '存在' : '无' },
           { label: '绑定时间', value: this.formatTime(this.detail.bound_at) },
-          { label: '数据状态', value: this.detail.data_anomaly ? this.detail.data_anomaly_label : '正常' },
+          { label: '数据状态', value: this.detail.data_inconsistent ? this.detail.data_inconsistent_label : '正常' },
         ];
       }
       return [
@@ -171,61 +172,157 @@ export default {
       ];
     },
   },
+  watch: {
+    canAuditAttribution(value) {
+      if (!value) this.clearAuditState('attribution');
+    },
+    canAuditReferral(value) {
+      if (!value) this.clearAuditState('referral');
+    },
+  },
+  created() {
+    this.requestGeneration = createRequestGeneration();
+  },
   mounted() {
     this.loadAttributions(true);
   },
+  beforeDestroy() {
+    this.requestGeneration.destroy();
+    this.clearSensitiveState();
+  },
   methods: {
     loadCurrent() {
+      this.requestGeneration.invalidateAll();
+      this.clearSensitiveState();
       if (this.activeTab === 'attribution') this.loadAttributions();
       else this.loadReferrals();
     },
     loadAttributions(reset) {
       if (reset === true) this.attributionQuery.page = 1;
-      const params = Object.assign({}, this.attributionQuery, {
+      const params = this.compactQuery(Object.assign({}, this.attributionQuery, {
         start_date: this.attributionDates[0] || '',
         end_date: this.attributionDates[1] || '',
-      });
+      }));
+      const identity = `attribution:${JSON.stringify(params)}`;
+      const ticket = this.requestGeneration.next('attribution-list', identity);
+      this.attributions = [];
+      this.attributionTotal = 0;
       this.loading = true;
       yfthHqAuthorityAttributionList(params).then((res) => {
+        if (!this.requestGeneration.isCurrent(ticket, identity)) return;
         this.attributions = (res.data && res.data.list) || [];
         this.attributionTotal = Number((res.data && res.data.count) || 0);
-      }).finally(() => { this.loading = false; });
+      }).catch(() => {
+        if (this.requestGeneration.isCurrent(ticket, identity)) this.failClosed();
+      }).finally(() => {
+        if (this.requestGeneration.isCurrent(ticket, identity)) this.loading = false;
+      });
     },
     loadReferrals(reset) {
       if (reset === true) this.referralQuery.page = 1;
+      const params = this.compactQuery(this.referralQuery);
+      const identity = `referral:${JSON.stringify(params)}`;
+      const ticket = this.requestGeneration.next('referral-list', identity);
+      this.referrals = [];
+      this.referralTotal = 0;
       this.loading = true;
-      yfthHqAuthorityReferralList(this.referralQuery).then((res) => {
+      yfthHqAuthorityReferralList(params).then((res) => {
+        if (!this.requestGeneration.isCurrent(ticket, identity)) return;
         this.referrals = (res.data && res.data.list) || [];
         this.referralTotal = Number((res.data && res.data.count) || 0);
-      }).finally(() => { this.loading = false; });
+      }).catch(() => {
+        if (this.requestGeneration.isCurrent(ticket, identity)) this.failClosed();
+      }).finally(() => {
+        if (this.requestGeneration.isCurrent(ticket, identity)) this.loading = false;
+      });
     },
     openAttribution(row) {
+      this.closeDetail();
+      const identity = `attribution:${row.attribution_id}`;
+      const ticket = this.requestGeneration.next('detail', identity);
       yfthHqAuthorityAttributionDetail(row.attribution_id).then((res) => {
+        if (!this.requestGeneration.isCurrent(ticket, identity)) return;
         this.detail = res.data.attribution;
         this.detailType = 'attribution';
         this.detailVisible = true;
+      }).catch(() => {
+        if (this.requestGeneration.isCurrent(ticket, identity)) this.failClosed();
       });
     },
     openReferral(row) {
+      this.closeDetail();
+      const identity = `referral:${row.referral_id}`;
+      const ticket = this.requestGeneration.next('detail', identity);
       yfthHqAuthorityReferralDetail(row.referral_id).then((res) => {
+        if (!this.requestGeneration.isCurrent(ticket, identity)) return;
         this.detail = res.data.referral;
         this.detailType = 'referral';
         this.detailVisible = true;
+      }).catch(() => {
+        if (this.requestGeneration.isCurrent(ticket, identity)) this.failClosed();
       });
     },
     openAttributionEvents(row) {
+      this.closeEvents();
       if (!this.canAuditAttribution) return;
+      const identity = `attribution:${row.attribution_id}`;
+      const ticket = this.requestGeneration.next('events', identity);
       yfthHqAuthorityAttributionEvents(row.attribution_id).then((res) => {
+        if (!this.requestGeneration.isCurrent(ticket, identity) || !this.canAuditAttribution) return;
         this.events = (res.data && res.data.list) || [];
         this.eventVisible = true;
+      }).catch(() => {
+        if (this.requestGeneration.isCurrent(ticket, identity)) this.failClosed();
       });
     },
     openReferralEvents(row) {
+      this.closeEvents();
       if (!this.canAuditReferral) return;
+      const identity = `referral:${row.referral_id}`;
+      const ticket = this.requestGeneration.next('events', identity);
       yfthHqAuthorityReferralEvents(row.referral_id).then((res) => {
+        if (!this.requestGeneration.isCurrent(ticket, identity) || !this.canAuditReferral) return;
         this.events = (res.data && res.data.list) || [];
         this.eventVisible = true;
+      }).catch(() => {
+        if (this.requestGeneration.isCurrent(ticket, identity)) this.failClosed();
       });
+    },
+    compactQuery(query) {
+      return Object.keys(query).reduce((result, key) => {
+        if (query[key] !== '' && query[key] !== null && query[key] !== undefined) result[key] = query[key];
+        return result;
+      }, {});
+    },
+    closeDetail() {
+      this.requestGeneration.invalidate('detail');
+      this.detailVisible = false;
+      this.detail = null;
+      this.detailType = '';
+    },
+    closeEvents() {
+      this.requestGeneration.invalidate('events');
+      this.eventVisible = false;
+      this.events = [];
+    },
+    clearAuditState(type) {
+      this.closeEvents();
+    },
+    clearSensitiveState() {
+      this.loading = false;
+      this.attributions = [];
+      this.attributionTotal = 0;
+      this.referrals = [];
+      this.referralTotal = 0;
+      this.detailVisible = false;
+      this.detail = null;
+      this.detailType = '';
+      this.eventVisible = false;
+      this.events = [];
+    },
+    failClosed() {
+      this.requestGeneration.invalidateAll();
+      this.clearSensitiveState();
     },
     formatTime(value) {
       const timestamp = Number(value || 0);

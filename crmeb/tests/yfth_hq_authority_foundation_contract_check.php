@@ -78,7 +78,14 @@ try {
     }
     $assert(strpos($attribution, 'initial_placeholder') !== false && strpos($attribution, 'store_terminated_no_successor') !== false, 'pristine_and_historical_unassigned_are_distinct');
     $assert(strpos($attribution, 'attribution_not_pristine') !== false && strpos($attribution, 'attribution_store_conflict') !== false, 'attribution_rebind_guards_exist');
-    $assert(strpos($attribution, 'eventCount !== $version') !== false, 'attribution_current_event_versions_are_contiguous');
+    $validator = $read('app/services/yfth/HqAuthorityConsistencyValidator.php');
+    $assert(strpos($attribution, 'HqAuthorityConsistencyValidator') !== false
+        && strpos($referral, 'HqAuthorityConsistencyValidator') !== false,
+        'stage1a_writers_share_authority_consistency_validator');
+    $assert(strpos($validator, '$expectedVersion = $offset + 1') !== false
+        && strpos($validator, 'attribution_latest_event_inconsistent') !== false
+        && strpos($validator, 'referral_latest_event_inconsistent') !== false,
+        'current_event_versions_and_final_content_are_consistent');
     $assert(strpos($attribution, 'lockCurrents') !== false && strpos($attribution, 'sort($uids, SORT_NUMERIC)') !== false, 'attribution_uid_locks_are_numeric_ascending');
     $assignStart = strpos($attribution, 'public function assignFirst');
     $assignRunner = strpos($attribution, '$this->runner->run', $assignStart);

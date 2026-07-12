@@ -11,6 +11,7 @@ use app\dao\yfth\YfthHqCustomerAttributionEventDao;
 use app\services\yfth\AuditEventServices;
 use app\services\yfth\HqActiveReferralServices;
 use app\services\yfth\HqAuthorityMutation;
+use app\services\yfth\HqAuthorityConsistencyValidator;
 use app\services\yfth\HqAuthorityOperationRunner;
 use app\services\yfth\HqAuthoritySource;
 use app\services\yfth\HqAuthoritySourceCanonicalizer;
@@ -96,6 +97,7 @@ function hqAuthorityTestServices(bool $qualified = true, array $allowedSourceTyp
     ] : $allowedSourceTypes;
     $canonicalizer = new HqAuthoritySourceCanonicalizer($allowedSourceTypes);
     $runner = app()->make(HqAuthorityOperationRunner::class);
+    $consistency = app()->make(HqAuthorityConsistencyValidator::class);
     $attribution = new HqCustomerAttributionServices(
         app()->make(YfthHqCustomerAttributionCurrentDao::class),
         app()->make(YfthHqCustomerAttributionEventDao::class),
@@ -103,7 +105,8 @@ function hqAuthorityTestServices(bool $qualified = true, array $allowedSourceTyp
         app()->make(SystemStoreDao::class),
         $canonicalizer,
         $runner,
-        app()->make(AuditEventServices::class)
+        app()->make(AuditEventServices::class),
+        $consistency
     );
     $policy = $qualified ? new YfthHqAuthorityTestQualificationPolicy() : null;
     $referral = new HqActiveReferralServices(
@@ -113,6 +116,7 @@ function hqAuthorityTestServices(bool $qualified = true, array $allowedSourceTyp
         $canonicalizer,
         $runner,
         app()->make(AuditEventServices::class),
+        $consistency,
         $policy
     );
     return compact('canonicalizer', 'runner', 'attribution', 'referral') + ['qualification_policy' => $policy];

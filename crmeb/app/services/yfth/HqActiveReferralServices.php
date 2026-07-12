@@ -15,6 +15,7 @@ class HqActiveReferralServices extends YfthFoundationBaseServices
     private $runner;
     private $audit;
     private $qualification;
+    private $consistency;
 
     public function __construct(
         YfthHqActiveReferralCurrentDao $dao,
@@ -23,6 +24,7 @@ class HqActiveReferralServices extends YfthFoundationBaseServices
         HqAuthoritySourceCanonicalizer $canonicalizer,
         HqAuthorityOperationRunner $runner,
         AuditEventServices $audit,
+        HqAuthorityConsistencyValidator $consistency,
         ReferralQualificationPolicy $qualification = null
     ) {
         $this->dao = $dao;
@@ -31,6 +33,7 @@ class HqActiveReferralServices extends YfthFoundationBaseServices
         $this->canonicalizer = $canonicalizer;
         $this->runner = $runner;
         $this->audit = $audit;
+        $this->consistency = $consistency;
         $this->qualification = $qualification ?: new FailClosedReferralQualificationPolicy();
     }
 
@@ -243,26 +246,7 @@ class HqActiveReferralServices extends YfthFoundationBaseServices
 
     private function assertConsistent(array $row): void
     {
-        $status = (string)$row['status'];
-        $activeUid = $row['active_referred_uid'] === null ? null : (int)$row['active_referred_uid'];
-        if (!in_array($status, ['active', 'paused', 'closed', 'invalid'], true)
-            || (in_array($status, ['active', 'paused'], true) && $activeUid !== (int)$row['referred_uid'])
-            || (in_array($status, ['closed', 'invalid'], true) && $activeUid !== null)) {
-            throw new ApiException('referral_current_inconsistent');
-        }
-        $version = (int)$row['relation_version'];
-        $events = $this->eventDao->search([])
-            ->where('referral_current_id', (int)$row['id'])
-            ->lock(true)
-            ->select()
-            ->toArray();
-        $eventCount = count($events);
-        $versionEvent = count(array_filter($events, function ($event) use ($version) {
-            return (int)$event['relation_version'] === $version;
-        }));
-        if ($version < 1 || $eventCount !== $version || $versionEvent !== 1) {
-            throw new ApiException('referral_event_version_inconsistent');
-        }
+        $this->consistency->assertReferral($row, true);
     }
 
     private function assertActiveAttribution(array $row, int $storeId): void

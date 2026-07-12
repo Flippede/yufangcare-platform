@@ -40,7 +40,7 @@
 			<button v-if="list.length < total" class="load-more" @click="load(false)">加载更多</button>
 		</view>
 
-		<view v-if="detailVisible" class="mask" @click="detailVisible = false">
+		<view v-if="detailVisible" class="mask" @click="closeDetail">
 			<view class="detail" @click.stop>
 				<view class="detail-title">归属详情</view>
 				<view class="detail-row"><text>客户</text><text>{{ detail.customer.nickname || '-' }}</text></view>
@@ -49,7 +49,7 @@
 				<view class="detail-row"><text>安全来源</text><text>{{ detail.source_label }}</text></view>
 				<view class="detail-row"><text>一级推荐</text><text>{{ detail.has_active_referral ? '存在' : '无' }}</text></view>
 				<view class="detail-row"><text>绑定时间</text><text>{{ formatTime(detail.bound_at) }}</text></view>
-				<button class="close" @click="detailVisible = false">关闭</button>
+				<button class="close" @click="closeDetail">关闭</button>
 			</view>
 		</view>
 	</view>
@@ -58,6 +58,7 @@
 <script>
 import { getYfthStoreCustomerAttributionDetail, getYfthStoreCustomerAttributions } from '@/api/yfth.js';
 import { clearYfthContext, currentContext, resolveYfthContext } from '@/libs/yfthContext.js';
+const { createRequestGeneration } = require('@/libs/yfthRequestGeneration.js');
 
 export default {
 	data() {
@@ -74,6 +75,9 @@ export default {
 			detail: {}
 		};
 	},
+	created() {
+		this.requestGeneration = createRequestGeneration();
+	},
 	computed: {
 		currentStatusLabel() {
 			const index = this.statusValues.indexOf(this.query.status);
@@ -81,20 +85,37 @@ export default {
 		}
 	},
 	onShow() {
+		this.requestGeneration.invalidateAll();
+		this.clearSensitiveState();
 		this.bootstrap();
+	},
+	onHide() {
+		this.requestGeneration.invalidateAll();
+		this.clearSensitiveState();
+	},
+	onUnload() {
+		this.requestGeneration.destroy();
+		this.clearSensitiveState();
 	},
 	methods: {
 		bootstrap() {
 			const cached = currentContext();
+			const requestedIdentity = this.contextKey(cached);
+			const ticket = this.requestGeneration.next('context', requestedIdentity);
 			resolveYfthContext(cached.role_code || 'customer', cached.store_id || 0).then((context) => {
+				if (!this.requestGeneration.isCurrent(ticket, requestedIdentity)) return;
 				if (['franchisee', 'store_manager'].indexOf(context.role_code) === -1 || !Number(context.store_id)) {
 					throw new Error('当前身份无权查看客户归属');
 				}
+				this.requestGeneration.invalidateAll();
+				this.clearSensitiveState();
 				this.context = context;
 				this.load(true);
 			}).catch((err) => {
+				if (!this.requestGeneration.isCurrent(ticket, requestedIdentity)) return;
 				clearYfthContext();
-				this.loading = false;
+				this.requestGeneration.invalidateAll();
+				this.clearSensitiveState();
 				this.error = String((err && err.msg) || err || '身份校验失败');
 			});
 		},
@@ -103,21 +124,27 @@ export default {
 		},
 		load(reset) {
 			if (!this.context.store_id) return;
+			const identity = this.contextKey(this.context);
 			if (reset) {
 				this.query.page = 1;
 				this.list = [];
 			}
+			const ticket = this.requestGeneration.next('list', identity);
 			this.loading = true;
 			this.error = '';
 			getYfthStoreCustomerAttributions(this.params(this.query)).then((res) => {
+				if (!this.requestGeneration.isCurrent(ticket, identity) || identity !== this.contextKey(this.context)) return;
 				const data = res.data || {};
 				this.list = reset ? (data.list || []) : this.list.concat(data.list || []);
 				this.total = Number(data.count || 0);
 				if (this.list.length < this.total) this.query.page += 1;
 			}).catch((err) => {
+				if (!this.requestGeneration.isCurrent(ticket, identity)) return;
+				this.requestGeneration.invalidateAll();
+				this.clearSensitiveState();
 				this.error = String((err && err.msg) || err || '读取失败');
 			}).finally(() => {
-				this.loading = false;
+				if (this.requestGeneration.isCurrent(ticket, identity)) this.loading = false;
 			});
 		},
 		changeStatus(event) {
@@ -125,12 +152,36 @@ export default {
 			this.load(true);
 		},
 		openDetail(item) {
+			this.closeDetail();
+			const identity = this.contextKey(this.context) + ':attribution:' + Number(item.attribution_id);
+			const ticket = this.requestGeneration.next('detail', identity);
 			getYfthStoreCustomerAttributionDetail(item.attribution_id, this.params()).then((res) => {
+				if (!this.requestGeneration.isCurrent(ticket, identity)) return;
 				this.detail = (res.data && res.data.attribution) || {};
 				this.detailVisible = true;
 			}).catch((err) => {
+				if (!this.requestGeneration.isCurrent(ticket, identity)) return;
+				this.requestGeneration.invalidateAll();
+				this.clearSensitiveState();
 				uni.showToast({ title: String((err && err.msg) || err || '详情读取失败'), icon: 'none' });
 			});
+		},
+		contextKey(context) {
+			context = context || {};
+			return [Number(context.uid || 0), String(context.role_code || ''), Number(context.store_id || 0), String(context.identity_key || context.store_role_id || '')].join(':');
+		},
+		closeDetail() {
+			this.requestGeneration.invalidate('detail');
+			this.detailVisible = false;
+			this.detail = {};
+		},
+		clearSensitiveState() {
+			this.context = {};
+			this.list = [];
+			this.total = 0;
+			this.loading = false;
+			this.detailVisible = false;
+			this.detail = {};
 		},
 		formatTime(value) {
 			if (!Number(value)) return '-';

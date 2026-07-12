@@ -57,25 +57,51 @@
 
 <script>
 import { getYfthMyHqAuthority } from '@/api/yfth.js';
+const { createRequestGeneration } = require('@/libs/yfthRequestGeneration.js');
 
 export default {
 	data() {
 		return { loading: true, error: '', data: {} };
 	},
+	created() {
+		this.requestGeneration = createRequestGeneration();
+	},
 	onShow() {
+		this.requestGeneration.invalidateAll();
+		this.clearSensitiveState();
 		this.load();
+	},
+	onHide() {
+		this.requestGeneration.invalidateAll();
+		this.clearSensitiveState();
+	},
+	onUnload() {
+		this.requestGeneration.destroy();
+		this.clearSensitiveState();
 	},
 	methods: {
 		load() {
+			const uid = Number(this.$store.getters.uid || 0);
+			const identity = 'uid:' + uid;
+			const ticket = this.requestGeneration.next('me', identity);
+			this.data = {};
 			this.loading = true;
 			this.error = '';
 			getYfthMyHqAuthority().then((res) => {
+				if (!this.requestGeneration.isCurrent(ticket, 'uid:' + Number(this.$store.getters.uid || 0))) return;
 				this.data = res.data || {};
 			}).catch((err) => {
+				if (!this.requestGeneration.isCurrent(ticket, identity)) return;
+				this.data = {};
 				this.error = String((err && err.msg) || '请稍后重试');
 			}).finally(() => {
-				this.loading = false;
+				if (this.requestGeneration.isCurrent(ticket, identity)) this.loading = false;
 			});
+		},
+		clearSensitiveState() {
+			this.loading = false;
+			this.error = '';
+			this.data = {};
 		},
 		formatTime(value) {
 			const date = new Date(Number(value || 0) * 1000);

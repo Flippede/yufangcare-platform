@@ -29,12 +29,13 @@ class HqAuthorityAdminReadServices
         $result['list'] = array_map(function ($row) use ($users, $stores) {
             $uid = (int)$row['uid'];
             $storeId = (int)$row['store_id'];
+            $referral = $this->read->activeReferralSummary($uid, $storeId);
             return $this->dto->adminAttribution(
                 $row,
                 $users[$uid] ?? [],
                 $stores[$storeId] ?? [],
-                $this->read->hasActiveReferral($uid, $storeId),
-                $this->read->isAttributionConsistent($row)
+                $referral['has_active_referral'],
+                $this->read->isAttributionConsistent($row) && $referral['consistent']
             );
         }, $result['list']);
         return $result;
@@ -51,12 +52,13 @@ class HqAuthorityAdminReadServices
         $storeId = (int)$row['store_id'];
         $users = $this->read->userMap([$uid]);
         $stores = $this->read->storeMap([$storeId]);
+        $referral = $this->read->activeReferralSummary($uid, $storeId);
         return ['attribution' => $this->dto->adminAttribution(
             $row,
             $users[$uid] ?? [],
             $stores[$storeId] ?? [],
-            $this->read->hasActiveReferral($uid, $storeId),
-            $this->read->isAttributionConsistent($row)
+            $referral['has_active_referral'],
+            $this->read->isAttributionConsistent($row) && $referral['consistent']
         )];
     }
 

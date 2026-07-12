@@ -17,6 +17,7 @@ $productionFiles = [
     'app/services/yfth/HqAuthorityMutation.php',
     'app/services/yfth/HqAuthoritySourceCanonicalizer.php',
     'app/services/yfth/HqAuthorityOperationRunner.php',
+    'app/services/yfth/HqAuthorityConsistencyValidator.php',
     'app/services/yfth/HqCustomerAttributionServices.php',
     'app/services/yfth/HqActiveReferralServices.php',
     'app/services/yfth/ReferralQualificationPolicy.php',
@@ -40,9 +41,10 @@ foreach ([
 ] as $forbidden) {
     $assert(strpos($production, $forbidden) === false, 'production_authority_does_not_reference_' . $forbidden);
 }
-foreach (['test_', 'YFTH_', 'getenv(', 'Config::', 'skip', 'force'] as $forbidden) {
+foreach (['YFTH_', 'getenv(', 'Config::', 'skip', 'force'] as $forbidden) {
     $assert(strpos($production, $forbidden) === false, 'production_authority_has_no_test_or_bypass_marker_' . preg_replace('/\W+/', '_', $forbidden));
 }
+$assert(!preg_match('/\btest_/i', $production), 'production_authority_has_no_test_or_bypass_marker_test_');
 $assert(strpos($migration, 'system_menus') === false, 'migration_has_no_system_menus');
 $assert(strpos($migration, 'api_url') === false && strpos($migration, 'unique_auth') === false, 'migration_has_no_api_permission');
 $assert(strpos($migration, 'INSERT INTO') === false, 'migration_seeds_no_fixture_or_business_data');
@@ -85,12 +87,15 @@ foreach ($diff as $path) {
         'template/admin/src/api/yfth.js',
         'template/admin/src/router/modules/yfth.js',
         'template/admin/src/pages/yfth/hqAuthority/index.vue',
+        'template/admin/src/pages/yfth/hqAuthority/requestGeneration.js',
         'template/uni-app/api/yfth.js',
         'template/uni-app/pages.json',
         'template/uni-app/pages/user/index.vue',
         'template/uni-app/pages/yfth/workbench/index.vue',
         'template/uni-app/pages/yfth/authority/index.vue',
         'template/uni-app/pages/yfth/workbench/customer_attribution/index.vue',
+        'template/uni-app/libs/yfthRequestGeneration.js',
+        'template/uni-app/tests/yfth_hq_authority_frontend_state_check.js',
     ], true);
     $forbiddenPath = preg_match('#^(crmeb/app/(api|adminapi)/(controller|route)|crmeb/app/(command|listener)|template/)#', $normalized)
         || strpos($normalized, 'crmeb/app/event.php') === 0;

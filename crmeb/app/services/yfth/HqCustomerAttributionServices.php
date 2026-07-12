@@ -21,6 +21,7 @@ class HqCustomerAttributionServices extends YfthFoundationBaseServices
     private $canonicalizer;
     private $runner;
     private $audit;
+    private $consistency;
 
     public function __construct(
         YfthHqCustomerAttributionCurrentDao $dao,
@@ -29,7 +30,8 @@ class HqCustomerAttributionServices extends YfthFoundationBaseServices
         SystemStoreDao $storeDao,
         HqAuthoritySourceCanonicalizer $canonicalizer,
         HqAuthorityOperationRunner $runner,
-        AuditEventServices $audit
+        AuditEventServices $audit,
+        HqAuthorityConsistencyValidator $consistency
     ) {
         $this->dao = $dao;
         $this->eventDao = $eventDao;
@@ -38,6 +40,7 @@ class HqCustomerAttributionServices extends YfthFoundationBaseServices
         $this->canonicalizer = $canonicalizer;
         $this->runner = $runner;
         $this->audit = $audit;
+        $this->consistency = $consistency;
     }
 
     public function ensurePlaceholder(int $uid): array
@@ -252,32 +255,7 @@ class HqCustomerAttributionServices extends YfthFoundationBaseServices
 
     private function assertConsistent(array $row): void
     {
-        $status = (string)$row['status'];
-        $storeId = (int)$row['store_id'];
-        $version = (int)$row['authority_version'];
-        if (!in_array($status, self::STATUSES, true)
-            || (in_array($status, ['active', 'paused'], true) && $storeId <= 0)
-            || (in_array($status, ['unassigned', 'closed'], true) && $storeId !== 0)) {
-            throw new ApiException('attribution_current_inconsistent');
-        }
-        $events = $this->eventDao->search([])
-            ->where('attribution_current_id', (int)$row['id'])
-            ->lock(true)
-            ->select()
-            ->toArray();
-        $eventCount = count($events);
-        if ($version === 0) {
-            if (!$this->isPristineShape($row) || $eventCount !== 0) {
-                throw new ApiException('attribution_placeholder_inconsistent');
-            }
-            return;
-        }
-        $versionEvent = count(array_filter($events, function ($event) use ($version) {
-            return (int)$event['authority_version'] === $version;
-        }));
-        if ($eventCount !== $version || $versionEvent !== 1) {
-            throw new ApiException('attribution_event_version_inconsistent');
-        }
+        $this->consistency->assertAttribution($row, true);
     }
 
     private function isPristineShape(array $row): bool

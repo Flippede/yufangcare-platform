@@ -12,7 +12,7 @@ use crmeb\exceptions\ApiException;
 
 class HqAuthorityReadServices
 {
-    private const ATTRIBUTION_FIELDS = 'id,uid,store_id,status,status_reason_code,authority_version,source_type,bound_at,paused_at,closed_at,close_reason,add_time,update_time';
+    private const ATTRIBUTION_FIELDS = 'id,uid,store_id,status,status_reason_code,authority_version,source_type,source_id,bound_at,paused_at,closed_at,close_reason,add_time,update_time';
     private const REFERRAL_FIELDS = 'id,relation_no,referrer_uid,referred_uid,store_id,attribution_current_id,status,active_referred_uid,source_type,started_at,paused_at,closed_at,close_reason,relation_version,add_time,update_time';
     private const ATTRIBUTION_STATUSES = ['active', 'paused', 'unassigned', 'closed'];
     private const REFERRAL_STATUSES = ['active', 'paused', 'closed', 'invalid'];
@@ -23,6 +23,7 @@ class HqAuthorityReadServices
     private $referralEventDao;
     private $userDao;
     private $storeDao;
+    private $consistency;
 
     public function __construct(
         YfthHqCustomerAttributionCurrentDao $attributionDao,
@@ -30,7 +31,8 @@ class HqAuthorityReadServices
         YfthHqActiveReferralCurrentDao $referralDao,
         YfthHqActiveReferralEventDao $referralEventDao,
         UserDao $userDao,
-        SystemStoreDao $storeDao
+        SystemStoreDao $storeDao,
+        HqAuthorityConsistencyValidator $consistency
     ) {
         $this->attributionDao = $attributionDao;
         $this->attributionEventDao = $attributionEventDao;
@@ -38,6 +40,7 @@ class HqAuthorityReadServices
         $this->referralEventDao = $referralEventDao;
         $this->userDao = $userDao;
         $this->storeDao = $storeDao;
+        $this->consistency = $consistency;
     }
 
     public function attributionByUid(int $uid): array
@@ -66,8 +69,17 @@ class HqAuthorityReadServices
 
     public function hasActiveReferral(int $referredUid, int $storeId = 0): bool
     {
+        $summary = $this->activeReferralSummary($referredUid, $storeId);
+        if (!$summary['consistent']) {
+            throw new ApiException('authority_data_requires_headquarters_review');
+        }
+        return $summary['has_active_referral'];
+    }
+
+    public function activeReferralSummary(int $referredUid, int $storeId = 0): array
+    {
         if ($referredUid <= 0) {
-            return false;
+            return ['has_active_referral' => false, 'consistent' => true];
         }
         $query = $this->referralDao->search([])
             ->where('referred_uid', $referredUid)
@@ -75,7 +87,13 @@ class HqAuthorityReadServices
         if ($storeId > 0) {
             $query = $query->where('store_id', $storeId);
         }
-        return (int)$query->count() > 0;
+        $rows = $query->field(self::REFERRAL_FIELDS)->select()->toArray();
+        foreach ($rows as $row) {
+            if (!$this->consistency->isReferralConsistent($row)) {
+                return ['has_active_referral' => false, 'consistent' => false];
+            }
+        }
+        return ['has_active_referral' => count($rows) > 0, 'consistent' => true];
     }
 
     public function attributionPage(array $filters, int $forcedStoreId = 0, array $forcedStatuses = []): array
@@ -152,45 +170,12 @@ class HqAuthorityReadServices
 
     public function isAttributionConsistent(array $row): bool
     {
-        if (!$row || !in_array((string)$row['status'], self::ATTRIBUTION_STATUSES, true)) {
-            return false;
-        }
-        $status = (string)$row['status'];
-        $storeId = (int)$row['store_id'];
-        if ((in_array($status, ['active', 'paused'], true) && $storeId <= 0)
-            || (in_array($status, ['unassigned', 'closed'], true) && $storeId !== 0)) {
-            return false;
-        }
-        $version = (int)$row['authority_version'];
-        $eventCount = (int)$this->attributionEventDao->search([])
-            ->where('attribution_current_id', (int)$row['id'])->count();
-        if ($version === 0) {
-            return $status === 'unassigned' && $storeId === 0
-                && (string)$row['status_reason_code'] === 'initial_placeholder' && $eventCount === 0;
-        }
-        return $version > 0 && $eventCount === $version
-            && (int)$this->attributionEventDao->search([])
-                ->where('attribution_current_id', (int)$row['id'])
-                ->where('authority_version', $version)->count() === 1;
+        return $row && $this->consistency->isAttributionConsistent($row);
     }
 
     public function isReferralConsistent(array $row): bool
     {
-        if (!$row || !in_array((string)$row['status'], self::REFERRAL_STATUSES, true)) {
-            return false;
-        }
-        $status = (string)$row['status'];
-        $activeUid = $row['active_referred_uid'] === null ? null : (int)$row['active_referred_uid'];
-        if ((in_array($status, ['active', 'paused'], true) && $activeUid !== (int)$row['referred_uid'])
-            || (in_array($status, ['closed', 'invalid'], true) && $activeUid !== null)) {
-            return false;
-        }
-        $version = (int)$row['relation_version'];
-        return $version >= 1
-            && (int)$this->referralEventDao->search([])->where('referral_current_id', (int)$row['id'])->count() === $version
-            && (int)$this->referralEventDao->search([])
-                ->where('referral_current_id', (int)$row['id'])
-                ->where('relation_version', $version)->count() === 1;
+        return $row && $this->consistency->isReferralConsistent($row);
     }
 
     public function userMap(array $uids): array
@@ -225,12 +210,7 @@ class HqAuthorityReadServices
 
     private function page(array $filters): array
     {
-        $page = max(1, (int)($filters['page'] ?? 1));
-        $limit = (int)($filters['limit'] ?? 20);
-        if ($limit <= 0) {
-            $limit = 20;
-        }
-        return [$page, min($limit, 50)];
+        return [(int)$filters['page'], (int)$filters['limit']];
     }
 
     private function statusFilter(string $status, array $allowed): array
@@ -261,8 +241,8 @@ class HqAuthorityReadServices
 
     private function applyDateRange(&$query, array $filters, string $field): void
     {
-        $start = $this->timestamp($filters['start_date'] ?? 0, false);
-        $end = $this->timestamp($filters['end_date'] ?? 0, true);
+        $start = $this->timestamp($filters['start_date'] ?? '', false);
+        $end = $this->timestamp($filters['end_date'] ?? '', true);
         if ($start && $end && ($end < $start || $end - $start > 366 * 86400)) {
             throw new ApiException('authority_date_range_invalid');
         }
@@ -276,11 +256,8 @@ class HqAuthorityReadServices
 
     private function timestamp($value, bool $endOfDay): int
     {
-        if ($value === '' || $value === null || (int)$value === 0) {
+        if ($value === '' || $value === null) {
             return 0;
-        }
-        if (is_numeric($value) && (int)$value > 1000000000) {
-            return (int)$value;
         }
         $text = trim((string)$value);
         if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $text)) {

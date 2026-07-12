@@ -1,5 +1,19 @@
 # 御方通和总部统一商城 Stage 1B Read-only Surface
 
+## First Audit Findings Closure
+
+The first independent architecture review conclusion remains **B, conditionally passed**. The following implementation closes the identified findings for another independent review; it does not claim an A result and does not authorize merging `main`.
+
+- `HqAuthorityConsistencyValidator` is the single side-effect-free consistency authority shared by Stage 1A write services and Stage 1B read services. It never creates placeholders, changes current/events, writes idempotency, repairs data, or falls back to legacy CRM/referral/5980 facts.
+- Attribution checks freeze legal current state/store/reason/version combinations, pristine version-zero shape, exact event count, strict contiguous `1..N` versions, current ID and UID ownership, event chain continuity, first-event semantics, and latest store/status/reason/source content.
+- Referral checks freeze relation/current identity, referrer/referred/store ownership, exact event count, strict contiguous `1..N` versions, event chains, current active UID semantics, latest status/event type, and `membership_activated` close semantics.
+- User and store surfaces fail closed on any inconsistency. Headquarters ordinary readers receive only a minimal `data_inconsistent=true` governance DTO; independently authorized audit readers may inspect the structured event timeline. No read path repairs data.
+- `HqAuthorityReadParameterServices` performs strict positive decimal ID/page/limit parsing, caps `limit` at 50, validates exact `Y-m-d` dates and a maximum ordered 366-day range, and rejects client sort/order fields.
+- The seven-permission migration now validates complete signatures and fails closed on duplicate `unique_auth`, wrong signatures, or recorded incomplete state. It fills only missing permissions in a no-record compatible partial state, does not overwrite existing rows or role rules, and down removes only exact verified rows.
+- Admin, store and user pages use request generations plus clear-before-load/failure rules. Permission, audit capability, tab, filter, page, role, store, context, user and lifecycle changes invalidate stale responses and clear sensitive state.
+
+Executable evidence is recorded in `YFTH_HQ_MALL_STAGE1B_RUNTIME_VALIDATION.md`. Stage 1B remains GET-only, unmerged and pending independent read-only architecture review.
+
 ## 1. 阶段定位
 
 Stage 1B 只为 Stage 1A 已落库的总部商城权威数据提供受控只读表面。它不创建归属或推荐关系，不执行状态迁移，也不承担旧数据承接。

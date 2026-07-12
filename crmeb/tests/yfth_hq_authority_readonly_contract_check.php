@@ -27,6 +27,8 @@ try {
         'app/services/yfth/HqAuthorityStoreReadServices.php',
         'app/services/yfth/HqAuthorityAdminReadServices.php',
         'app/services/yfth/HqAuthorityAuditReadServices.php',
+        'app/services/yfth/HqAuthorityConsistencyValidator.php',
+        'app/services/yfth/HqAuthorityReadParameterServices.php',
         'app/api/controller/v1/yfth/HqAuthorityReadController.php',
         'app/api/controller/v1/yfth/HqAuthorityStoreReadController.php',
         'app/adminapi/controller/v1/yfth/HqAuthorityRead.php',
@@ -62,7 +64,9 @@ try {
         }
         $assert(strpos($userController, $needle) === false, 'user_controller_does_not_accept:' . $needle);
     }
-    $assert(strpos($storeController, "['status', '']") !== false && strpos($storeController, "['keyword', '']") !== false, 'store_controller_filter_whitelist');
+    $assert(strpos($storeController, 'HqAuthorityReadParameterServices') !== false
+        && strpos($storeController, 'storeFilters($request->get())') !== false,
+        'store_controller_uses_central_strict_filter_parser');
     $assert(strpos($storeController, "['store_id'") === false && strpos($storeController, "['uid'") === false, 'store_controller_does_not_accept_scope_or_uid_filter');
     foreach (['attributionList', 'attributionDetail', 'referralList', 'referralDetail', 'attributionEvents', 'referralEvents'] as $method) {
         $assert(strpos($adminController, 'function ' . $method . '(') !== false, 'admin_get_method:' . $method);
@@ -76,6 +80,8 @@ try {
     $adminService = $read('app/services/yfth/HqAuthorityAdminReadServices.php');
     $auditService = $read('app/services/yfth/HqAuthorityAuditReadServices.php');
     $dto = $read('app/services/yfth/HqAuthorityDtoServices.php');
+    $validator = $read('app/services/yfth/HqAuthorityConsistencyValidator.php');
+    $parameters = $read('app/services/yfth/HqAuthorityReadParameterServices.php');
     foreach (['YfthHqCustomerAttributionCurrentDao', 'YfthHqCustomerAttributionEventDao', 'YfthHqActiveReferralCurrentDao', 'YfthHqActiveReferralEventDao'] as $dao) {
         $assert(strpos($readService, $dao) !== false, 'readonly_core_uses_dao:' . $dao);
     }
@@ -86,6 +92,14 @@ try {
     $assert(strpos($dto, 'phone_masked') !== false && strpos($dto, 'maskPhone') !== false, 'dto_reuses_phone_masking');
     $assert(strpos($dto, "?? '系统来源'") !== false, 'unknown_source_uses_safe_label');
     $assert(strpos($dto, 'has_active_referral') !== false, 'user_and_store_only_expose_referral_boolean');
+    $assert(strpos($readService, 'HqAuthorityConsistencyValidator') !== false
+        && strpos($validator, '$expectedVersion = $offset + 1') !== false,
+        'stage1b_uses_shared_strict_consistency_validator');
+    $assert((bool)preg_match("/ATTRIBUTION_FIELDS\\s*=\\s*'[^']*source_type,source_id,/", $readService),
+        'attribution_projection_contains_consistency_source_id');
+    foreach (["preg_match('/^[1-9][0-9]*$/D'", "createFromFormat('!Y-m-d'", 'authority_date_range_invalid', 'LIMIT_MAX = 50', 'authority_sort_invalid'] as $needle) {
+        $assert(strpos($parameters, $needle) !== false, 'strict_parameter_rule:' . preg_replace('/\W+/', '_', $needle));
+    }
 
     $production = $readService . $storeService . $adminService . $auditService . $dto . $userController . $storeController . $adminController;
     foreach (['source_unique_key', 'idempotency_key', 'HqCustomerAttributionServices', 'HqActiveReferralServices', 'ensurePlaceholder'] as $forbidden) {
@@ -102,6 +116,9 @@ try {
         $assert(strpos($migration, $auth) !== false, 'permission_exists:' . $auth);
     }
     $assert(substr_count($migration, "'methods' => 'GET'") >= 2, 'permission_methods_are_get');
+    foreach (['permission_duplicate', 'permission_signature_mismatch', 'forward_repair_required', 'down_signature_ambiguous'] as $needle) {
+        $assert(strpos($migration, $needle) !== false, 'permission_migration_fail_closed:' . $needle);
+    }
     foreach (['yfth_hq_customer_attribution_current', 'yfth_hq_active_referral_current', 'createTable', 'addColumn'] as $forbidden) {
         $assert(strpos($migration, $forbidden) === false, 'permission_migration_does_not_change_business_schema:' . $forbidden);
     }
@@ -118,6 +135,9 @@ try {
     $assert(strpos($uniUser, 'getYfthMyHqAuthority') !== false, 'uni_user_page_uses_real_api');
     $assert(strpos($uniStore, "['franchisee', 'store_manager']") !== false, 'uni_store_page_role_gate');
     $assert(strpos($uniStore, 'getYfthStoreCustomerAttributions') !== false, 'uni_store_page_uses_real_api');
+    $assert(strpos($adminPage, 'requestGeneration') !== false && strpos($adminPage, 'failClosed') !== false, 'admin_page_stale_state_guard');
+    $assert(strpos($uniStore, 'requestGeneration') !== false && strpos($uniStore, 'contextKey') !== false, 'uni_store_context_generation_guard');
+    $assert(strpos($uniUser, 'requestGeneration') !== false, 'uni_user_uid_generation_guard');
 
     $diffExit = 0;
     exec('git -C ' . escapeshellarg($repo) . ' diff --quiet main -- crmeb/database/migrations/20260713100000_create_yfth_hq_authority_foundation_tables.php', $unused, $diffExit);
