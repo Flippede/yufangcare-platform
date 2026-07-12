@@ -1,5 +1,14 @@
 # 御方通和总部统一商城 Stage 1A 权威基础域
 
+## 最终闭环状态
+
+- 最终独立架构复核结论：A，通过；无 Blocker/P1/P2/P3。
+- 最终审核提交：`50b9f59d78509dfdcdb326d622325dcc4e5dba6b`。
+- 该提交已通过 `git merge --ff-only codex/yfth-hq-mall-stage1a-authority-foundation` 快进合并进入 `main`，未创建 merge commit 或改写历史。
+- Stage 1A 合并后仍没有生产业务入口，production source allowlist 仍为空，production qualification 仍 fail closed。
+- 本次合并不授权 Stage 1B。真实 membership、package、referral-binding 和 takeover source 必须在后续独立阶段冻结、实现和审核。
+- 功能分支本地和远端继续保留；未执行生产 migration、生产部署或微信上传。
+
 ## 1. 阶段边界
 
 Stage 1A 只建立永久客户门店归属和活跃一级推荐关系的内部权威基础。它不提供 Controller、route、Command、Listener、Job、定时任务、菜单、API 权限或前端页面，也不开放任何生产写入口。

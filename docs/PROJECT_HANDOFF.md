@@ -1,5 +1,18 @@
 # 项目交接文档
 
+## Current Fact Snapshot - Final Headquarters Mall Stage 1A Authority Foundation Closure
+
+- Final independent architecture review conclusion: A, passed. Blocker, P1, P2 and P3 are all clear. The reviewed Stage 1A commit is `50b9f59d78509dfdcdb326d622325dcc4e5dba6b`.
+- Main before merge was `ec1eeb61ad1755de35b5c8744bee6d51fe779b70`. Stage 1A entered `main` through `git merge --ff-only codex/yfth-hq-mall-stage1a-authority-foundation`; no merge commit, squash, rebase, cherry-pick or history rewrite was used.
+- The local and remote feature branches remain preserved at the reviewed commit. They were not deleted or rewritten.
+- Stable main now contains the four authority tables, Models, DAOs, attribution/referral internal Services, append-only versioned events, canonical source ownership, guarded idempotency/retry logic, strict migration signatures and isolated verification assets.
+- All first-review findings are closed: migration index signatures are exact; source and qualification cannot be bypassed by existing-state shortcuts; database retry classification accepts only structured PDO lock/deadlock evidence; package-benefit real-flow reproducibility evidence is complete.
+- Production source allowlist remains empty and production referral qualification remains fail closed. Stage 1A still exposes no Controller, route, Command, Listener, Job, timer, menu, API permission, frontend or production write entry.
+- Not implemented or authorized: permanent membership, `member_yfth` projection, 9800 membership/package sale, customer/membership/package dynamic codes, reward candidates or amounts, refund/reversal/settlement, store takeover, CRM projection, historical import or legacy-entry hiding.
+- Stage 1B has not started. Merging Stage 1A does not authorize Stage 1B; its scope and real business source allowlists require a separate explicit project-control instruction and review.
+- This merge closure did not connect to production MySQL or Redis, execute production migration, deploy a server, modify production configuration or upload to WeChat.
+- Final `main` and `origin/main` commits must be read from actual Git HEAD after this documentation closure commit and push.
+
 ## Current Fact Snapshot - Headquarters Mall Stage 1A First Audit Findings Closure
 
 - First independent architecture review conclusion: B, conditionally passed. This development round closes P1-01, P1-02, P2-01 and adds independent evidence for P2-02; it does not claim a second review has passed or authorize merge.

@@ -1,5 +1,15 @@
 # 御方通和总部统一商城 Stage 1A 运行验证
 
+## 最终合并闭环
+
+- 第一次独立架构审核：B，有条件通过。
+- 审核发现项整改及最终审核提交：`50b9f59d78509dfdcdb326d622325dcc4e5dba6b`。
+- 第二次独立架构复核：A，通过；原 Blocker/P1/P2/P3 均已关闭。
+- 复核依据包括此前在审核提交上完成的 PHP 7.4.33、MySQL Community 8.0.46 migration lifecycle、错误索引反例、真实双进程竞争、lock-wait/deadlock、Stage 1A contract/source guard/real-flow 和全部要求的旧模块回归。
+- 审核提交已通过 `git merge --ff-only codex/yfth-hq-mall-stage1a-authority-foundation` 快进进入 `main`，没有 merge commit、squash、rebase、cherry-pick 或历史改写。
+- 本轮合并闭环没有重新执行完整 MySQL、migration lifecycle 或两进程测试。合并前实际重新执行的轻量检查只有：审核范围 `git diff --check`、Stage 1A 变更 PHP 文件语法、Stage 1A contract、Stage 1A source guard 和生产入口/冻结边界负向检查，结果均通过。
+- 合并不开放生产 source、qualification 或写入口，也不授权 Stage 1B。未连接生产数据库或 Redis，未执行生产 migration、部署或微信上传。
+
 ## 2026-07-12 第一次架构审核发现项整改验证
 
 第一次独立架构审核结论为 B，有条件通过。整改使用 PHP 7.4.33、MySQL Community Server 8.0.46、file cache 和本机隔离端口 33318；未连接生产数据库或 Redis。
