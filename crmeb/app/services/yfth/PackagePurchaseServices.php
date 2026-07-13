@@ -929,7 +929,10 @@ class PackagePurchaseServices extends PackageBenefitBaseServices
         }
 
         $templateId = (int)($data['template_id'] ?? 0);
-        $storeId = (int)($data['store_id'] ?? 0);
+        $storeId = app()->make(PackageMembershipReferralServices::class)->resolveAuthoritativeStoreForPurchase(
+            $uid,
+            (int)($data['store_id'] ?? 0)
+        );
         $productId = (int)($data['product_id'] ?? 0);
         $skuUnique = trim((string)($data['product_attr_unique'] ?? ''));
         if ($templateId <= 0 || $storeId <= 0 || $productId <= 0 || $skuUnique === '') {
@@ -940,6 +943,7 @@ class PackagePurchaseServices extends PackageBenefitBaseServices
         $templateServices = app()->make(PackageTemplateServices::class);
         $template = $templateServices->requirePublishedTemplate($templateId);
         $rule = $templateServices->currentRule($templateId);
+        app()->make(PackageMembershipReferralServices::class)->assertMembershipGrantRule($uid, $rule);
         $clientRuleVersionId = (int)($data['rule_version_id'] ?? 0);
         if ($clientRuleVersionId > 0 && $clientRuleVersionId !== (int)$rule['id']) {
             throw new ApiException('client_rule_version_mismatch');
@@ -993,6 +997,7 @@ class PackagePurchaseServices extends PackageBenefitBaseServices
                 'version_no' => (int)$rule['version_no'],
                 'package_price' => $this->normalizeMoney($rule['package_price']),
                 'month_count' => (int)$rule['month_count'],
+                'grants_permanent_membership' => (int)($rule['grants_permanent_membership'] ?? 0),
                 'benefit_hash' => $benefitHash,
                 'agreement_title' => $rule['agreement_title'],
                 'agreement_content_summary' => $rule['agreement_content_summary'],
@@ -1652,6 +1657,7 @@ class PackagePurchaseServices extends PackageBenefitBaseServices
             'package_price' => $this->normalizeMoney($validation['rule']['package_price']),
             'currency' => (string)($validation['template']['currency'] ?? 'CNY'),
             'month_count' => (int)$validation['rule']['month_count'],
+            'grants_permanent_membership' => (int)($validation['rule']['grants_permanent_membership'] ?? 0),
             'product_id' => (int)$validation['product']['product_id'],
             'product_attr_unique' => (string)$validation['product']['product_attr_unique'],
             'product_name' => (string)$validation['product']['product_name'],

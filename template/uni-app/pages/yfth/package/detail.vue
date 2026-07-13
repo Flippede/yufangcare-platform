@@ -4,6 +4,7 @@
 			<view class="title">{{ detail.package_title || detail.package_name }}</view>
 			<view class="price">¥{{ price }}</view>
 			<view class="meta">{{ monthCount }}个月权益计划</view>
+			<view v-if="grantsMembership" class="membership-badge">激活后获得永久会员资格</view>
 		</view>
 		<view class="section">
 			<view class="section-title">套餐内容</view>
@@ -38,6 +39,9 @@ export default {
 		},
 		monthCount() {
 			return (this.detail.rule && this.detail.rule.month_count) || this.detail.benefit_months || 0;
+		},
+		grantsMembership() {
+			return Boolean(this.detail.rule && this.detail.rule.grants_permanent_membership);
 		}
 	},
 	onLoad(options) {
@@ -85,6 +89,14 @@ export default {
 	margin-top: 12rpx;
 	font-size: 26rpx;
 	opacity: 0.86;
+}
+.membership-badge {
+	display: inline-block;
+	margin-top: 18rpx;
+	padding: 10rpx 18rpx;
+	border: 1px solid rgba(255, 255, 255, 0.56);
+	border-radius: 8rpx;
+	font-size: 24rpx;
 }
 .section {
 	margin: 24rpx;

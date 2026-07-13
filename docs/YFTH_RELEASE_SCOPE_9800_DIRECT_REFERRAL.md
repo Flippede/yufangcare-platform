@@ -1,7 +1,7 @@
 > [!CAUTION]
 > **状态：Superseded**
 >
-> 本文档已被“总部统一商城 + 永久商家归属 + 独立会员 + 独立业务套餐 + 循环三三制”方案取代，不得继续作为代码开发依据。最新产品依据为 [YFTH_RELEASE_SCOPE_HQ_MALL_MEMBERSHIP_REFERRAL.md](YFTH_RELEASE_SCOPE_HQ_MALL_MEMBERSHIP_REFERRAL.md)。本文件仅保留用于历史追踪；其中 B 商家独立商城、单轮三人、在线 `9800` 套餐等口径均已失效。
+> 本文档及其后继“独立会员 + 独立业务套餐”方案均已被 [YFTH_RELEASE_SCOPE_PACKAGE_MEMBERSHIP_REFERRAL_V2.md](YFTH_RELEASE_SCOPE_PACKAGE_MEMBERSHIP_REFERRAL_V2.md) 覆盖，不得继续作为代码开发依据。本文件仅保留用于历史追踪；其中 B 商家独立商城、固定 `9800`、独立会员费和旧推荐口径均已失效。
 
 # YFTH 9800 Release Scope - Direct Referral, Store Binding And City Partner
 

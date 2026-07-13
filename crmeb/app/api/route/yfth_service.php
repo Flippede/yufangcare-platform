@@ -36,6 +36,16 @@ Route::group(function () {
     ->option(['mark' => 'yfth_hq_authority_user_read', 'mark_name' => 'YFTH headquarters authority user read API']);
 
 Route::group(function () {
+    Route::get('yfth/package_membership/me', 'v1.yfth.PackageMembershipReferralController/me')->option(['real_name' => 'YFTH package membership status']);
+    Route::post('yfth/package_membership/invite', 'v1.yfth.PackageMembershipReferralController/issueInvite')->option(['real_name' => 'YFTH direct referral invite issue']);
+    Route::post('yfth/package_membership/invite/accept', 'v1.yfth.PackageMembershipReferralController/acceptInvite')->option(['real_name' => 'YFTH direct referral invite accept']);
+    Route::get('yfth/package_membership/candidate', 'v1.yfth.PackageMembershipReferralController/candidates')->option(['real_name' => 'YFTH my reward candidates']);
+})->middleware(\app\http\middleware\AllowOriginMiddleware::class)
+    ->middleware(\app\api\middleware\StationOpenMiddleware::class)
+    ->middleware(\app\api\middleware\AuthTokenMiddleware::class)
+    ->option(['mark' => 'yfth_package_membership_user', 'mark_name' => 'YFTH package membership and referral user API']);
+
+Route::group(function () {
     Route::get('yfth/store_workbench/overview', 'v1.yfth.StoreWorkbenchController/overview')->option(['real_name' => 'YFTH store workbench overview']);
     Route::get('yfth/store_workbench/customer_attribution', 'v1.yfth.HqAuthorityStoreReadController/index')->option(['real_name' => 'YFTH store customer attribution list']);
     Route::get('yfth/store_workbench/customer_attribution/:id', 'v1.yfth.HqAuthorityStoreReadController/detail')->option(['real_name' => 'YFTH store customer attribution detail']);
@@ -55,6 +65,8 @@ Route::group(function () {
     Route::get('yfth/store_workbench/monthly_benefit/pickup', 'v1.yfth.StoreWorkbenchController/monthlyBenefitPickup')->option(['real_name' => 'YFTH store workbench monthly benefit pickup list']);
     Route::get('yfth/store_workbench/monthly_benefit/pickup/:id', 'v1.yfth.StoreWorkbenchController/monthlyBenefitPickupDetail')->option(['real_name' => 'YFTH store workbench monthly benefit pickup detail']);
     Route::post('yfth/store_workbench/monthly_benefit/pickup/:id/confirm', 'v1.yfth.StoreWorkbenchController/monthlyBenefitPickupConfirm')->option(['real_name' => 'YFTH store workbench monthly benefit pickup confirm']);
+    Route::get('yfth/store_workbench/package_membership/member', 'v1.yfth.PackageMembershipReferralStoreController/members')->option(['real_name' => 'YFTH store permanent memberships']);
+    Route::get('yfth/store_workbench/package_membership/candidate', 'v1.yfth.PackageMembershipReferralStoreController/candidates')->option(['real_name' => 'YFTH store reward candidates']);
 })->middleware(\app\http\middleware\AllowOriginMiddleware::class)
     ->middleware(\app\api\middleware\StationOpenMiddleware::class)
     ->middleware(\app\api\middleware\AuthTokenMiddleware::class)

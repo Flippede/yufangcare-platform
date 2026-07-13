@@ -17,6 +17,7 @@ use app\services\yfth\HqAuthoritySource;
 use app\services\yfth\HqAuthoritySourceCanonicalizer;
 use app\services\yfth\HqCustomerAttributionServices;
 use app\services\yfth\IdempotencyRecordServices;
+use app\services\yfth\FailClosedReferralQualificationPolicy;
 use app\services\yfth\ReferralQualificationPolicy;
 use think\App;
 
@@ -108,7 +109,9 @@ function hqAuthorityTestServices(bool $qualified = true, array $allowedSourceTyp
         app()->make(AuditEventServices::class),
         $consistency
     );
-    $policy = $qualified ? new YfthHqAuthorityTestQualificationPolicy() : null;
+    $policy = $qualified
+        ? new YfthHqAuthorityTestQualificationPolicy()
+        : new FailClosedReferralQualificationPolicy();
     $referral = new HqActiveReferralServices(
         app()->make(YfthHqActiveReferralCurrentDao::class),
         app()->make(YfthHqActiveReferralEventDao::class),

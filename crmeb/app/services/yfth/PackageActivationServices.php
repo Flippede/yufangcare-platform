@@ -115,6 +115,12 @@ class PackageActivationServices extends PackageBenefitBaseServices
         if ($purchaseId <= 0) {
             return;
         }
+        /** @var YfthPackagePurchaseSnapshotDao $snapshotDao */
+        $snapshotDao = app()->make(YfthPackagePurchaseSnapshotDao::class);
+        $snapshot = $snapshotDao->getOne(['purchase_id' => $purchaseId]);
+        if ($snapshot && (int)($snapshot['grants_permanent_membership'] ?? 0) === 1) {
+            return;
+        }
         try {
             app()->make(ReferralRewardServices::class)->recordPackageActivatedEvent($purchaseId, 'package_activated:package_purchase:' . $purchaseId);
         } catch (\Throwable $e) {
@@ -306,6 +312,9 @@ class PackageActivationServices extends PackageBenefitBaseServices
         $instanceServices = app()->make(PackageInstanceServices::class);
         $instanceServices->recomputeMemberIdentity((int)$purchaseRow['uid']);
 
+        $membership = app()->make(PackageMembershipActivationCoordinator::class)
+            ->activateInTransaction($purchaseRow, $snapshotRow, $instanceId);
+
         $this->recordPackageAudit('package_instance', (string)$instanceId, 'activate', [], [
             'purchase_id' => $purchaseId,
             'plan_id' => $planId,
@@ -317,6 +326,7 @@ class PackageActivationServices extends PackageBenefitBaseServices
             'instance_id' => $instanceId,
             'plan_id' => $planId,
             'month_count' => (int)$snapshotRow['month_count'],
+            'permanent_membership' => $membership,
         ];
     }
 

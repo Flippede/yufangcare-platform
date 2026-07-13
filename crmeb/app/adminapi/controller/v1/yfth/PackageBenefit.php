@@ -57,6 +57,7 @@ class PackageBenefit extends AuthController
             ['status', 'draft'],
             ['package_price', '0.00'],
             [['month_count', 'd'], 0],
+            [['grants_permanent_membership', 'd'], 1],
             ['benefit_rule_snapshot', []],
             ['agreement_title', ''],
             ['agreement_content', ''],

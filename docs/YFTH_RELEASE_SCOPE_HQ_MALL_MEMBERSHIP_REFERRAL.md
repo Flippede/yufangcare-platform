@@ -1,5 +1,10 @@
 # YFTH Release Scope - Headquarters Mall, Store Attribution, Membership And Referral Rewards
 
+> [!CAUTION]
+> **状态：Superseded Historical**
+>
+> 本文档中的“独立会员 + 独立业务套餐”模型已被 [YFTH_RELEASE_SCOPE_PACKAGE_MEMBERSHIP_REFERRAL_V2.md](YFTH_RELEASE_SCOPE_PACKAGE_MEMBERSHIP_REFERRAL_V2.md) 覆盖。当前权威规则是“套餐激活即永久会员 + 一级直推最小闭环”，套餐价格由版本化规则配置，`5980/9800` 均不是固定业务常量。本文仅保留历史追踪，不得继续作为开发或合并依据。
+
 > 文档状态：`Headquarters Mall Release Scope - Frozen Draft`
 >
 > 最新上线范围口径已冻结，旧的 B 商家独立商城方案已被取代；尚未允许直接开始业务代码开发。收益比例、退款边界和部分状态门禁仍需开发前确认，后续开发必须以本文件为最新产品依据。

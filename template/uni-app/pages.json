@@ -109,6 +109,12 @@
 					}
 				},
 				{
+					"path": "package_membership/index",
+					"style": {
+						"navigationBarTitleText": "套餐会员与一级推荐"
+					}
+				},
+				{
 					"path": "package/timeline",
 					"style": {
 						"navigationBarTitleText": "权益时间轴"
@@ -214,6 +220,12 @@
 					"path": "workbench/monthly_benefit_pickup",
 					"style": {
 						"navigationBarTitleText": "权益自提"
+					}
+				},
+				{
+					"path": "workbench/package_membership/index",
+					"style": {
+						"navigationBarTitleText": "门店套餐会员"
 					}
 				},
 				{

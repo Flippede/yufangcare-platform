@@ -100,7 +100,7 @@ class PackageTemplateServices extends PackageBenefitBaseServices
         $data = $this->normalizeRuleVersion($data, $id, $operatorUid, $before ? $before->toArray() : []);
 
         return $this->transaction(function () use ($ruleDao, $id, $data, $before, $operatorUid) {
-            $this->assertOnePublishedRule($data, $id);
+            $superseded = $this->supersedeCurrentPublishedRule($ruleDao, $data, $id);
             $result = $id ? $ruleDao->update($id, $data) : $ruleDao->save($data);
             $objectId = $id ?: (int)$result->id;
             if ($data['status'] === 'published') {
@@ -114,6 +114,17 @@ class PackageTemplateServices extends PackageBenefitBaseServices
                 ]);
             }
             $after = $id ? $ruleDao->get($id)->toArray() : array_merge($data, ['id' => $objectId]);
+            if ($superseded) {
+                $this->recordPackageAudit(
+                    'package_rule_version',
+                    (string)$superseded['before']['id'],
+                    'supersede',
+                    $superseded['before'],
+                    $superseded['after'],
+                    $operatorUid,
+                    'admin'
+                );
+            }
             $this->recordPackageAudit('package_rule_version', (string)$objectId, $id ? 'update' : 'create', $before ? $before->toArray() : [], $after, $operatorUid, 'admin');
             return $result;
         });
@@ -303,6 +314,12 @@ class PackageTemplateServices extends PackageBenefitBaseServices
         if ($data['month_count'] <= 0) {
             throw new AdminException('month_count_required');
         }
+        $data['grants_permanent_membership'] = array_key_exists('grants_permanent_membership', $data)
+            ? (int)!empty($data['grants_permanent_membership'])
+            : 1;
+        if ($data['status'] === 'published' && $data['grants_permanent_membership'] !== 1) {
+            throw new AdminException('published_package_rule_must_grant_permanent_membership');
+        }
         $data['benefit_rule_snapshot'] = $this->jsonEncode($data['benefit_rule_snapshot'] ?? []);
         $agreementContent = (string)($data['agreement_content'] ?? $template['agreement_content'] ?? '');
         $data['agreement_title'] = trim((string)($data['agreement_title'] ?? $template['agreement_title'] ?? ''));
@@ -369,17 +386,23 @@ class PackageTemplateServices extends PackageBenefitBaseServices
         return [$product, $sku];
     }
 
-    private function assertOnePublishedRule(array $data, int $id): void
+    private function supersedeCurrentPublishedRule(YfthPackageRuleVersionDao $ruleDao, array $data, int $id): array
     {
         if (!$data['active_key']) {
-            return;
+            return [];
         }
-        /** @var YfthPackageRuleVersionDao $ruleDao */
-        $ruleDao = app()->make(YfthPackageRuleVersionDao::class);
-        $existing = $ruleDao->getOne(['active_key' => $data['active_key']]);
-        if ($existing && (int)$existing['id'] !== $id) {
-            throw new AdminException('published_rule_version_exists');
+        $existing = $ruleDao->search([])->where('active_key', $data['active_key'])->lock(true)->find();
+        if (!$existing || (int)$existing['id'] === $id) {
+            return [];
         }
+        $before = $existing->toArray();
+        $update = [
+            'status' => 'superseded',
+            'active_key' => null,
+            'update_time' => time(),
+        ];
+        $ruleDao->update((int)$before['id'], $update);
+        return ['before' => $before, 'after' => array_merge($before, $update)];
     }
 
     private function assertOneActiveBinding(array $data, int $id): void
@@ -446,6 +469,7 @@ class PackageTemplateServices extends PackageBenefitBaseServices
     private function publicRuleRow(array $row): array
     {
         $row['package_price'] = $this->normalizeMoney($row['package_price'] ?? '0.00');
+        $row['grants_permanent_membership'] = (bool)($row['grants_permanent_membership'] ?? false);
         $row['benefit_rule_snapshot'] = $this->jsonDecode($row['benefit_rule_snapshot'] ?? '');
         return $row;
     }

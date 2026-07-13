@@ -204,6 +204,9 @@
         /></el-form-item>
         <el-form-item label="价格"><el-input v-model="forms.rule.package_price" /></el-form-item>
         <el-form-item label="权益月数"><el-input v-model="forms.rule.month_count" /></el-form-item>
+        <el-form-item label="激活永久会员">
+          <el-switch v-model="forms.rule.grants_permanent_membership" :active-value="1" :inactive-value="0" />
+        </el-form-item>
         <el-form-item label="状态">
           <el-select v-model="forms.rule.status">
             <el-option label="草稿" value="draft" />
@@ -431,7 +434,7 @@ export default {
       });
     },
     openRule() {
-      this.forms.rule = { status: 'draft', package_price: '0.00', month_count: 0 };
+      this.forms.rule = { status: 'draft', package_price: '0.00', month_count: 0, grants_permanent_membership: 1 };
       this.dialogs.rule = true;
     },
     saveRule() {

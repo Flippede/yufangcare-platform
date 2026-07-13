@@ -983,6 +983,30 @@ export function yfthMonthlyBenefitFulfillmentCancel(id, data) {
   });
 }
 
+export function yfthPackageMembershipMemberList(params) {
+  return request({ url: 'yfth/package_membership/member', method: 'get', params });
+}
+
+export function yfthPackageMembershipCandidateList(params) {
+  return request({ url: 'yfth/package_membership/candidate', method: 'get', params });
+}
+
+export function yfthPackageMembershipRuleList(params) {
+  return request({ url: 'yfth/package_membership/rule', method: 'get', params });
+}
+
+export function yfthPackageMembershipRuleSave(data) {
+  return request({ url: 'yfth/package_membership/rule', method: 'post', data });
+}
+
+export function yfthPackageMembershipRulePublish(id) {
+  return request({ url: `yfth/package_membership/rule/${id}/publish`, method: 'post' });
+}
+
+export function yfthPackageMembershipLegacyBackfill(data) {
+  return request({ url: 'yfth/package_membership/legacy_backfill', method: 'post', data });
+}
+
 export function yfthHqAuthorityAttributionList(params) {
   return request({ url: 'yfth/hq_authority/attribution', method: 'get', params });
 }

@@ -12,7 +12,11 @@ class HqAuthoritySourceCanonicalizer
 
     private $allowedSourceTypes;
 
-    public function __construct(array $allowedSourceTypes = [])
+    public function __construct(array $allowedSourceTypes = [
+        'package_membership_referral_invite',
+        'package_membership_activation',
+        'historical_package_activation',
+    ])
     {
         $this->allowedSourceTypes = array_values(array_unique(array_map('strval', $allowedSourceTypes)));
     }

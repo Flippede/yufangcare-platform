@@ -63,7 +63,10 @@ foreach (['INSERT INTO `' . 'eb_yfth', 'addColumn(', 'create()', 'seedFixture', 
 
 $canonicalizer = (string)file_get_contents($root . '/app/services/yfth/HqAuthoritySourceCanonicalizer.php');
 $qualification = (string)file_get_contents($root . '/app/services/yfth/FailClosedReferralQualificationPolicy.php');
-$assert(strpos($canonicalizer, '__construct(array $allowedSourceTypes = [])') !== false, 'production_source_allowlist_remains_empty_by_default');
+$assert(strpos($canonicalizer, "'package_membership_referral_invite'") !== false, 'production_source_allowlist_includes_referral_invite');
+$assert(strpos($canonicalizer, "'package_membership_activation'") !== false, 'production_source_allowlist_includes_membership_activation');
+$assert(strpos($canonicalizer, "'historical_package_activation'") !== false, 'production_source_allowlist_includes_historical_activation');
+$assert(strpos($canonicalizer, 'member_5980') === false, 'production_source_allowlist_does_not_adopt_legacy_member_source');
 $assert(strpos($qualification, 'permanent_membership_authority_unavailable') !== false, 'production_referral_qualification_remains_fail_closed');
 
 $adminApi = (string)file_get_contents($repo . '/template/admin/src/api/yfth.js');

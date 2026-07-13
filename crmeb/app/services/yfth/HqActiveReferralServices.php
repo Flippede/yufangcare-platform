@@ -25,7 +25,7 @@ class HqActiveReferralServices extends YfthFoundationBaseServices
         HqAuthorityOperationRunner $runner,
         AuditEventServices $audit,
         HqAuthorityConsistencyValidator $consistency,
-        ReferralQualificationPolicy $qualification = null
+        $qualification = null
     ) {
         $this->dao = $dao;
         $this->eventDao = $eventDao;
@@ -34,7 +34,10 @@ class HqActiveReferralServices extends YfthFoundationBaseServices
         $this->runner = $runner;
         $this->audit = $audit;
         $this->consistency = $consistency;
-        $this->qualification = $qualification ?: new FailClosedReferralQualificationPolicy();
+        if ($qualification !== null && !$qualification instanceof ReferralQualificationPolicy) {
+            throw new \InvalidArgumentException('referral_qualification_policy_invalid');
+        }
+        $this->qualification = $qualification ?: new PackageMembershipReferralQualificationPolicy();
     }
 
     public function create(int $referrerUid, int $referredUid, int $storeId, HqAuthorityMutation $mutation): array
@@ -50,78 +53,135 @@ class HqActiveReferralServices extends YfthFoundationBaseServices
             ['referrer_uid' => $referrerUid, 'referred_uid' => $referredUid, 'store_id' => $storeId],
             'referred_uid:' . $referredUid,
             function () use ($referrerUid, $referredUid, $storeId, $relationSourceKey, $eventSourceKey, $mutation) {
-                $attributions = $this->attribution->lockCurrents([$referrerUid, $referredUid]);
-                $this->assertActiveAttribution($attributions[$referrerUid], $storeId);
-                $this->assertActiveAttribution($attributions[$referredUid], $storeId);
-
-                $active = $this->row($this->dao->search([])
-                    ->where('active_referred_uid', $referredUid)->lock(true)->find());
-                if ($active) {
-                    if ((int)$active['referrer_uid'] === $referrerUid && (int)$active['store_id'] === $storeId) {
-                        $this->qualification->assertQualified($referrerUid, $storeId);
-                        return $this->result($active, $active, false);
-                    }
-                    throw new ApiException('referral_referred_already_occupied');
-                }
-
-                $historical = $this->row($this->dao->search([])
-                    ->where('referred_uid', $referredUid)->order('id desc')->lock(true)->find());
-                if ($historical) {
-                    throw new ApiException('referral_historical_relation_rebind_forbidden');
-                }
-                $reverse = $this->row($this->dao->search([])
-                    ->where('referrer_uid', $referredUid)
-                    ->where('active_referred_uid', $referrerUid)
-                    ->lock(true)->find());
-                if ($reverse) {
-                    throw new ApiException('referral_direct_reverse_relation_forbidden');
-                }
-
-                $this->qualification->assertQualified($referrerUid, $storeId);
-                $existingSource = $this->row($this->dao->getOne(['source_unique_key' => $relationSourceKey]));
-                if ($existingSource) {
-                    if ((int)$existingSource['referrer_uid'] === $referrerUid
-                        && (int)$existingSource['referred_uid'] === $referredUid
-                        && (int)$existingSource['store_id'] === $storeId) {
-                        return $this->result($existingSource, $existingSource, false);
-                    }
-                    throw new ApiException('referral_source_conflict');
-                }
-
-                $now = time();
-                try {
-                    $created = $this->dao->save([
-                        'relation_no' => $this->makeNo('HRR'),
-                        'referrer_uid' => $referrerUid,
-                        'referred_uid' => $referredUid,
-                        'store_id' => $storeId,
-                        'attribution_current_id' => (int)$attributions[$referredUid]['id'],
-                        'status' => 'active',
-                        'active_referred_uid' => $referredUid,
-                        'source_type' => $mutation->source()->type(),
-                        'source_id' => $mutation->source()->id(),
-                        'source_unique_key' => $relationSourceKey,
-                        'started_at' => $now,
-                        'paused_at' => 0,
-                        'closed_at' => 0,
-                        'close_reason' => '',
-                        'relation_version' => 1,
-                        'request_id' => $mutation->requestId(),
-                        'add_time' => $now,
-                        'update_time' => $now,
-                    ])->toArray();
-                } catch (\Throwable $e) {
-                    if ($this->isUniqueConflict($e)) {
-                        throw new ApiException('referral_unique_conflict');
-                    }
-                    throw $e;
-                }
-                $this->appendEvent([], $created, 'relation_created', $eventSourceKey, $mutation);
-                return $this->result([], $created, true);
+                return $this->createWithLockedCurrentsInTransaction(
+                    $referrerUid,
+                    $referredUid,
+                    $storeId,
+                    $mutation,
+                    $this->attribution->lockCurrents([$referrerUid, $referredUid]),
+                    $relationSourceKey,
+                    $eventSourceKey
+                );
             }
         );
         $this->auditResult('create', $result, $mutation);
         return $result;
+    }
+
+    public function createWithLockedCurrentsInTransaction(
+        int $referrerUid,
+        int $referredUid,
+        int $storeId,
+        HqAuthorityMutation $mutation,
+        array $lockedCurrents,
+        string $relationSourceKey = '',
+        string $eventSourceKey = ''
+    ): array {
+        if ($referrerUid <= 0 || $referredUid <= 0 || $referrerUid === $referredUid) {
+            throw new ApiException('referral_self_or_invalid_relation');
+        }
+        if (!isset($lockedCurrents[$referrerUid], $lockedCurrents[$referredUid])) {
+            throw new ApiException('referral_lock_set_incomplete');
+        }
+        $relationSourceKey = $relationSourceKey ?: $this->canonicalizer->referralRelation($mutation->source());
+        $eventSourceKey = $eventSourceKey ?: $this->canonicalizer->referralEvent('relation_created', $mutation->source());
+        $this->assertActiveAttribution((array)$lockedCurrents[$referrerUid], $storeId);
+        $this->assertActiveAttribution((array)$lockedCurrents[$referredUid], $storeId);
+
+        $active = $this->row($this->dao->search([])->where('active_referred_uid', $referredUid)->lock(true)->find());
+        if ($active) {
+            if ((int)$active['referrer_uid'] === $referrerUid && (int)$active['store_id'] === $storeId) {
+                $this->qualification->assertQualified($referrerUid, $storeId);
+                return $this->result($active, $active, false);
+            }
+            throw new ApiException('referral_referred_already_occupied');
+        }
+        if ($this->row($this->dao->search([])->where('referred_uid', $referredUid)->order('id desc')->lock(true)->find())) {
+            throw new ApiException('referral_historical_relation_rebind_forbidden');
+        }
+        if ($this->row($this->dao->search([])->where('referrer_uid', $referredUid)->where('active_referred_uid', $referrerUid)->lock(true)->find())) {
+            throw new ApiException('referral_direct_reverse_relation_forbidden');
+        }
+        $this->qualification->assertQualified($referrerUid, $storeId);
+        $existingSource = $this->row($this->dao->getOne(['source_unique_key' => $relationSourceKey]));
+        if ($existingSource) {
+            if ((int)$existingSource['referrer_uid'] === $referrerUid && (int)$existingSource['referred_uid'] === $referredUid && (int)$existingSource['store_id'] === $storeId) {
+                return $this->result($existingSource, $existingSource, false);
+            }
+            throw new ApiException('referral_source_conflict');
+        }
+
+        $now = time();
+        try {
+            $created = $this->dao->save([
+                'relation_no' => $this->makeNo('HRR'), 'referrer_uid' => $referrerUid,
+                'referred_uid' => $referredUid, 'store_id' => $storeId,
+                'attribution_current_id' => (int)$lockedCurrents[$referredUid]['id'], 'status' => 'active',
+                'active_referred_uid' => $referredUid, 'source_type' => $mutation->source()->type(),
+                'source_id' => $mutation->source()->id(), 'source_unique_key' => $relationSourceKey,
+                'started_at' => $now, 'paused_at' => 0, 'closed_at' => 0, 'close_reason' => '',
+                'relation_version' => 1, 'request_id' => $mutation->requestId(), 'add_time' => $now, 'update_time' => $now,
+            ])->toArray();
+        } catch (\Throwable $e) {
+            if ($this->isUniqueConflict($e)) throw new ApiException('referral_unique_conflict');
+            throw $e;
+        }
+        $this->appendEvent([], $created, 'relation_created', $eventSourceKey, $mutation);
+        return $this->result([], $created, true);
+    }
+
+    public function membershipLockContext(int $referredUid): array
+    {
+        $snapshot = $this->row($this->dao->search([])->where('active_referred_uid', $referredUid)->order('id desc')->find());
+        $uids = [$referredUid];
+        if ($snapshot) $uids[] = (int)$snapshot['referrer_uid'];
+        $uids = array_values(array_unique(array_map('intval', $uids)));
+        sort($uids, SORT_NUMERIC);
+        return [
+            'relation_id' => (int)($snapshot['id'] ?? 0),
+            'referrer_uid' => (int)($snapshot['referrer_uid'] ?? 0),
+            'referred_uid' => $referredUid,
+            'uids' => $uids,
+        ];
+    }
+
+    public function closeForMembershipWithLockedCurrentsInTransaction(
+        int $referredUid,
+        int $storeId,
+        HqAuthorityMutation $mutation,
+        array $lockContext,
+        array $lockedCurrents
+    ): array {
+        if ((int)($lockContext['referred_uid'] ?? 0) !== $referredUid) throw new ApiException('referral_membership_lock_context_invalid');
+        $expectedId = (int)($lockContext['relation_id'] ?? 0);
+        $snapshot = $this->row($this->dao->search([])->where('active_referred_uid', $referredUid)->order('id desc')->lock(true)->find());
+        if ($expectedId === 0) {
+            if ($snapshot) throw new ApiException('referral_membership_lock_set_changed');
+            return ['relation'=>[], 'before'=>[], 'after'=>[], 'changed'=>false];
+        }
+        if (!$snapshot || (int)$snapshot['id'] !== $expectedId || (int)$snapshot['referrer_uid'] !== (int)($lockContext['referrer_uid'] ?? 0)) {
+            throw new ApiException('referral_membership_lock_set_changed');
+        }
+        $referrerUid = (int)$snapshot['referrer_uid'];
+        if (!isset($lockedCurrents[$referrerUid], $lockedCurrents[$referredUid])) throw new ApiException('referral_membership_lock_set_incomplete');
+        $row = $this->row($this->dao->search([])->where('id', $expectedId)->lock(true)->find());
+        if (!$row) throw new ApiException('referral_relation_not_found');
+        $this->assertConsistent($row);
+        if ((string)$row['status'] !== 'active' || (int)$row['referred_uid'] !== $referredUid || (int)$row['store_id'] !== $storeId) {
+            throw new ApiException('referral_membership_close_conflict');
+        }
+        $this->assertActiveAttribution((array)$lockedCurrents[$referrerUid], $storeId);
+        $this->assertActiveAttribution((array)$lockedCurrents[$referredUid], $storeId);
+        $now = time();
+        $update = [
+            'status'=>'closed', 'active_referred_uid'=>null, 'closed_at'=>$now,
+            'close_reason'=>'membership_activated', 'relation_version'=>(int)$row['relation_version'] + 1,
+            'request_id'=>$mutation->requestId(), 'update_time'=>$now,
+        ];
+        $this->dao->update($expectedId, $update);
+        $after = array_merge($row, $update);
+        $this->appendEvent($row, $after, 'relation_closed', $this->canonicalizer->referralEvent('relation_closed', $mutation->source()), $mutation);
+        return $this->result($row, $after, true);
     }
 
     public function pause(int $relationId, int $expectedVersion, HqAuthorityMutation $mutation): array

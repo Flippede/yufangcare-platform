@@ -106,5 +106,14 @@ export default {
       },
       component: () => import('@/pages/yfth/hqAuthority/index'),
     },
+    {
+      path: 'package-membership-referral',
+      name: `${pre}package_membership_referral`,
+      meta: {
+        auth: ['yfth-package-membership-referral-index'],
+        title: '套餐会员与一级推荐',
+      },
+      component: () => import('@/pages/yfth/packageMembershipReferral/index'),
+    },
   ],
 };

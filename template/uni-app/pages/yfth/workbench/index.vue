@@ -42,6 +42,7 @@
 							<button @click="openPane('orders')">门店订单</button>
 							<button @click="goPurchase">采购库存</button>
 							<button v-if="canReadProductQuota" @click="goProductQuota">产品额度</button>
+							<button v-if="canReadPackageMembership" @click="goPackageMembership">套餐会员</button>
 							<button @click="goMonthlyBenefitPickup">权益自提</button>
 						</view>
 					</view>
@@ -270,6 +271,9 @@ export default {
 			return ['franchisee', 'store_manager', 'store_staff'].indexOf(this.context.role_code) !== -1 && Number(this.context.store_id) > 0;
 		},
 		canReadProductQuota() {
+			return ['franchisee', 'store_manager'].indexOf(this.context.role_code) !== -1;
+		},
+		canReadPackageMembership() {
 			return ['franchisee', 'store_manager'].indexOf(this.context.role_code) !== -1;
 		},
 		canReadCustomerAttribution() {
@@ -570,6 +574,9 @@ export default {
 		},
 		goProductQuota() {
 			uni.navigateTo({ url: '/pages/yfth/product_quota/index' });
+		},
+		goPackageMembership() {
+			uni.navigateTo({ url: '/pages/yfth/workbench/package_membership/index' });
 		},
 		goMonthlyBenefitPickup() {
 			uni.navigateTo({ url: '/pages/yfth/workbench/monthly_benefit_pickup' });

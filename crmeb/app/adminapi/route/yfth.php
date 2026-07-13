@@ -161,6 +161,14 @@ Route::group('yfth', function () {
         Route::get('referral/:id/events', 'v1.yfth.HqAuthorityRead/referralEvents')->option(['real_name' => 'Headquarters referral events']);
         Route::get('referral/:id', 'v1.yfth.HqAuthorityRead/referralDetail')->option(['real_name' => 'Headquarters referral detail']);
     })->option(['parent' => 'yfth', 'cate_name' => 'HQ Authority Read']);
+    Route::group('package_membership', function () {
+        Route::get('member', 'v1.yfth.PackageMembershipReferral/members')->option(['real_name' => 'Package permanent membership list']);
+        Route::get('candidate', 'v1.yfth.PackageMembershipReferral/candidates')->option(['real_name' => 'Direct referral reward candidate list']);
+        Route::get('rule', 'v1.yfth.PackageMembershipReferral/rules')->option(['real_name' => 'Direct referral rule list']);
+        Route::post('rule', 'v1.yfth.PackageMembershipReferral/saveRule')->option(['real_name' => 'Direct referral rule save']);
+        Route::post('rule/:id/publish', 'v1.yfth.PackageMembershipReferral/publishRule')->option(['real_name' => 'Direct referral rule publish']);
+        Route::post('legacy_backfill', 'v1.yfth.PackageMembershipReferral/legacyBackfill')->option(['real_name' => 'Historical package membership backfill']);
+    })->option(['parent' => 'yfth', 'cate_name' => 'Package Membership And Direct Referral']);
 })->middleware([
     \app\http\middleware\AllowOriginMiddleware::class,
     \app\adminapi\middleware\AdminAuthTokenMiddleware::class,

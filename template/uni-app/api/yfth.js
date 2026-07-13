@@ -355,6 +355,30 @@ export function confirmYfthStoreWorkbenchMonthlyBenefitPickup(id, data) {
 	return request.post('yfth/store_workbench/monthly_benefit/pickup/' + id + '/confirm' + payload.query, payload.body);
 }
 
+export function getYfthPackageMembershipMe() {
+	return request.get('yfth/package_membership/me');
+}
+
+export function issueYfthDirectReferralInvite(data) {
+	return request.post('yfth/package_membership/invite', data || {});
+}
+
+export function acceptYfthDirectReferralInvite(data) {
+	return request.post('yfth/package_membership/invite/accept', data || {});
+}
+
+export function getYfthDirectReferralCandidates(data) {
+	return request.get('yfth/package_membership/candidate', data || {});
+}
+
+export function getYfthStorePackageMembers(data) {
+	return request.get('yfth/store_workbench/package_membership/member', data || {});
+}
+
+export function getYfthStorePackageCandidates(data) {
+	return request.get('yfth/store_workbench/package_membership/candidate', data || {});
+}
+
 export function getYfthMyHqAuthority() {
 	return request.get('yfth/hq_authority/me');
 }

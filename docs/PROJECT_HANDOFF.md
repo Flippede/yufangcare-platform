@@ -1,5 +1,21 @@
 # 项目交接文档
 
+## Current Fact Snapshot - Stage 2 V2 Package Membership And Direct Referral Development
+
+- Current feature branch: `codex/yfth-hq-mall-stage2-package-membership-referral-v1`; start baseline and stable `main` / `origin/main`: `3ec6c80dbfef4975788414f64ab70c9e439cf117`. The completed feature commit must be read from actual Git after commit and push.
+- Current authoritative product scope is `docs/YFTH_RELEASE_SCOPE_PACKAGE_MEMBERSHIP_REFERRAL_V2.md`. It supersedes the standalone permanent-membership enrollment, fixed membership fee and standalone fixed-price package model. The stopped `codex/yfth-hq-mall-stage2-permanent-membership-v1` branch remains historical and was not merged or cherry-picked wholesale.
+- Package price is versioned configuration, not a hardcoded `5980/9800` constant. Purchase snapshots freeze actual paid amount, currency, benefits and the membership-grant decision; publishing a new rule does not mutate old rule economics or transaction snapshots.
+- Successful package activation now atomically preserves/assigns B-store authority, closes an active referral with `membership_activated`, creates the next 15/25/60 integer-cent pending candidate when applicable, and creates permanent membership plus event. Failure rolls back the whole activation extension.
+- C1 must hold persisted active permanent membership. A hashed, expiring, single-active invitation lets authenticated nonmember C2 inherit C1's B1 attribution and create one Stage 1A direct-referral relation. C2 cannot choose another store for package purchase and becomes an independent referrer after membership activation.
+- Historical valid paid and activated package instances are recognized through read-through membership. Headquarters provides bounded `dry_run` and reason-required `execute` backfill; migration never scans historical business data.
+- New tables: `yfth_permanent_membership`, `yfth_permanent_membership_event`, `yfth_direct_referral_invite`, `yfth_direct_referral_rule_version`, `yfth_direct_referral_reward_candidate`. Package rule and purchase snapshot gain `grants_permanent_membership`.
+- Ordinary headquarters-mall consumption has a versioned configurable candidate-service extension, but V2 intentionally adds no CRMEB order/payment/refund listener. Candidates remain pending observation only; no wallet, commission, reward ledger, settlement, payout, withdrawal or reversal is implemented.
+- Permissions are explicit for headquarters, while store reads use trusted `CurrentBusinessContextServices` and allow only `franchisee` / `store_manager`. Authenticated UID and server authority determine all user/store/referral identities; disabled stores, revoked roles, cross-store requests and inconsistent authority fail closed.
+- Verified with PHP 7.4.33 and isolated MySQL Community 8.0.46: migration run/rollback/rerun/duplicate run; PHP syntax; V2 contract/source guard/real-flow; concurrent sequence and duplicate activation; Stage 1A contract/source guard/real-flow with lock-wait/deadlock; Stage 1B contract/source guard and 192-request read-only HTTP flow; old package/monthly/appointment contracts; uni-app executable checks; Admin, H5 and mp-weixin production builds.
+- Runtime details are in `docs/YFTH_HQ_MALL_STAGE2_PACKAGE_MEMBERSHIP_REFERRAL_RUNTIME_VALIDATION.md`; architecture and transaction boundaries are in `docs/YFTH_HQ_MALL_STAGE2_PACKAGE_MEMBERSHIP_REFERRAL_ARCHITECTURE.md`.
+- Not implemented: reward finalization, settlement/payout, refund membership reversal, ordinary-mall event wiring, store takeover, city partner or production rollout. No production MySQL/Redis connection, production migration, deployment or WeChat upload occurred.
+- This branch is not merged into `main`. The next and only gate is an independent read-only Architecture Auditor review; before it passes, merging `main` or starting a later business stage is prohibited.
+
 ## Current Fact Snapshot - Final Headquarters Mall Stage 1B Read-only Surface Closure
 
 - Final independent Architecture Auditor conclusion: A, passed; Blocker, P1, P2 and P3 are all clear. The reviewed Stage 1B commit is `6402456db8687c90aec57ba21350dacbdb88ff61`.
