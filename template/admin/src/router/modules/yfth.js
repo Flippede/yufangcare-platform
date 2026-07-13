@@ -57,7 +57,7 @@ export default {
       name: `${pre}supply_chain`,
       meta: {
         auth: ['yfth-supply-chain-index'],
-        title: 'Supply Chain',
+        title: '供应链与门店库存',
       },
       component: () => import('@/pages/yfth/supplyChain/index'),
     },
@@ -66,7 +66,7 @@ export default {
       name: `${pre}franchise_opening`,
       meta: {
         auth: ['yfth-franchise-opening-index'],
-        title: 'Franchise Opening',
+        title: '加盟筹备与开店验收',
       },
       component: () => import('@/pages/yfth/franchiseOpening/index'),
     },
@@ -93,7 +93,7 @@ export default {
       name: `${pre}monthly_benefit_fulfillment`,
       meta: {
         auth: ['yfth-monthly-benefit-fulfillment-index'],
-        title: 'Monthly Benefit Fulfillment',
+        title: '月度权益配送履约',
       },
       component: () => import('@/pages/yfth/monthlyBenefitFulfillment/index'),
     },

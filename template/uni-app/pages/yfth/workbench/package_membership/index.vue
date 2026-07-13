@@ -4,7 +4,7 @@
 			<view :class="['tab', tab === 'members' ? 'active' : '']" @click="changeTab('members')">永久会员</view>
 			<view :class="['tab', tab === 'candidates' ? 'active' : '']" @click="changeTab('candidates')">奖励候选</view>
 		</view>
-		<view class="notice">仅显示当前 Token 所授权的门店数据。候选为待确认收益，不代表已支付，不提供结算、提现或打款。</view>
+		<view class="notice">仅显示当前 Token 所授权的门店数据。奖励候选不代表已支付；门店可确认候选并记录线下结算，系统不自动打款、不提供提现。</view>
 		<view v-if="loading" class="empty">加载中...</view>
 		<view v-else-if="!list.length" class="empty">暂无记录</view>
 		<view v-else>

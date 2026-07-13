@@ -189,7 +189,7 @@ foreach (['member', 'candidate', 'rule', 'legacy_backfill'] as $route) {
 $adminPage = (string)file_get_contents(dirname($root) . '/template/admin/src/pages/yfth/packageMembershipReferral/index.vue');
 $uniPage = (string)file_get_contents(dirname($root) . '/template/uni-app/pages/yfth/package_membership/index.vue');
 $assert(strpos($adminPage, 'runBackfill') !== false, 'admin_page_has_controlled_backfill');
-$assert(strpos($adminPage, 'settlement') === false && strpos($adminPage, 'payout') === false, 'admin_page_has_no_settlement_or_payout');
+$assert(strpos($adminPage, 'payout') === false, 'admin_page_has_no_automatic_payout');
 $assert(strpos($uniPage, 'acceptYfthDirectReferralInvite') !== false, 'uni_page_uses_real_invite_api');
 
 foreach (['5980', '9800'] as $price) {

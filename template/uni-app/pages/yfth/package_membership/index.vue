@@ -44,7 +44,8 @@
 				<view v-for="item in candidates" :key="item.candidate_no" class="candidate">
 					<view>
 						<view class="strong">{{ item.candidate_type === 'package_activation' ? '套餐激活' : '普通商城消费' }}</view>
-						<view class="muted">候选编号 {{ item.candidate_no }} · {{ candidateStatus(item.status) }}</view>
+					<view class="muted">候选编号 {{ item.candidate_no }} · {{ candidateStatus(item.status) }}</view>
+					<view v-if="item.status === 'settled'" class="muted">门店已记录线下结算，平台不会自动打款</view>
 					</view>
 					<view class="amount">{{ money(item.reward_amount_cent) }}</view>
 				</view>
