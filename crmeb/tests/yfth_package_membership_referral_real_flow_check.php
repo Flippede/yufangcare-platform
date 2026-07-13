@@ -263,10 +263,11 @@ try {
     $mallCandidate = $reward->recordMallOrderPaid($mallOrder);
     $assert(!empty($mallCandidate['created']), 'mall_extension_creates_candidate_with_active_rule');
     $assert((int)$mallCandidate['candidate']['ratio_bps'] === 500 && (int)$mallCandidate['candidate']['reward_amount_cent'] === 440, 'mall_candidate_uses_versioned_integer_ratio');
-    $crossStoreOrder = pmrCreatePaidOrder(920007, $storeB, '88.00', 'mall-cross-store');
-    $expect(function () use ($reward, $crossStoreOrder) {
-        $reward->recordMallOrderPaid($crossStoreOrder);
-    }, 'mall_consumption_referral_store_mismatch', 'mall_cross_store_rejected');
+    $storeMetadataOrder = pmrCreatePaidOrder(920007, $storeB, '88.00', 'mall-store-metadata');
+    $storeMetadataCandidate = $reward->recordMallOrderPaid($storeMetadataOrder);
+    $assert(!empty($storeMetadataCandidate['created'])
+        && (int)$storeMetadataCandidate['candidate']['store_id'] === $storeA,
+        'mall_candidate_b1_comes_from_authoritative_attribution_not_order_store_metadata');
 
     $fullUid = 920008;
     pmrCreateReferral($referral, $c1, $fullUid, 'full-package');

@@ -67,7 +67,13 @@ foreach (['app/event.php', 'app/listener', 'app/command'] as $relative) {
         }
     }
 }
-$assert(strpos($listeners, 'recordMallOrderPaid') === false, 'mall_order_extension_is_not_prematurely_wired');
+$eventConfig = (string)file_get_contents($root . '/app/event.php');
+$payListener = (string)file_get_contents($root . '/app/listener/yfth/MallConsumptionRewardPayListener.php');
+$refundListener = (string)file_get_contents($root . '/app/listener/yfth/MallConsumptionRewardCustomEventListener.php');
+$assert(strpos($eventConfig, 'MallConsumptionRewardPayListener::class') !== false, 'stage3_mall_pay_listener_is_explicitly_wired');
+$assert(strpos($eventConfig, 'MallConsumptionRewardCustomEventListener::class') !== false, 'stage3_mall_refund_listener_is_explicitly_wired');
+$assert(strpos($payListener, 'recordMallOrderPaid') !== false, 'mall_candidate_entry_is_only_called_by_stage3_pay_listener');
+$assert(strpos($refundListener, 'cancelMallOrderCandidateAfterFullRefund') !== false, 'mall_refund_entry_is_only_called_by_stage3_refund_listener');
 
 $controller = (string)file_get_contents($root . '/app/api/controller/v1/yfth/PackageMembershipReferralController.php');
 $acceptStart = strpos($controller, 'public function acceptInvite');

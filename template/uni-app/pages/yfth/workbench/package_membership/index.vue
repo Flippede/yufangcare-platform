@@ -4,7 +4,7 @@
 			<view :class="['tab', tab === 'members' ? 'active' : '']" @click="changeTab('members')">永久会员</view>
 			<view :class="['tab', tab === 'candidates' ? 'active' : '']" @click="changeTab('candidates')">奖励候选</view>
 		</view>
-		<view class="notice">仅显示当前 Token 所授权的门店数据，不提供结算、提现或打款。</view>
+		<view class="notice">仅显示当前 Token 所授权的门店数据。候选为待确认收益，不代表已支付，不提供结算、提现或打款。</view>
 		<view v-if="loading" class="empty">加载中...</view>
 		<view v-else-if="!list.length" class="empty">暂无记录</view>
 		<view v-else>
@@ -19,7 +19,7 @@
 				<block v-else>
 					<view>
 						<view class="strong">{{ item.candidate_type === 'package_activation' ? '套餐激活' : '普通商城消费' }}</view>
-						<view class="muted">{{ item.candidate_no }} · 推荐人 {{ item.referrer_uid }}</view>
+						<view class="muted">{{ item.candidate_no }} · 推荐人 {{ item.referrer_uid }} · {{ candidateStatus(item.status) }}</view>
 					</view>
 					<view class="amount">{{ money(item.reward_amount_cent) }}</view>
 				</block>
@@ -45,6 +45,7 @@ export default {
 				.catch((err) => { this.list = []; uni.showToast({ title: String((err && err.msg) || err), icon: 'none' }); })
 				.finally(() => { this.loading = false; });
 		},
+		candidateStatus(status) { return status === 'cancelled' ? '已失效' : '待确认'; },
 		money(value) { return `¥${(Number(value || 0) / 100).toFixed(2)}`; }
 	}
 };

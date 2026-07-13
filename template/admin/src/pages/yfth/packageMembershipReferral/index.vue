@@ -1,7 +1,7 @@
 <template>
   <div class="package-membership-page">
     <el-alert
-      title="本模块仅记录套餐激活后的永久会员事实与一级推荐奖励候选，不提供结算、提现或打款。"
+      title="奖励候选为待确认收益，不代表已支付、已结算或已打款；普通商城订单全额退款后，未结算候选将失效。"
       type="info"
       :closable="false"
     />
@@ -42,6 +42,10 @@
             <el-option label="套餐激活" value="package_activation" />
             <el-option label="商城消费" value="mall_consumption" />
           </el-select>
+          <el-select v-model="candidateQuery.status" clearable placeholder="状态">
+            <el-option label="待确认" value="pending" />
+            <el-option label="已失效" value="cancelled" />
+          </el-select>
           <el-button type="primary" icon="el-icon-search" @click="loadCandidates(true)">查询</el-button>
         </div>
         <el-table v-loading="loading" :data="candidates" border size="small">
@@ -54,7 +58,7 @@
           <el-table-column label="比例" width="90"><template slot-scope="{ row }">{{ (row.ratio_bps / 100).toFixed(2) }}%</template></el-table-column>
           <el-table-column label="实际成交" width="120"><template slot-scope="{ row }">{{ money(row.actual_paid_amount_cent) }}</template></el-table-column>
           <el-table-column label="候选金额" width="120"><template slot-scope="{ row }">{{ money(row.reward_amount_cent) }}</template></el-table-column>
-          <el-table-column prop="status" label="状态" width="90" />
+          <el-table-column label="状态" width="90"><template slot-scope="{ row }">{{ candidateStatus(row.status) }}</template></el-table-column>
         </el-table>
         <el-pagination class="pager" layout="total, prev, pager, next" :total="candidateTotal" :page-size="candidateQuery.limit" :current-page.sync="candidateQuery.page" @current-change="loadCandidates" />
       </el-tab-pane>
@@ -197,6 +201,7 @@ export default {
       if (mode === 'execute') this.$confirm('确认执行历史会员回填？', '高风险操作').then(action);
       else action();
     },
+    candidateStatus(status) { return status === 'cancelled' ? '已失效' : '待确认'; },
     money(value) { return `¥${(Number(value || 0) / 100).toFixed(2)}`; },
     time(value) {
       if (!value) return '-';

@@ -105,6 +105,9 @@ foreach ($diff as $path) {
         'template/uni-app/pages/yfth/package/detail.vue',
         'template/uni-app/pages/yfth/package_membership/index.vue',
         'template/uni-app/pages/yfth/workbench/package_membership/index.vue',
+        'crmeb/app/event.php',
+        'crmeb/app/listener/yfth/MallConsumptionRewardPayListener.php',
+        'crmeb/app/listener/yfth/MallConsumptionRewardCustomEventListener.php',
     ], true);
     $forbiddenPath = preg_match('#^(crmeb/app/(api|adminapi)/(controller|route)|crmeb/app/(command|listener)|template/)#', $normalized)
         || strpos($normalized, 'crmeb/app/event.php') === 0;

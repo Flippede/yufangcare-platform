@@ -172,47 +172,130 @@ class DirectReferralRewardServices extends YfthFoundationBaseServices
                 || (int)($order['pid'] ?? 0) !== 0
                 || (int)($order['refund_status'] ?? 0) !== 0
                 || (int)($order['is_del'] ?? 0) !== 0
-                || (int)($order['is_cancel'] ?? 0) !== 0) {
+                || (int)($order['is_system_del'] ?? 0) !== 0
+                || (int)($order['is_cancel'] ?? 0) !== 0
+                || (int)($order['status'] ?? 0) < 0) {
                 throw new ApiException('trusted_paid_unrefunded_main_order_required');
             }
             if (Db::name('yfth_package_purchase')->where('order_id', $orderId)->count() > 0) {
                 throw new ApiException('package_order_not_mall_consumption');
             }
+            $sourceKey = $this->mallOrderSourceKey($orderId);
+            $existing = $this->row($this->dao->search([])->where('source_unique_key', $sourceKey)->lock(true)->find());
+            if ($existing) {
+                return ['candidate' => $existing, 'created' => false];
+            }
+            $rule = $this->activeRule(false, false);
+            if (!$rule || (int)$rule['mall_consumption_enabled'] !== 1 || (int)$rule['mall_consumption_ratio_bps'] <= 0) {
+                return ['created' => false, 'reason' => 'mall_consumption_rule_unavailable'];
+            }
+            $referredUid = (int)$order['uid'];
+            $relationSnapshot = $this->row(Db::name('yfth_hq_active_referral_current')
+                ->where('active_referred_uid', $referredUid)
+                ->where('status', 'active')
+                ->find());
+            if (!$relationSnapshot) {
+                return ['created' => false, 'reason' => 'active_referral_not_found'];
+            }
+            $lockContext = app()->make(HqActiveReferralServices::class)->membershipLockContext($referredUid);
+            if ((int)$lockContext['relation_id'] <= 0) {
+                return ['created' => false, 'reason' => 'active_referral_not_found'];
+            }
+            $relation = $this->row(Db::name('yfth_hq_active_referral_current')
+                ->where('id', (int)$lockContext['relation_id'])
+                ->where('active_referred_uid', $referredUid)
+                ->where('status', 'active')
+                ->lock(true)
+                ->find());
+            if (!$relation || (int)$relation['referrer_uid'] !== (int)$lockContext['referrer_uid']) {
+                return ['created' => false, 'reason' => 'active_referral_not_found'];
+            }
+            app()->make(HqAuthorityConsistencyValidator::class)->assertReferral($relation, true);
+            $lockedCurrents = (array)$lockContext['locked_currents'];
+            $referrerUid = (int)$relation['referrer_uid'];
+            $storeId = (int)$relation['store_id'];
+            if (!$this->isActiveAttribution($lockedCurrents[$referrerUid] ?? [], $storeId)
+                || !$this->isActiveAttribution($lockedCurrents[$referredUid] ?? [], $storeId)) {
+                throw new ApiException('mall_consumption_attribution_store_mismatch');
+            }
+            if ($this->membership->effectiveMembership($referredUid)['is_member']) {
+                return ['created' => false, 'reason' => 'referred_user_already_member'];
+            }
             $rule = $this->activeRule(true, false);
             if (!$rule || (int)$rule['mall_consumption_enabled'] !== 1 || (int)$rule['mall_consumption_ratio_bps'] <= 0) {
                 return ['created' => false, 'reason' => 'mall_consumption_rule_unavailable'];
             }
-            $relation = $this->row(Db::name('yfth_hq_active_referral_current')
-                ->where('active_referred_uid', (int)$order['uid'])
-                ->where('status', 'active')
-                ->lock(true)
-                ->find());
-            if (!$relation) {
-                return ['created' => false, 'reason' => 'active_referral_not_found'];
-            }
-            app()->make(HqAuthorityConsistencyValidator::class)->assertReferral($relation, true);
-            if ((int)$order['store_id'] !== (int)$relation['store_id']) {
-                throw new ApiException('mall_consumption_referral_store_mismatch');
-            }
-            if ($this->membership->effectiveMembership((int)$order['uid'])['is_member']) {
-                return ['created' => false, 'reason' => 'referred_user_already_member'];
-            }
             $amountCent = $this->moneyToCents($order['pay_price'] ?? '0.00');
+            if ($amountCent <= 0) {
+                return ['created' => false, 'reason' => 'mall_consumption_positive_payment_required'];
+            }
             return $this->createCandidate([
                 'candidate_type' => 'mall_consumption',
-                'referrer_uid' => (int)$relation['referrer_uid'],
-                'referred_uid' => (int)$relation['referred_uid'],
-                'store_id' => (int)$relation['store_id'],
+                'referrer_uid' => $referrerUid,
+                'referred_uid' => $referredUid,
+                'store_id' => $storeId,
                 'relation_id' => (int)$relation['id'],
                 'source_business_type' => 'store_order',
                 'source_business_id' => (string)$orderId,
-                'source_unique_key' => hash('sha256', 'mall_consumption|store_order|' . $orderId),
+                'source_unique_key' => $sourceKey,
                 'reward_sequence_no' => null,
                 'actual_paid_amount_cent' => $amountCent,
                 'ratio_bps' => (int)$rule['mall_consumption_ratio_bps'],
                 'reward_amount_cent' => intdiv($amountCent * (int)$rule['mall_consumption_ratio_bps'], 10000),
                 'rule_version_id' => (int)$rule['id'],
             ]);
+        });
+    }
+
+    public function cancelMallOrderCandidateAfterFullRefund(string $orderSn): array
+    {
+        $orderSn = trim($orderSn);
+        if ($orderSn === '') {
+            return ['changed' => false, 'reason' => 'mall_consumption_refund_order_missing'];
+        }
+        return Db::transaction(function () use ($orderSn) {
+            $order = $this->row(Db::name('store_order')->where('order_id', $orderSn)->lock(true)->find());
+            if (!$order || (int)($order['pid'] ?? 0) !== 0) {
+                return ['changed' => false, 'reason' => 'mall_consumption_refund_main_order_not_found'];
+            }
+            $candidate = $this->row($this->dao->search([])
+                ->where('source_unique_key', $this->mallOrderSourceKey((int)$order['id']))
+                ->where('candidate_type', 'mall_consumption')
+                ->lock(true)
+                ->find());
+            if (!$candidate) {
+                return ['changed' => false, 'reason' => 'mall_consumption_candidate_not_found'];
+            }
+            if ((string)$candidate['status'] === 'cancelled') {
+                return ['candidate' => $candidate, 'changed' => false, 'idempotent_replay' => true];
+            }
+            if ((string)$candidate['status'] !== 'pending') {
+                return ['candidate' => $candidate, 'changed' => false, 'reason' => 'mall_consumption_candidate_not_pending'];
+            }
+            $paidCent = $this->moneyToCents($order['pay_price'] ?? '0.00');
+            $refundedCent = $this->moneyToCents($order['refund_price'] ?? '0.00');
+            if ((int)($order['paid'] ?? 0) !== 1
+                || (int)($order['refund_status'] ?? 0) !== 2
+                || $paidCent <= 0
+                || $refundedCent < $paidCent) {
+                return ['candidate' => $candidate, 'changed' => false, 'reason' => 'mall_consumption_full_refund_not_confirmed'];
+            }
+            $update = ['status' => 'cancelled', 'update_time' => time()];
+            $this->dao->update((int)$candidate['id'], $update);
+            $after = array_merge($candidate, $update);
+            $this->audit->recordSafely(
+                self::DOMAIN,
+                'direct_referral_reward_candidate',
+                (string)$candidate['id'],
+                'cancel_after_full_refund',
+                $this->adminCandidateDto($candidate),
+                $this->adminCandidateDto($after),
+                0,
+                'system',
+                (int)$candidate['store_id'],
+                'mall_order_full_refund'
+            );
+            return ['candidate' => $after, 'changed' => true];
         });
     }
 
@@ -370,6 +453,18 @@ class DirectReferralRewardServices extends YfthFoundationBaseServices
             throw new ApiException('money_snapshot_invalid');
         }
         return (int)$matches[1] * 100 + (int)str_pad($matches[2] ?? '', 2, '0');
+    }
+
+    private function mallOrderSourceKey(int $orderId): string
+    {
+        return hash('sha256', 'mall_consumption|store_order|' . $orderId);
+    }
+
+    private function isActiveAttribution(array $row, int $storeId): bool
+    {
+        return $storeId > 0
+            && (string)($row['status'] ?? '') === 'active'
+            && (int)($row['store_id'] ?? 0) === $storeId;
     }
 
     private function isUniqueConflict(\Throwable $e): bool

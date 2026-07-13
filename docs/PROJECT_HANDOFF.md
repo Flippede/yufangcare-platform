@@ -1,5 +1,19 @@
 # 项目交接文档
 
+## Current Fact Snapshot - Stage 3 Mall Consumption Reward Development
+
+- Current feature branch: `codex/yfth-hq-mall-stage3-mall-consumption-reward-v1`; start baseline and stable `main` / `origin/main`: `423a1d3ac03d0c4771ac4350334e95c3c2509b3e`. The completed feature commit must be read from actual Git after commit and push.
+- Real paid CRMEB headquarters-mall main orders now invoke the existing Stage 2 ordinary-mall reward candidate service through a dedicated payment-success listener. Listener failure is logged and cannot roll back or reinterpret CRMEB payment success.
+- Eligibility is fail closed: the order must be paid, non-package, main, undeleted, uncancelled, valid and unrefunded; C2 must still be a non-member with an active one-level referral; C1 and C2 must have consistent active Stage 1A attribution to the same B1; and an active versioned ordinary-mall ratio must exist.
+- Candidate snapshots freeze the CRMEB order ID, actual paid amount, ratio, rule version, C1, C2 and B1. The existing source unique key makes duplicate payment delivery idempotent. Candidate state is observation-only `pending` and explicitly does not mean paid, settled or credited.
+- Full CRMEB order refund changes only a matching pending ordinary-mall candidate to `cancelled`. Repeated refund delivery is idempotent. Partial-refund proportional reversal, settlement and payout are not implemented.
+- Existing role-specific reads and pages now identify pending/cancelled ordinary-mall candidates for C1, trusted B1 store roles and headquarters. User DTO privacy, trusted store scope and headquarters permissions remain unchanged.
+- No table, migration, permission, route or Controller was added. CRMEB order/payment/refund, package membership activation, package 15/25/60 candidates, balance, points, brokerage, distribution and settlement remain untouched.
+- Verification passed with portable PHP 7.4.33 and isolated MySQL Community 8.0.46: PHP syntax, Stage 3 contract and real flow, Stage 2 contract/source/real-flow regression, Stage 1A contract/source guard, duplicate payment, invalid orders, authority isolation, partial/full/repeated refund, Admin production build, H5 production build, mp-weixin production compile and existing uni-app checks. No Stage 3 migration run/rollback was needed because schema is unchanged.
+- Detailed boundaries and evidence are recorded in `docs/YFTH_HQ_MALL_STAGE3_MALL_CONSUMPTION_REWARD_ARCHITECTURE.md` and `docs/YFTH_HQ_MALL_STAGE3_MALL_CONSUMPTION_REWARD_RUNTIME_VALIDATION.md`.
+- Not implemented or authorized: candidate confirmation/finalization, real settlement or payout, partial-refund reversal, referral restoration, store takeover, city partner, multi-level referral, production deployment or production migration.
+- This feature branch is not merged into `main`. It has not connected to production MySQL/Redis, executed a production migration, deployed a server or uploaded to WeChat. The next and only gate is an independent read-only Architecture Auditor review.
+
 ## Current Fact Snapshot - Final Stage 2 V2 Package Membership And Direct Referral Merge Closure
 
 - Final independent architecture review conclusion: A, passed. Blocker, P1, P2 and P3 are clear, and the reviewed feature commit is `a7a763f7c4a103d94e25db04df3234aecbd98d3b`.

@@ -44,11 +44,11 @@
 				<view v-for="item in candidates" :key="item.candidate_no" class="candidate">
 					<view>
 						<view class="strong">{{ item.candidate_type === 'package_activation' ? '套餐激活' : '普通商城消费' }}</view>
-						<view class="muted">候选编号 {{ item.candidate_no }}</view>
+						<view class="muted">候选编号 {{ item.candidate_no }} · {{ candidateStatus(item.status) }}</view>
 					</view>
 					<view class="amount">{{ money(item.reward_amount_cent) }}</view>
 				</view>
-				<view class="notice">奖励仅为候选记录，本阶段不代表已结算或已打款。</view>
+				<view class="notice">待确认收益，不代表已支付、已结算或已打款；全额退款后对应候选将失效。</view>
 			</view>
 		</block>
 	</view>
@@ -116,6 +116,7 @@ export default {
 		copyInvite() {
 			uni.setClipboardData({ data: this.inviteToken });
 		},
+		candidateStatus(status) { return status === 'cancelled' ? '已失效' : '待确认'; },
 		money(value) { return `¥${(Number(value || 0) / 100).toFixed(2)}`; }
 	}
 };
