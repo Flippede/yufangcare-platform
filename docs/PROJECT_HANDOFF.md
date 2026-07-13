@@ -1,16 +1,14 @@
 # 项目交接文档
 
-## Current Fact Snapshot - Stage 4 Reward Confirmation And Offline Settlement Ledger V1 Development
+## Current Fact Snapshot - Final Stage 4 Reward Settlement Ledger V1 Merge Closure
 
-- Current feature branch: `codex/yfth-hq-mall-stage4-reward-settlement-ledger-v1`, created from stable `main` / `origin/main` `2e3d1de8ad204c61d3b2f0b75aee24135a1cb89d`. It is not merged to main, deployed, or connected to production.
-- Stage 4 accepts the immutable Stage 2 package-activation 15/25/60 candidates and Stage 3 ordinary-mall candidates into `pending`, `confirmed`, `settled`, and `cancelled` handling. Amounts, ratios, rule versions and original sources remain snapshot-only and cannot be edited by B1 or headquarters.
-- B1 trusted `franchisee` / `store_manager` contexts can confirm and record an offline settlement only for their own `store_id`; C1 remains read-only; headquarters has explicit list, exception-cancel and exception-correct permissions. Each mutation uses row locking, idempotency and audit evidence.
-- New table: `yfth_direct_referral_reward_settlement_ledger`, with a unique candidate guard and immutable offline reference/proof/operator/time record. It records business facts and never writes CRMEB balance, brokerage, points, distribution, withdrawal or automatic payment data.
-- Stage 3 full refund cancels ordinary-mall candidates that are still `pending` or `confirmed`; a settled record is preserved because refund reversal is not implemented.
-- Direct Stage 4 validation is complete on this branch with portable PHP 7.4.33 and isolated MySQL Community 8.0.46: PHP syntax, contract check, real flow, migration run/rollback/rerun and Admin production build passed. The real flow covers both candidate types, trusted B1 scope, C1 DTO scope, duplicate confirmation/settlement, cancelled/settled terminal guards, and full-refund handling for pending/confirmed ordinary-mall candidates.
-- Validation fixed only Stage 4 defects: migration compatibility with the real Phinx/MySQL adapter and CRMEB menu length, an idempotent-result flag overwrite, and incomplete contract/real-flow coverage. No production environment was used. The feature remains unmerged and awaits its independent architecture review.
-- Store and headquarters pages label the flow as an offline settlement record, not platform payment. C1 sees status only.
-- Not implemented or authorized: automatic payout, wallet, withdrawal, payment split, partial-refund reversal, reconciliation, store takeover, city partner, multi-level referral, production migration, production deployment or WeChat upload.
+- Stage 4 Reward Confirmation And Offline Settlement Ledger V1 entered `main` by `git merge --ff-only codex/yfth-hq-mall-stage4-reward-settlement-ledger-v1`. Main before merge was `2e3d1de8ad204c61d3b2f0b75aee24135a1cb89d`; the verified feature commit was `0d74094407672e395b9dd7ca30f0e7d68d93a50e`. No merge commit, squash, rebase, cherry-pick, or history rewrite was used. The local and remote feature branches remain preserved.
+- Immutable Stage 2 package-activation 15/25/60 candidates and Stage 3 ordinary-mall candidates support `pending`, `confirmed`, `settled`, and `cancelled` handling. The flow supports store confirmation, headquarters exception cancellation/correction, and an immutable offline settlement ledger; amounts, ratios, rule versions, and original sources remain snapshot-only.
+- C1 is read-only. Trusted B1 `franchisee` / `store_manager` contexts can process only records for their own `store_id`; headquarters has explicit list and exception permissions. Mutations use row locking, idempotency, and audit evidence.
+- `yfth_direct_referral_reward_settlement_ledger` records offline business facts including evidence, operator, and time. It does not represent platform automatic payment and never writes CRMEB balance, brokerage, points, distribution, withdrawal, or automatic payment data.
+- A Stage 3 full refund cancels matching ordinary-mall candidates still in `pending` or `confirmed`; a settled record remains settled because refund reversal is not implemented.
+- Direct validation passed with portable PHP 7.4.33 and isolated MySQL Community 8.0.46: PHP syntax, contract and real-flow checks, migration run/rollback/rerun, and an Admin production build. This merge closure did not connect to production MySQL/Redis, execute a production migration, deploy a server, or upload to WeChat. Final `main` and `origin/main` commits must be read from Git after this documentation closure commit and push.
+- Not implemented or authorized: automatic payout, wallet, withdrawal, payment split, partial-refund reversal, reconciliation, store takeover, city partner, multi-level referral, production migration, production deployment, or WeChat upload.
 
 ## Historical Snapshot - Final Stage 3 Mall Consumption Reward Merge Closure
 
