@@ -1,5 +1,17 @@
 # 项目交接文档
 
+## Current Fact Snapshot - Final Stage 3 Mall Consumption Reward Merge Closure
+
+- Stage 3 Mall Consumption Reward V1 completed independent review preparation and entered `main` through `git merge --ff-only codex/yfth-hq-mall-stage3-mall-consumption-reward-v1`. The reviewed feature commit is `b1c1f8729d3218cc373fe9c96940bb887fb6e0cc`; main before merge was `423a1d3ac03d0c4771ac4350334e95c3c2509b3e`. No merge commit, squash, rebase, cherry-pick or history rewrite was used.
+- Real paid CRMEB headquarters-mall ordinary main orders now enter the one-level direct-referral reward-candidate service. Eligibility remains fail closed for payment, main-order, ordinary-goods, refund/deletion/cancellation, referral, permanent-membership, B1 attribution and versioned-ratio conditions.
+- A candidate freezes the order, actual paid amount, rule ratio/version, C1, C2 and B1. It is an observation-only `pending` allocation within B1 economics and does not represent confirmation, settlement, payout, withdrawal or credited income.
+- CRMEB full refund cancels only a matching pending ordinary-mall candidate. Repeated refund notification is idempotent; partial-refund proportional reversal, referral restoration and membership reversal remain out of scope.
+- User, trusted-store and headquarters candidate surfaces identify pending/cancelled ordinary-mall candidates without relaxing existing DTO, trusted-context or headquarters-permission boundaries.
+- The dedicated payment listener isolates failures from CRMEB payment success. Durable compensation/reconciliation for a listener exception is intentionally deferred to the final launch readiness check and is not implemented in Stage 3 V1.
+- Local and remote `codex/yfth-hq-mall-stage3-mall-consumption-reward-v1` branches remain preserved. Current branch after closure is `main`; final `main` and `origin/main` must be read from actual Git after this documentation closure commit and push.
+- Not implemented or authorized: candidate confirmation, settlement, payout, withdrawal, partial-refund reversal, store takeover, city partner, multi-level referral, production deployment and production migration.
+- This closure does not connect to production MySQL/Redis, execute production migration, deploy a server or upload to WeChat. The next business stage has not started and requires separate project-control authorization.
+
 ## Current Fact Snapshot - Stage 3 Mall Consumption Reward Development
 
 - Current feature branch: `codex/yfth-hq-mall-stage3-mall-consumption-reward-v1`; start baseline and stable `main` / `origin/main`: `423a1d3ac03d0c4771ac4350334e95c3c2509b3e`. The completed feature commit must be read from actual Git after commit and push.
