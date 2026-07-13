@@ -223,7 +223,7 @@ class DirectReferralRewardSettlementServices extends YfthFoundationBaseServices
                 $idempotency->complete($recordId, $result);
                 return $result;
             });
-            return array_merge($result, ['idempotent_replay' => false]);
+            return array_merge(['idempotent_replay' => false], $result);
         } catch (\Throwable $e) {
             $idempotency->fail($recordId, $e->getMessage());
             throw $e;

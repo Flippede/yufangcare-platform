@@ -39,7 +39,7 @@ foreach (['assertApiAuthForAdmin', 'assertHeadquarterScope', 'cancelByHeadquarte
 foreach (['reward_settlement/candidate/:id/confirm', 'reward_settlement/candidate/:id/settle'] as $needle) {
     $assert(strpos($apiRoute, $needle) !== false, 'api_route_missing:' . $needle);
 }
-foreach (['reward_settlement/candidate/:id/cancel', 'reward_settlement/candidate/:id/correct'] as $needle) {
+foreach (["Route::group('reward_settlement'", 'candidate/:id/cancel', 'candidate/:id/correct'] as $needle) {
     $assert(strpos($adminRoute, $needle) !== false, 'admin_route_missing:' . $needle);
 }
 $assert(strpos($rewardService, "['pending', 'confirmed']") !== false, 'full_refund_cancels_unsettled_candidate');

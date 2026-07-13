@@ -73,9 +73,9 @@ class CreateYfthRewardSettlementLedger extends Migrator
             throw new RuntimeException('yfth_reward_settlement_package_membership_menu_required');
         }
         foreach ([
-            ['View reward settlement candidates', 'yfth/reward_settlement/candidate', 'GET', self::AUTHS[0]],
-            ['Cancel reward settlement candidate', 'yfth/reward_settlement/candidate/<id>/cancel', 'POST', self::AUTHS[1]],
-            ['Correct reward settlement candidate', 'yfth/reward_settlement/candidate/<id>/correct', 'POST', self::AUTHS[2]],
+            ['Reward settle list', 'yfth/reward_settlement/candidate', 'GET', self::AUTHS[0]],
+            ['Reward settle cancel', 'yfth/reward_settlement/candidate/<id>/cancel', 'POST', self::AUTHS[1]],
+            ['Reward settle correct', 'yfth/reward_settlement/candidate/<id>/correct', 'POST', self::AUTHS[2]],
         ] as $definition) {
             [$name, $url, $method, $auth] = $definition;
             $existing = $this->menuByAuth($auth);
@@ -108,7 +108,8 @@ class CreateYfthRewardSettlementLedger extends Migrator
 
     private function menuByAuth(string $auth): array
     {
-        return (array)$this->getAdapter()->fetchRow('SELECT * FROM `' . $this->prefixed('system_menus') . '` WHERE `unique_auth`=' . $this->quote($auth) . ' AND `is_del`=0 LIMIT 1');
+        $rows = $this->getAdapter()->fetchAll('SELECT * FROM `' . $this->prefixed('system_menus') . '` WHERE `unique_auth`=' . $this->quote($auth) . ' AND `is_del`=0 ORDER BY `id` ASC');
+        return $rows ? $rows[0] : [];
     }
 
     private function insertRow(string $table, array $row): void
@@ -128,7 +129,7 @@ class CreateYfthRewardSettlementLedger extends Migrator
         return (bool)$this->getAdapter()->fetchRow('SELECT 1 FROM information_schema.STATISTICS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=' . $this->quote($this->prefixed($table)) . ' AND INDEX_NAME=' . $this->quote($index) . ' LIMIT 1');
     }
 
-    private function hasTable(string $table): bool
+    public function hasTable($table): bool
     {
         return (bool)$this->getAdapter()->fetchRow('SELECT 1 FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=' . $this->quote($this->prefixed($table)) . ' LIMIT 1');
     }

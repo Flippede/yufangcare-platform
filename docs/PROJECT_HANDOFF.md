@@ -7,7 +7,9 @@
 - B1 trusted `franchisee` / `store_manager` contexts can confirm and record an offline settlement only for their own `store_id`; C1 remains read-only; headquarters has explicit list, exception-cancel and exception-correct permissions. Each mutation uses row locking, idempotency and audit evidence.
 - New table: `yfth_direct_referral_reward_settlement_ledger`, with a unique candidate guard and immutable offline reference/proof/operator/time record. It records business facts and never writes CRMEB balance, brokerage, points, distribution, withdrawal or automatic payment data.
 - Stage 3 full refund cancels ordinary-mall candidates that are still `pending` or `confirmed`; a settled record is preserved because refund reversal is not implemented.
-- Store and headquarters pages label the flow as an offline settlement record, not platform payment. C1 sees status only. The feature remains awaiting its direct verification and independent architecture review.
+- Direct Stage 4 validation is complete on this branch with portable PHP 7.4.33 and isolated MySQL Community 8.0.46: PHP syntax, contract check, real flow, migration run/rollback/rerun and Admin production build passed. The real flow covers both candidate types, trusted B1 scope, C1 DTO scope, duplicate confirmation/settlement, cancelled/settled terminal guards, and full-refund handling for pending/confirmed ordinary-mall candidates.
+- Validation fixed only Stage 4 defects: migration compatibility with the real Phinx/MySQL adapter and CRMEB menu length, an idempotent-result flag overwrite, and incomplete contract/real-flow coverage. No production environment was used. The feature remains unmerged and awaits its independent architecture review.
+- Store and headquarters pages label the flow as an offline settlement record, not platform payment. C1 sees status only.
 - Not implemented or authorized: automatic payout, wallet, withdrawal, payment split, partial-refund reversal, reconciliation, store takeover, city partner, multi-level referral, production migration, production deployment or WeChat upload.
 
 ## Historical Snapshot - Final Stage 3 Mall Consumption Reward Merge Closure
