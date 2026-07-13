@@ -943,6 +943,8 @@ class PackagePurchaseServices extends PackageBenefitBaseServices
         $templateServices = app()->make(PackageTemplateServices::class);
         $template = $templateServices->requirePublishedTemplate($templateId);
         $rule = $templateServices->currentRule($templateId);
+        $rule['grants_permanent_membership'] = (int)app()->make(PackageMembershipGrantPolicy::class)
+            ->forRule($rule)['grants_permanent_membership'];
         app()->make(PackageMembershipReferralServices::class)->assertMembershipGrantRule($uid, $rule);
         $clientRuleVersionId = (int)($data['rule_version_id'] ?? 0);
         if ($clientRuleVersionId > 0 && $clientRuleVersionId !== (int)$rule['id']) {

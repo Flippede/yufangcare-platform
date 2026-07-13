@@ -21,8 +21,7 @@ class PackageMembershipReferralStoreController
     public function candidates(Request $request, PackageMembershipReferralServices $access, DirectReferralRewardServices $services)
     {
         $context = $access->storeContext($request);
-        return app('json')->success($services->candidateList([
-            'store_id' => (int)$context['store_id'],
+        return app('json')->success($services->storeCandidates((int)$context['store_id'], [
             'referrer_uid' => (int)$request->get('referrer_uid', 0),
             'referred_uid' => (int)$request->get('referred_uid', 0),
             'candidate_type' => (string)$request->get('candidate_type', ''),

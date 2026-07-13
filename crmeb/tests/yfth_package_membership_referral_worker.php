@@ -2,6 +2,7 @@
 
 use app\services\yfth\PackageActivationServices;
 use app\services\yfth\PackageMembershipActivationCoordinator;
+use app\services\yfth\PackageMembershipReferralServices;
 use think\facade\Db;
 
 require __DIR__ . '/yfth_package_membership_referral_test_bootstrap.php';
@@ -16,6 +17,14 @@ try {
             throw new RuntimeException('worker_order_not_found');
         }
         $result = app()->make(PackageActivationServices::class)->activateByPaidOrder($order);
+    } elseif ($action === 'accept_invite') {
+        $uid = (int)($argv[2] ?? 0);
+        $token = (string)($argv[3] ?? '');
+        $key = (string)($argv[4] ?? '');
+        $result = app()->make(PackageMembershipReferralServices::class)->acceptInvite($uid, $token, [
+            'idempotency_key' => $key,
+            'request_id' => $key,
+        ]);
     } elseif ($action === 'coordinator') {
         $uid = (int)($argv[2] ?? 0);
         $storeId = (int)($argv[3] ?? 0);

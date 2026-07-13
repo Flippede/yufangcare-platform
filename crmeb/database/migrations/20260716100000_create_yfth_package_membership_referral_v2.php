@@ -77,12 +77,12 @@ class CreateYfthPackageMembershipReferralV2 extends Migrator
     {
         if (!$this->tableHasColumn('yfth_package_rule_version', 'grants_permanent_membership')) {
             $this->table('yfth_package_rule_version')
-                ->addColumn('grants_permanent_membership', 'boolean', ['signed' => false, 'default' => 0, 'after' => 'month_count', 'comment' => 'grant permanent membership after package activation'])
+                ->addColumn('grants_permanent_membership', 'boolean', ['signed' => false, 'null' => true, 'default' => null, 'after' => 'month_count', 'comment' => 'NULL legacy package semantics; new rules must freeze 0 or 1'])
                 ->update();
         }
         if (!$this->tableHasColumn('yfth_package_purchase_snapshot', 'grants_permanent_membership')) {
             $this->table('yfth_package_purchase_snapshot')
-                ->addColumn('grants_permanent_membership', 'boolean', ['signed' => false, 'default' => 0, 'after' => 'month_count', 'comment' => 'immutable membership grant snapshot'])
+                ->addColumn('grants_permanent_membership', 'boolean', ['signed' => false, 'null' => true, 'default' => null, 'after' => 'month_count', 'comment' => 'NULL immutable legacy package semantics; new snapshots freeze 0 or 1'])
                 ->update();
         }
     }
@@ -321,7 +321,7 @@ class CreateYfthPackageMembershipReferralV2 extends Migrator
             . ' AND TABLE_NAME=' . $this->quote($this->prefixed($table)) . ' AND COLUMN_NAME=' . $this->quote($column) . ' LIMIT 1'
         );
         if (!$row || (string)$row['DATA_TYPE'] !== 'tinyint' || stripos((string)$row['COLUMN_TYPE'], 'unsigned') === false
-            || (string)$row['IS_NULLABLE'] !== 'NO' || (string)$row['COLUMN_DEFAULT'] !== '0') {
+            || (string)$row['IS_NULLABLE'] !== 'YES' || $row['COLUMN_DEFAULT'] !== null) {
             throw new RuntimeException('yfth_package_membership_referral_v2_package_column_mismatch:' . $table . ':' . $column);
         }
     }

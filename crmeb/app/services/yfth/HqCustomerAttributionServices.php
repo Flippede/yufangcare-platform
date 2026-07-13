@@ -73,7 +73,9 @@ class HqCustomerAttributionServices extends YfthFoundationBaseServices
                 throw $e;
             }
         }
-        $existing = $this->row($this->dao->getOne(['uid' => $uid]));
+        // A locking current read can see the row committed by the transaction
+        // that won the unique-key race under MySQL REPEATABLE READ.
+        $existing = $this->row($this->dao->search([])->where('uid', $uid)->lock(true)->find());
         if (!$existing) {
             throw new ApiException('attribution_placeholder_conflict_missing');
         }

@@ -6,6 +6,8 @@ use app\services\yfth\HqAuthorityMutation;
 use app\services\yfth\HqAuthoritySource;
 use app\services\yfth\HqCustomerAttributionServices;
 use app\services\yfth\PackageMembershipActivationCoordinator;
+use app\services\yfth\PackageMembershipGrantPolicy;
+use app\services\yfth\PackageMembershipReferralMigrationHealthServices;
 use app\services\yfth\PackageMembershipReferralServices;
 use app\services\yfth\PackageMembershipServices;
 use app\services\yfth\PackageTemplateServices;
@@ -60,11 +62,26 @@ try {
     $coordinator = app()->make(PackageMembershipActivationCoordinator::class);
     $attribution = app()->make(HqCustomerAttributionServices::class);
     $templates = app()->make(PackageTemplateServices::class);
+    $grantPolicy = app()->make(PackageMembershipGrantPolicy::class);
     $storeA = 9201;
     $storeB = 9202;
     $c1 = 920001;
 
     pmrAssertVersionedPackagePrices($assert, $templates);
+    $legacyRuleDecision = $grantPolicy->forRule(['grants_permanent_membership' => null]);
+    $legacySnapshotDecision = $grantPolicy->forSnapshot(['grants_permanent_membership' => null]);
+    $explicitNoGrant = $grantPolicy->forSnapshot(['grants_permanent_membership' => 0]);
+    $assert($legacyRuleDecision['grants_permanent_membership'] === true
+        && $legacyRuleDecision['semantics'] === PackageMembershipGrantPolicy::SEMANTICS_LEGACY_PACKAGE,
+        'legacy_rule_null_is_classified_as_package_membership_grant');
+    $assert($legacySnapshotDecision['grants_permanent_membership'] === true
+        && $legacySnapshotDecision['semantics'] === PackageMembershipGrantPolicy::SEMANTICS_LEGACY_PACKAGE,
+        'legacy_snapshot_null_is_classified_without_rewrite');
+    $assert($explicitNoGrant['grants_permanent_membership'] === false,
+        'explicit_non_grant_snapshot_is_not_reclassified');
+    $migrationHealth = app()->make(PackageMembershipReferralMigrationHealthServices::class)->inspect();
+    $assert(!empty($migrationHealth['healthy']) && empty($migrationHealth['issues']),
+        'recorded_migration_schema_index_and_permission_health_is_complete');
 
     $rule = $reward->saveRule([
         'package_ratio_first_bps' => 1500,
@@ -124,17 +141,21 @@ try {
         'idempotency_key' => 'pmr-accept-flow-1',
         'request_id' => 'pmr-accept-flow-1',
     ]);
+    pmrAssertRecursiveKeysAbsent($assert, $accepted, [
+        'referrer_uid', 'referred_uid', 'owner_uid', 'reward_sequence_no', 'rule_version_id',
+    ], 'invite_accept_user_dto');
     $relationCount = (int)Db::name('yfth_hq_active_referral_current')->where('referred_uid', 920002)->count();
     $eventCount = (int)Db::name('yfth_hq_active_referral_event')->where('referred_uid', 920002)->count();
+    $relationId = (int)Db::name('yfth_hq_active_referral_current')->where('referred_uid', 920002)->value('id');
     $replayed = $referral->acceptInvite(920002, (string)$currentInvite['invite_token'], [
         'idempotency_key' => 'pmr-accept-flow-1',
         'request_id' => 'pmr-accept-flow-1',
     ]);
     $assert(!empty($replayed['idempotent_replay']), 'invite_accept_same_request_is_idempotent_replay');
-    $assert((int)($replayed['relation']['id'] ?? 0) === (int)($accepted['relation']['id'] ?? 0), 'invite_accept_replay_reuses_relation');
+    $assert((int)Db::name('yfth_hq_active_referral_current')->where('referred_uid', 920002)->value('id') === $relationId, 'invite_accept_replay_reuses_relation');
     $assert((int)Db::name('yfth_hq_active_referral_current')->where('referred_uid', 920002)->count() === $relationCount, 'invite_accept_replay_creates_no_relation');
     $assert((int)Db::name('yfth_hq_active_referral_event')->where('referred_uid', 920002)->count() === $eventCount, 'invite_accept_replay_creates_no_event');
-    $first = (array)$accepted['relation'];
+    $first = (array)Db::name('yfth_hq_active_referral_current')->where('referred_uid', 920002)->find();
     $assert((int)$first['store_id'] === $storeA, 'c2_inherits_c1_store');
     $assert((int)Db::name('yfth_hq_active_referral_current')->where('referred_uid', 920002)->value('referrer_uid') === $c1, 'one_level_relation_created');
     $expect(function () use ($referral, $storeB) {
@@ -152,6 +173,14 @@ try {
     $assert(($postMembership['reason'] ?? '') === 'active_referral_not_found', 'closed_referral_produces_no_new_consumption_candidate');
     $c2Referral = pmrCreateReferral($referral, 920002, 920011, 'c2-independent-referral');
     $assert((int)$c2Referral['referrer_uid'] === 920002 && (int)$c2Referral['store_id'] === $storeA, 'qualified_c2_can_refer_independently');
+    $userSummary = $referral->me(920002);
+    pmrAssertRecursiveKeysAbsent($assert, $userSummary, [
+        'referrer_uid', 'referred_uid', 'owner_uid', 'reward_sequence_no', 'rule_version_id',
+    ], 'membership_summary_user_dto');
+    $userCandidates = $reward->userCandidates($c1);
+    pmrAssertRecursiveKeysAbsent($assert, $userCandidates, [
+        'referrer_uid', 'referred_uid', 'owner_uid', 'reward_sequence_no', 'rule_version_id',
+    ], 'candidate_list_user_dto');
 
     pmrCreateReferral($referral, 920001, 920003, 'flow-2');
     pmrActivate($coordinator, 920003, $storeA, 991003, 992003, '200.00');
@@ -163,9 +192,11 @@ try {
 
     pmrCreateReferral($referral, 920001, 920005, 'flow-4');
     pmrCreateReferral($referral, 920001, 920006, 'flow-5');
+    $concurrentPackageA = pmrCreateActivatablePackage(920005, $storeA, '400.00');
+    $concurrentPackageB = pmrCreateActivatablePackage(920006, $storeA, '500.00');
     $workers = pmrRunWorkers([
-        ['coordinator', '920005', (string)$storeA, '991005', '992005', '400.00'],
-        ['coordinator', '920006', (string)$storeA, '991006', '992006', '500.00'],
+        ['activate_order', (string)$concurrentPackageA['order_id']],
+        ['activate_order', (string)$concurrentPackageB['order_id']],
     ]);
     foreach ($workers as $index => $worker) {
         $assert($worker['exit_code'] === 0, 'concurrent_activation_worker_' . ($index + 1) . ':' . $worker['stderr']);
@@ -210,6 +241,24 @@ try {
         'active_key' => 'published',
         'update_time' => time(),
     ]);
+    $refundedOrder = pmrCreatePaidOrder(920007, $storeA, '88.00', 'mall-refunded');
+    Db::name('store_order')->where('id', $refundedOrder)->update(['refund_status' => 2]);
+    $expect(function () use ($reward, $refundedOrder) {
+        $reward->recordMallOrderPaid($refundedOrder);
+    }, 'trusted_paid_unrefunded_main_order_required', 'mall_refunded_order_rejected');
+    $childOrder = pmrCreatePaidOrder(920007, $storeA, '88.00', 'mall-child');
+    Db::name('store_order')->where('id', $childOrder)->update(['pid' => $refundedOrder]);
+    $expect(function () use ($reward, $childOrder) {
+        $reward->recordMallOrderPaid($childOrder);
+    }, 'trusted_paid_unrefunded_main_order_required', 'mall_child_order_rejected');
+    $deletedOrder = pmrCreatePaidOrder(920007, $storeA, '88.00', 'mall-deleted');
+    Db::name('store_order')->where('id', $deletedOrder)->update(['is_del' => 1]);
+    $expect(function () use ($reward, $deletedOrder) {
+        $reward->recordMallOrderPaid($deletedOrder);
+    }, 'trusted_paid_unrefunded_main_order_required', 'mall_deleted_order_rejected');
+    $assert((int)Db::name('yfth_direct_referral_reward_candidate')
+        ->whereIn('source_business_id', [(string)$refundedOrder, (string)$childOrder, (string)$deletedOrder])
+        ->count() === 0, 'invalid_mall_orders_create_no_candidate');
     $mallOrder = pmrCreatePaidOrder(920007, $storeA, '88.00', 'mall-active-rule');
     $mallCandidate = $reward->recordMallOrderPaid($mallOrder);
     $assert(!empty($mallCandidate['created']), 'mall_extension_creates_candidate_with_active_rule');
@@ -238,13 +287,64 @@ try {
     $legacy = pmrCreateHistoricalPackage($legacyUid, $storeA, '5981.23');
     $effective = $membership->effectiveMembership($legacyUid);
     $assert($effective['is_member'] === true && $effective['persisted'] === false, 'historical_active_package_has_read_through_membership');
+    $assert(Db::name('yfth_package_purchase_snapshot')->where('purchase_id', $legacy['purchase_id'])
+        ->value('grants_permanent_membership') === null, 'historical_snapshot_grant_remains_null_and_immutable');
+    Db::name('yfth_package_instance')->where('id', $legacy['instance_id'])->update([
+        'status' => 'refunded',
+        'refund_status' => 'refunded',
+        'close_reason' => 'isolated_validation_refund',
+    ]);
+    Db::name('yfth_package_purchase')->where('id', $legacy['purchase_id'])->update([
+        'purchase_status' => 'refunded',
+    ]);
+    $refundedHistorical = $membership->effectiveMembership($legacyUid);
+    $assert($refundedHistorical['is_member'] === true && $refundedHistorical['persisted'] === false,
+        'unbackfilled_historical_refund_keeps_permanent_membership');
+    $legacyInvite = $referral->issueInvite($legacyUid, ['request_id' => 'pmr-legacy-refunded-invite']);
+    $assert((string)($legacyInvite['invite_token'] ?? '') !== ''
+        && (int)Db::name('yfth_permanent_membership')->where('uid', $legacyUid)->count() === 0,
+        'unbackfilled_refunded_historical_member_can_invite');
+    $assert((int)Db::name('yfth_hq_customer_attribution_current')->where('uid', $legacyUid)->value('store_id') === $storeA,
+        'historical_invite_bootstraps_trusted_store_attribution_without_membership_backfill');
     $countBeforeDryRun = (int)Db::name('yfth_permanent_membership')->count();
     $dryRun = $membership->legacyBackfill(false, 200, 1, '', 'pmr-backfill-dry');
     $assert((int)$dryRun['eligible'] >= 1 && (int)Db::name('yfth_permanent_membership')->count() === $countBeforeDryRun, 'historical_backfill_dry_run_is_read_only');
     $execute = $membership->legacyBackfill(true, 200, 1, 'approved historical package recognition', 'pmr-backfill-execute');
     $assert((int)$execute['created'] >= 1 && $membership->effectiveMembership($legacyUid)['persisted'] === true, 'historical_backfill_execute_persists_membership');
-    Db::name('yfth_package_instance')->where('id', $legacy['instance_id'])->update(['refund_status' => 'refunded']);
     $assert($membership->effectiveMembership($legacyUid)['is_member'] === true, 'refund_does_not_auto_revoke_permanent_membership');
+
+    $raceUid = 920015;
+    $raceInvite = $referral->issueInvite($c1, ['request_id' => 'pmr-race-invite']);
+    $racePackage = pmrCreateActivatablePackage($raceUid, $storeA, '678.90');
+    $raceWorkers = pmrRunWorkers([
+        ['accept_invite', (string)$raceUid, (string)$raceInvite['invite_token'], 'pmr-race-accept'],
+        ['activate_order', (string)$racePackage['order_id']],
+    ]);
+    foreach ($raceWorkers as $worker) {
+        $combined = strtolower((string)$worker['stdout'] . ' ' . (string)$worker['stderr']);
+        $assert(strpos($combined, 'deadlock') === false && strpos($combined, 'lock wait timeout') === false,
+            'invite_activation_concurrency_has_no_deadlock_or_lock_wait');
+    }
+    $assert($raceWorkers[1]['exit_code'] === 0, 'concurrent_package_activation_succeeds:' . $raceWorkers[1]['stderr']);
+    $acceptRaceExpected = $raceWorkers[0]['exit_code'] === 0
+        || strpos($raceWorkers[0]['stderr'], 'direct_referral_referred_user_must_be_non_member') !== false;
+    $assert($acceptRaceExpected, 'concurrent_invite_accept_has_only_serializable_outcome:' . $raceWorkers[0]['stderr']);
+    $assert((int)Db::name('yfth_permanent_membership')->where('uid', $raceUid)->count() === 1,
+        'concurrent_invite_activation_creates_one_membership');
+    $raceRelation = Db::name('yfth_hq_active_referral_current')->where('referred_uid', $raceUid)->find();
+    if ($raceRelation) {
+        $assert((string)$raceRelation['status'] === 'closed'
+            && (string)$raceRelation['close_reason'] === 'membership_activated',
+            'accepted_concurrent_relation_is_atomically_closed');
+        $assert((int)Db::name('yfth_direct_referral_reward_candidate')->where('referred_uid', $raceUid)->count() === 1,
+            'accepted_concurrent_relation_creates_one_candidate');
+    } else {
+        $assert((int)Db::name('yfth_direct_referral_reward_candidate')->where('referred_uid', $raceUid)->count() === 0,
+            'activation_first_concurrent_outcome_creates_no_partial_candidate');
+    }
+    $assert((int)Db::name('yfth_idempotency_record')
+        ->where('idempotency_key', 'pmr-race-accept')->where('process_status', 'processing')->count() === 0,
+        'concurrent_invite_activation_leaves_no_processing_idempotency');
 
     $membershipCount = (int)Db::name('yfth_permanent_membership')->count();
     $eventCount = (int)Db::name('yfth_permanent_membership_event')->count();
@@ -314,9 +414,9 @@ function pmrCleanup(): void
     ] as $table) {
         Db::name($table)->delete(true);
     }
-    Db::name('store_order')->whereBetween('uid', [920001, 920012])->delete();
-    Db::name('yfth_user_store_role')->whereBetween('uid', [920001, 920012])->delete();
-    Db::name('user')->whereBetween('uid', [920001, 920012])->delete();
+    Db::name('store_order')->whereBetween('uid', [920001, 920020])->delete();
+    Db::name('yfth_user_store_role')->whereBetween('uid', [920001, 920020])->delete();
+    Db::name('user')->whereBetween('uid', [920001, 920020])->delete();
     Db::name('system_store')->whereIn('id', [9201, 9202])->delete();
 }
 
@@ -384,7 +484,7 @@ function pmrAssertVersionedPackagePrices(callable $assert, PackageTemplateServic
 function pmrCreateFixtures(): void
 {
     $now = time();
-    foreach (range(920001, 920012) as $uid) {
+    foreach (range(920001, 920020) as $uid) {
         Db::name('user')->insert([
             'uid' => $uid,
             'account' => 'pmr' . $uid,
@@ -419,7 +519,14 @@ function pmrCreateReferral(PackageMembershipReferralServices $services, int $own
         'idempotency_key' => 'pmr-accept-' . $key,
         'request_id' => 'pmr-accept-' . $key,
     ]);
-    return (array)$accepted['relation'];
+    if (empty($accepted['direct_referral'])) {
+        throw new RuntimeException('pmr_referral_accept_result_missing');
+    }
+    $relation = Db::name('yfth_hq_active_referral_current')->where('referred_uid', $referredUid)->order('id desc')->find();
+    if (!$relation) {
+        throw new RuntimeException('pmr_referral_row_missing');
+    }
+    return $relation;
 }
 
 function pmrActivate(PackageMembershipActivationCoordinator $coordinator, int $uid, int $storeId, int $purchaseId, int $instanceId, string $amount): array
@@ -569,6 +676,30 @@ function pmrCreateHistoricalPackage(int $uid, int $storeId, string $amount): arr
         'add_time' => $now,
         'update_time' => $now,
     ]);
+    $snapshotId = (int)Db::name('yfth_package_purchase_snapshot')->insertGetId([
+        'purchase_id' => $purchaseId,
+        'uid' => $uid,
+        'store_id' => $storeId,
+        'template_id' => 800001,
+        'rule_version_id' => 800001,
+        'rule_version_no' => 1,
+        'package_code' => 'HISTORICAL-PACKAGE',
+        'package_name' => 'Historical package',
+        'package_title' => 'Historical package validation',
+        'package_type' => 'health_package',
+        'package_price' => $amount,
+        'currency' => 'CNY',
+        'month_count' => 10,
+        'grants_permanent_membership' => null,
+        'product_id' => 800001,
+        'product_attr_unique' => 'historical-sku',
+        'order_id' => $orderId,
+        'order_sn' => $orderSn,
+        'order_pay_price' => $amount,
+        'paid_time' => $now,
+        'add_time' => $now,
+        'update_time' => $now,
+    ]);
     $instanceId = (int)Db::name('yfth_package_instance')->insertGetId([
         'instance_no' => 'PMRHI' . $uid,
         'purchase_id' => $purchaseId,
@@ -586,7 +717,10 @@ function pmrCreateHistoricalPackage(int $uid, int $storeId, string $amount): arr
         'add_time' => $now,
         'update_time' => $now,
     ]);
-    Db::name('yfth_package_purchase')->where('id', $purchaseId)->update(['instance_id' => $instanceId]);
+    Db::name('yfth_package_purchase')->where('id', $purchaseId)->update([
+        'instance_id' => $instanceId,
+        'snapshot_id' => $snapshotId,
+    ]);
     return ['order_id' => $orderId, 'purchase_id' => $purchaseId, 'instance_id' => $instanceId];
 }
 
@@ -631,10 +765,25 @@ function pmrRunWorkers(array $arguments): array
     return $results;
 }
 
+function pmrAssertRecursiveKeysAbsent(callable $assert, array $payload, array $forbidden, string $label): void
+{
+    $walk = function (array $value) use (&$walk, $assert, $forbidden, $label): void {
+        foreach ($value as $key => $item) {
+            if (is_string($key)) {
+                $assert(!in_array($key, $forbidden, true), $label . ':excludes_' . $key);
+            }
+            if (is_array($item)) {
+                $walk($item);
+            }
+        }
+    };
+    $walk($payload);
+}
+
 function pmrFundingSnapshot(): array
 {
     return [
-        'users' => Db::name('user')->whereBetween('uid', [920001, 920012])->order('uid asc')->column('now_money,brokerage_price', 'uid'),
+        'users' => Db::name('user')->whereBetween('uid', [920001, 920020])->order('uid asc')->column('now_money,brokerage_price', 'uid'),
         'legacy_reward_ledger_count' => (int)Db::name('yfth_reward_ledger')->count(),
         'legacy_settlement_count' => (int)Db::name('yfth_reward_settlement_record')->count(),
     ];

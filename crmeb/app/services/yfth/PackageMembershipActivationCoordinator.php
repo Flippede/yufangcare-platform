@@ -23,7 +23,8 @@ class PackageMembershipActivationCoordinator
 
     public function activateInTransaction(array $purchase, array $snapshot, int $instanceId): array
     {
-        if ((int)($snapshot['grants_permanent_membership'] ?? 0) !== 1) {
+        $decision = app()->make(PackageMembershipGrantPolicy::class)->forSnapshot($snapshot);
+        if (!$decision['grants_permanent_membership']) {
             return ['granted' => false, 'reason' => 'package_rule_does_not_grant_membership'];
         }
 
@@ -31,7 +32,7 @@ class PackageMembershipActivationCoordinator
         $storeId = (int)$purchase['store_id'];
         app()->make(StoreAccessServices::class)->assertStoreActive($storeId);
         $lockContext = $this->referral->membershipLockContext($uid);
-        $lockedCurrents = $this->attribution->lockCurrents($lockContext['uids']);
+        $lockedCurrents = (array)$lockContext['locked_currents'];
         $source = HqAuthoritySource::fromTrusted('package_membership_activation', $instanceId);
         $requestId = 'package_membership_activation:' . $instanceId;
         $mutation = new HqAuthorityMutation($source, $uid, 'customer', 'package_membership_activated', $requestId, $requestId);

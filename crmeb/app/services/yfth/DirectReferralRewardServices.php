@@ -31,7 +31,10 @@ class DirectReferralRewardServices extends YfthFoundationBaseServices
         return $this->pageList(
             $this->cleanWhere(['status' => $where['status'] ?? '']),
             '*',
-            'version_no desc,id desc'
+            'version_no desc,id desc',
+            function ($row) {
+                return $this->adminRuleDto($row);
+            }
         );
     }
 
@@ -84,7 +87,7 @@ class DirectReferralRewardServices extends YfthFoundationBaseServices
         }
         $after = $this->row($this->ruleDao->get($id));
         $this->audit->recordSafely(self::DOMAIN, 'direct_referral_rule_version', (string)$id, $before ? 'update' : 'create', $before, $after, $operatorUid, 'admin', 0);
-        return $after;
+        return $this->adminRuleDto($after);
     }
 
     public function publishRule(int $id, int $operatorUid): array
@@ -95,7 +98,7 @@ class DirectReferralRewardServices extends YfthFoundationBaseServices
                 throw new ApiException('direct_referral_rule_not_found');
             }
             if ((string)$row['status'] === 'published') {
-                return $row;
+                return $this->adminRuleDto($row);
             }
             if ((string)$row['status'] !== 'draft') {
                 throw new ApiException('direct_referral_rule_publish_forbidden');
@@ -118,7 +121,7 @@ class DirectReferralRewardServices extends YfthFoundationBaseServices
             $this->ruleDao->update($id, $update);
             $after = array_merge($row, $update);
             $this->audit->recordSafely(self::DOMAIN, 'direct_referral_rule_version', (string)$id, 'publish', $row, $after, $operatorUid, 'admin', 0);
-            return $after;
+            return $this->adminRuleDto($after);
         });
     }
 
@@ -126,7 +129,7 @@ class DirectReferralRewardServices extends YfthFoundationBaseServices
     {
         $referrerUid = (int)$relation['referrer_uid'];
         $storeId = (int)$relation['store_id'];
-        $this->membership->assertPersistedActive($referrerUid, $storeId, true);
+        $this->membership->assertEffectiveActive($referrerUid, $storeId, true);
         $rule = $this->activeRule(true);
         $sourceKey = hash('sha256', 'package_activation|package_instance|' . $instanceId);
         $existing = $this->row($this->dao->search([])->where('source_unique_key', $sourceKey)->lock(true)->find());
@@ -164,8 +167,13 @@ class DirectReferralRewardServices extends YfthFoundationBaseServices
     {
         return Db::transaction(function () use ($orderId) {
             $order = $this->row(Db::name('store_order')->where('id', $orderId)->lock(true)->find());
-            if (!$order || (int)$order['paid'] !== 1) {
-                throw new ApiException('trusted_paid_order_required');
+            if (!$order
+                || (int)$order['paid'] !== 1
+                || (int)($order['pid'] ?? 0) !== 0
+                || (int)($order['refund_status'] ?? 0) !== 0
+                || (int)($order['is_del'] ?? 0) !== 0
+                || (int)($order['is_cancel'] ?? 0) !== 0) {
+                throw new ApiException('trusted_paid_unrefunded_main_order_required');
             }
             if (Db::name('yfth_package_purchase')->where('order_id', $orderId)->count() > 0) {
                 throw new ApiException('package_order_not_mall_consumption');
@@ -217,15 +225,28 @@ class DirectReferralRewardServices extends YfthFoundationBaseServices
             'candidate_type' => $where['candidate_type'] ?? '',
             'status' => $where['status'] ?? '',
         ]), '*', 'id desc', function ($row) {
-            return $this->candidateDto($row);
+            return $this->adminCandidateDto($row);
+        });
+    }
+
+    public function storeCandidates(int $storeId, array $where): array
+    {
+        return $this->pageList($this->cleanWhere([
+            'store_id' => $storeId,
+            'referrer_uid' => (int)($where['referrer_uid'] ?? 0) ?: '',
+            'referred_uid' => (int)($where['referred_uid'] ?? 0) ?: '',
+            'candidate_type' => $where['candidate_type'] ?? '',
+            'status' => $where['status'] ?? '',
+        ]), '*', 'id desc', function ($row) {
+            return $this->storeCandidateDto($row);
         });
     }
 
     public function userCandidates(int $uid): array
     {
-        $this->membership->assertPersistedActive($uid);
+        $this->membership->assertEffectiveActive($uid);
         return $this->pageList(['referrer_uid' => $uid], '*', 'id desc', function ($row) {
-            return $this->candidateDto($row);
+            return $this->userCandidateDto($row);
         });
     }
 
@@ -256,7 +277,7 @@ class DirectReferralRewardServices extends YfthFoundationBaseServices
             }
             throw new ApiException('direct_referral_candidate_unique_conflict');
         }
-        $this->audit->recordSafely(self::DOMAIN, 'direct_referral_reward_candidate', (string)$row['id'], 'create', [], $this->candidateDto($row), 0, 'system', (int)$row['store_id']);
+        $this->audit->recordSafely(self::DOMAIN, 'direct_referral_reward_candidate', (string)$row['id'], 'create', [], $this->adminCandidateDto($row), 0, 'system', (int)$row['store_id']);
         return ['candidate' => $row, 'created' => true];
     }
 
@@ -279,22 +300,56 @@ class DirectReferralRewardServices extends YfthFoundationBaseServices
         return $rule;
     }
 
-    private function candidateDto(array $row): array
+    private function userCandidateDto(array $row): array
     {
         return [
             'candidate_no' => (string)$row['candidate_no'],
             'candidate_type' => (string)$row['candidate_type'],
-            'referrer_uid' => (int)$row['referrer_uid'],
-            'referred_uid' => (int)$row['referred_uid'],
             'store_id' => (int)$row['store_id'],
-            'reward_sequence_no' => $row['reward_sequence_no'] === null ? null : (int)$row['reward_sequence_no'],
             'actual_paid_amount_cent' => (int)$row['actual_paid_amount_cent'],
             'ratio_bps' => (int)$row['ratio_bps'],
             'reward_amount_cent' => (int)$row['reward_amount_cent'],
-            'rule_version_id' => (int)$row['rule_version_id'],
             'status' => (string)$row['status'],
             'responsibility_type' => (string)$row['responsibility_type'],
             'add_time' => (int)$row['add_time'],
+        ];
+    }
+
+    private function storeCandidateDto(array $row): array
+    {
+        return array_merge($this->userCandidateDto($row), [
+            'referrer_uid' => (int)$row['referrer_uid'],
+            'referred_uid' => (int)$row['referred_uid'],
+        ]);
+    }
+
+    private function adminCandidateDto(array $row): array
+    {
+        return array_merge($this->storeCandidateDto($row), [
+            'reward_sequence_no' => $row['reward_sequence_no'] === null ? null : (int)$row['reward_sequence_no'],
+            'rule_version_id' => (int)$row['rule_version_id'],
+        ]);
+    }
+
+    private function adminRuleDto(array $row): array
+    {
+        return [
+            'id' => (int)$row['id'],
+            'rule_no' => (string)$row['rule_no'],
+            'version_no' => (int)$row['version_no'],
+            'status' => (string)$row['status'],
+            'package_ratio_first_bps' => (int)$row['package_ratio_first_bps'],
+            'package_ratio_second_bps' => (int)$row['package_ratio_second_bps'],
+            'package_ratio_third_bps' => (int)$row['package_ratio_third_bps'],
+            'mall_consumption_enabled' => (bool)$row['mall_consumption_enabled'],
+            'mall_consumption_ratio_bps' => (int)$row['mall_consumption_ratio_bps'],
+            'effective_at' => (int)$row['effective_at'],
+            'expires_at' => (int)$row['expires_at'],
+            'created_uid' => (int)$row['created_uid'],
+            'published_uid' => (int)$row['published_uid'],
+            'published_at' => (int)$row['published_at'],
+            'add_time' => (int)$row['add_time'],
+            'update_time' => (int)$row['update_time'],
         ];
     }
 

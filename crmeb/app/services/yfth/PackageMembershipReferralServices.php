@@ -62,7 +62,6 @@ class PackageMembershipReferralServices extends YfthFoundationBaseServices
                 'status' => (string)$attribution['status'],
             ] : null,
             'direct_referral' => $referral ? [
-                'referrer_uid' => (int)$referral['referrer_uid'],
                 'store_id' => (int)$referral['store_id'],
                 'status' => (string)$referral['status'],
                 'close_reason' => (string)$referral['close_reason'],
@@ -79,12 +78,33 @@ class PackageMembershipReferralServices extends YfthFoundationBaseServices
     {
         $requestId = $this->requestId($data);
         return Db::transaction(function () use ($uid, $requestId) {
-            $member = $this->membership->assertPersistedActive($uid, 0, true);
+            $lockedCurrents = $this->attribution->lockCurrents([$uid]);
+            $member = $this->membership->assertEffectiveActive($uid, 0, true);
             $storeId = (int)$member['store_id'];
             app()->make(StoreAccessServices::class)->assertStoreActive($storeId);
-            $attribution = $this->row($this->attributionDao->search([])->where('uid', $uid)->lock(true)->find());
-            if (!$attribution) {
-                throw new ApiException('referrer_attribution_required');
+            $attribution = (array)$lockedCurrents[$uid];
+            if ((string)$attribution['status'] === 'unassigned'
+                && (int)$attribution['authority_version'] === 0
+                && (string)$member['authority_type'] === 'historical_package_activation') {
+                $source = HqAuthoritySource::fromTrusted(
+                    'historical_package_activation',
+                    (int)$member['source_package_instance_id']
+                );
+                $mutation = new HqAuthorityMutation(
+                    $source,
+                    $uid,
+                    'customer',
+                    'historical_member_invite_eligibility',
+                    $requestId,
+                    'historical_member_invite:' . (int)$member['source_package_instance_id']
+                );
+                $assigned = $this->attribution->assignFirstWithLockedCurrentsInTransaction(
+                    $uid,
+                    $storeId,
+                    $mutation,
+                    $lockedCurrents
+                );
+                $attribution = (array)$assigned['after'];
             }
             $this->consistency->assertAttribution($attribution, true);
             if ((string)$attribution['status'] !== 'active' || (int)$attribution['store_id'] !== $storeId) {
@@ -163,21 +183,28 @@ class PackageMembershipReferralServices extends YfthFoundationBaseServices
             ['uid' => $uid, 'invite_id' => (int)$snapshot['id'], 'token_hash' => $tokenHash],
             'referred_uid:' . $uid,
             function () use ($uid, $tokenHash, $snapshot, $mutation) {
+                $ownerUid = (int)$snapshot['owner_uid'];
+                $storeId = (int)$snapshot['store_id'];
+                if ($ownerUid <= 0 || $ownerUid === $uid || $storeId <= 0) {
+                    throw new ApiException('direct_referral_invite_invalid');
+                }
+                // Match package activation: referred attribution first, then
+                // referrer attribution. The invite row is checked only after
+                // the shared referred-user serialization gate is held.
+                $lockedCurrents = $this->attribution->lockCurrents([$uid]);
+                $lockedCurrents += $this->attribution->lockCurrents([$ownerUid]);
                 $invite = $this->row($this->dao->search([])->where('id', (int)$snapshot['id'])->where('token_hash', $tokenHash)->lock(true)->find());
                 if (!$invite || (string)$invite['status'] !== 'active' || (int)$invite['expires_at'] <= time()) {
                     throw new ApiException('direct_referral_invite_unavailable');
                 }
-                $ownerUid = (int)$invite['owner_uid'];
-                $storeId = (int)$invite['store_id'];
-                if ($ownerUid <= 0 || $ownerUid === $uid || $storeId <= 0) {
+                if ((int)$invite['owner_uid'] !== $ownerUid || (int)$invite['store_id'] !== $storeId) {
                     throw new ApiException('direct_referral_invite_invalid');
                 }
+                app()->make(StoreAccessServices::class)->assertStoreActive($storeId);
+                $this->membership->assertEffectiveActive($ownerUid, $storeId, true);
                 if ($this->membership->effectiveMembership($uid)['is_member']) {
                     throw new ApiException('direct_referral_referred_user_must_be_non_member');
                 }
-                app()->make(StoreAccessServices::class)->assertStoreActive($storeId);
-                $this->membership->assertPersistedActive($ownerUid, $storeId, true);
-                $lockedCurrents = $this->attribution->lockCurrents([$ownerUid, $uid]);
                 $attribution = $this->attribution->assignFirstWithLockedCurrentsInTransaction($uid, $storeId, $mutation, $lockedCurrents);
                 $lockedCurrents[$uid] = (array)$attribution['after'];
                 $relation = $this->referral->createWithLockedCurrentsInTransaction($ownerUid, $uid, $storeId, $mutation, $lockedCurrents);
@@ -207,7 +234,7 @@ class PackageMembershipReferralServices extends YfthFoundationBaseServices
                 'relation_id' => (int)($result['relation']['id'] ?? 0),
             ], $uid, 'customer', (int)$result['store_id'], 'direct_referral_invite_accepted', $requestId);
         }
-        return $result;
+        return $this->userAcceptResultDto($result);
     }
 
     public function resolveAuthoritativeStoreForPurchase(int $uid, int $requestedStoreId): int
@@ -243,7 +270,8 @@ class PackageMembershipReferralServices extends YfthFoundationBaseServices
 
     public function assertMembershipGrantRule(int $uid, array $rule): void
     {
-        if ((int)($rule['grants_permanent_membership'] ?? 0) !== 1) {
+        if (!app()->make(PackageMembershipGrantPolicy::class)
+                ->forRule($rule)['grants_permanent_membership']) {
             throw new ApiException('package_must_grant_permanent_membership');
         }
         $relation = $this->row($this->referralDao->getOne(['active_referred_uid' => $uid]));
@@ -279,6 +307,25 @@ class PackageMembershipReferralServices extends YfthFoundationBaseServices
             'store_id' => (int)$row['store_id'],
             'status' => (string)$row['status'],
             'expires_at' => (int)$row['expires_at'],
+        ];
+    }
+
+    private function userAcceptResultDto(array $result): array
+    {
+        $attribution = (array)($result['attribution'] ?? []);
+        $relation = (array)($result['relation'] ?? []);
+        return [
+            'changed' => (bool)($result['changed'] ?? false),
+            'idempotent_replay' => (bool)($result['idempotent_replay'] ?? false),
+            'store_id' => (int)($result['store_id'] ?? $relation['store_id'] ?? 0),
+            'attribution' => $attribution ? [
+                'store_id' => (int)($attribution['store_id'] ?? 0),
+                'status' => (string)($attribution['status'] ?? ''),
+            ] : null,
+            'direct_referral' => $relation ? [
+                'store_id' => (int)($relation['store_id'] ?? 0),
+                'status' => (string)($relation['status'] ?? ''),
+            ] : null,
         ];
     }
 

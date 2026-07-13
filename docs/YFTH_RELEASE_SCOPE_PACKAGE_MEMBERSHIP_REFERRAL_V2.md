@@ -2,18 +2,23 @@
 
 > Current authoritative scope. This document supersedes the former standalone permanent-membership enrollment and standalone fixed-price business-package design. The former Stage 2 branch and documents are historical references only and must not be merged or used as implementation authority.
 
+## Current Audit Findings Closure
+
+- The first independent architecture review concluded C and blocked merge. Its findings covered historical membership semantics, legacy grant classification, user DTO leakage, ordinary-mall order validity, invite/activation lock order and recorded-migration health.
+- The implementation findings are now closed on the feature branch, but this document does not claim that a follow-up review has passed. Stage 2 V2 remains unmerged and the only next gate is an independent read-only architecture review.
+
 ## 1. Product Rules
 
 - The platform has one configurable core package model. `5980` and `9800` are not business constants.
 - Package price, benefits, service period and the permanent-membership grant flag are maintained through versioned package rules.
 - A paid transaction freezes its rule version, actual paid amount, currency, benefits and membership-grant decision. Later rule publication never rewrites a historical transaction snapshot.
 - Successful activation of a package whose frozen snapshot grants membership creates permanent YFTH membership. There is no separate membership product, enrollment, store cash confirmation or fixed membership fee.
-- A historical user with a valid paid and successfully activated package instance is recognized through read-through membership and can be persisted by the controlled headquarters backfill.
-- Refund status does not revoke permanent membership in V2. Revocation, reversal and dispute handling require a separately reviewed later stage.
+- A historical user with a real paid and successfully activated package transaction is recognized through durable read-through membership before backfill and can immediately use core membership capabilities, including invitation issuance. Controlled headquarters backfill remains optional persistence and governance, not an eligibility prerequisite.
+- Later package refund, closure or mutable lifecycle status does not revoke that already-earned permanent membership in V2. Revocation, reversal and dispute handling require a separately reviewed later stage.
 
 ## 2. C1, C2 And B1
 
-- C1 must have persisted active permanent membership before issuing an invitation.
+- C1 must have effective permanent membership authority: either a persisted active membership or a verified historical paid-and-activated package chain. `member_5980` is never membership authority.
 - The invitation is an opaque 256-bit token. Only its SHA-256 hash is stored, one active invitation is allowed per C1, and issuing a new invitation invalidates the previous active invitation.
 - C2 is derived exclusively from the authenticated user token. C2 must not already be a permanent member.
 - Accepting a valid invitation atomically assigns C2's first headquarters attribution to C1's B1 store and creates one active direct-referral relation from C1 to C2.
@@ -27,7 +32,7 @@
 - The same referrer receives package-activation candidates in a continuing three-position cycle: sequence 1/4/7 uses 15%, sequence 2/5/8 uses 25%, and sequence 3/6/9 uses 60%.
 - Ratios are represented in basis points (`1500`, `2500`, `6000`) and candidate amounts use integer arithmetic.
 - A candidate is observation-only state with status `pending`. It is not a wallet balance, commission, payout, settlement, accounting ledger or evidence that money was paid.
-- Ordinary headquarters-mall consumption has a versioned configurable ratio and a tested candidate service entry. V2 deliberately does not wire a CRMEB order listener, because doing so would expand the payment/refund boundary. No ordinary mall candidate is claimed unless the service is explicitly invoked by a later reviewed integration.
+- Ordinary headquarters-mall consumption has a versioned configurable ratio and a tested candidate service entry. It accepts only a real paid, unrefunded, undeleted, uncancelled main CRMEB order that is not a package order. V2 deliberately does not wire an order listener, because doing so would expand the payment/refund boundary.
 - C2's closed referral does not generate further ordinary-consumption candidates for C1.
 
 ## 4. Authority And Store Boundaries
@@ -54,4 +59,4 @@ V2 does not implement or authorize:
 
 ## 6. Release Gate
 
-The feature branch is `codex/yfth-hq-mall-stage2-package-membership-referral-v1`, based on stable `main` `3ec6c80dbfef4975788414f64ab70c9e439cf117`. It is not merged into `main`. The next and only gate is an independent read-only Architecture Auditor review.
+The feature branch is `codex/yfth-hq-mall-stage2-package-membership-referral-v1`, based on stable `main` `3ec6c80dbfef4975788414f64ab70c9e439cf117`. The first review conclusion was C; the findings have been implemented but not independently re-reviewed. The branch is not merged into `main` and the next and only gate is an independent read-only Architecture Auditor review.

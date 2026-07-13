@@ -235,6 +235,8 @@ class PackageTemplateServices extends PackageBenefitBaseServices
             $newRule['version_no'] = $this->nextRuleVersionNo((int)$rule['template_id']);
             $newRule['rule_code'] = 'RULE-' . (int)$rule['template_id'] . '-' . $newRule['version_no'];
             $newRule['status'] = 'draft';
+            $newRule['grants_permanent_membership'] = (int)app()->make(PackageMembershipGrantPolicy::class)
+                ->forRule($rule)['grants_permanent_membership'];
             $newRule['active_key'] = null;
             $newRule['created_uid'] = $operatorUid;
             $newRule['publish_uid'] = 0;
@@ -469,7 +471,8 @@ class PackageTemplateServices extends PackageBenefitBaseServices
     private function publicRuleRow(array $row): array
     {
         $row['package_price'] = $this->normalizeMoney($row['package_price'] ?? '0.00');
-        $row['grants_permanent_membership'] = (bool)($row['grants_permanent_membership'] ?? false);
+        $row['grants_permanent_membership'] = app()->make(PackageMembershipGrantPolicy::class)
+            ->forRule($row)['grants_permanent_membership'];
         $row['benefit_rule_snapshot'] = $this->jsonDecode($row['benefit_rule_snapshot'] ?? '');
         return $row;
     }

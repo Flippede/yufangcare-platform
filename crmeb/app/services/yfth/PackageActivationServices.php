@@ -118,7 +118,8 @@ class PackageActivationServices extends PackageBenefitBaseServices
         /** @var YfthPackagePurchaseSnapshotDao $snapshotDao */
         $snapshotDao = app()->make(YfthPackagePurchaseSnapshotDao::class);
         $snapshot = $snapshotDao->getOne(['purchase_id' => $purchaseId]);
-        if ($snapshot && (int)($snapshot['grants_permanent_membership'] ?? 0) === 1) {
+        if ($snapshot && app()->make(PackageMembershipGrantPolicy::class)
+                ->forSnapshot($snapshot)['grants_permanent_membership']) {
             return;
         }
         try {

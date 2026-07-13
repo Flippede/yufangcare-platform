@@ -28,27 +28,60 @@ class PackageMembershipServices extends YfthFoundationBaseServices
 
     public function effectiveMembership(int $uid): array
     {
-        $member = $this->row($this->dao->getOne(['uid' => $uid, 'status' => 'active']));
-        if ($member) {
-            return ['is_member' => true, 'persisted' => true, 'member' => $this->userDto($member)];
-        }
-        $legacy = $this->legacyPackageFactForUid($uid);
-        if (!$legacy) {
+        $authority = $this->effectiveMembershipAuthority($uid);
+        if (!$authority) {
             return ['is_member' => false, 'persisted' => false, 'member' => null];
+        }
+        if ((string)$authority['authority_type'] === 'persisted') {
+            return ['is_member' => true, 'persisted' => true, 'member' => $this->userDto($authority)];
         }
         return [
             'is_member' => true,
             'persisted' => false,
             'member' => [
                 'membership_no' => '',
-                'store_id' => (int)$legacy['store_id'],
+                'store_id' => (int)$authority['store_id'],
                 'status' => 'active',
-                'activated_at' => (int)$legacy['activated_at'],
-                'actual_paid_amount_cent' => $this->moneyToCents($legacy['order_pay_price']),
+                'activated_at' => (int)$authority['activated_at'],
+                'actual_paid_amount_cent' => $this->moneyToCents($authority['order_pay_price']),
                 'currency' => 'CNY',
                 'source' => 'historical_package_pending_controlled_backfill',
             ],
         ];
+    }
+
+    public function effectiveMembershipAuthority(int $uid, bool $lockPersisted = false): array
+    {
+        if ($uid <= 0) {
+            return [];
+        }
+        $query = $this->dao->search([])->where('uid', $uid)->where('status', 'active');
+        if ($lockPersisted) {
+            $query = $query->lock(true);
+        }
+        $member = $this->row($query->find());
+        if ($member) {
+            $member['authority_type'] = 'persisted';
+            return $member;
+        }
+        $legacy = $this->legacyPackageFactForUid($uid);
+        if (!$legacy) {
+            return [];
+        }
+        return array_merge($legacy, [
+            'authority_type' => 'historical_package_activation',
+            'source_package_instance_id' => (int)$legacy['instance_id'],
+            'source_purchase_id' => (int)$legacy['purchase_id'],
+        ]);
+    }
+
+    public function assertEffectiveActive(int $uid, int $storeId = 0, bool $lockPersisted = false): array
+    {
+        $member = $this->effectiveMembershipAuthority($uid, $lockPersisted);
+        if (!$member || ($storeId > 0 && (int)$member['store_id'] !== $storeId)) {
+            throw new ApiException('permanent_membership_required');
+        }
+        return $member;
     }
 
     public function assertPersistedActive(int $uid, int $storeId = 0, bool $lock = false): array
@@ -223,13 +256,14 @@ class PackageMembershipServices extends YfthFoundationBaseServices
     private function legacyPackageFacts(int $limit): array
     {
         return Db::name('yfth_package_instance')->alias('i')
-            ->join('yfth_package_purchase p', 'p.id=i.purchase_id')
-            ->join('store_order o', 'o.id=i.order_id')
+            ->join('yfth_package_purchase p', 'p.id=i.purchase_id AND p.instance_id=i.id')
+            ->join('store_order o', 'o.id=p.order_id AND o.id=i.order_id')
+            ->leftJoin('yfth_package_purchase_snapshot s', 's.purchase_id=p.id')
             ->leftJoin('yfth_permanent_membership m', 'm.uid=i.uid')
-            ->where('i.status', 'active')
-            ->where('p.purchase_status', 'activated')
             ->where('p.activation_status', 'succeeded')
             ->where('o.paid', 1)
+            ->where('i.activated_time', '>', 0)
+            ->whereRaw('(s.id IS NULL OR s.grants_permanent_membership IS NULL OR s.grants_permanent_membership=1)')
             ->whereNull('m.id')
             ->field('i.id instance_id,i.uid,i.store_id,i.purchase_id,i.rule_version_id,i.activated_time activated_at,p.order_pay_price')
             ->order('i.id asc')->limit($limit)->select()->toArray();
@@ -241,13 +275,14 @@ class PackageMembershipServices extends YfthFoundationBaseServices
             return [];
         }
         $row = Db::name('yfth_package_instance')->alias('i')
-            ->join('yfth_package_purchase p', 'p.id=i.purchase_id')
-            ->join('store_order o', 'o.id=i.order_id')
+            ->join('yfth_package_purchase p', 'p.id=i.purchase_id AND p.instance_id=i.id')
+            ->join('store_order o', 'o.id=p.order_id AND o.id=i.order_id')
+            ->leftJoin('yfth_package_purchase_snapshot s', 's.purchase_id=p.id')
             ->where('i.uid', $uid)
-            ->where('i.status', 'active')
-            ->where('p.purchase_status', 'activated')
             ->where('p.activation_status', 'succeeded')
             ->where('o.paid', 1)
+            ->where('i.activated_time', '>', 0)
+            ->whereRaw('(s.id IS NULL OR s.grants_permanent_membership IS NULL OR s.grants_permanent_membership=1)')
             ->field('i.id instance_id,i.uid,i.store_id,i.purchase_id,i.rule_version_id,i.activated_time activated_at,p.order_pay_price')
             ->order('i.id asc')->find();
         return $this->row($row);

@@ -2,26 +2,22 @@
 
 namespace app\services\yfth;
 
-use app\dao\yfth\YfthPermanentMembershipDao;
 use crmeb\exceptions\ApiException;
 
 class PackageMembershipReferralQualificationPolicy implements ReferralQualificationPolicy
 {
-    private $membershipDao;
+    private $membership;
 
-    public function __construct(YfthPermanentMembershipDao $membershipDao = null)
+    public function __construct(PackageMembershipServices $membership = null)
     {
-        $this->membershipDao = $membershipDao ?: app()->make(YfthPermanentMembershipDao::class);
+        $this->membership = $membership ?: app()->make(PackageMembershipServices::class);
     }
 
     public function assertQualified(int $referrerUid, int $storeId): void
     {
-        $member = $this->membershipDao->getOne([
-            'uid' => $referrerUid,
-            'status' => 'active',
-        ]);
-        if (!$member || (int)$member['store_id'] !== $storeId || $storeId <= 0) {
+        if ($storeId <= 0) {
             throw new ApiException('permanent_membership_required');
         }
+        $this->membership->assertEffectiveActive($referrerUid, $storeId);
     }
 }

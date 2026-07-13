@@ -132,16 +132,24 @@ class HqActiveReferralServices extends YfthFoundationBaseServices
 
     public function membershipLockContext(int $referredUid): array
     {
-        $snapshot = $this->row($this->dao->search([])->where('active_referred_uid', $referredUid)->order('id desc')->find());
-        $uids = [$referredUid];
-        if ($snapshot) $uids[] = (int)$snapshot['referrer_uid'];
-        $uids = array_values(array_unique(array_map('intval', $uids)));
-        sort($uids, SORT_NUMERIC);
+        // The referred user's attribution is the shared serialization gate for
+        // invite acceptance and package activation. Read the relation only
+        // after that gate is held so a newly accepted invite cannot be missed.
+        $lockedCurrents = $this->attribution->lockCurrents([$referredUid]);
+        $snapshot = $this->row($this->dao->search([])
+            ->where('active_referred_uid', $referredUid)
+            ->order('id desc')
+            ->lock(true)
+            ->find());
+        $referrerUid = (int)($snapshot['referrer_uid'] ?? 0);
+        if ($referrerUid > 0) {
+            $lockedCurrents += $this->attribution->lockCurrents([$referrerUid]);
+        }
         return [
             'relation_id' => (int)($snapshot['id'] ?? 0),
-            'referrer_uid' => (int)($snapshot['referrer_uid'] ?? 0),
+            'referrer_uid' => $referrerUid,
             'referred_uid' => $referredUid,
-            'uids' => $uids,
+            'locked_currents' => $lockedCurrents,
         ];
     }
 

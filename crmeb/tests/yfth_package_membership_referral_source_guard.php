@@ -14,6 +14,8 @@ $assert = function (bool $condition, string $label) use (&$failures, &$passes): 
 
 $productionFiles = [
     'app/services/yfth/PackageMembershipServices.php',
+    'app/services/yfth/PackageMembershipGrantPolicy.php',
+    'app/services/yfth/PackageMembershipReferralMigrationHealthServices.php',
     'app/services/yfth/PackageMembershipReferralServices.php',
     'app/services/yfth/PackageMembershipActivationCoordinator.php',
     'app/services/yfth/PackageMembershipReferralQualificationPolicy.php',
@@ -78,6 +80,27 @@ $assert(strpos($accept, '(int)$request->uid()') !== false, 'invite_accept_uid_co
 $assert(strpos($payload, "['invite_token', '']") !== false, 'invite_accept_reads_only_token_payload');
 $assert(strpos($payload, "['idempotency_key', '']") !== false, 'invite_accept_requires_idempotency_payload');
 $assert(strpos($payload, "['store_id'") === false, 'invite_accept_does_not_accept_store_id');
+
+$referralService = (string)file_get_contents($root . '/app/services/yfth/PackageMembershipReferralServices.php');
+$meStart = strpos($referralService, 'public function me');
+$meEnd = strpos($referralService, 'public function issueInvite', $meStart);
+$meDto = substr($referralService, $meStart, $meEnd - $meStart);
+$acceptDtoStart = strpos($referralService, 'private function userAcceptResultDto');
+$acceptDtoEnd = strpos($referralService, 'private function makeNo', $acceptDtoStart);
+$acceptDto = substr($referralService, $acceptDtoStart, $acceptDtoEnd - $acceptDtoStart);
+$rewardService = (string)file_get_contents($root . '/app/services/yfth/DirectReferralRewardServices.php');
+$candidateDtoStart = strpos($rewardService, 'private function userCandidateDto');
+$candidateDtoEnd = strpos($rewardService, 'private function storeCandidateDto', $candidateDtoStart);
+$candidateDto = substr($rewardService, $candidateDtoStart, $candidateDtoEnd - $candidateDtoStart);
+foreach (['referrer_uid', 'referred_uid', 'owner_uid', 'reward_sequence_no', 'rule_version_id'] as $field) {
+    $assert(strpos($acceptDto, $field) === false, 'user_accept_dto_excludes:' . $field);
+    $assert(strpos($candidateDto, $field) === false, 'user_candidate_dto_excludes:' . $field);
+}
+$assert(strpos($meDto, "'referrer_uid' =>") === false, 'user_me_dto_excludes:referrer_uid');
+$assert(strpos($meDto, "'referred_uid' =>") === false, 'user_me_dto_excludes:referred_uid');
+$assert(strpos($rewardService, "(int)(\$order['pid'] ?? 0) !== 0") !== false, 'mall_candidate_requires_main_order');
+$assert(strpos($rewardService, "(int)(\$order['refund_status'] ?? 0) !== 0") !== false, 'mall_candidate_rejects_refunded_order');
+$assert(strpos($rewardService, "(int)(\$order['is_del'] ?? 0) !== 0") !== false, 'mall_candidate_rejects_deleted_order');
 
 $diff = [];
 $exit = 0;
