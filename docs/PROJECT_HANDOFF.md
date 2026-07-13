@@ -1,6 +1,19 @@
 # 项目交接文档
 
-## Current Fact Snapshot - Stage 2 V2 First Audit Findings Closure
+## Current Fact Snapshot - Final Stage 2 V2 Package Membership And Direct Referral Merge Closure
+
+- Final independent architecture review conclusion: A, passed. Blocker, P1, P2 and P3 are clear, and the reviewed feature commit is `a7a763f7c4a103d94e25db04df3234aecbd98d3b`.
+- Main before merge was `3ec6c80dbfef4975788414f64ab70c9e439cf117`. Stage 2 V2 entered `main` through `git merge --ff-only codex/yfth-hq-mall-stage2-package-membership-referral-v1`; no merge commit, squash, rebase, cherry-pick or history rewrite was used.
+- The local and remote feature branches remain preserved at the reviewed commit. Current branch after merge is `main`; final `main` and `origin/main` must be read from actual Git after this documentation closure commit and push.
+- Completed capability: configurable package rules and immutable purchase snapshots grant durable permanent membership from real paid activation; verified historical members have the same core membership and invitation eligibility before or after controlled backfill, including after later package refund or closure.
+- Completed capability: opaque single-active invitations, authenticated C2 acceptance, permanent B-store attribution, one-level referral, cross-store purchase denial, membership-activation referral closure and independent post-activation invitation qualification.
+- Completed capability: versioned 15/25/60 integer-cent pending reward candidates, continuous unique per-referrer sequence, role-specific user/store/headquarters DTOs, strict user privacy, trusted ordinary-mall candidate service guards and recorded-migration health checks.
+- Completed verification remains recorded in the Stage 2 architecture/runtime documents: PHP syntax, contract/source guards, isolated MySQL 8.0.46 run/rollback/rerun, historical and concurrency cases, real HTTP core flow, Stage 1A direct regressions and Admin production build. This merge round repeated only the Stage 2 contract and `git diff --check` as its lightweight gate.
+- Not implemented or authorized: CRMEB ordinary-mall order/payment/refund listeners, reward finalization or settlement, refund reversal, store takeover, production deployment or production migration.
+- This closure did not connect to production MySQL/Redis, execute production migration, deploy a server or upload to WeChat. User-owned `项目文档/*`, TXT, DOCX, MD and Word lock files were not modified, staged, committed or cleaned.
+- Stage 2 V2 is now closed on stable `main`. No next business stage has started; its scope requires a separate project-control instruction.
+
+## Historical Snapshot - Stage 2 V2 First Audit Findings Closure
 
 - First independent architecture review conclusion: C, merge blocked. This round closes the reported findings in code and validation but does not claim the follow-up review has passed.
 - Current feature branch: `codex/yfth-hq-mall-stage2-package-membership-referral-v1`; closure start commit: `78a0473b73d7a2f5b07ee3a1f70be262f6846abe`; stable `main` / `origin/main`: `3ec6c80dbfef4975788414f64ab70c9e439cf117`. The completed feature commit must be read from actual Git after commit and push.
