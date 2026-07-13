@@ -67,6 +67,9 @@ Route::group(function () {
     Route::post('yfth/store_workbench/monthly_benefit/pickup/:id/confirm', 'v1.yfth.StoreWorkbenchController/monthlyBenefitPickupConfirm')->option(['real_name' => 'YFTH store workbench monthly benefit pickup confirm']);
     Route::get('yfth/store_workbench/package_membership/member', 'v1.yfth.PackageMembershipReferralStoreController/members')->option(['real_name' => 'YFTH store permanent memberships']);
     Route::get('yfth/store_workbench/package_membership/candidate', 'v1.yfth.PackageMembershipReferralStoreController/candidates')->option(['real_name' => 'YFTH store reward candidates']);
+    Route::get('yfth/store_workbench/reward_settlement/candidate', 'v1.yfth.RewardSettlementStoreController/candidates')->option(['real_name' => 'YFTH store reward settlement candidates']);
+    Route::post('yfth/store_workbench/reward_settlement/candidate/:id/confirm', 'v1.yfth.RewardSettlementStoreController/confirm')->option(['real_name' => 'YFTH store reward candidate confirm']);
+    Route::post('yfth/store_workbench/reward_settlement/candidate/:id/settle', 'v1.yfth.RewardSettlementStoreController/settle')->option(['real_name' => 'YFTH store reward candidate offline settlement']);
 })->middleware(\app\http\middleware\AllowOriginMiddleware::class)
     ->middleware(\app\api\middleware\StationOpenMiddleware::class)
     ->middleware(\app\api\middleware\AuthTokenMiddleware::class)

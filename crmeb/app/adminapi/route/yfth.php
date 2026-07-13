@@ -169,6 +169,11 @@ Route::group('yfth', function () {
         Route::post('rule/:id/publish', 'v1.yfth.PackageMembershipReferral/publishRule')->option(['real_name' => 'Direct referral rule publish']);
         Route::post('legacy_backfill', 'v1.yfth.PackageMembershipReferral/legacyBackfill')->option(['real_name' => 'Historical package membership backfill']);
     })->option(['parent' => 'yfth', 'cate_name' => 'Package Membership And Direct Referral']);
+    Route::group('reward_settlement', function () {
+        Route::get('candidate', 'v1.yfth.RewardSettlement/candidates')->option(['real_name' => 'Direct referral reward settlement candidate list']);
+        Route::post('candidate/:id/cancel', 'v1.yfth.RewardSettlement/cancel')->option(['real_name' => 'Direct referral reward candidate exception cancel']);
+        Route::post('candidate/:id/correct', 'v1.yfth.RewardSettlement/correct')->option(['real_name' => 'Direct referral reward candidate exception correct']);
+    })->option(['parent' => 'yfth', 'cate_name' => 'Reward Settlement Ledger']);
 })->middleware([
     \app\http\middleware\AllowOriginMiddleware::class,
     \app\adminapi\middleware\AdminAuthTokenMiddleware::class,

@@ -379,6 +379,20 @@ export function getYfthStorePackageCandidates(data) {
 	return request.get('yfth/store_workbench/package_membership/candidate', data || {});
 }
 
+export function getYfthStoreRewardSettlementCandidates(data) {
+	return request.get('yfth/store_workbench/reward_settlement/candidate', data || {});
+}
+
+export function confirmYfthStoreRewardCandidate(id, data) {
+	const payload = splitYfthContext(data || {});
+	return request.post('yfth/store_workbench/reward_settlement/candidate/' + id + '/confirm' + payload.query, payload.body);
+}
+
+export function settleYfthStoreRewardCandidate(id, data) {
+	const payload = splitYfthContext(data || {});
+	return request.post('yfth/store_workbench/reward_settlement/candidate/' + id + '/settle' + payload.query, payload.body);
+}
+
 export function getYfthMyHqAuthority() {
 	return request.get('yfth/hq_authority/me');
 }

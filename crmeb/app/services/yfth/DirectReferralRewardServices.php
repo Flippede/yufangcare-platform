@@ -269,8 +269,8 @@ class DirectReferralRewardServices extends YfthFoundationBaseServices
             if ((string)$candidate['status'] === 'cancelled') {
                 return ['candidate' => $candidate, 'changed' => false, 'idempotent_replay' => true];
             }
-            if ((string)$candidate['status'] !== 'pending') {
-                return ['candidate' => $candidate, 'changed' => false, 'reason' => 'mall_consumption_candidate_not_pending'];
+            if (!in_array((string)$candidate['status'], ['pending', 'confirmed'], true)) {
+                return ['candidate' => $candidate, 'changed' => false, 'reason' => 'mall_consumption_candidate_not_unsettled'];
             }
             $paidCent = $this->moneyToCents($order['pay_price'] ?? '0.00');
             $refundedCent = $this->moneyToCents($order['refund_price'] ?? '0.00');

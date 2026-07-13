@@ -116,7 +116,9 @@ export default {
 		copyInvite() {
 			uni.setClipboardData({ data: this.inviteToken });
 		},
-		candidateStatus(status) { return status === 'cancelled' ? '已失效' : '待确认'; },
+		candidateStatus(status) {
+			return ({ pending: '待确认', confirmed: '已确认', settled: '已结算', cancelled: '已取消' })[status] || status;
+		},
 		money(value) { return `¥${(Number(value || 0) / 100).toFixed(2)}`; }
 	}
 };

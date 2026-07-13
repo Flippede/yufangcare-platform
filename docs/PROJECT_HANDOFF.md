@@ -1,6 +1,16 @@
 # 项目交接文档
 
-## Current Fact Snapshot - Final Stage 3 Mall Consumption Reward Merge Closure
+## Current Fact Snapshot - Stage 4 Reward Confirmation And Offline Settlement Ledger V1 Development
+
+- Current feature branch: `codex/yfth-hq-mall-stage4-reward-settlement-ledger-v1`, created from stable `main` / `origin/main` `2e3d1de8ad204c61d3b2f0b75aee24135a1cb89d`. It is not merged to main, deployed, or connected to production.
+- Stage 4 accepts the immutable Stage 2 package-activation 15/25/60 candidates and Stage 3 ordinary-mall candidates into `pending`, `confirmed`, `settled`, and `cancelled` handling. Amounts, ratios, rule versions and original sources remain snapshot-only and cannot be edited by B1 or headquarters.
+- B1 trusted `franchisee` / `store_manager` contexts can confirm and record an offline settlement only for their own `store_id`; C1 remains read-only; headquarters has explicit list, exception-cancel and exception-correct permissions. Each mutation uses row locking, idempotency and audit evidence.
+- New table: `yfth_direct_referral_reward_settlement_ledger`, with a unique candidate guard and immutable offline reference/proof/operator/time record. It records business facts and never writes CRMEB balance, brokerage, points, distribution, withdrawal or automatic payment data.
+- Stage 3 full refund cancels ordinary-mall candidates that are still `pending` or `confirmed`; a settled record is preserved because refund reversal is not implemented.
+- Store and headquarters pages label the flow as an offline settlement record, not platform payment. C1 sees status only. The feature remains awaiting its direct verification and independent architecture review.
+- Not implemented or authorized: automatic payout, wallet, withdrawal, payment split, partial-refund reversal, reconciliation, store takeover, city partner, multi-level referral, production migration, production deployment or WeChat upload.
+
+## Historical Snapshot - Final Stage 3 Mall Consumption Reward Merge Closure
 
 - Stage 3 Mall Consumption Reward V1 completed independent review preparation and entered `main` through `git merge --ff-only codex/yfth-hq-mall-stage3-mall-consumption-reward-v1`. The reviewed feature commit is `b1c1f8729d3218cc373fe9c96940bb887fb6e0cc`; main before merge was `423a1d3ac03d0c4771ac4350334e95c3c2509b3e`. No merge commit, squash, rebase, cherry-pick or history rewrite was used.
 - Real paid CRMEB headquarters-mall ordinary main orders now enter the one-level direct-referral reward-candidate service. Eligibility remains fail closed for payment, main-order, ordinary-goods, refund/deletion/cancellation, referral, permanent-membership, B1 attribution and versioned-ratio conditions.

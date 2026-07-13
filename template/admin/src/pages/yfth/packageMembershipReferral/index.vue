@@ -44,6 +44,8 @@
           </el-select>
           <el-select v-model="candidateQuery.status" clearable placeholder="状态">
             <el-option label="待确认" value="pending" />
+            <el-option label="已确认" value="confirmed" />
+            <el-option label="已结算" value="settled" />
             <el-option label="已失效" value="cancelled" />
           </el-select>
           <el-button type="primary" icon="el-icon-search" @click="loadCandidates(true)">查询</el-button>
@@ -59,6 +61,13 @@
           <el-table-column label="实际成交" width="120"><template slot-scope="{ row }">{{ money(row.actual_paid_amount_cent) }}</template></el-table-column>
           <el-table-column label="候选金额" width="120"><template slot-scope="{ row }">{{ money(row.reward_amount_cent) }}</template></el-table-column>
           <el-table-column label="状态" width="90"><template slot-scope="{ row }">{{ candidateStatus(row.status) }}</template></el-table-column>
+          <el-table-column label="线下结算" min-width="160"><template slot-scope="{ row }">{{ row.settlement && row.settlement.settlement_no ? `${row.settlement.settlement_no} ${time(row.settlement.settled_at)}` : '-' }}</template></el-table-column>
+          <el-table-column label="异常处理" width="160">
+            <template slot-scope="{ row }">
+              <el-button v-if="['pending', 'confirmed'].includes(row.status)" type="text" @click="exceptionAction(row, 'cancel')">取消</el-button>
+              <el-button v-if="row.status === 'confirmed'" type="text" @click="exceptionAction(row, 'correct')">退回待确认</el-button>
+            </template>
+          </el-table-column>
         </el-table>
         <el-pagination class="pager" layout="total, prev, pager, next" :total="candidateTotal" :page-size="candidateQuery.limit" :current-page.sync="candidateQuery.page" @current-change="loadCandidates" />
       </el-tab-pane>
@@ -121,12 +130,14 @@
 
 <script>
 import {
-  yfthPackageMembershipCandidateList,
   yfthPackageMembershipLegacyBackfill,
   yfthPackageMembershipMemberList,
   yfthPackageMembershipRuleList,
   yfthPackageMembershipRulePublish,
   yfthPackageMembershipRuleSave,
+  yfthRewardSettlementCandidateCancel,
+  yfthRewardSettlementCandidateCorrect,
+  yfthRewardSettlementCandidateList,
 } from '@/api/yfth';
 
 export default {
@@ -159,7 +170,7 @@ export default {
     loadCandidates(reset) {
       if (reset) this.candidateQuery.page = 1;
       this.loading = true;
-      yfthPackageMembershipCandidateList(this.candidateQuery).then((res) => {
+      yfthRewardSettlementCandidateList(this.candidateQuery).then((res) => {
         this.candidates = (res.data && res.data.list) || [];
         this.candidateTotal = Number((res.data && res.data.count) || 0);
       }).finally(() => { this.loading = false; });
@@ -201,7 +212,16 @@ export default {
       if (mode === 'execute') this.$confirm('确认执行历史会员回填？', '高风险操作').then(action);
       else action();
     },
-    candidateStatus(status) { return status === 'cancelled' ? '已失效' : '待确认'; },
+    exceptionAction(row, action) {
+      this.$prompt('异常处理必须填写原因，不会修改候选金额或规则快照。', action === 'cancel' ? '取消候选' : '退回待确认').then(({ value }) => {
+        if (!String(value || '').trim()) { this.$message.warning('请填写原因'); return; }
+        const request = action === 'cancel' ? yfthRewardSettlementCandidateCancel : yfthRewardSettlementCandidateCorrect;
+        request(row.id, { request_id: `reward-${action}-${Date.now()}`, reason: String(value).trim() }).then(() => {
+          this.$message.success('处理完成'); this.loadCandidates();
+        });
+      });
+    },
+    candidateStatus(status) { return ({ pending: '待确认', confirmed: '已确认', settled: '已结算', cancelled: '已取消' })[status] || status; },
     money(value) { return `¥${(Number(value || 0) / 100).toFixed(2)}`; },
     time(value) {
       if (!value) return '-';

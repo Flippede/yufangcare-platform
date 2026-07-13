@@ -991,6 +991,18 @@ export function yfthPackageMembershipCandidateList(params) {
   return request({ url: 'yfth/package_membership/candidate', method: 'get', params });
 }
 
+export function yfthRewardSettlementCandidateList(params) {
+  return request({ url: 'yfth/reward_settlement/candidate', method: 'get', params });
+}
+
+export function yfthRewardSettlementCandidateCancel(id, data) {
+  return request({ url: `yfth/reward_settlement/candidate/${id}/cancel`, method: 'post', data });
+}
+
+export function yfthRewardSettlementCandidateCorrect(id, data) {
+  return request({ url: `yfth/reward_settlement/candidate/${id}/correct`, method: 'post', data });
+}
+
 export function yfthPackageMembershipRuleList(params) {
   return request({ url: 'yfth/package_membership/rule', method: 'get', params });
 }
