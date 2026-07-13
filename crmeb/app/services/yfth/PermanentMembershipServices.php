@@ -142,7 +142,7 @@ class PermanentMembershipServices extends YfthFoundationBaseServices
             $enrollment = $this->lockEnrollment($enrollmentId);
             if ((int)$enrollment['target_uid'] !== $uid) throw new ApiException('membership_confirmation_customer_mismatch');
             if ((string)$enrollment['status'] === self::STATUS_ACTIVATED) {
-                return $this->activationResult($enrollment, $this->membershipForUid($uid, true), false);
+                throw new ApiException('membership_confirmation_code_used');
             }
             if ((string)$enrollment['status'] !== self::STATUS_PENDING_CONFIRMATION
                 || (string)$enrollment['payment_status'] !== 'confirmed'
@@ -158,8 +158,21 @@ class PermanentMembershipServices extends YfthFoundationBaseServices
                 return $this->activationResult($enrollment, $existing, false);
             }
 
-            $attribution = $this->attribution->assignFirstInTransaction($uid, (int)$enrollment['store_id'], $mutation);
-            $referral = $this->referral->closeForMembershipInTransaction($uid, (int)$enrollment['store_id'], $mutation);
+            $lockContext = $this->referral->membershipLockContext($uid);
+            $lockedCurrents = $this->attribution->lockCurrents($lockContext['uids']);
+            $attribution = $this->attribution->assignFirstWithLockedCurrentsInTransaction(
+                $uid,
+                (int)$enrollment['store_id'],
+                $mutation,
+                $lockedCurrents
+            );
+            $referral = $this->referral->closeForMembershipWithLockedCurrentsInTransaction(
+                $uid,
+                (int)$enrollment['store_id'],
+                $mutation,
+                $lockContext,
+                $lockedCurrents
+            );
             $now = time();
             try {
                 $member = $this->membershipDao->save([
@@ -245,8 +258,9 @@ class PermanentMembershipServices extends YfthFoundationBaseServices
     {
         app()->make(AdminStoreContextServices::class)->assertHeadquarterScope($adminInfo);
         $query = $this->membershipDao->search([]);
-        if (!empty($where['store_id'])) $query->where('store_id', (int)$where['store_id']);
-        if (!empty($where['uid'])) $query->where('uid', (int)$where['uid']);
+        if (!empty($where['store_id'])) $query = $query->where('store_id', (int)$where['store_id']);
+        if (!empty($where['uid'])) $query = $query->where('uid', (int)$where['uid']);
+        if (!empty($where['status'])) $query = $query->where('status', trim((string)$where['status']));
         [$page, $limit, $default] = $this->getPageValue();
         $limit = $limit ?: $default;
         $count = (clone $query)->count();
@@ -386,9 +400,9 @@ class PermanentMembershipServices extends YfthFoundationBaseServices
     private function listEnrollments(array $where): array
     {
         $query = $this->dao->search([]);
-        if (!empty($where['store_id'])) $query->where('store_id', is_array($where['store_id']) ? 'in' : '=', $where['store_id']);
-        if (!empty($where['status'])) $query->where('status', $where['status']);
-        if (!empty($where['target_uid'])) $query->where('target_uid', (int)$where['target_uid']);
+        if (!empty($where['store_id'])) $query = $query->where('store_id', is_array($where['store_id']) ? 'in' : '=', $where['store_id']);
+        if (!empty($where['status'])) $query = $query->where('status', $where['status']);
+        if (!empty($where['target_uid'])) $query = $query->where('target_uid', (int)$where['target_uid']);
         [$page, $limit, $default] = $this->getPageValue();
         $limit = $limit ?: $default;
         $count = (clone $query)->count();

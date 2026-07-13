@@ -23,7 +23,7 @@ class PermanentMembership extends AuthController
     public function members(PermanentMembershipServices $services)
     {
         $this->auth('yfth/permanent_membership/member', 'GET');
-        return app('json')->success($services->adminMembers($this->request->getMore([[['store_id', 'd'], 0], [['uid', 'd'], 0]]), $this->adminInfo ?: []));
+        return app('json')->success($services->adminMembers($this->request->getMore([[['store_id', 'd'], 0], [['uid', 'd'], 0], ['status', '']]), $this->adminInfo ?: []));
     }
 
     public function create(PermanentMembershipServices $services)

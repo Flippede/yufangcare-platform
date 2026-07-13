@@ -1,5 +1,19 @@
 # YFTH Headquarters Mall Stage 2 Runtime Validation
 
+## Audit Closure Validation - 2026-07-13
+
+- First independent review conclusion: C; the three P1 findings are implemented for another independent review. No approval or merge authorization is claimed.
+- PHP 7.4.33 syntax passed for every modified PHP file. Stage 2, Stage 1A and Stage 1B contract/source guards, the 5980 package-benefit contract and legacy referral-reward contract passed.
+- MySQL Community Server 8.0.46 ran on isolated port `33313` with database `yfth_stage2_audit_validation_20260713`. Full migration through Stage 2 completed with exit 0.
+- Stage 2 migration lifecycle passed create/duplicate-up/down/rerun plus compatible missing-index repair. Fail-closed counterexamples passed for missing `uid`, wrong unique index, duplicate permission, wrong URL/method/auth type/parent/path, recorded missing index/permission, and down against a wrong permission signature without partial deletion.
+- Real HTTP passed two-store list/detail isolation; cross-store bind/payment/confirmation-code denial; revoked role and disabled store denial; headquarters enrollment/member store, UID and status filters; expired code; same-key success replay; used code with a new key rejection; cross-store attribution rollback; and different-key concurrent confirmation with exactly one activation.
+- Reverse UID competition used two independent PHP processes with referrer UID lower than target UID. Membership activation completed in one transaction attempt while a concurrent referral pause used the same authority UIDs; no deadlock/lock-wait error or partial membership/event/candidate state occurred.
+- Ten-table SHA-256 snapshots covered all five Stage 2 tables, both attribution tables, both referral tables and `yfth_idempotency_record`. Pre-run failed operations changed no business authority table; replay of the same failed key left all ten hashes unchanged. Successful concurrency left one membership, one membership event and one reward candidate.
+- Because shared Stage 1A transaction-bound production services changed, the complete Stage 1A isolated real-flow was rerun and passed two-store/referrer/cycle competition, lock-wait retry and real deadlock retry. Stage 1B contract/source guards passed; its 192-request read-only flow was not rerun because Stage 1B read services and DTOs did not change.
+- Admin production build used Node.js 18.20.8 / npm 10.8.2 and completed with exit 0: 608 files, 39,716,763 bytes and 12 permanent-membership matches. Existing 11 CSS-order/Browserslist warnings remain non-blocking. Output stayed outside the repository.
+- H5 and mp-weixin production builds were not rerun because this closure did not modify uni-app source. The prior successful build evidence remains recorded below and is not presented as a rerun.
+- This closure has not been independently re-reviewed and is not merged into `main`. No production database/Redis connection, production migration, deployment or WeChat upload occurred.
+
 ## 1. Environment
 
 - Branch baseline: `3ec6c80dbfef4975788414f64ab70c9e439cf117`

@@ -154,15 +154,72 @@ class HqActiveReferralServices extends YfthFoundationBaseServices
 
     public function closeForMembershipInTransaction(int $referredUid, int $storeId, HqAuthorityMutation $mutation): array
     {
+        $lockContext = $this->membershipLockContext($referredUid);
+        $lockedCurrents = $this->attribution->lockCurrents($lockContext['uids']);
+        return $this->closeForMembershipWithLockedCurrentsInTransaction(
+            $referredUid,
+            $storeId,
+            $mutation,
+            $lockContext,
+            $lockedCurrents
+        );
+    }
+
+    public function membershipLockContext(int $referredUid): array
+    {
         $snapshot = $this->row($this->dao->search([])
             ->where('active_referred_uid', $referredUid)
             ->order('id desc')->find());
         if (!$snapshot) {
+            return [
+                'relation_id' => 0,
+                'referrer_uid' => 0,
+                'referred_uid' => $referredUid,
+                'uids' => [$referredUid],
+            ];
+        }
+        $uids = [(int)$snapshot['referrer_uid'], $referredUid];
+        $uids = array_values(array_unique(array_map('intval', $uids)));
+        sort($uids, SORT_NUMERIC);
+        return [
+            'relation_id' => (int)$snapshot['id'],
+            'referrer_uid' => (int)$snapshot['referrer_uid'],
+            'referred_uid' => $referredUid,
+            'uids' => $uids,
+        ];
+    }
+
+    public function closeForMembershipWithLockedCurrentsInTransaction(
+        int $referredUid,
+        int $storeId,
+        HqAuthorityMutation $mutation,
+        array $lockContext,
+        array $lockedCurrents
+    ): array {
+        if ((int)($lockContext['referred_uid'] ?? 0) !== $referredUid) {
+            throw new ApiException('referral_membership_lock_context_invalid');
+        }
+        $expectedRelationId = (int)($lockContext['relation_id'] ?? 0);
+        $snapshot = $this->row($this->dao->search([])
+            ->where('active_referred_uid', $referredUid)
+            ->order('id desc')->lock(true)->find());
+        if ($expectedRelationId === 0) {
+            if ($snapshot) {
+                throw new ApiException('referral_membership_lock_set_changed');
+            }
             return ['relation' => [], 'before' => [], 'after' => [], 'changed' => false];
         }
+        if (!$snapshot
+            || (int)$snapshot['id'] !== $expectedRelationId
+            || (int)$snapshot['referrer_uid'] !== (int)($lockContext['referrer_uid'] ?? 0)) {
+            throw new ApiException('referral_membership_lock_set_changed');
+        }
+        $referrerUid = (int)$snapshot['referrer_uid'];
+        if (!isset($lockedCurrents[$referrerUid], $lockedCurrents[$referredUid])) {
+            throw new ApiException('referral_membership_lock_set_incomplete');
+        }
 
-        $attributions = $this->attribution->lockCurrents([(int)$snapshot['referrer_uid'], $referredUid]);
-        $row = $this->row($this->dao->search([])->where('id', (int)$snapshot['id'])->lock(true)->find());
+        $row = $this->row($this->dao->search([])->where('id', $expectedRelationId)->lock(true)->find());
         if (!$row) {
             throw new ApiException('referral_relation_not_found');
         }
@@ -172,8 +229,8 @@ class HqActiveReferralServices extends YfthFoundationBaseServices
             || (int)$row['store_id'] !== $storeId) {
             throw new ApiException('referral_membership_close_conflict');
         }
-        $this->assertActiveAttribution($attributions[(int)$row['referrer_uid']], $storeId);
-        $this->assertActiveAttribution($attributions[$referredUid], $storeId);
+        $this->assertActiveAttribution((array)$lockedCurrents[(int)$row['referrer_uid']], $storeId);
+        $this->assertActiveAttribution((array)$lockedCurrents[$referredUid], $storeId);
 
         $sourceKey = $this->canonicalizer->referralEvent('relation_closed', $mutation->source());
         $now = time();

@@ -1,5 +1,18 @@
 # 项目交接文档
 
+## Current Fact Snapshot - Stage 2 Permanent Membership Audit Findings Closure
+
+- The first independent Stage 2 architecture review conclusion was C and did not permit merging. This closure addresses its three P1 findings and related P2 evidence; it has not received the required independent re-review and does not claim approval.
+- Current feature branch: `codex/yfth-hq-mall-stage2-permanent-membership-v1`; closure start commit: `e4dfced84141510ccf7ecb7ee9ecef4ce57c0d24`; stable `main` / `origin/main`: `3ec6c80dbfef4975788414f64ab70c9e439cf117`. The closure commit must be read from actual Git after commit and push.
+- P1-01 root cause was discarded ThinkORM query objects from unassigned `where()` returns. Enrollment and member filters now retain every returned query object; trusted store scope still comes only from `CurrentBusinessContextServices`. Real two-store HTTP evidence covers list/detail isolation, cross-store bind/payment/code denial, role revocation, store disablement and headquarters store/UID/status filters.
+- P1-02 root cause was existence-only Stage 2 migration handling. The five tables now validate engine, required columns, type/length/null/default/unsigned/collation, primary key and ordered unique/non-unique index signatures. The seven permissions validate uniqueness, URL, method, auth type, parent, path and complete menu signature. Recorded mismatches require reviewed forward repair; compatible no-record partial state may add only missing tables, indexes or permissions; down validates everything before deleting exact IDs/tables.
+- P1-03 root cause was locking the target UID before referral closure later attempted to lock the smaller referrer UID. Activation now resolves the complete referral lock context first, deduplicates and numerically sorts all involved UIDs, locks all Stage 1A attribution current rows once, and passes those locked rows to transaction-bound attribution/referral methods. Stage 1A ordinary writers retain their prior behavior.
+- Confirmation-code replay semantics are now strict: the same completed idempotency key returns the existing success result; a new idempotency key using an already consumed token is rejected. No replay duplicates membership, event, candidate, attribution or referral events.
+- Isolated MySQL Community Server 8.0.46 evidence passed full migrations, Stage 2 lifecycle/down/rerun, malformed table/index/permission/recorded-state counterexamples, real HTTP dual-store and filter coverage, expired/used-code failures, role/store invalidation, reverse-UID two-process competition, and ten-table SHA-256 snapshots. Full Stage 1A competition/lock-wait/deadlock real-flow also passed.
+- Admin production build passed with Node.js 18.20.8 / npm 10.8.2: exit 0, 608 external files, 39,716,763 bytes and 12 permanent-membership route/API/title matches. H5 and mp-weixin were not rerun because no uni-app source changed; the previous successful evidence remains historical only.
+- No real referral entry, 9800 business-package sale, reward amount/rate/sequence, refund, settlement or later-stage capability was added. This closure is not merged into `main`; no production MySQL/Redis connection, production migration, deployment, server change or WeChat upload occurred.
+- Next gate: independent read-only architecture re-review of this closure. Merge and every later stage remain prohibited until that review passes.
+
 ## Current Fact Snapshot - Stage 2 Permanent Membership Minimum Loop V1
 
 - Current feature branch: `codex/yfth-hq-mall-stage2-permanent-membership-v1`; start baseline and stable `main` / `origin/main`: `3ec6c80dbfef4975788414f64ab70c9e439cf117`. The completed feature commit must be read from actual Git after commit and push.

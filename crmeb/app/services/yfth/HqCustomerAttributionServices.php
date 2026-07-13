@@ -118,9 +118,29 @@ class HqCustomerAttributionServices extends YfthFoundationBaseServices
 
     public function assignFirstInTransaction(int $uid, int $storeId, HqAuthorityMutation $mutation, string $sourceKey = ''): array
     {
+        return $this->assignFirstWithLockedCurrentsInTransaction(
+            $uid,
+            $storeId,
+            $mutation,
+            $this->lockCurrents([$uid]),
+            $sourceKey
+        );
+    }
+
+    public function assignFirstWithLockedCurrentsInTransaction(
+        int $uid,
+        int $storeId,
+        HqAuthorityMutation $mutation,
+        array $lockedCurrents,
+        string $sourceKey = ''
+    ): array {
         $this->assertStoreActive($storeId);
         $sourceKey = $sourceKey ?: $this->canonicalizer->attributionEvent('attribution_created', $mutation->source());
-        $row = $this->lockCurrents([$uid])[$uid];
+        if (!isset($lockedCurrents[$uid])) {
+            throw new ApiException('attribution_lock_set_incomplete');
+        }
+        $row = (array)$lockedCurrents[$uid];
+        $this->assertConsistent($row);
         if ((string)$row['status'] === 'active') {
             if ((int)$row['store_id'] === $storeId) {
                 return $this->result($row, $row, false);

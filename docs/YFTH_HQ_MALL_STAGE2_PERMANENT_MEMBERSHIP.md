@@ -1,5 +1,17 @@
 # YFTH Headquarters Mall Stage 2 Permanent Membership Minimum Loop
 
+## Audit Findings Closure Status
+
+The first independent architecture review concluded C and blocked merge. The closure on the same feature branch addresses three P1 findings but has not yet received an independent re-review:
+
+1. ThinkORM list/member filters now retain each `where()` return value. Store list/detail/write scope remains derived from authenticated `CurrentBusinessContextServices`; client IDs or filters cannot widen it.
+2. The Stage 2 migration now validates complete signatures for all five tables and seven permissions. Wrong same-name tables, indexes or permissions fail closed. A recorded incomplete schema requires reviewed forward repair; a compatible no-record partial state may add only missing tables, indexes or permissions. Down validates all signatures before deleting exact Stage 2 rows and tables.
+3. Activation resolves the current referral context before authority locks, builds the full numeric UID set, locks all attribution current rows in ascending order once, then calls transaction-bound attribution/referral methods with that locked set. No later helper acquires a newly discovered smaller UID lock.
+
+The same completed idempotency key may replay its stored activation success. A new key with an already used confirmation token is rejected as `membership_confirmation_code_used`; enrollment activation alone never authorizes arbitrary token replay.
+
+Real isolated HTTP evidence covers two-store list/detail/write isolation, revoked roles, disabled stores, headquarters store/UID/status filters, expired codes, used-code/new-key rejection, reverse-UID process competition and exact authority-fact cardinality. This closure is not reviewed again, not merged and not deployed.
+
 ## 1. Stage Scope
 
 Stage 2 implements one practical offline permanent-membership loop. A headquarters operator or an authorized `franchisee` / `store_manager` creates an enrollment for a real active CRMEB store. The customer supplies identity only through a short-lived, single-use code generated under the authenticated customer UID. After the operator confirms receipt of the fixed offline fee of 9800 yuan, the bound customer confirms activation with a second customer-bound code.
@@ -44,7 +56,7 @@ Customer confirmation uses the existing `HqAuthorityOperationRunner` and `yfth_i
 7. consumes the confirmation code;
 8. marks the enrollment activated and completes idempotency in the same transaction.
 
-Any failure rolls back all business changes. Different-store attribution, historical unassigned, closed or inconsistent Stage 1A authority fails closed. Repeating the same used confirmation code returns the existing activation result. Concurrent confirmations serialize on the enrollment and create one membership, event and candidate.
+Any failure rolls back all business changes. Different-store attribution, historical unassigned, closed or inconsistent Stage 1A authority fails closed. Only replaying the same completed idempotency key returns the existing activation result; a new key with the used token is rejected. Concurrent confirmations serialize on the enrollment and create one membership, event and candidate.
 
 Stage 1A public writers retain their existing runner behavior. The new transaction-bound methods contain the same store, consistency, numeric UID lock and event rules and are used only by the Stage 2 orchestrator. The sole new production canonical source is `permanent_membership_confirmation`; unknown and future sources remain rejected.
 

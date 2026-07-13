@@ -26,6 +26,14 @@ try {
             hqAuthorityTestMutation('test_concurrency', (int)$sourceId, (string)$key)
         );
         hqWorkerOut(true, $result);
+    } elseif ($mode === 'pause_referral') {
+        [$relationId, $expectedVersion, $sourceId, $key] = $args;
+        $result = $services['referral']->pause(
+            (int)$relationId,
+            (int)$expectedVersion,
+            hqAuthorityTestMutation('test_concurrency', (int)$sourceId, (string)$key)
+        );
+        hqWorkerOut(true, $result);
     } elseif ($mode === 'hold_attribution') {
         [$uid, $milliseconds] = $args;
         Db::transaction(function () use ($uid, $milliseconds) {
