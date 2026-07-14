@@ -10,7 +10,7 @@
 					name="search" placeholder-class='placeholder'></input>
 			</view>
 		</view>
-		<view class="scroll-box">
+		<view v-if="productList.length" class="scroll-box">
 			<view class='aside'>
 				<scroll-view scroll-y="true" scroll-with-animation='true' style="height: calc(100% - 100rpx)">
 					<view class='item acea-row row-center-wrapper' :class='index==navActive?"on":""'
@@ -63,6 +63,7 @@
 				</scroll-view>
 			</view>
 		</view>
+		<view v-else class="category-empty">{{ categoryLoadError ? '分类内容暂时不可用，请稍后重试' : '暂无商品分类' }}</view>
 	</view>
 </template>
 
@@ -105,7 +106,8 @@
 				// #ifdef APP-PLUS
 				pageHeight: app.globalData.windowHeight,
 				// #endif
-				lock: false
+				lock: false,
+				categoryLoadError: false
 			}
 		},
 		computed: {
@@ -131,6 +133,19 @@
 			})
 		},
 		methods: {
+			requestCategoryList() {
+				// #ifdef H5
+				if (typeof window !== 'undefined' && typeof window.fetch === 'function') {
+					return window.fetch(`${window.location.origin}/api/category`, {
+						credentials: 'same-origin'
+					}).then((response) => {
+						if (!response.ok) throw new Error('category_request_failed');
+						return response.json();
+					});
+				}
+				// #endif
+				return getCategoryList();
+			},
 			getNav() {
 				getNavigation().then(res => {
 					this.newData = res.data
@@ -185,12 +200,17 @@
 			getAllCategory: function(type) {
 				let that = this;
 				if (type || !uni.getStorageSync('CAT1_DATA')) {
-					getCategoryList().then(res => {
-						uni.setStorageSync('CAT1_DATA', res.data)
-						that.productList = res.data;
+					this.requestCategoryList().then(res => {
+						const categoryData = Array.isArray(res && res.data) ? res.data : [];
+						uni.setStorageSync('CAT1_DATA', categoryData)
+						that.productList = categoryData;
+						that.categoryLoadError = false;
 						that.$nextTick(res => {
-							that.infoScroll();
+							if (that.productList.length) that.infoScroll();
 						})
+					}).catch(() => {
+						that.productList = [];
+						that.categoryLoadError = true;
 					})
 				} else {
 					that.productList = uni.getStorageSync('CAT1_DATA')
@@ -302,6 +322,17 @@
 		flex: 1;
 		overflow: hidden;
 		display: flex;
+	}
+
+	.category-empty {
+		flex: 1;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		padding: 80rpx 48rpx;
+		color: #8c7763;
+		font-size: 28rpx;
+		text-align: center;
 	}
 
 	// #ifndef MP

@@ -27,21 +27,47 @@ export default {
 	mixins: [colors],
 	data() {
 		return {
-			category: '',
+			category: 1,
 			is_diy: uni.getStorageSync('is_diy'),
 			status: 0,
 			version: '',
 			isNew: false,
 			isFooter: false,
-			showBar: false
+			showBar: false,
+			categoryInitialized: false
 		};
+	},
+	mounted() {
+		this.initializeCategory();
 	},
 	onLoad() {},
 	onReady() {},
 	onShow() {
-		this.getCategoryVersion();
+		this.initializeCategory();
 	},
 	methods: {
+		initializeCategory() {
+			if (this.categoryInitialized) return;
+			this.categoryInitialized = true;
+			// #ifdef H5
+			this.loadH5CategoryStyle();
+			// #endif
+			// #ifndef H5
+			this.getCategoryVersion();
+			// #endif
+		},
+		loadH5CategoryStyle() {
+			window.fetch(`${window.location.origin}/api/v2/diy/color_change/category`, {
+				credentials: 'same-origin'
+			}).then((response) => {
+				if (!response.ok) throw new Error('category_style_request_failed');
+				return response.json();
+			}).then((res) => {
+				this.classStyle(res.data || {});
+			}).catch(() => {
+				this.classStyle({ status: 1, is_diy: 1 });
+			});
+		},
 		newDataStatus(val, num) {
 			this.isFooter = val ? true : false;
 			this.showBar = val ? true : false;
@@ -62,23 +88,35 @@ export default {
 				url: '/pages/index/index'
 			})
 		},
-		classStyle() {
-			colorChange('category').then((res) => {
-				let status = res.data.status;
+		classStyle(styleData) {
+			const applyStyle = (data) => {
+				let status = Number(data.status) || 1;
 				this.category = status;
-				uni.setStorageSync('is_diy', res.data.is_diy);
+				this.is_diy = data.is_diy;
+				uni.setStorageSync('is_diy', data.is_diy);
 				this.$nextTick((e) => {
 					if (status == 2 || status == 3) {
 						uni.hideTabBar();
 					} else {
-						this.$refs.classOne.is_diy = res.data.is_diy;
+						const firstCategory = this.$refs.classOne;
+						if (!firstCategory) return;
+						firstCategory.is_diy = data.is_diy;
 						if (!this.is_diy) {
 							uni.hideTabBar();
 						} else {
-							this.$refs.classOne.getNav();
+							firstCategory.getNav();
 						}
 					}
 				});
+			};
+			if (styleData) {
+				applyStyle(styleData);
+				return;
+			}
+			colorChange('category').then((res) => {
+				applyStyle(res.data || {});
+			}).catch(() => {
+				applyStyle({ status: 1, is_diy: 1 });
 			});
 		}
 	},
