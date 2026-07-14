@@ -185,7 +185,9 @@
 					let idView = "#b" + i;
 					query.select(idView).boundingClientRect();
 					query.exec(function(res) {
-						let top = res[0].top;
+						const rect = res && res[0];
+						if (!rect) return;
+						let top = rect.top;
 						hightArr.push(top);
 						that.hightArr = hightArr
 					});

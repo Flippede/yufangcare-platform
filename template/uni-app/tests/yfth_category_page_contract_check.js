@@ -23,6 +23,7 @@ function requireText(source, text, name) {
   ['/api/category', 'h5_category_endpoint'],
   ['category-empty', 'category_empty_state'],
   ['categoryLoadError', 'category_failure_state'],
+  ['const rect = res && res[0];', 'category_layout_measurement_guard'],
 ].forEach(([text, name]) => requireText(categoryFirst, text, name));
 
 [
