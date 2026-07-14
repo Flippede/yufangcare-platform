@@ -19,16 +19,19 @@ UNI_PLATFORM=mp-weixin NODE_ENV=production <uniapp-cli>
 
 Both H5 and mp-weixin production compiles completed. Existing missing-export, size, component key, and subpackage-placement warnings remained, but did not block either build.
 
-## Required Release Validation
+## Production Release Validation - 2026-07-14
 
-Before production traffic is switched, execute:
+The controlled production release at commit `3e5d73d8b19f020ac48d7dae768e360ffe88229c` completed the following:
 
-1. PHP 7.4 syntax checks for `HomepageServices`, both controllers, the migration, and the contract check.
-2. The `yfth_custom_homepage_contract_check.php` source contract.
-3. The additive migration against the intended MySQL 8 database and a check that `yfth_homepage_config` and all three seeded permissions exist.
-4. An unauthenticated public request to `/api/yfth/homepage` and an authorised Admin configuration save/read.
-5. H5 visual smoke: header, 12 shortcut positions, six two-column cards, real product image, category jump, product detail jump, and package-list entry.
-6. Admin static smoke: `/admin` loads without primary JS/CSS 404s and the `首页配置` route can be opened by an authorised role.
+1. PHP 7.4 syntax checks passed for `HomepageServices`, both controllers, the migration, and the contract check; the homepage source contract passed.
+2. The additive migration completed on the formal MySQL 8 database. `eb_yfth_homepage_config` and all three homepage permissions were verified. No production rollback command was used.
+3. Unauthenticated `GET /api/yfth/homepage` returned `200`, `enabled=true`, 12 shortcuts, six sections, four enabled live YFTH products, and existing OSS image URLs.
+4. The H5 entry, H5 static CSS/JavaScript, category route, product-detail route, and package-list route returned `200`. `/admin/` and the primary current Admin CSS/JavaScript files returned `200`.
+5. Nginx, PHP-FPM, and the dedicated production Queue, Timer, and Workerman services were active after the atomic release. The post-fix runtime log scan found no new homepage API exception.
+
+The release archive and data backup are `/www/backup/yfth-custom-homepage-20260714-1755/`. The previous formal directories remain as controlled rollback sources; do not delete them until post-release acceptance is complete.
+
+An authorised Admin save/read session and an interactive browser visual walkthrough were not executed in this release record. Real payment, SMS, WeChat authorization, refund callback, and WeChat upload were also not executed.
 
 ## Honest Content State
 

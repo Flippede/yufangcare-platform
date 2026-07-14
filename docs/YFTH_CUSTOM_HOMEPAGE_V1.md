@@ -48,3 +48,9 @@ Run the one additive migration in an approved environment. It creates `yfth_home
 For every production release that changes `template/admin`, mirror the contents of `template/admin/dist/` to `crmeb/public/admin/` and delete stale hash files as a single controlled static release. Publish the H5 build output according to the existing web-static deployment layout. The mp-weixin build is for WeChat developer validation and is not uploaded by this module.
 
 No production secret, OSS credential, payment certificate, SMS credential, product data, or DIY record belongs in this module's migration or repository configuration.
+
+### 2026-07-14 Production Release Record
+
+`https://yfth.top` is running commit `3e5d73d8b19f020ac48d7dae768e360ffe88229c` from the preserved feature branch. The release used a new application directory followed by an atomic directory switch. It retained the production `.env`, `runtime/pem`, `public/uploads`, and all existing CRMEB database content; the one homepage migration was applied forward on the established MySQL 8 database.
+
+The pre-release code/config/upload archive and MySQL backup are stored outside the web root at `/www/backup/yfth-custom-homepage-20260714-1755/`. The former application directories are retained for rollback. To roll back the application only, stop the dedicated YFTH Queue/Timer/Workerman services, atomically restore the required previous `CRMEB-master` directory, restore the original database connection only if the incident requires it, reload PHP-FPM/Nginx, and restart those three services. Do not use `migrate:rollback --target 0` against formal data.

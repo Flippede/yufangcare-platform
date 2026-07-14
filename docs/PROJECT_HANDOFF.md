@@ -1,6 +1,15 @@
 # 项目交接文档
 
-## Current Fact Snapshot - Custom YFTH Homepage V1 Development
+## Current Fact Snapshot - Custom YFTH Homepage V1 Production Release
+
+- Feature branch `codex/yfth-custom-homepage-v1` remains unmerged to `main`. Production release commit is `3e5d73d8b19f020ac48d7dae768e360ffe88229c`, including the homepage feature, route-contract correction, and production `store_category` schema compatibility fix.
+- `https://yfth.top` now runs the fixed warm-gold YFTH customer homepage. The public API returns the fixed 12 shortcut positions, six two-column sections, and live CRMEB content; its default production fallback currently resolves the enabled YFTH category and four live products with existing OSS images. Published package templates are not yet configured, so the package region is intentionally empty while the existing package-list entry remains available.
+- The additive production MySQL 8 migration `20260714170000 CreateYfthHomepageConfig` completed successfully. `eb_yfth_homepage_config` and the `yfth-homepage-index`, `yfth-homepage-config-read`, and `yfth-homepage-config-save` permissions exist. No production rollback was executed.
+- Production release protection is retained outside Git: full pre-release code/config/upload archive and MySQL 8 logical backup are in `/www/backup/yfth-custom-homepage-20260714-1755/`; the previous formal application directories remain at `/www/wwwroot/CRMEB-master.pre-custom-homepage-20260714-1801` and `/www/wwwroot/CRMEB-master.pre-custom-homepage-fix-20260714-1809` for controlled rollback. Existing `.env`, upload files, runtime payment certificates, OSS, SMS, WeChat, and page-decoration data were copied from the prior formal directory and retained.
+- Online lightweight validation passed for the H5 entry and assets, public homepage API, live product/OSS image payload, category/detail/package-list routes, Admin shell/static assets, and Nginx/PHP-FPM/Queue/Timer/Workerman service state. No real login, payment, SMS, WeChat authorization, refund callback, or WeChat upload was executed.
+- The feature branch remains the only place for further homepage changes. Production database configuration for package templates and the planned fuller category taxonomy is still required before package and all category cards can show their intended live content.
+
+## Historical Snapshot - Custom YFTH Homepage V1 Local Development
 
 - Current feature branch: `codex/yfth-custom-homepage-v1`, created from stable `main` / `origin/main` `567b7812b5a7ba173d009f21523d49462151bb30`. It is not merged into `main`.
 - The customer home now has a fixed warm-gold storefront layout based on the approved mobile reference: header/search, two-row shortcut panel, and six two-column content cards. It deliberately remains a customer shopping surface, not an operational workbench.
@@ -8,7 +17,7 @@
 - The public homepage resolves only real CRMEB published products, active categories, published YFTH packages, and their existing image/OSS URLs. Empty or insufficient production content renders an honest empty state; it never substitutes fictitious products or packages.
 - Existing CRMEB product detail, category list, package list/detail, order, payment, DIY, upload, OSS, SMS, and WeChat configuration remain intact. The legacy DIY homepage stays as a fail-safe fallback when the new public configuration is disabled or unavailable.
 - Local Admin production build, uni-app H5 production build, and mp-weixin production compile have passed. The Admin production output was mirrored into `crmeb/public/admin`; remaining build output consisted only of existing warnings documented in the runtime note.
-- The branch has not yet been merged or deployed by this snapshot. Production migration, deployment, WeChat upload, real payment, and real SMS remain outside the completed local build claim.
+- This historical local-build snapshot preceded the controlled production release recorded above.
 
 ## Current Fact Snapshot - Production Cutover Hotfix Main Closure
 
