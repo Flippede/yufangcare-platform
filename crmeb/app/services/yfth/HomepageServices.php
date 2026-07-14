@@ -232,7 +232,6 @@ class HomepageServices
     {
         return Db::name('store_category')
             ->where('is_show', 1)
-            ->where('is_del', 0)
             ->field('id,pid,cate_name,pic,big_pic,sort')
             ->order('sort desc,id asc')
             ->select()

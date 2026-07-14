@@ -37,6 +37,12 @@ foreach ([
     }
 }
 
+$categoryQuery = substr($service, strpos($service, "Db::name('store_category')"), 300);
+if (strpos($categoryQuery, "->where('is_del'") !== false) {
+    fwrite(STDERR, "invalid_category_soft_delete_filter\n");
+    exit(1);
+}
+
 foreach (["yfth/homepage", 'HomepageController/index'] as $needle) {
     if (strpos($publicRoute, $needle) === false) {
         fwrite(STDERR, "missing_public_route:$needle\n");
