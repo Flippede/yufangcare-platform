@@ -1,5 +1,13 @@
 # 项目交接文档
 
+## Current Fact Snapshot - Staging Deployment Preparation Blocked
+
+- On 2026-07-14, Release Candidate V1 `e1a1f5fd6aa457cd53866953265f30b264f8d00b` was prepared in a new server-only staging root with a dedicated Compose definition, port `39001`, generated non-production secrets, a separate MySQL 8.0.46 volume, and a separate Redis volume/namespace. No secret was written to source control.
+- The application archive, current tracked Admin assets, and the previously built H5 output were copied to the isolated staging root. No staging container, database, Redis instance, worker, Nginx listener, migration, or public test URL was started.
+- The blocker is server egress to all configured Docker image sources: the configured mirrors and an explicit IPv4 Docker Hub request timed out while fetching `mysql:8.0.46`; the host has no preloaded images. The existing server MySQL 5.7/Redis services back the formal site and were deliberately not reused, queried, or migrated.
+- Required next input: an approved reachable container registry or preloaded images for MySQL 8.0.46, Redis, Nginx, PHP 7.4 and Composer; then the isolated stack can be started, imported, migrated and smoke-tested. A dedicated staging domain/TLS certificate is preferred before external user testing; the prepared isolated port is not an active service.
+- No formal production MySQL/Redis connection, production migration, production deployment, Nginx virtual-host modification, WeChat upload, or use of formal credentials occurred. User-owned `项目文档/*`, TXT, DOCX, MD and Word lock files remain untouched.
+
 ## Current Fact Snapshot - Final Release Candidate V1 Merge Closure
 
 - Release Candidate V1 entered stable `main` through `git merge --ff-only codex/yfth-release-candidate-v1`. Main before merge was `33da74989066428d87f3c112d37eb361099aee3b`; the final candidate commit was `39b4fa4b72563062de189dfeb3b21d0cbb9150c0`. The local and remote candidate branches remain preserved. Final `main` and `origin/main` commits must be read from Git after this documentation closure commit and push.
