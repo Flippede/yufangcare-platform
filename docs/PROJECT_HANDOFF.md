@@ -1,5 +1,13 @@
 # 项目交接文档
 
+## Current Fact Snapshot - Final Release Candidate V1 Merge Closure
+
+- Release Candidate V1 entered stable `main` through `git merge --ff-only codex/yfth-release-candidate-v1`. Main before merge was `33da74989066428d87f3c112d37eb361099aee3b`; the final candidate commit was `39b4fa4b72563062de189dfeb3b21d0cbb9150c0`. The local and remote candidate branches remain preserved. Final `main` and `origin/main` commits must be read from Git after this documentation closure commit and push.
+- The version-controlled purchase path is now `用户中心 / 套餐会员与一级推荐 -> 已发布套餐列表 -> 套餐详情 -> 服务门店 -> 协议确认 -> 既有 CRMEB 下单与支付`. It uses the existing package API, detail, intent, order and payment capabilities; no fixed template ID, page-decoration dependency or second purchase flow was introduced.
+- Admin, H5 and mp-weixin production builds passed during Release Candidate preparation. The current Admin production output is mirrored from `template/admin/dist/` into tracked `crmeb/public/admin/`, with no nested `dist` directory and no stale hashed assets retained.
+- The candidate now meets the repository-side condition for controlled test-environment deployment. The required remaining test-environment integration is real login, WeChat authorization, WeChat payment and refund callbacks, and SMS delivery; none has been represented as completed in local validation.
+- No production MySQL/Redis connection, production migration, formal production deployment or WeChat upload occurred. Automatic payout, wallet, withdrawal, partial-refund reversal, reconciliation, city partner, store takeover and multi-level referral remain unimplemented and unauthorized.
+
 ## Current Fact Snapshot - Stage 5 Release Candidate V1 Development
 
 - Current feature branch: `codex/yfth-release-candidate-v1`, created from stable `main` / `origin/main` `33da74989066428d87f3c112d37eb361099aee3b`. This release-candidate work is not merged into `main`, has not been deployed, and has not connected to production MySQL, Redis, payment, SMS, or WeChat services.
