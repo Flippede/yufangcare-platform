@@ -9,6 +9,8 @@ $checks = [
     'admin_route' => $root . '/app/adminapi/route/yfth.php',
     'migration' => $root . '/database/migrations/20260714170000_create_yfth_homepage_config.php',
     'uni_home' => dirname($root) . '/template/uni-app/pages/index/components/yfthCustomHome.vue',
+    'uni_index' => dirname($root) . '/template/uni-app/pages/index/index.vue',
+    'uni_cache' => dirname($root) . '/template/uni-app/utils/cache.js',
     'admin_home' => dirname($root) . '/template/admin/src/pages/yfth/homepage/index.vue',
 ];
 
@@ -23,6 +25,8 @@ $service = file_get_contents($checks['service']);
 $publicRoute = file_get_contents($checks['public_route']);
 $adminRoute = file_get_contents($checks['admin_route']);
 $uniHome = file_get_contents($checks['uni_home']);
+$uniIndex = file_get_contents($checks['uni_index']);
+$uniCache = file_get_contents($checks['uni_cache']);
 $adminHome = file_get_contents($checks['admin_home']);
 
 foreach ([
@@ -58,6 +62,12 @@ foreach (["Route::group('yfth'", "Route::group('homepage'", 'v1.yfth.Homepage/co
 foreach (['/pages/yfth/package/list', '/pages/goods_details/index', '/pages/goods/goods_list/index'] as $needle) {
     if (strpos($uniHome, $needle) === false) {
         fwrite(STDERR, "missing_customer_navigation:$needle\n");
+        exit(1);
+    }
+}
+foreach (["Array.isArray(cahceValue)", "homepageState === 'error'", '首页内容暂时不可用'] as $needle) {
+    if (strpos($uniCache . $uniIndex, $needle) === false) {
+        fwrite(STDERR, "missing_h5_safety_guard:$needle\n");
         exit(1);
     }
 }

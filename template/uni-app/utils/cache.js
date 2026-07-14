@@ -203,9 +203,10 @@ class Cache {
 			time = this.time(),
 			newBeOverdueValue = [],
 			newTagValue = [];
+		const cacheTags = Array.isArray(cahceValue) ? cahceValue : [];
 
-		if (cahceValue && typeof cahceValue === 'object' && cahceValue.length) {
-			cahceValue.map(item => {
+		if (cacheTags.length) {
+			cacheTags.map(item => {
 				if (item) {
 					if ((item.expire !== undefined && item.expire > time) || item.expire === 0) {
 						newTagValue.push(item);
@@ -216,7 +217,7 @@ class Cache {
 			});
 		}
 		//保存没有过期的缓存标签
-		if (newTagValue.length !== cahceValue.length) {
+		if (newTagValue.length !== cacheTags.length) {
 			this.cacheSetHandler(this.cacheExpire, newTagValue);
 		}
 		//删除过期缓存

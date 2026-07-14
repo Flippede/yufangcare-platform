@@ -1,8 +1,13 @@
 <template>
 	<!-- 首页 -->
-	<view v-if="pageShow" class="page" :class="bgTabVal == 2 ? 'fullsize noRepeat' : bgTabVal == 1 ? 'repeat ysize' : 'noRepeat ysize'" :style="[pageStyle]">
+	<view v-if="pageShow || customHomepage.enabled || homepageState === 'error'" class="page" :class="bgTabVal == 2 ? 'fullsize noRepeat' : bgTabVal == 1 ? 'repeat ysize' : 'noRepeat ysize'" :style="[pageStyle]">
 		<view v-if="!errorNetwork" :style="colorStyle">
 			<yfthCustomHome v-if="customHomepage.enabled" :config="customHomepage" :footerConfigData="footerConfigData" />
+			<view v-else-if="homepageState === 'error'" class="yfth-home-error">
+				<view class="yfth-home-error__title">首页内容暂时不可用</view>
+				<view class="yfth-home-error__copy">请检查网络后重新加载</view>
+				<view class="yfth-home-error__action" @tap="loadYfthHomepage">重新加载</view>
+			</view>
 			<block v-else>
 			<!-- #ifdef MP -->
 			<view class="fixed z-1000" :style="[appletStyle]" v-if="myApplet">
@@ -326,7 +331,8 @@ export default {
 			getHeight: this.$util.getWXStatusHeight(),
 			myApplet: true,
 			configData: Cache.get('BASIC_CONFIG'),
-			customHomepage: { enabled: false }
+			customHomepage: { enabled: false },
+			homepageState: 'loading'
 		};
 	},
 	onLoad(options) {
@@ -415,14 +421,17 @@ export default {
 	},
 	onPullDownRefresh() {
 		this.diyData();
+		this.loadYfthHomepage();
 		uni.stopPullDownRefresh();
 	},
 	methods: {
 		loadYfthHomepage() {
 			getYfthHomepage().then((res) => {
-				this.customHomepage = res.data || { enabled: false };
+				this.customHomepage = res && res.data && typeof res.data === 'object' ? res.data : { enabled: false };
+				this.homepageState = this.customHomepage.enabled ? 'ready' : 'fallback';
 			}).catch(() => {
 				this.customHomepage = { enabled: false };
+				this.homepageState = 'error';
 			});
 		},
 		...mapMutations(['SET_AUTOPLAY', 'SET_NEARBY']),
@@ -934,6 +943,13 @@ export default {
 	//#endif
 };
 </script>
+
+<style scoped lang="scss">
+.yfth-home-error { min-height: 100vh; box-sizing: border-box; padding: 260rpx 56rpx 80rpx; background: #fffaf2; text-align: center; color: #2f2118; }
+.yfth-home-error__title { font-size: 36rpx; font-weight: 600; }
+.yfth-home-error__copy { margin-top: 20rpx; color: #8c7763; font-size: 26rpx; }
+.yfth-home-error__action { display: inline-flex; align-items: center; justify-content: center; min-width: 192rpx; height: 72rpx; margin-top: 42rpx; border-radius: 36rpx; background: #d6a15e; color: #fff; font-size: 28rpx; }
+</style>
 
 <style lang="scss">
 .page {
