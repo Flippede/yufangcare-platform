@@ -24,6 +24,7 @@ function requireText(source, text, name) {
   ['category-empty', 'category_empty_state'],
   ['categoryLoadError', 'category_failure_state'],
   ['const rect = res && res[0];', 'category_layout_measurement_guard'],
+  ['// #ifdef H5\n\t\t\t\treturn;', 'h5_scroll_measurement_skip'],
   ['<image mode="aspectFill" :src="item.pic || defimg"></image>', 'native_category_image'],
 ].forEach(([text, name]) => requireText(categoryFirst, text, name));
 

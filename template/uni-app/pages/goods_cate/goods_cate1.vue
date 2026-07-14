@@ -165,6 +165,9 @@
 				this.footH = data
 			},
 			infoScroll: function() {
+				// #ifdef H5
+				return;
+				// #endif
 				let that = this;
 				let len = that.productList.length;
 				this.number = that.productList[len - 1].children.length;
