@@ -5,6 +5,7 @@ const root = path.resolve(__dirname, '..');
 const categoryPage = fs.readFileSync(path.join(root, 'pages/goods_cate/goods_cate.vue'), 'utf8');
 const categoryFirst = fs.readFileSync(path.join(root, 'pages/goods_cate/goods_cate1.vue'), 'utf8');
 const customHome = fs.readFileSync(path.join(root, 'pages/index/components/yfthCustomHome.vue'), 'utf8');
+const requestUtil = fs.readFileSync(path.join(root, 'utils/request.js'), 'utf8');
 
 function requireText(source, text, name) {
   if (!source.includes(text)) throw new Error(`missing:${name}`);
@@ -33,5 +34,11 @@ function requireText(source, text, name) {
   ['/pages/goods_details/index?id=', 'product_navigation'],
   ["/pages/yfth/package/list", 'package_navigation'],
 ].forEach(([text, name]) => requireText(customHome, text, name));
+
+[
+  ['function h5FetchRequest', 'h5_fetch_adapter'],
+  ["credentials: 'same-origin'", 'h5_same_origin_credentials'],
+  ["requestBase.replace(/\\/$/, '') + '/api/' + url", 'existing_api_base_path'],
+].forEach(([text, name]) => requireText(requestUtil, text, name));
 
 console.log('YFTH category page contract check passed.');
