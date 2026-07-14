@@ -39,19 +39,16 @@
 									:url='"/pages/goods/goods_list/index?cid="+item.id+"&title="+item.cate_name'
 									class='item acea-row row-column row-middle'>
 									<view class='picture'>
-										<easy-loadimage mode="widthFix" :image-src="item.pic || defimg">
-										</easy-loadimage>
-										<!-- <image src="/static/images/sort-img.png" v-else></image> -->
+										<image mode="aspectFill" :src="item.pic || defimg"></image>
 									</view>
 									<view class='name line1'>{{$t(`全部商品`)}}</view>
 								</navigator>
 								<block v-for="(itemn,indexn) in item.children" :key="indexn">
 									<navigator hover-class='none'
 										:url='"/pages/goods/goods_list/index?sid="+itemn.id+"&title="+itemn.cate_name'
-										class='item acea-row row-column row-middle'>
+									class='item acea-row row-column row-middle'>
 										<view class='picture'>
-											<easy-loadimage mode="widthFix" :image-src="itemn.pic"></easy-loadimage>
-											<!-- <image src="/static/images/sort-img.png" v-else></image> -->
+											<image mode="aspectFill" :src="itemn.pic || defimg"></image>
 										</view>
 										<view class='name line1'>{{$t(itemn.cate_name)}}</view>
 									</navigator>
