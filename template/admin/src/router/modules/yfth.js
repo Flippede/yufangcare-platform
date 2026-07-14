@@ -17,6 +17,15 @@ export default {
   component: LayoutMain,
   children: [
     {
+      path: 'homepage',
+      name: `${pre}homepage`,
+      meta: {
+        auth: ['yfth-homepage-index'],
+        title: '首页配置',
+      },
+      component: () => import('@/pages/yfth/homepage/index'),
+    },
+    {
       path: 'foundation',
       name: `${pre}foundation`,
       meta: {

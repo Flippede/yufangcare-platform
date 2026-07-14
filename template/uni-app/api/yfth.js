@@ -1,5 +1,9 @@
 import request from '@/utils/request.js';
 
+export function getYfthHomepage() {
+	return request.get('yfth/homepage', {}, { noAuth: true });
+}
+
 export function getYfthIdentities() {
 	return request.get('yfth/identities');
 }

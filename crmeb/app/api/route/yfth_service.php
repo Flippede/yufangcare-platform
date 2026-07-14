@@ -3,6 +3,7 @@
 use think\facade\Route;
 
 Route::group(function () {
+    Route::get('yfth/homepage', 'v1.yfth.HomepageController/index')->option(['real_name' => 'YFTH customer homepage configuration']);
     Route::get('yfth/service/project', 'v1.yfth.ServiceAppointmentController/projectList')->option(['real_name' => 'YFTH service project public list']);
     Route::get('yfth/service/project/:id', 'v1.yfth.ServiceAppointmentController/projectDetail')->option(['real_name' => 'YFTH service project public detail']);
     Route::get('yfth/service/project/:id/stores', 'v1.yfth.ServiceAppointmentController/serviceStores')->option(['real_name' => 'YFTH service available stores']);

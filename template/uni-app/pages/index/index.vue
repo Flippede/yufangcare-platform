@@ -2,6 +2,8 @@
 	<!-- 首页 -->
 	<view v-if="pageShow" class="page" :class="bgTabVal == 2 ? 'fullsize noRepeat' : bgTabVal == 1 ? 'repeat ysize' : 'noRepeat ysize'" :style="[pageStyle]">
 		<view v-if="!errorNetwork" :style="colorStyle">
+			<yfthCustomHome v-if="customHomepage.enabled" :config="customHomepage" :footerConfigData="footerConfigData" />
+			<block v-else>
 			<!-- #ifdef MP -->
 			<view class="fixed z-1000" :style="[appletStyle]" v-if="myApplet">
 				<view class="myApplet w-324 h-62 text-center rd-12rpx lh-62rpx fs-24 bg--w111-fff text-w111-303133">
@@ -112,6 +114,7 @@
 			<!-- #ifdef APP -->
 			<app-update ref="appUpdate" :force="true" :tabbar="false"></app-update>
 			<!-- #endif -->
+			</block>
 		</view>
 		<view v-else>
 			<view class="error-network">
@@ -184,6 +187,8 @@ import pageFooter from '@/components/pageFooter/index.vue';
 import Loading from '@/components/Loading/index.vue';
 import Cache from '@/utils/cache';
 import appUpdate from '@/components/update/app-update.vue';
+import yfthCustomHome from './components/yfthCustomHome.vue';
+import { getYfthHomepage } from '@/api/yfth.js';
 
 export default {
 	computed: {
@@ -214,6 +219,7 @@ export default {
 	components: {
 		Loading,
 		pageFooter,
+		yfthCustomHome,
 		couponWindow,
 		homeComb,
 		newVip,
@@ -319,7 +325,8 @@ export default {
 			isBelongStore: false, //判断是否为归属门店；
 			getHeight: this.$util.getWXStatusHeight(),
 			myApplet: true,
-			configData: Cache.get('BASIC_CONFIG')
+			configData: Cache.get('BASIC_CONFIG'),
+			customHomepage: { enabled: false }
 		};
 	},
 	onLoad(options) {
@@ -335,6 +342,7 @@ export default {
 		});
 		const { state, scope } = options;
 		this.diyData();
+		this.loadYfthHomepage();
 		// #ifdef H5
 		this.setOpenShare();
 		// #endif
@@ -410,6 +418,13 @@ export default {
 		uni.stopPullDownRefresh();
 	},
 	methods: {
+		loadYfthHomepage() {
+			getYfthHomepage().then((res) => {
+				this.customHomepage = res.data || { enabled: false };
+			}).catch(() => {
+				this.customHomepage = { enabled: false };
+			});
+		},
 		...mapMutations(['SET_AUTOPLAY', 'SET_NEARBY']),
 		checkMyApplet() {
 			wx.checkIsAddedToMyMiniProgram({

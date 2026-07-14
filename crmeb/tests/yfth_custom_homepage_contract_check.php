@@ -1,0 +1,65 @@
+<?php
+
+$root = dirname(__DIR__);
+$checks = [
+    'service' => $root . '/app/services/yfth/HomepageServices.php',
+    'public_controller' => $root . '/app/api/controller/v1/yfth/HomepageController.php',
+    'admin_controller' => $root . '/app/adminapi/controller/v1/yfth/Homepage.php',
+    'public_route' => $root . '/app/api/route/yfth_service.php',
+    'admin_route' => $root . '/app/adminapi/route/yfth.php',
+    'migration' => $root . '/database/migrations/20260714170000_create_yfth_homepage_config.php',
+    'uni_home' => dirname($root) . '/template/uni-app/pages/index/components/yfthCustomHome.vue',
+    'admin_home' => dirname($root) . '/template/admin/src/pages/yfth/homepage/index.vue',
+];
+
+foreach ($checks as $name => $file) {
+    if (!is_file($file)) {
+        fwrite(STDERR, "missing:$name\n");
+        exit(1);
+    }
+}
+
+$service = file_get_contents($checks['service']);
+$publicRoute = file_get_contents($checks['public_route']);
+$adminRoute = file_get_contents($checks['admin_route']);
+$uniHome = file_get_contents($checks['uni_home']);
+$adminHome = file_get_contents($checks['admin_home']);
+
+foreach ([
+    'public_config' => 'publicConfig',
+    'real_product_lookup' => "Db::name('store_product')",
+    'real_package_lookup' => "Db::name('yfth_package_template')",
+    'no_hardcoded_product_id' => "product_ids' => []",
+] as $name => $needle) {
+    if (strpos($service, $needle) === false) {
+        fwrite(STDERR, "missing_service_contract:$name\n");
+        exit(1);
+    }
+}
+
+foreach (["yfth/homepage", 'HomepageController/index'] as $needle) {
+    if (strpos($publicRoute, $needle) === false) {
+        fwrite(STDERR, "missing_public_route:$needle\n");
+        exit(1);
+    }
+}
+foreach (["yfth/homepage/config", 'Homepage/config', 'Homepage/save'] as $needle) {
+    if (strpos($adminRoute, $needle) === false) {
+        fwrite(STDERR, "missing_admin_route:$needle\n");
+        exit(1);
+    }
+}
+foreach (['/pages/yfth/package/list', '/pages/goods_details/index', '/pages/goods/goods_list/index'] as $needle) {
+    if (strpos($uniHome, $needle) === false) {
+        fwrite(STDERR, "missing_customer_navigation:$needle\n");
+        exit(1);
+    }
+}
+foreach (['快捷入口', '双列内容卡片', '真实 CRMEB 商品/分类/套餐绑定'] as $needle) {
+    if (strpos($adminHome, $needle) === false) {
+        fwrite(STDERR, "missing_admin_surface:$needle\n");
+        exit(1);
+    }
+}
+
+echo "YFTH custom homepage contract check passed.\n";

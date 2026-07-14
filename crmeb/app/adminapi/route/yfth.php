@@ -3,6 +3,11 @@
 use think\facade\Route;
 
 Route::group('yfth', function () {
+    Route::group('homepage', function () {
+        Route::get('config', 'v1.yfth.Homepage/config')->option(['real_name' => 'YFTH homepage configuration']);
+        Route::post('config', 'v1.yfth.Homepage/save')->option(['real_name' => 'YFTH homepage configuration save']);
+    })->option(['parent' => 'yfth', 'cate_name' => 'YFTH Homepage']);
+
     Route::group('foundation', function () {
         Route::get('identity', 'v1.yfth.Foundation/identity')->option(['real_name' => '身份列表']);
         Route::get('store_role', 'v1.yfth.Foundation/storeRole')->option(['real_name' => '门店角色列表']);

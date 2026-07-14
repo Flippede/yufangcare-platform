@@ -1,5 +1,13 @@
 import request from '@/libs/request';
 
+export function yfthHomepageConfig() {
+  return request({ url: 'yfth/homepage/config', method: 'get' });
+}
+
+export function yfthHomepageSave(config) {
+  return request({ url: 'yfth/homepage/config', method: 'post', data: { config } });
+}
+
 export function yfthIdentityList(params) {
   return request({
     url: 'yfth/foundation/identity',

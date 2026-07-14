@@ -1,5 +1,15 @@
 # 项目交接文档
 
+## Current Fact Snapshot - Custom YFTH Homepage V1 Development
+
+- Current feature branch: `codex/yfth-custom-homepage-v1`, created from stable `main` / `origin/main` `567b7812b5a7ba173d009f21523d49462151bb30`. It is not merged into `main`.
+- The customer home now has a fixed warm-gold storefront layout based on the approved mobile reference: header/search, two-row shortcut panel, and six two-column content cards. It deliberately remains a customer shopping surface, not an operational workbench.
+- The layout uses a dedicated YFTH display configuration rather than mutating CRMEB DIY records. Headquarters can configure titles, visibility, order, icons, card images, published package binding, CRMEB product binding, CRMEB category binding, and approved page targets. No formal product ID is hard-coded.
+- The public homepage resolves only real CRMEB published products, active categories, published YFTH packages, and their existing image/OSS URLs. Empty or insufficient production content renders an honest empty state; it never substitutes fictitious products or packages.
+- Existing CRMEB product detail, category list, package list/detail, order, payment, DIY, upload, OSS, SMS, and WeChat configuration remain intact. The legacy DIY homepage stays as a fail-safe fallback when the new public configuration is disabled or unavailable.
+- Local Admin production build, uni-app H5 production build, and mp-weixin production compile have passed. The Admin production output was mirrored into `crmeb/public/admin`; remaining build output consisted only of existing warnings documented in the runtime note.
+- The branch has not yet been merged or deployed by this snapshot. Production migration, deployment, WeChat upload, real payment, and real SMS remain outside the completed local build claim.
+
 ## Current Fact Snapshot - Production Cutover Hotfix Main Closure
 
 - Production-compatible hotfix branch `codex/yfth-production-diy-compat-hotfix` was fast-forwarded into stable `main` from `e1a1f5fd6aa457cd53866953265f30b264f8d00b` at final hotfix commit `bb1d609a2388b6aa0092b206143f65c3aca48922`. The local and remote hotfix branches remain preserved. Final `main` and `origin/main` commits must be read from Git after this documentation closure commit and push.
