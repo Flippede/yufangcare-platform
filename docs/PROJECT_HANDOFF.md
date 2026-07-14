@@ -1,6 +1,14 @@
 # 项目交接文档
 
-## Current Fact Snapshot - Staging Deployment Preparation Blocked
+## Current Fact Snapshot - Staging Environment Recovery
+
+- Release Candidate V1 `e1a1f5fd6aa457cd53866953265f30b264f8d00b` is running from isolated server-only root `/www/staging/yfth-rc-v1` at `http://39.107.70.253:39001`. Docker registry access remains unavailable, but no Docker endpoint was retried during recovery: the stack uses native MySQL Community `8.0.46`, native Redis, a private PHP `7.4.33` FPM pool, separate Nginx on port `39001`, and separate queue, timer and Workerman processes.
+- MySQL uses a distinct staging database/user/data directory on `127.0.0.1:3307`; Redis uses a distinct staging data directory/password/prefix/queue name on `127.0.0.1:6380`. The CRMEB base schema import and `php think migrate:run` completed, with YFTH migrations through Stage 4 reported `up`. Admin assets are served from tracked `crmeb/public/admin`; H5 production assets are present in the staging release.
+- Real staging smoke checks passed for external `/healthz`, H5 home, Admin login page, published package list/detail API, an Admin login API request and the headquarters reward-settlement candidate list. A test customer logged in through the real H5 API and browser-loaded the package list, package detail and package-membership/invitation page. The unassigned test customer was denied the store workbench as designed; a B1 role-scoped acceptance session remains pending separately configured staging role data.
+- Non-production WeChat authorization, WeChat payment, refund callbacks, SMS and mini-program platform credentials are absent and were not called. A staging DNS/TLS route is also pending; current controlled user access is port-only HTTP. The environment is ready for technical/non-payment smoke testing, but full acceptance remains blocked on those external credentials, role-scoped store data and real callback testing.
+- Formal MySQL 5.7, formal Redis, production data, formal application directory and formal Nginx configuration were not reused, queried for business data, migrated, stopped or changed. No production deployment, production migration, WeChat upload or production credential use occurred. User-owned `项目文档/*`, TXT, DOCX, MD and Word lock files remain untouched.
+
+## Historical Snapshot - Staging Deployment Preparation Blocked
 
 - On 2026-07-14, Release Candidate V1 `e1a1f5fd6aa457cd53866953265f30b264f8d00b` was prepared in a new server-only staging root with a dedicated Compose definition, port `39001`, generated non-production secrets, a separate MySQL 8.0.46 volume, and a separate Redis volume/namespace. No secret was written to source control.
 - The application archive, current tracked Admin assets, and the previously built H5 output were copied to the isolated staging root. No staging container, database, Redis instance, worker, Nginx listener, migration, or public test URL was started.
