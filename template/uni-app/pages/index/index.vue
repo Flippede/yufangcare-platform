@@ -437,8 +437,21 @@ export default {
 			this.homepageLoadStarted = true;
 			this.loadYfthHomepage();
 		},
+		requestYfthHomepage() {
+			// #ifdef H5
+			if (typeof window !== 'undefined' && typeof window.fetch === 'function') {
+				return window.fetch(`${window.location.origin}/api/yfth/homepage`, {
+					credentials: 'same-origin'
+				}).then((response) => {
+					if (!response.ok) throw new Error('homepage_request_failed');
+					return response.json();
+				});
+			}
+			// #endif
+			return getYfthHomepage();
+		},
 		loadYfthHomepage() {
-			getYfthHomepage().then((res) => {
+			this.requestYfthHomepage().then((res) => {
 				this.customHomepage = res && res.data && typeof res.data === 'object' ? res.data : { enabled: false };
 				this.homepageState = this.customHomepage.enabled ? 'ready' : 'fallback';
 			}).catch(() => {
