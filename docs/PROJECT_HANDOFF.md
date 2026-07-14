@@ -1,5 +1,13 @@
 # 项目交接文档
 
+## Current Fact Snapshot - Production Cutover Hotfix Main Closure
+
+- Production-compatible hotfix branch `codex/yfth-production-diy-compat-hotfix` was fast-forwarded into stable `main` from `e1a1f5fd6aa457cd53866953265f30b264f8d00b` at final hotfix commit `bb1d609a2388b6aa0092b206143f65c3aca48922`. The local and remote hotfix branches remain preserved. Final `main` and `origin/main` commits must be read from Git after this documentation closure commit and push.
+- The formal site is `https://yfth.top`. It has switched to the current YFTH codebase and independent MySQL 8 runtime; the production DIY compatibility and Timer runtime-log hotfix now also exists on stable `main`.
+- The original production MySQL 5.7 instance, pre-cutover code directory, and complete cutover backups remain preserved for rollback. Existing production product data, page decoration, upload files, OSS, SMS, WeChat payment certificates and configuration were retained during the cutover.
+- The production database has not yet been configured with live YFTH stores, package templates, package rules, or reward rules. This is a configuration prerequisite for real package, invitation, and reward acceptance rather than a code completion claim.
+- Still pending development or verification: the reference-image pixel-accurate customer homepage, Admin left-menu text truncation, and the MySQL 8 customer-and-members query issue. No new production deployment is required for this documentation-only main closure because production already runs the hotfix code.
+
 ## Current Fact Snapshot - Final Release Candidate V1 Merge Closure
 
 - Release Candidate V1 entered stable `main` through `git merge --ff-only codex/yfth-release-candidate-v1`. Main before merge was `33da74989066428d87f3c112d37eb361099aee3b`; the final candidate commit was `39b4fa4b72563062de189dfeb3b21d0cbb9150c0`. The local and remote candidate branches remain preserved. Final `main` and `origin/main` commits must be read from Git after this documentation closure commit and push.
