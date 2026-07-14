@@ -16,7 +16,7 @@
 			</view>
 		</view>
 		<view class="footer">
-			<button class="btn" @click="goStores">选择服务门店</button>
+			<button class="btn" @click="goStores">选择门店并购买</button>
 			<button class="ghost" @click="goMine">我的套餐</button>
 		</view>
 	</view>

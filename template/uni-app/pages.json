@@ -67,6 +67,12 @@
 			"root": "pages/yfth",
 			"name": "yfth",
 			"pages": [{
+					"path": "package/list",
+					"style": {
+						"navigationBarTitleText": "购买康养套餐"
+					}
+				},
+				{
 					"path": "package/detail",
 					"style": {
 						"navigationBarTitleText": "套餐详情"

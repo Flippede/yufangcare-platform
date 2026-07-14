@@ -186,7 +186,14 @@
 					<view class="yfth-entry-card" v-if="isLogin" @click="goYfthPackageMembership">
 						<view>
 							<view class="yfth-entry-title">套餐会员与一级推荐</view>
-							<view class="yfth-entry-desc">查看永久会员资格、邀请入口和奖励候选</view>
+							<view class="yfth-entry-desc">查看会员资格、购买套餐、邀请入口和奖励候选</view>
+						</view>
+						<text class="iconfont icon-jiantou"></text>
+					</view>
+					<view class="yfth-entry-card" v-if="isLogin" @click="goYfthPackagePurchase">
+						<view>
+							<view class="yfth-entry-title">购买康养套餐</view>
+							<view class="yfth-entry-desc">浏览已发布套餐，选择服务门店后完成支付</view>
 						</view>
 						<text class="iconfont icon-jiantou"></text>
 					</view>
@@ -799,6 +806,16 @@ export default {
 			}
 			uni.navigateTo({
 				url: '/pages/yfth/package_membership/index'
+			});
+		},
+
+		goYfthPackagePurchase() {
+			if (!this.isLogin) {
+				toLogin();
+				return;
+			}
+			uni.navigateTo({
+				url: '/pages/yfth/package/list'
 			});
 		},
 
