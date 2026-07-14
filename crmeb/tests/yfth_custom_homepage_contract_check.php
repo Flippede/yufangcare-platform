@@ -11,6 +11,7 @@ $checks = [
     'uni_home' => dirname($root) . '/template/uni-app/pages/index/components/yfthCustomHome.vue',
     'uni_index' => dirname($root) . '/template/uni-app/pages/index/index.vue',
     'uni_cache' => dirname($root) . '/template/uni-app/utils/cache.js',
+    'uni_app' => dirname($root) . '/template/uni-app/App.vue',
     'admin_home' => dirname($root) . '/template/admin/src/pages/yfth/homepage/index.vue',
 ];
 
@@ -27,6 +28,7 @@ $adminRoute = file_get_contents($checks['admin_route']);
 $uniHome = file_get_contents($checks['uni_home']);
 $uniIndex = file_get_contents($checks['uni_index']);
 $uniCache = file_get_contents($checks['uni_cache']);
+$uniApp = file_get_contents($checks['uni_app']);
 $adminHome = file_get_contents($checks['admin_home']);
 
 foreach ([
@@ -65,8 +67,8 @@ foreach (['/pages/yfth/package/list', '/pages/goods_details/index', '/pages/good
         exit(1);
     }
 }
-foreach (["Array.isArray(cahceValue)", "homepageState === 'error'", '首页内容暂时不可用'] as $needle) {
-    if (strpos($uniCache . $uniIndex, $needle) === false) {
+foreach (["Array.isArray(cahceValue)", "homepageState === 'error'", '首页内容暂时不可用', 'const query = queryData.query || {}', 'const query = (option && option.query) || {}'] as $needle) {
+    if (strpos($uniCache . $uniIndex . $uniApp, $needle) === false) {
         fwrite(STDERR, "missing_h5_safety_guard:$needle\n");
         exit(1);
     }

@@ -76,27 +76,28 @@
 			}
 		},
 		onShow() {
-			const queryData = uni.getEnterOptionsSync(); // uni-app版本 3.5.1+ 支持
-			if (queryData.query.spread) {
-				this.$Cache.set('spread', queryData.query.spread);
-				this.globalData.spid = queryData.query.spread;
-				this.globalData.pid = queryData.query.spread;
+			const queryData = uni.getEnterOptionsSync() || {}; // uni-app版本 3.5.1+ 支持
+			const query = queryData.query || {};
+			if (query.spread) {
+				this.$Cache.set('spread', query.spread);
+				this.globalData.spid = query.spread;
+				this.globalData.pid = query.spread;
 				silenceBindingSpread(this.globalData);
 			}
-			if (queryData.query.spid) {
-				this.$Cache.set('spread', queryData.query.spid);
-				this.globalData.spid = queryData.query.spid;
-				this.globalData.pid = queryData.query.spid;
+			if (query.spid) {
+				this.$Cache.set('spread', query.spid);
+				this.globalData.spid = query.spid;
+				this.globalData.pid = query.spid;
 				silenceBindingSpread(this.globalData);
 			}
-			if (queryData.query.agent_id) {
-				this.$Cache.set('agent_id', queryData.query.agent_id);
-				this.globalData.agent_id = queryData.query.agent_id;
+			if (query.agent_id) {
+				this.$Cache.set('agent_id', query.agent_id);
+				this.globalData.agent_id = query.agent_id;
 				silenceBindingSpread(this.globalData);
 			}
 			// #ifdef MP
-			if (queryData.query.scene) {
-				let param = this.$util.getUrlParams(decodeURIComponent(queryData.query.scene));
+			if (query.scene) {
+				let param = this.$util.getUrlParams(decodeURIComponent(query.scene));
 				if (param.pid) {
 					this.$Cache.set('spread', param.pid);
 					this.globalData.spid = param.pid;
@@ -132,13 +133,14 @@
 				uni.setStorageSync('BASIC_CONFIG', res.data);
 			});
 			// #ifdef H5
-			if (option.query.hasOwnProperty('mdType') && option.query.mdType == 'iframeWindow') {
+			const query = (option && option.query) || {};
+			if (query.hasOwnProperty('mdType') && query.mdType == 'iframeWindow') {
 				this.globalData.isIframe = true;
 			} else {
 				this.globalData.isIframe = false;
 			}
-			if (!this.isLogin && option.query.hasOwnProperty('remote_token')) {
-				this.remoteRegister(option.query.remote_token);
+			if (!this.isLogin && query.hasOwnProperty('remote_token')) {
+				this.remoteRegister(query.remote_token);
 			}
 			// #endif
 			colorChange('color_change').then((res) => {
