@@ -31,6 +31,11 @@ $uniCache = file_get_contents($checks['uni_cache']);
 $uniApp = file_get_contents($checks['uni_app']);
 $adminHome = file_get_contents($checks['admin_home']);
 
+if (strpos($uniIndex, 'options = options || {};') === false) {
+    fwrite(STDERR, "missing_h5_onload_options_guard\n");
+    exit(1);
+}
+
 foreach ([
     'public_config' => 'publicConfig',
     'real_product_lookup' => "Db::name('store_product')",

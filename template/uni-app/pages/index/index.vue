@@ -336,6 +336,7 @@ export default {
 		};
 	},
 	onLoad(options) {
+		options = options || {};
 		let that = this;
 		uni.hideTabBar();
 		that.getOptions(options);
