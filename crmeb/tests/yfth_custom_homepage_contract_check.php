@@ -43,7 +43,7 @@ foreach (["yfth/homepage", 'HomepageController/index'] as $needle) {
         exit(1);
     }
 }
-foreach (["yfth/homepage/config", 'Homepage/config', 'Homepage/save'] as $needle) {
+foreach (["Route::group('yfth'", "Route::group('homepage'", 'v1.yfth.Homepage/config', 'v1.yfth.Homepage/save'] as $needle) {
     if (strpos($adminRoute, $needle) === false) {
         fwrite(STDERR, "missing_admin_route:$needle\n");
         exit(1);
