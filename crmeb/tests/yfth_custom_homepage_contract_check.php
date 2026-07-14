@@ -35,6 +35,12 @@ if (strpos($uniIndex, 'options = options || {};') === false) {
     fwrite(STDERR, "missing_h5_onload_options_guard\n");
     exit(1);
 }
+foreach (['mounted()', 'initializeYfthHomepage()', 'homepageLoadStarted'] as $needle) {
+    if (strpos($uniIndex, $needle) === false) {
+        fwrite(STDERR, "missing_h5_direct_route_guard:$needle\n");
+        exit(1);
+    }
+}
 
 foreach ([
     'public_config' => 'publicConfig',

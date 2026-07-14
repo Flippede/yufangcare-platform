@@ -332,8 +332,14 @@ export default {
 			myApplet: true,
 			configData: Cache.get('BASIC_CONFIG'),
 			customHomepage: { enabled: false },
-			homepageState: 'loading'
+			homepageState: 'loading',
+			homepageLoadStarted: false
 		};
+	},
+	mounted() {
+		// H5 direct URL routing does not always invoke the uni-app page onLoad hook.
+		// Keep the initialization one-shot because MP still enters through onLoad.
+		this.initializeYfthHomepage();
 	},
 	onLoad(options) {
 		options = options || {};
@@ -349,7 +355,7 @@ export default {
 		});
 		const { state, scope } = options;
 		this.diyData();
-		this.loadYfthHomepage();
+		this.initializeYfthHomepage();
 		// #ifdef H5
 		this.setOpenShare();
 		// #endif
@@ -426,6 +432,11 @@ export default {
 		uni.stopPullDownRefresh();
 	},
 	methods: {
+		initializeYfthHomepage() {
+			if (this.homepageLoadStarted) return;
+			this.homepageLoadStarted = true;
+			this.loadYfthHomepage();
+		},
 		loadYfthHomepage() {
 			getYfthHomepage().then((res) => {
 				this.customHomepage = res && res.data && typeof res.data === 'object' ? res.data : { enabled: false };
