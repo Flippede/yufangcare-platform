@@ -20,6 +20,7 @@ assert(userPage.includes('class="customer-profile"'), 'customer center must have
 assert(userPage.includes('getYfthPackageMembershipMe'), 'customer center membership status must use the existing YFTH authority API');
 assert(userPage.includes('class="membership-summary"'), 'customer center must render one compact membership summary');
 assert(userPage.includes('class="user-menus customer-services"'), 'YFTH and configured entries must share one service section');
+assert(userPage.includes('serviceMenuInitial(item.name)'), 'configured service menus must retain a visible fallback when no icon is configured');
 ['我的归属', '套餐会员与一级推荐', '购买康养套餐', '御方通和合作中心'].forEach((name) => {
   assert(userPage.includes(name), `customer service grid must include ${name}`);
 });

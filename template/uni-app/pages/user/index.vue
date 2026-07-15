@@ -138,7 +138,10 @@
 						<!-- #ifdef APP-PLUS || H5 -->
 						<block v-for="(item, index) in MyMenus" :key="index">
 							<view class="item" v-if="item.url != '#' && item.url != '/pages/service/index'" @click="goMenuPage(item.url, item.name)">
-								<image :src="item.pic"></image>
+								<view class="configured-service-icon">
+									<image v-if="item.pic" :src="item.pic"></image>
+									<text v-else>{{ serviceMenuInitial(item.name) }}</text>
+								</view>
 								<text class="name">{{ $t(item.name) }}</text>
 							</view>
 						</block>
@@ -153,7 +156,10 @@
 								"
 								@click="goMenuPage(item.url, item.name)"
 							>
-								<image :src="item.pic"></image>
+								<view class="configured-service-icon">
+									<image v-if="item.pic" :src="item.pic"></image>
+									<text v-else>{{ serviceMenuInitial(item.name) }}</text>
+								</view>
 								<text class="name">{{ $t(item.name) }}</text>
 							</view>
 						</block>
@@ -490,6 +496,10 @@ export default {
 				}
 				return false;
 			});
+		},
+		serviceMenuInitial(name) {
+			const text = String(name || '服务').trim();
+			return text ? text.slice(0, 1) : '服';
 		},
 		Setting: function () {
 			uni.openSetting({
@@ -1315,6 +1325,26 @@ body {
 			}
 		}
 
+		.configured-service-icon {
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			width: 64rpx;
+			height: 64rpx;
+			margin-bottom: 14rpx;
+			border-radius: 20rpx;
+			background: #f1eee8;
+			color: #766956;
+			font-size: 25rpx;
+			font-weight: 700;
+
+			image {
+				width: 52rpx;
+				height: 52rpx;
+				margin-bottom: 0;
+			}
+		}
+
 		button {
 			font-size: 28rpx;
 		}
@@ -1405,4 +1435,16 @@ body {
 	padding-bottom: constant(safe-area-inset-bottom);
 	padding-bottom: env(safe-area-inset-bottom);
 }
+
+/* #ifdef H5 */
+@media screen and (min-width: 750px) {
+	.new-users .mid,
+	.new-users .fixed-lb .page-footer-wrapper {
+		width: 750px;
+		max-width: 100%;
+		margin-right: auto;
+		margin-left: auto;
+	}
+}
+/* #endif */
 </style>
