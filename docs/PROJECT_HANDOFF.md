@@ -2,13 +2,14 @@
 
 ## Current Fact Snapshot - Customer Center Visual Closure
 
-- The customer-center implementation remains on `codex/yfth-custom-homepage-v1`; production H5 source commit is `d55a4ce`. The branch remains unmerged to stable `main`.
+- The customer-center implementation remains on `codex/yfth-custom-homepage-v1`; production H5 source commit is `b974f15`. The branch remains unmerged to stable `main`.
 - `https://yfth.top/pages/user/index` now uses three clear levels: one warm-gold customer/member summary, the existing independent order center, and one consolidated service grid. The former stacked YFTH attribution, package-membership, package-purchase and cooperation cards were removed from the top area.
 - The member summary reads the existing `yfth/package_membership/me` authority API. It displays the authenticated nickname/phone/avatar and permanent/non-member state from real data; loading or API failure has an explicit safe display and does not blank the page.
 - `我的归属`, `套餐会员与一级推荐`, `购买康养套餐`, `御方通和合作中心` and the conditional business workbench reuse their existing routes. Backend-configured customer menus remain sourced from `/api/menu/user`; empty configured icon values use a text fallback while future configured images continue to take precedence.
+- The existing attribution page request-generation guard is now initialized before the uni-app `onShow` hook uses it. Production browser validation reached the real attribution empty state without the former `invalidateAll` lifecycle error; attribution APIs and business rules were not changed.
 - The order center and formal four-item footer (`首页 / 分类 / 购物车 / 我的`) remain intact. Wide-screen H5 content is constrained to a 750px customer canvas; mobile and mp-weixin continue to use the existing responsive rpx layout.
 - Targeted customer-surface and package-purchase contracts passed. Clean H5 production build and mp-weixin production compile passed with only existing asset-size, skeleton-key and component-subpackage notices. No WeChat upload was performed.
-- Production H5 releases were backed up under `/root/yfth-backups/h5-user-center-layout-20260715-151247`, `/root/yfth-backups/h5-user-center-polish-20260715-152121`, and `/root/yfth-backups/h5-user-center-final-20260715-153001`. No `.env`, database, upload, OSS, SMS, WeChat or payment-certificate data was modified.
+- Production H5 releases were backed up under `/root/yfth-backups/h5-user-center-layout-20260715-151247`, `/root/yfth-backups/h5-user-center-polish-20260715-152121`, `/root/yfth-backups/h5-user-center-final-20260715-153001`, and `/root/yfth-backups/h5-user-center-routefix-20260715-154021`. No `.env`, database, upload, OSS, SMS, WeChat or payment-certificate data was modified.
 
 ## Current Fact Snapshot - Custom YFTH Homepage V1 Production Release
 
