@@ -118,20 +118,18 @@ export default {
 		};
 	},
 	mounted() {
-		// #ifdef H5
+		if (typeof document === 'undefined') return;
 		this.$nextTick(() => {
 			this.h5PointerTarget = this.$el.querySelector('.verify-image-hitbox');
 			this.h5PointerHandler = (event) => this.canvasClick(event);
 			if (this.h5PointerTarget) this.h5PointerTarget.addEventListener('click', this.h5PointerHandler);
 		});
-		// #endif
 	},
 	beforeDestroy() {
-		// #ifdef H5
+		if (typeof document === 'undefined') return;
 		if (this.h5PointerTarget && this.h5PointerHandler) {
 			this.h5PointerTarget.removeEventListener('click', this.h5PointerHandler);
 		}
-		// #endif
 	},
 	methods: {
 		init() {
