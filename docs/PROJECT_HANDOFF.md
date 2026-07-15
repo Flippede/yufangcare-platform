@@ -1,5 +1,15 @@
 # 项目交接文档
 
+## Current Fact Snapshot - Role Test Data And Referral Scan Production Acceptance
+
+- Production `https://yfth.top` now runs feature commit `5a36968fb121ac3bf9ce324103cb3954ad2af003` from the preserved branch `codex/yfth-user-role-assets-referral-code-v1`; stable `main` remains unchanged and this feature is not merged.
+- Backup `/www/backup/yfth-role-test-referral-20260715-201819` contains the full pre-release code/static tree, production `.env`, permission snapshot, SHA-256 records, and a gzip-verified full MySQL 8 logical dump. Release artifacts are retained at `/www/releases/yfth-role-test-referral-20260715-201819`.
+- Production migration `20260718110000 CreateYfthAcceptanceFixture` is up. The `用户经营身份` menu is visible, its three fixture permissions exist, and unauthenticated fixture access returns the existing CRMEB login-expired status `110003`.
+- The headquarters page idempotently generated one marked `TEST 隔离测试 B1 门店`, five virtual test accounts, three scoped operating roles, C1 permanent membership, a non-member C2, and the active 15% / 25% / 60% plus 10% mall ratio. The private credential file is `/www/private/yfth-acceptance/yfth-production-test-accounts.txt`, owned by `www:www` with mode `0600`; no password is stored in Git, public pages, or project logs.
+- Production HTTP acceptance passed without SMS or payment: C1, C2, and B1 logged in through the real account-password endpoint; C1 issued the existing Stage 2 invite; C2 accepted it and now shares B1 attribution; duplicate acceptance was idempotent and self-scan was rejected. Franchisee, manager, and staff contexts resolved to B1; C2 role forgery, staff settlement access, and cross-store scope were rejected.
+- Browser acceptance confirmed the public warm-gold homepage, authenticated headquarters role page and visible fixture panel, and the H5 referral scan surface with camera, image-upload, and paste-link options. Server source, Admin output, and H5 output exactly match the release artifacts; all production services are active and no recent severe application log match was found.
+- Existing `.env` production values, products, images, uploads, OSS, SMS, WeChat, payment certificates, orders, and real users were preserved. No real payment, SMS, WeChat authorization, refund, payout, production rollback, or WeChat upload was executed.
+
 ## Current Fact Snapshot - Role Acceptance Fixture And Referral Scan Closure
 
 - Current feature branch: `codex/yfth-user-role-assets-referral-code-v1`, based on stable `main` / `origin/main` `cf58036638a1d53d7a29c6aa41a79ae52a37c4a5`. This closure is not merged into `main`.

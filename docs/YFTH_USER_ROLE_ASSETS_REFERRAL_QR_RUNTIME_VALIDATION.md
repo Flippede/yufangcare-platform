@@ -1,5 +1,17 @@
 # YFTH User Role Assets And Referral QR V1 Runtime Validation
 
+## Production acceptance closure - 2026-07-15
+
+- Feature commit: `5a36968fb121ac3bf9ce324103cb3954ad2af003`; production URL: `https://yfth.top`.
+- Backup: `/www/backup/yfth-role-test-referral-20260715-201819`; release artifacts: `/www/releases/yfth-role-test-referral-20260715-201819`.
+- Production migration `20260718110000 CreateYfthAcceptanceFixture` completed. Nginx, PHP-FPM 7.4, MySQL 8.0.46, Queue, Timer, and Workerman were active after the controlled restart.
+- Admin browser verification reached `御方通和 / 用户经营身份`, displayed the fixture panel from the visible menu page, generated the five marked accounts, and repeated generation without increasing the store, user, role, or membership counts.
+- The production credential file exists outside the web tree at `/www/private/yfth-acceptance/yfth-production-test-accounts.txt`, mode `0600`. Password contents are not recorded in this document.
+- Real production HTTP checks passed for C1/C2/B1 account login, invite issue/accept, duplicate idempotency, self-scan denial, B1 franchisee/manager/staff contexts, C2 forged-manager denial, staff settlement denial, and cross-store denial. The resulting referral and attribution are both active for the marked B1.
+- Public browser verification rendered the deployed referral scan page with H5 camera, QR-image upload, and pasted invite input. Exact release comparisons reported no source, Admin, H5 asset, page, static, or index drift. Required public/API/static requests returned successfully and no recent severe application log match was found.
+- Production C2 was intentionally left as a non-member with an active referral so the user can inspect the pre-package state. The existing Stage 2 isolated real-flow evidence covers membership activation closing the relation; no fake production payment or membership transition was performed merely to repeat that assertion.
+- No SMS, real payment, refund, payout, WeChat authorization, WeChat upload, production rollback, or production data cleanup was executed.
+
 ## Acceptance fixture and scan closure - 2026-07-15
 
 - Added migration `20260718110000_create_yfth_acceptance_fixture.php`. Isolated MySQL Community 8.0.46 `run -> targeted rollback -> rerun` passed; rollback removed the manifest and all three permissions, and rerun restored the table, unique fixture key, and permissions.
