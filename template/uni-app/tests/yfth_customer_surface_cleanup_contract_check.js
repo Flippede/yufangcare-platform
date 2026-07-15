@@ -4,6 +4,7 @@ const path = require('path');
 const root = path.resolve(__dirname, '..');
 const userPage = fs.readFileSync(path.join(root, 'pages/user/index.vue'), 'utf8');
 const categoryPage = fs.readFileSync(path.join(root, 'pages/goods_cate/goods_cate1.vue'), 'utf8');
+const authorityPage = fs.readFileSync(path.join(root, 'pages/yfth/authority/index.vue'), 'utf8');
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
@@ -27,5 +28,7 @@ assert(userPage.includes('serviceMenuInitial(item.name)'), 'configured service m
 assert(categoryPage.includes('getCategoryList'), 'category page must keep using the CRMEB category API');
 assert(categoryPage.includes("window.location.origin}/api/category"), 'H5 category page must read the production category API');
 assert(categoryPage.includes('暂无商品分类'), 'category page must retain an empty state');
+assert(authorityPage.includes('ensureRequestGeneration().invalidateAll()'), 'attribution page must initialize its request guard before onShow uses it');
+assert(authorityPage.includes('if (this.requestGeneration) this.requestGeneration.destroy()'), 'attribution page unload must remain safe before guard initialization');
 
 console.log('YFTH customer surface cleanup contract check passed.');

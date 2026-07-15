@@ -61,41 +61,43 @@ const { createRequestGeneration } = require('@/libs/yfthRequestGeneration.js');
 
 export default {
 	data() {
-		return { loading: true, error: '', data: {} };
-	},
-	created() {
-		this.requestGeneration = createRequestGeneration();
+		return { loading: true, error: '', data: {}, requestGeneration: null };
 	},
 	onShow() {
-		this.requestGeneration.invalidateAll();
+		this.ensureRequestGeneration().invalidateAll();
 		this.clearSensitiveState();
 		this.load();
 	},
 	onHide() {
-		this.requestGeneration.invalidateAll();
+		if (this.requestGeneration) this.requestGeneration.invalidateAll();
 		this.clearSensitiveState();
 	},
 	onUnload() {
-		this.requestGeneration.destroy();
+		if (this.requestGeneration) this.requestGeneration.destroy();
 		this.clearSensitiveState();
 	},
 	methods: {
+		ensureRequestGeneration() {
+			if (!this.requestGeneration) this.requestGeneration = createRequestGeneration();
+			return this.requestGeneration;
+		},
 		load() {
+			const requestGeneration = this.ensureRequestGeneration();
 			const uid = Number(this.$store.getters.uid || 0);
 			const identity = 'uid:' + uid;
-			const ticket = this.requestGeneration.next('me', identity);
+			const ticket = requestGeneration.next('me', identity);
 			this.data = {};
 			this.loading = true;
 			this.error = '';
 			getYfthMyHqAuthority().then((res) => {
-				if (!this.requestGeneration.isCurrent(ticket, 'uid:' + Number(this.$store.getters.uid || 0))) return;
+				if (!requestGeneration.isCurrent(ticket, 'uid:' + Number(this.$store.getters.uid || 0))) return;
 				this.data = res.data || {};
 			}).catch((err) => {
-				if (!this.requestGeneration.isCurrent(ticket, identity)) return;
+				if (!requestGeneration.isCurrent(ticket, identity)) return;
 				this.data = {};
 				this.error = String((err && err.msg) || '请稍后重试');
 			}).finally(() => {
-				if (this.requestGeneration.isCurrent(ticket, identity)) this.loading = false;
+				if (requestGeneration.isCurrent(ticket, identity)) this.loading = false;
 			});
 		},
 		clearSensitiveState() {
