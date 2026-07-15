@@ -1,7 +1,7 @@
 <template>
 	<!-- 底部导航 -->
 	<view v-if="showTabBar">
-		<view class="fixed-lb w-full pb-safe z-999" :style="[bgColor]">
+		<view class="fixed-lb w-full pb-safe z-999" :class="{ 'centered-h5-footer': centeredH5 }" :style="[bgColor]">
 			<view class="page-footer-wrapper">
 				<view
 					class="page-footer"
@@ -40,6 +40,10 @@ export default {
 	name: 'pageFooter',
 	components: { BaseBadge },
 	props: {
+		centeredH5: {
+			type: Boolean,
+			default: false
+		},
 		isTabBar: {
 			type: Boolean,
 			default: true
@@ -221,6 +225,22 @@ export default {
 .page-footer-wrapper {
 	position: relative;
 }
+
+/* #ifdef H5 */
+@media screen and (min-width: 768px) {
+	.fixed-lb.centered-h5-footer {
+		left: 50%;
+		right: auto;
+		width: 375px !important;
+		max-width: 100%;
+		transform: translateX(-50%);
+	}
+
+	.fixed-lb.centered-h5-footer .page-footer-wrapper {
+		width: 100%;
+	}
+}
+/* #endif */
 
 .page-footer {
 	position: absolute;

@@ -3,6 +3,7 @@ const path = require('path');
 
 const root = path.resolve(__dirname, '..');
 const userPage = fs.readFileSync(path.join(root, 'pages/user/index.vue'), 'utf8');
+const pageFooter = fs.readFileSync(path.join(root, 'components/pageFooter/index.vue'), 'utf8');
 const categoryPage = fs.readFileSync(path.join(root, 'pages/goods_cate/goods_cate1.vue'), 'utf8');
 const authorityPage = fs.readFileSync(path.join(root, 'pages/yfth/authority/index.vue'), 'utf8');
 
@@ -21,6 +22,12 @@ assert(userPage.includes('class="customer-profile"'), 'customer center must have
 assert(userPage.includes('getYfthPackageMembershipMe'), 'customer center membership status must use the existing YFTH authority API');
 assert(userPage.includes('class="membership-summary"'), 'customer center must render one compact membership summary');
 assert(userPage.includes('class="user-menus customer-services"'), 'YFTH and configured entries must share one service section');
+assert(userPage.includes('width: 25%;'), 'customer service grid must remain four columns on mobile');
+assert(userPage.includes('min-height: 68rpx;'), 'customer service labels must reserve equal one-line/two-line height');
+assert(userPage.includes('width: 375px;'), 'wide-screen customer center must retain a phone-width canvas');
+assert(userPage.includes(':centered-h5="true"'), 'customer center must opt into its centered desktop footer');
+assert(pageFooter.includes("'centered-h5-footer': centeredH5"), 'footer must support the page-scoped centered H5 mode');
+assert(pageFooter.includes('width: 375px !important;'), 'centered H5 footer must match the customer canvas width');
 assert(userPage.includes('serviceMenuInitial(item.name)'), 'configured service menus must retain a visible fallback when no icon is configured');
 ['我的归属', '套餐会员与一级推荐', '购买康养套餐', '御方通和合作中心'].forEach((name) => {
   assert(userPage.includes(name), `customer service grid must include ${name}`);

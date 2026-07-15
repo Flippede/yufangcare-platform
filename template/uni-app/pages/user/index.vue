@@ -193,7 +193,7 @@
 			</scroll-view>
 			<editUserModal :isShow="editModal" @closeEdit="closeEdit" @editSuccess="editSuccess"></editUserModal>
 		</view>
-		<pageFooter :style="colorStyle"></pageFooter>
+		<pageFooter :style="colorStyle" :centered-h5="true"></pageFooter>
 	</view>
 </template>
 <script>
@@ -1264,30 +1264,53 @@ body {
 		.list-box {
 			display: flex;
 			flex-wrap: wrap;
+			align-items: flex-start;
+			padding: 0 8rpx 8rpx;
 			.item {
 				position: relative;
 				display: flex;
 				align-items: center;
-				justify-content: space-between;
+				justify-content: flex-start;
 				flex-direction: column;
 				width: 25%;
-				margin-bottom: 40rpx;
-				font-size: 26rpx;
+				min-height: 156rpx;
+				margin-bottom: 28rpx;
+				padding: 0 4rpx;
+				box-sizing: border-box;
+				font-size: 24rpx;
+				line-height: 34rpx;
 				color: #333333;
 				.name {
+					display: flex;
+					align-items: center;
+					justify-content: center;
 					width: 100%;
-					padding: 0 8rpx;
+					min-height: 68rpx;
+					padding: 0 4rpx;
 					box-sizing: border-box;
 					text-align: center;
-					line-height: 1.35;
+					line-height: 34rpx;
+					white-space: normal;
+					word-break: break-word;
 				}
 				image {
-					width: 52rpx;
-					height: 52rpx;
-					margin-bottom: 18rpx;
+					width: 64rpx;
+					height: 64rpx;
+					margin-bottom: 14rpx;
 				}
 
 				&:last-child::before {
+					display: none;
+				}
+			}
+
+			button.item {
+				margin-top: 0;
+				padding-top: 0;
+				background: transparent;
+				line-height: 34rpx;
+
+				&::after {
 					display: none;
 				}
 			}
@@ -1441,13 +1464,13 @@ body {
 }
 
 /* #ifdef H5 */
-@media screen and (min-width: 750px) {
-	.new-users .mid,
-	.new-users .fixed-lb .page-footer-wrapper {
-		width: 750px;
+@media screen and (min-width: 768px) {
+	.new-users .mid {
+		width: 375px;
 		max-width: 100%;
 		margin-right: auto;
 		margin-left: auto;
+		background: #f5f5f5;
 	}
 }
 /* #endif */
