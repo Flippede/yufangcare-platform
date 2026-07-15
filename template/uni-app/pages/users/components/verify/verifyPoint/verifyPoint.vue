@@ -12,7 +12,7 @@
 					style="width: 100%; height: 100%; display: block"
 				></image>
 				<!-- uni-image does not consistently emit H5 click events; keep the hit area on a view. -->
-				<view class="verify-image-hitbox" @tap.stop="canvasClick($event)"></view>
+				<view ref="hitbox" class="verify-image-hitbox" @tap.stop="canvasClick($event)"></view>
 				<view
 					v-for="(tempPoint, index) in tempPoints"
 					:key="index"
@@ -118,26 +118,38 @@ export default {
 		};
 	},
 	mounted() {
-		if (typeof document === 'undefined') return;
-		this.$nextTick(() => {
-			this.h5PointerTarget = document.querySelector('.verify-image-hitbox');
-			this.h5PointerHandler = (event) => this.canvasClick(event);
-			if (this.h5PointerTarget) this.h5PointerTarget.addEventListener('click', this.h5PointerHandler);
-		});
+		this.bindH5Pointer();
 	},
 	beforeDestroy() {
-		if (typeof document === 'undefined') return;
-		if (this.h5PointerTarget && this.h5PointerHandler) {
-			this.h5PointerTarget.removeEventListener('click', this.h5PointerHandler);
-		}
+		this.unbindH5Pointer();
 	},
 	methods: {
+		bindH5Pointer() {
+			if (typeof document === 'undefined') return;
+			this.$nextTick(() => {
+				const hitbox = this.$refs.hitbox;
+				const target = hitbox && (hitbox.$el || hitbox);
+				if (!target || !target.addEventListener || target === this.h5PointerTarget) return;
+				this.unbindH5Pointer();
+				this.h5PointerTarget = target;
+				this.h5PointerHandler = (event) => this.canvasClick(event);
+				this.h5PointerEvent = typeof window !== 'undefined' && window.PointerEvent ? 'pointerup' : 'click';
+				target.addEventListener(this.h5PointerEvent, this.h5PointerHandler, { passive: false });
+			});
+		},
+		unbindH5Pointer() {
+			if (this.h5PointerTarget && this.h5PointerHandler && this.h5PointerEvent) {
+				this.h5PointerTarget.removeEventListener(this.h5PointerEvent, this.h5PointerHandler);
+			}
+			this.h5PointerTarget = null;
+		},
 		init() {
 			//加载页面
 			this.fontPos.splice(0, this.fontPos.length);
 			this.checkPosArr.splice(0, this.checkPosArr.length);
 			this.num = 1;
 			this.$nextTick(() => {
+				this.bindH5Pointer();
 				this.refresh();
 				this.$parent.$emit('ready', this);
 			});

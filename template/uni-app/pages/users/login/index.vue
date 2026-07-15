@@ -86,14 +86,16 @@
 				</view>
 			</view>
 			<!-- #endif -->
-			<view class="protocol">
-				<checkbox-group @change="ChangeIsDefault">
-					<checkbox :class="inAnimation ? 'trembling' : ''" @animationend="inAnimation = false" :checked="protocol ? true : false" />
+			<view class="protocol" @tap="toggleProtocol">
+				<view class="protocol-check" :class="{ checked: protocol, trembling: inAnimation }" @animationend="inAnimation = false">
+					<text v-if="protocol" class="protocol-check-mark">✓</text>
+				</view>
+				<view class="protocol-copy">
 					{{ $t(`已阅读并同意`) }}
-					<text class="main-color" @click="privacy(4)">{{ $t(`《用户协议》`) }}</text>
+					<text class="main-color" @tap.stop="privacy(4)">{{ $t(`《用户协议》`) }}</text>
 					{{ $t(`与`) }}
-					<text class="main-color" @click="privacy(3)">{{ $t(`《隐私协议》`) }}</text>
-				</checkbox-group>
+					<text class="main-color" @tap.stop="privacy(3)">{{ $t(`《隐私协议》`) }}</text>
+				</view>
 			</view>
 		</view>
 		<view class="bottom">
@@ -186,7 +188,7 @@ export default {
 		this.getLogoImage();
 	},
 	methods: {
-		ChangeIsDefault(e) {
+		toggleProtocol() {
 			this.$set(this, 'protocol', !this.protocol);
 		},
 		switchMode(mode) {
@@ -1023,6 +1025,39 @@ page {
 	margin-top: 32rpx;
 	color: #8f8172;
 	line-height: 38rpx;
+	display: flex;
+	align-items: flex-start;
+	cursor: pointer;
+}
+
+.login-wrapper .protocol-check {
+	width: 30rpx;
+	height: 30rpx;
+	margin: 3rpx 14rpx 0 0;
+	border: 2rpx solid #9b6a2c;
+	border-radius: 50%;
+	box-sizing: border-box;
+	flex: 0 0 30rpx;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background: #fff;
+}
+
+.login-wrapper .protocol-check.checked {
+	background: #9b6a2c;
+	border-color: #9b6a2c;
+}
+
+.login-wrapper .protocol-check-mark {
+	color: #fff;
+	font-size: 22rpx;
+	font-weight: 700;
+	line-height: 1;
+}
+
+.login-wrapper .protocol-copy {
+	flex: 1;
 }
 
 .login-wrapper .main-color {

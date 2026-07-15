@@ -35,7 +35,6 @@
 import { mapState, mapGetters } from 'vuex';
 import { getNavigation } from '@/api/public.js';
 // import {getCartCounts} from '@/api/order.js';
-import { getDiyVersion } from '@/api/api.js';
 import BaseBadge from '@/components/BaseBadge/index.vue';
 export default {
 	name: 'pageFooter',
@@ -134,13 +133,14 @@ export default {
 	},
 	methods: {
 		hasValidNavigation(data) {
-			return !!(data && data.effectConfig);
+			return !!(data && data.effectConfig && Array.isArray(data.menuList) && data.menuList.length && data.menuList.every((item) => item && item.name && item.link));
 		},
 		setNavigationInfo(data) {
 			if (!this.hasValidNavigation(data)) {
 				this.newData = {};
 				this.showTabBar = false;
 				this.$emit('newDataStatus', false, 0);
+				uni.showTabBar();
 				return;
 			}
 			if (this.isTabBar) {
@@ -165,32 +165,17 @@ export default {
 		getNavigationInfo(fallbackData) {
 			return getNavigation()
 				.then((res) => {
-					uni.setStorageSync('diyVersionNav', res.data);
+					uni.setStorageSync('footerNavigation', res.data);
 					this.setNavigationInfo(res.data);
 				})
 				.catch(() => {
-					this.keepCurrentNavigation(fallbackData);
+					if (this.hasValidNavigation(fallbackData)) this.setNavigationInfo(fallbackData);
+					else this.setNavigationInfo(null);
 				});
 		},
 		navigationInfo() {
-			let footerNavigation = uni.getStorageSync('footerNavigation');
-			if (footerNavigation) {
-				getDiyVersion(0)
-					.then((res) => {
-						let diyVersion = uni.getStorageSync('diyVersionNav');
-						if (res.data.version + '0' === diyVersion) {
-							this.setNavigationInfo(footerNavigation);
-						} else {
-							uni.setStorageSync('diyVersionNav', res.data.version + '0');
-							this.getNavigationInfo(footerNavigation);
-						}
-					})
-					.catch(() => {
-						this.keepCurrentNavigation(footerNavigation);
-					});
-			} else {
-				this.getNavigationInfo();
-			}
+			const footerNavigation = uni.getStorageSync('footerNavigation');
+			this.getNavigationInfo(footerNavigation);
 		},
 		goRouter(item) {
 			var pages = getCurrentPages();
