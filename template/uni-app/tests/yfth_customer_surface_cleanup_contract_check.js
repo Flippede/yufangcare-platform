@@ -11,6 +11,8 @@ function assert(condition, message) {
 
 assert(!userPage.includes('copyRightPic'), 'customer center must not render the legacy copyright image');
 assert(!userPage.includes('/static/images/support.png'), 'customer center must not use the CRMEB support image');
+assert(!userPage.includes('/pages/annex/vip_paid/index'), 'customer center must not expose the legacy paid-membership surface');
+assert(!userPage.includes("$t('未开通会员')"), 'customer center must not use legacy membership wording');
 assert(userPage.includes('getMenuList()'), 'customer service menu must remain backend configurable');
 assert(userPage.includes('购买康养套餐'), 'YFTH package purchase entry must remain available');
 assert(categoryPage.includes('getCategoryList'), 'category page must keep using the CRMEB category API');

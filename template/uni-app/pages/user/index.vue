@@ -111,63 +111,6 @@
 							</view>
 						</view>
 						<!-- <view class="sign" @click="goSignIn">签到</view> -->
-						<view class="cardVipA acea-row row-between-wrapper" v-if="userInfo.svip_open && member_style == 1">
-							<view class="left-box">
-								<view v-if="userInfo.vip_status == 1" class="small">{{ $t('永久') }}</view>
-								<view v-else-if="userInfo.vip_status == 3" class="small">
-									{{ $t('会员到期') }}
-									{{ userInfo.overdue_time | dateFormat }}
-								</view>
-								<view v-else-if="userInfo.vip_status == -1" class="small">{{ $t('已过期') }}</view>
-								<view v-else-if="userInfo.vip_status == 2" class="small">{{ $t('未开通会员') }}</view>
-							</view>
-							<view class="acea-row row-middle">
-								<navigator v-if="userInfo.vip_status == 1" url="/pages/annex/vip_paid/index" hover-class="none" class="btn">{{ $t('查看会员权益') }}</navigator>
-								<navigator v-else url="/pages/annex/vip_paid/index" hover-class="none" class="btn">
-									{{ userInfo.overdue_time ? $t('立即续费') : $t('立即激活') }}
-								</navigator>
-								<text class="iconfont icon-jiantou"></text>
-							</view>
-						</view>
-						<view class="cardVipB acea-row row-between" v-if="userInfo.svip_open && member_style == 3">
-							<view class="left-box acea-row">
-								<view class="pictrue">
-									<image src="../../static/images/member01.png"></image>
-								</view>
-								<view v-if="userInfo.vip_status == 1" class="small">{{ $t('永久') }}</view>
-								<view v-else-if="userInfo.vip_status == 3" class="small">
-									{{ $t('会员到期') }}
-									{{ userInfo.overdue_time | dateFormat }}
-								</view>
-								<view v-else-if="userInfo.vip_status == -1" class="small">{{ $t('已过期') }}</view>
-								<view v-else-if="userInfo.vip_status == 2" class="small">{{ $t('未开通会员') }}</view>
-							</view>
-							<view class="acea-row">
-								<navigator v-if="userInfo.vip_status == 1" url="/pages/annex/vip_paid/index" hover-class="none" class="btn">{{ $t('会员可享多项权益') }}</navigator>
-								<navigator v-else url="/pages/annex/vip_paid/index" hover-class="none" class="btn">
-									{{ userInfo.overdue_time ? $t('立即续费') : $t('立即激活') }}
-								</navigator>
-								<text class="iconfont icon-jiantou btn"></text>
-							</view>
-						</view>
-					</view>
-					<view class="card-vip" v-if="userInfo.svip_open && member_style == 2">
-						<view class="left-box">
-							<view class="big">{{ $t('会员可享多项权益') }}</view>
-							<view v-if="userInfo.vip_status == 1" class="small">{{ $t('永久') }}</view>
-							<view v-else-if="userInfo.vip_status == 3" class="small">
-								{{ $t('会员到期') }}
-								{{ userInfo.overdue_time | dateFormat }}
-							</view>
-							<view v-else-if="userInfo.vip_status == -1" class="small">{{ $t('已过期') }}</view>
-							<view v-else-if="userInfo.vip_status == 2" class="small">{{ $t('未开通会员') }}</view>
-						</view>
-						<navigator v-if="userInfo.vip_status == 1" url="/pages/annex/vip_paid/index" hover-class="none" class="btn">
-							{{ $t('查看会员权益') }}
-						</navigator>
-						<navigator v-else url="/pages/annex/vip_paid/index" hover-class="none" class="btn">
-							{{ userInfo.overdue_time ? $t('立即续费') : $t('立即激活') }}
-						</navigator>
 					</view>
 					<view class="yfth-entry-card" v-if="isLogin && hasYfthBusinessIdentity" @click="goYfthWorkbench">
 						<view>
@@ -204,7 +147,7 @@
 						</view>
 						<text class="iconfont icon-jiantou"></text>
 					</view>
-					<view class="order-wrapper" :class="userInfo.svip_open ? '' : 'height'">
+					<view class="order-wrapper">
 						<view class="order-hd flex">
 							<view class="left">{{ $t('订单中心') }}</view>
 							<view class="right flex" @click="goMenuPage('/pages/goods/order_list/index')" >
