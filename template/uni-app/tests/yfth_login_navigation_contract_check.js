@@ -31,7 +31,8 @@ const pages = read('pages.json');
   ['changedTouches', 'mobile touch support'],
   ['verify-image-hitbox', 'pointer hit area'],
   ['@tap.stop="canvasClick($event)"', 'tap binding'],
-  ['@click.native.stop="canvasClick($event)"', 'native H5 click binding'],
+  ["addEventListener('click', this.h5PointerHandler)", 'native H5 click listener'],
+  ["removeEventListener('click', this.h5PointerHandler)", 'native H5 click cleanup'],
   ['验证失败，请刷新后重试', 'captcha retry feedback'],
 ].forEach(([needle, label]) => requireText(verifyPoint, needle, label));
 

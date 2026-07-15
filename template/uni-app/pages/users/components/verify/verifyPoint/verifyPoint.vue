@@ -12,7 +12,7 @@
 					style="width: 100%; height: 100%; display: block"
 				></image>
 				<!-- uni-image does not consistently emit H5 click events; keep the hit area on a view. -->
-				<view class="verify-image-hitbox" @tap.stop="canvasClick($event)" @click.native.stop="canvasClick($event)"></view>
+				<view class="verify-image-hitbox" @tap.stop="canvasClick($event)"></view>
 				<view
 					v-for="(tempPoint, index) in tempPoints"
 					:key="index"
@@ -116,6 +116,22 @@ export default {
 			imgTop: '',
 			lastPointerAt: 0
 		};
+	},
+	mounted() {
+		// #ifdef H5
+		this.$nextTick(() => {
+			this.h5PointerTarget = this.$el.querySelector('.verify-image-hitbox');
+			this.h5PointerHandler = (event) => this.canvasClick(event);
+			if (this.h5PointerTarget) this.h5PointerTarget.addEventListener('click', this.h5PointerHandler);
+		});
+		// #endif
+	},
+	beforeDestroy() {
+		// #ifdef H5
+		if (this.h5PointerTarget && this.h5PointerHandler) {
+			this.h5PointerTarget.removeEventListener('click', this.h5PointerHandler);
+		}
+		// #endif
 	},
 	methods: {
 		init() {
