@@ -1,0 +1,72 @@
+<?php
+
+$root = dirname(__DIR__);
+$failures = [];
+$passes = [];
+$assert = function (bool $condition, string $label) use (&$failures, &$passes): void {
+    if ($condition) {
+        $passes[] = $label;
+    } else {
+        $failures[] = $label;
+    }
+};
+$read = function (string $path) use ($root, $assert): string {
+    $full = $root . '/' . $path;
+    $assert(is_file($full), 'file_exists:' . $path);
+    return is_file($full) ? (string)file_get_contents($full) : '';
+};
+
+$service = $read('app/services/yfth/HqUserRoleManagementServices.php');
+$controller = $read('app/adminapi/controller/v1/yfth/HqUserRole.php');
+$route = $read('app/adminapi/route/yfth.php');
+$migration = $read('database/migrations/20260718100000_add_yfth_user_role_management_permissions.php');
+$membership = $read('app/services/yfth/PackageMembershipReferralServices.php');
+$adminPage = (string)file_get_contents(dirname($root) . '/template/admin/src/pages/yfth/userRole/index.vue');
+$userPage = (string)file_get_contents(dirname($root) . '/template/uni-app/pages/user/index.vue');
+$codePage = (string)file_get_contents(dirname($root) . '/template/uni-app/pages/yfth/referral/code.vue');
+$acceptPage = (string)file_get_contents(dirname($root) . '/template/uni-app/pages/yfth/referral/accept.vue');
+$pages = (string)file_get_contents(dirname($root) . '/template/uni-app/pages.json');
+
+foreach (['assertHeadquarters', 'assertHeadquarterScope', 'UserStoreRoleServices', 'YfthUserStoreRoleDao', "'grant'", "'revoke'", 'user_store_role_reason_required', 'AuditEventServices'] as $needle) {
+    $assert(strpos($service, $needle) !== false, 'role_service_contains:' . $needle);
+}
+$assert(strpos($service, 'YfthUserIdentityDao') === false, 'role_write_does_not_replace_global_identity');
+$assert(strpos($service, 'YfthPermanentMembershipDao') === false, 'role_write_does_not_replace_membership');
+foreach (['franchisee', 'store_manager', 'store_staff'] as $roleCode) {
+    $assert(strpos($service, "'{$roleCode}'") !== false, 'supported_store_role:' . $roleCode);
+}
+foreach (['assertApiAuthForAdmin', 'yfth/user_role/user', 'yfth/user_role/user/<uid>/grant', 'yfth/user_role/role/<id>/revoke'] as $needle) {
+    $assert(strpos($controller . $route, $needle) !== false, 'admin_boundary_contains:' . $needle);
+}
+foreach (['yfth-user-role-management-index', 'yfth-user-role-management-list', 'yfth-user-role-management-detail', 'yfth-user-role-management-grant', 'yfth-user-role-management-revoke'] as $auth) {
+    $assert(strpos($migration, $auth) !== false, 'permission_exists:' . $auth);
+}
+$assert(strpos($adminPage, 'yfthUserRoleGrant') !== false && strpos($adminPage, 'yfthUserRoleRevoke') !== false, 'admin_page_uses_real_role_api');
+$assert(strpos($adminPage, '操作原因') !== false, 'admin_page_requires_reason');
+
+foreach (['now_money', 'integral', 'couponCount', '商城资产与御方通和推荐奖励独立核算'] as $needle) {
+    $assert(strpos($userPage, $needle) !== false, 'user_assets_contains:' . $needle);
+}
+$assert(strpos($userPage, 'goYfthReferralCode') !== false, 'permanent_member_referral_entry_exists');
+$assert(strpos($userPage, 'isYfthPermanentMember') !== false, 'referral_entry_is_membership_gated');
+foreach (['issueYfthDirectReferralInvite', 'getYfthPackageMembershipMe', 'zb-code', 'invited_count', 'store_name', '/pages/yfth/referral/accept'] as $needle) {
+    $assert(strpos($codePage . $membership, $needle) !== false, 'promotion_flow_contains:' . $needle);
+}
+foreach (['yfth_pending_referral_invite', 'toLogin', 'acceptYfthDirectReferralInvite', 'idempotency_key'] as $needle) {
+    $assert(strpos($acceptPage, $needle) !== false, 'scan_login_continuation_contains:' . $needle);
+}
+$assert(substr_count($pages, '"path": "referral/code"') === 1, 'referral_code_route_unique');
+$assert(substr_count($pages, '"path": "referral/accept"') === 1, 'referral_accept_route_unique');
+foreach (['createYfthReferralCode', 'bindYfthReferralCode', 'user_spread', 'spread_uid'] as $forbidden) {
+    $assert(strpos($codePage . $acceptPage, $forbidden) === false, 'promotion_does_not_use_legacy_referral:' . $forbidden);
+}
+foreach (['now_money', 'integral', 'brokerage_price', 'spread_uid'] as $fundingField) {
+    $assert(strpos($service . $membership, "update({$fundingField}") === false, 'new_backend_does_not_write_crmeb_funding:' . $fundingField);
+}
+
+if ($failures) {
+    foreach ($failures as $failure) fwrite(STDERR, "[FAIL] {$failure}\n");
+    exit(1);
+}
+foreach ($passes as $pass) echo "[PASS] {$pass}\n";
+echo "[OK] YFTH user role, assets and referral QR contract verified.\n";

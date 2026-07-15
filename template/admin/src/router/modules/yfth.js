@@ -124,5 +124,14 @@ export default {
       },
       component: () => import('@/pages/yfth/packageMembershipReferral/index'),
     },
+    {
+      path: 'user-role',
+      name: `${pre}user_role`,
+      meta: {
+        auth: ['yfth-user-role-management-index'],
+        title: '用户经营身份',
+      },
+      component: () => import('@/pages/yfth/userRole/index'),
+    },
   ],
 };

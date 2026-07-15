@@ -174,6 +174,12 @@ Route::group('yfth', function () {
         Route::post('rule/:id/publish', 'v1.yfth.PackageMembershipReferral/publishRule')->option(['real_name' => 'Direct referral rule publish']);
         Route::post('legacy_backfill', 'v1.yfth.PackageMembershipReferral/legacyBackfill')->option(['real_name' => 'Historical package membership backfill']);
     })->option(['parent' => 'yfth', 'cate_name' => 'Package Membership And Direct Referral']);
+    Route::group('user_role', function () {
+        Route::get('user', 'v1.yfth.HqUserRole/users')->option(['real_name' => '总部用户经营身份列表']);
+        Route::get('user/:uid', 'v1.yfth.HqUserRole/detail')->option(['real_name' => '总部用户经营身份详情']);
+        Route::post('user/:uid/grant', 'v1.yfth.HqUserRole/grant')->option(['real_name' => '总部授予用户经营身份']);
+        Route::post('role/:id/revoke', 'v1.yfth.HqUserRole/revoke')->option(['real_name' => '总部撤销用户经营身份']);
+    })->option(['parent' => 'yfth', 'cate_name' => 'HQ User Role Management']);
     Route::group('reward_settlement', function () {
         Route::get('candidate', 'v1.yfth.RewardSettlement/candidates')->option(['real_name' => 'Direct referral reward settlement candidate list']);
         Route::post('candidate/:id/cancel', 'v1.yfth.RewardSettlement/cancel')->option(['real_name' => 'Direct referral reward candidate exception cancel']);

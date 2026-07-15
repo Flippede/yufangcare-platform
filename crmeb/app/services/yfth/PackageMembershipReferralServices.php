@@ -55,6 +55,9 @@ class PackageMembershipReferralServices extends YfthFoundationBaseServices
             $this->consistency->assertReferral($referral);
         }
         $invite = $this->row($this->dao->getOne(['active_key' => (string)$uid]));
+        $storeId = (int)($attribution['store_id'] ?? $membership['member']['store_id'] ?? 0);
+        $store = $storeId > 0 ? app()->make(\app\services\system\store\SystemStoreServices::class)->get($storeId, ['id', 'name']) : null;
+        $store = $store ? (is_array($store) ? $store : $store->toArray()) : [];
         return [
             'membership' => $membership,
             'attribution' => $attribution ? [
@@ -71,6 +74,12 @@ class PackageMembershipReferralServices extends YfthFoundationBaseServices
                 'store_id' => (int)$invite['store_id'],
                 'expires_at' => (int)$invite['expires_at'],
             ] : null,
+            'promotion' => [
+                'eligible' => (bool)$membership['is_member'],
+                'store_id' => $storeId,
+                'store_name' => (string)($store['name'] ?? ''),
+                'invited_count' => (int)$this->referralDao->search([])->where('referrer_uid', $uid)->count(),
+            ],
         ];
     }
 
@@ -154,6 +163,8 @@ class PackageMembershipReferralServices extends YfthFoundationBaseServices
                 'invite_no' => $row['invite_no'],
                 'invite_token' => $token,
                 'store_id' => $storeId,
+                'store_name' => (string)(app()->make(StoreAccessServices::class)->assertStoreActive($storeId)['store_name'] ?? ''),
+                'invited_count' => (int)$this->referralDao->search([])->where('referrer_uid', $uid)->count(),
                 'expires_at' => $row['expires_at'],
             ];
         });
@@ -208,6 +219,9 @@ class PackageMembershipReferralServices extends YfthFoundationBaseServices
                 $attribution = $this->attribution->assignFirstWithLockedCurrentsInTransaction($uid, $storeId, $mutation, $lockedCurrents);
                 $lockedCurrents[$uid] = (array)$attribution['after'];
                 $relation = $this->referral->createWithLockedCurrentsInTransaction($ownerUid, $uid, $storeId, $mutation, $lockedCurrents);
+                if (empty($relation['changed'])) {
+                    throw new ApiException('direct_referral_active_relation_exists');
+                }
                 $relationId = (int)($relation['relation']['id'] ?? 0);
                 $this->dao->update((int)$invite['id'], [
                     'status' => 'used',

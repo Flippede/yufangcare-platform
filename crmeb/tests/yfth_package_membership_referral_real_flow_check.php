@@ -123,6 +123,43 @@ try {
     });
     $assert($membership->effectiveMembership($c1)['is_member'] === true, 'c1_is_permanent_member');
 
+    $selfInvite = $referral->issueInvite($c1, ['request_id' => 'pmr-self-scan']);
+    $expect(function () use ($referral, $c1, $selfInvite) {
+        $referral->acceptInvite($c1, (string)$selfInvite['invite_token'], [
+            'idempotency_key' => 'pmr-self-scan', 'request_id' => 'pmr-self-scan',
+        ]);
+    }, 'direct_referral_invite_invalid', 'self_scan_is_rejected');
+
+    $expiredInvite = $referral->issueInvite($c1, ['request_id' => 'pmr-expired-scan']);
+    Db::name('yfth_direct_referral_invite')->where('invite_no', $expiredInvite['invite_no'])->update(['expires_at' => time() - 1]);
+    $expect(function () use ($referral, $expiredInvite) {
+        $referral->acceptInvite(920019, (string)$expiredInvite['invite_token'], [
+            'idempotency_key' => 'pmr-expired-scan', 'request_id' => 'pmr-expired-scan',
+        ]);
+    }, 'direct_referral_invite_unavailable', 'expired_promotion_code_is_rejected');
+
+    $otherStoreMutation = new HqAuthorityMutation(
+        HqAuthoritySource::fromTrusted('historical_package_activation', 990018),
+        1,
+        'admin',
+        'test_seed_other_store_attribution',
+        'pmr-other-store-attribution',
+        'pmr-other-store-attribution'
+    );
+    $attribution->assignFirst(920018, $storeB, $otherStoreMutation);
+    $crossStoreInvite = $referral->issueInvite($c1, ['request_id' => 'pmr-cross-store-scan']);
+    $crossStoreRejected = false;
+    try {
+        $referral->acceptInvite(920018, (string)$crossStoreInvite['invite_token'], [
+            'idempotency_key' => 'pmr-cross-store-scan', 'request_id' => 'pmr-cross-store-scan',
+        ]);
+    } catch (Throwable $e) {
+        $crossStoreRejected = true;
+    }
+    $assert($crossStoreRejected, 'other_store_permanent_attribution_is_rejected');
+    $assert((int)Db::name('yfth_hq_customer_attribution_current')->where('uid', 920018)->value('store_id') === $storeB, 'cross_store_scan_does_not_change_attribution');
+    $assert((int)Db::name('yfth_hq_active_referral_current')->where('referred_uid', 920018)->count() === 0, 'cross_store_scan_creates_no_referral');
+
     $expect(function () use ($referral) {
         $referral->issueInvite(920010, ['request_id' => 'non-member-invite']);
     }, 'permanent_membership_required', 'non_member_cannot_invite');
@@ -158,6 +195,18 @@ try {
     $first = (array)Db::name('yfth_hq_active_referral_current')->where('referred_uid', 920002)->find();
     $assert((int)$first['store_id'] === $storeA, 'c2_inherits_c1_store');
     $assert((int)Db::name('yfth_hq_active_referral_current')->where('referred_uid', 920002)->value('referrer_uid') === $c1, 'one_level_relation_created');
+
+    $duplicateInvite = $referral->issueInvite($c1, ['request_id' => 'pmr-existing-referral']);
+    $duplicateRejected = false;
+    try {
+        $referral->acceptInvite(920002, (string)$duplicateInvite['invite_token'], [
+            'idempotency_key' => 'pmr-existing-referral', 'request_id' => 'pmr-existing-referral',
+        ]);
+    } catch (Throwable $e) {
+        $duplicateRejected = true;
+    }
+    $assert($duplicateRejected, 'existing_active_referral_is_rejected');
+    $assert((int)Db::name('yfth_hq_active_referral_current')->where('referred_uid', 920002)->count() === 1, 'existing_referral_rejection_creates_no_duplicate');
     $expect(function () use ($referral, $storeB) {
         $referral->resolveAuthoritativeStoreForPurchase(920002, $storeB);
     }, 'package_purchase_cross_store_forbidden', 'cross_store_package_purchase_rejected');
@@ -166,6 +215,13 @@ try {
     $result1 = pmrActivate($coordinator, 920002, $storeA, 991002, 992002, '123.45');
     $assert(!empty($result1['membership_created']), 'c2_activation_creates_membership');
     $assert(!empty($result1['relation_closed']), 'c2_activation_closes_relation');
+
+    $memberInvite = $referral->issueInvite($c1, ['request_id' => 'pmr-member-scan']);
+    $expect(function () use ($referral, $memberInvite) {
+        $referral->acceptInvite(920002, (string)$memberInvite['invite_token'], [
+            'idempotency_key' => 'pmr-member-scan', 'request_id' => 'pmr-member-scan',
+        ]);
+    }, 'direct_referral_referred_user_must_be_non_member', 'permanent_member_scan_is_rejected');
     $assert((string)Db::name('yfth_hq_active_referral_current')->where('referred_uid', 920002)->value('close_reason') === 'membership_activated', 'relation_close_reason_is_membership_activated');
     pmrAssertCandidate($assert, 920002, 1, 1500, 1851, 'first_package_candidate');
     $postMembershipOrder = pmrCreatePaidOrder(920002, $storeA, '66.00', 'closed-referral-consumption');

@@ -69,6 +69,34 @@
 							<view class="membership-link">查看 <text class="iconfont icon-jiantou"></text></view>
 						</view>
 					</view>
+					<view class="mall-assets" v-if="isLogin">
+						<view class="asset-item" @click="goMenuPage('/pages/users/user_money/index')">
+							<text class="asset-value">{{ Number(userInfo.now_money || 0).toFixed(2) }}</text>
+							<text class="asset-label">商城余额</text>
+						</view>
+						<view class="asset-item" @click="goMenuPage('/pages/users/user_integral/index')">
+							<text class="asset-value">{{ userInfo.integral || 0 }}</text>
+							<text class="asset-label">商城积分</text>
+						</view>
+						<view class="asset-item" @click="goMenuPage('/pages/users/user_coupon/index')">
+							<text class="asset-value">{{ userInfo.couponCount || 0 }}</text>
+							<text class="asset-label">优惠券</text>
+						</view>
+						<view class="asset-note">商城资产与御方通和推荐奖励独立核算</view>
+					</view>
+					<view class="member-exclusive" v-if="isLogin">
+						<view class="section-title">会员专属</view>
+						<view v-if="isYfthPermanentMember" class="exclusive-grid">
+							<view @click="goYfthReferralCode"><text class="exclusive-icon">码</text><text>我的推广码</text></view>
+							<view @click="goYfthAttribution"><text class="exclusive-icon">归</text><text>我的归属</text></view>
+							<view @click="goYfthPackageMembership"><text class="exclusive-icon">会</text><text>套餐会员</text></view>
+							<view @click="goYfthRewards"><text class="exclusive-icon">奖</text><text>我的奖励</text></view>
+						</view>
+						<view v-else class="membership-prompt" @click="goYfthPackagePurchase">
+							<view><text class="prompt-title">购买套餐后获得推广资格</text><text class="prompt-copy">激活永久会员，使用一级邀请与奖励查询</text></view>
+							<text class="prompt-arrow">›</text>
+						</view>
+					</view>
 					<view class="order-wrapper">
 						<view class="order-hd flex">
 							<view class="left">{{ $t('订单中心') }}</view>
@@ -118,18 +146,6 @@
 						<view class="item yfth-service-item" v-if="isLogin && hasYfthBusinessIdentity" @click="goYfthWorkbench">
 							<view class="service-icon service-icon-work">营</view>
 							<text class="name">经营工作台</text>
-						</view>
-						<view class="item yfth-service-item" v-if="isLogin" @click="goYfthAttribution">
-							<view class="service-icon service-icon-store">归</view>
-							<text class="name">我的归属</text>
-						</view>
-						<view class="item yfth-service-item" v-if="isLogin" @click="goYfthPackageMembership">
-							<view class="service-icon service-icon-member">会</view>
-							<text class="name">套餐会员与一级推荐</text>
-						</view>
-						<view class="item yfth-service-item" v-if="isLogin" @click="goYfthPackagePurchase">
-							<view class="service-icon service-icon-package">套</view>
-							<text class="name">购买康养套餐</text>
 						</view>
 						<view class="item yfth-service-item" v-if="isLogin" @click="goYfthFranchiseApplications">
 							<view class="service-icon service-icon-cooperate">合</view>
@@ -238,6 +254,9 @@ export default {
 			return this.yfthMembershipProfile.membership && this.yfthMembershipProfile.membership.is_member
 				? '永久有效，查看邀请与奖励记录'
 				: '购买并激活康养套餐后获得资格';
+		},
+		isYfthPermanentMember() {
+			return Boolean(this.yfthMembershipProfile.membership && this.yfthMembershipProfile.membership.is_member);
 		}
 	},
 	filters: {
@@ -754,6 +773,17 @@ export default {
 			uni.navigateTo({
 				url: '/pages/yfth/package/list'
 			});
+		},
+
+		goYfthReferralCode() {
+			if (!this.isLogin) { toLogin(); return; }
+			if (!this.isYfthPermanentMember) { this.goYfthPackagePurchase(); return; }
+			uni.navigateTo({ url: '/pages/yfth/referral/code' });
+		},
+
+		goYfthRewards() {
+			if (!this.isLogin) { toLogin(); return; }
+			uni.navigateTo({ url: '/pages/yfth/referral/ledger' });
 		},
 
 		goPages(url) {
@@ -1474,4 +1504,46 @@ body {
 	}
 }
 /* #endif */
+.mall-assets,
+.member-exclusive {
+	margin: 20rpx 20rpx 0;
+	border-radius: 12rpx;
+	background: #fff;
+	box-shadow: 0 8rpx 24rpx rgba(104, 77, 42, 0.06);
+}
+
+.mall-assets {
+	position: relative;
+	display: grid;
+	grid-template-columns: repeat(3, 1fr);
+	padding: 24rpx 18rpx 52rpx;
+
+	.asset-item {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 8rpx;
+		border-right: 1px solid #eee8df;
+	}
+
+	.asset-item:nth-child(3) { border-right: 0; }
+	.asset-value { color: #6e4f2d; font-size: 31rpx; font-weight: 700; }
+	.asset-label { color: #6f6a63; font-size: 23rpx; }
+	.asset-note { position: absolute; right: 20rpx; bottom: 14rpx; color: #a1998f; font-size: 19rpx; }
+}
+
+.member-exclusive {
+	padding: 26rpx 24rpx;
+
+	.section-title { margin-bottom: 22rpx; color: #312a22; font-size: 29rpx; font-weight: 650; }
+	.exclusive-grid { display: grid; grid-template-columns: repeat(4, 1fr); }
+	.exclusive-grid > view { display: flex; flex-direction: column; align-items: center; gap: 11rpx; color: #4f4942; font-size: 22rpx; text-align: center; }
+	.exclusive-icon { width: 66rpx; height: 66rpx; border-radius: 18rpx; color: #7a552d; background: #f4eadc; font-size: 27rpx; font-weight: 700; line-height: 66rpx; text-align: center; }
+	.membership-prompt { display: flex; align-items: center; justify-content: space-between; padding: 20rpx 22rpx; border-radius: 10rpx; background: #faf4e9; }
+	.membership-prompt > view { display: flex; flex-direction: column; gap: 8rpx; }
+	.prompt-title { color: #704d28; font-size: 27rpx; font-weight: 650; }
+	.prompt-copy { color: #9a8a78; font-size: 21rpx; }
+	.prompt-arrow { color: #a67842; font-size: 44rpx; }
+}
+
 </style>

@@ -1,5 +1,15 @@
 # 项目交接文档
 
+## Current Fact Snapshot - User Role Assets And Referral QR V1 Development
+
+- Current feature branch: `codex/yfth-user-role-assets-referral-code-v1`, created from stable `main` / `origin/main` `cf58036638a1d53d7a29c6aa41a79ae52a37c4a5`. It is not merged into `main`.
+- Headquarters now has an explicit-permission user operating-role surface for searching real CRMEB users and granting or revoking existing `franchisee`, `store_manager`, and `store_staff` roles against active CRMEB stores. The implementation reuses `yfth_user_store_role`, supports multiple legal store roles, requires a reason, and records YFTH audit events; it does not replace customer identity or permanent membership.
+- The customer center now reads existing CRMEB `now_money`, `integral`, and coupon-count data as mall assets. Mall assets are visibly separated from YFTH referral candidates and offline-settlement records; no reward is written to balance, points, brokerage, distribution, or withdrawal data.
+- Permanent members can open a dedicated promotion-code page backed by the existing Stage 2 V2 invite token, permanent B1 attribution, and one-level referral authority. QR acceptance supports login continuation and rejects self-scan, expired or rotated tokens, permanent-member recipients, conflicting permanent attribution, and an existing active referral.
+- The Admin production build was refreshed into `crmeb/public/admin`. H5 and mp-weixin production builds passed using the existing uni-app compiler. PHP 7.4 syntax, dedicated contract and isolated MySQL 8.0.46 real-flow checks, migration run/targeted rollback/rerun, existing Stage 2 V2 real flow, request/context checks, and `git diff --check` passed.
+- This development snapshot does not claim production deployment. No production payment, SMS, WeChat authorization, database rollback, or WeChat upload was performed. Production deployment and its backup/online evidence must be read from the later operational record.
+- Not implemented: multi-level referral, automatic reward funding, wallet/withdrawal integration, automatic payout, role approval workflow, or any replacement of CRMEB login, order, payment, refund, store, product, or coupon domains.
+
 ## Current Fact Snapshot - Custom Homepage And User Center Main Closure
 
 - The reviewed and production-validated feature branch `codex/yfth-custom-homepage-v1` was fast-forwarded into `main` at feature commit `8709a7e268a77e735d710bf13ce56fef4aa3f83a`; the local and remote feature branches remain preserved.

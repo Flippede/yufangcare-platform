@@ -24,6 +24,22 @@ export function yfthStoreRoleList(params) {
   });
 }
 
+export function yfthUserRoleUsers(params) {
+  return request({ url: 'yfth/user_role/user', method: 'get', params });
+}
+
+export function yfthUserRoleDetail(uid) {
+  return request({ url: `yfth/user_role/user/${uid}`, method: 'get' });
+}
+
+export function yfthUserRoleGrant(uid, data) {
+  return request({ url: `yfth/user_role/user/${uid}/grant`, method: 'post', data });
+}
+
+export function yfthUserRoleRevoke(id, data) {
+  return request({ url: `yfth/user_role/role/${id}/revoke`, method: 'post', data });
+}
+
 export function yfthSubjectList(params) {
   return request({
     url: 'yfth/foundation/subject',
