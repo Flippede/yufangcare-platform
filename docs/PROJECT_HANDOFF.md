@@ -1,5 +1,15 @@
 # 项目交接文档
 
+## Current Fact Snapshot - User Role Assets And Referral QR V1 Production Closure
+
+- Feature branch `codex/yfth-user-role-assets-referral-code-v1` contains the production release at feature commit `d94294361f020d9cea98b82aece165869c51e100`; it remains separate from stable `main` and is preserved on `origin` for user acceptance before any controlled merge.
+- Headquarters user-role management is live at `https://yfth.top/admin/yfth/user-role`. It searches real CRMEB users, shows customer/permanent-member state and all store roles, and grants or revokes existing `franchisee`, `store_manager`, and `store_staff` roles with store scope, reason, idempotency, explicit headquarters permissions, and YFTH audit events.
+- The formal customer center now shows existing CRMEB balance, points, and coupon count as mall assets, explicitly separated from YFTH referral candidates and offline-settlement records. The member-only promotion-code page reuses the Stage 2 V2 invite token, authoritative B1 attribution, and one-level referral relationship; it does not use CRMEB legacy distribution codes.
+- Controlled production deployment completed at `2026-07-15 18:35:19`. The additive permission migration `20260718100000 AddYfthUserRoleManagementPermissions` is up. Nginx, PHP-FPM, production MySQL 8.0.46, Queue, Timer, and Workerman are active under their existing production services.
+- The production release backup is `/www/backup/yfth-user-role-assets-referral-20260715-183455`; the mp-weixin acceptance artifact is `/www/releases/yfth-user-role-assets-referral/20260715-183455/mp-weixin.tar.gz`. Existing `.env`, upload files, runtime payment certificates, OSS, SMS, WeChat, product, order, and page-decoration data were not overwritten.
+- Online browser verification passed for the real customer-center asset/member surface, the non-member promotion eligibility state, and the headquarters user-role page with masked phone data. Unauthenticated access to the role-management API is denied with the existing admin-login response.
+- No real payment, SMS, WeChat authorization, refund, payout, production rollback, or WeChat upload was executed. Multi-level referral, automatic payout, wallet/withdrawal integration, and role-approval workflow remain outside V1.
+
 ## Current Fact Snapshot - User Role Assets And Referral QR V1 Development
 
 - Current feature branch: `codex/yfth-user-role-assets-referral-code-v1`, created from stable `main` / `origin/main` `cf58036638a1d53d7a29c6aa41a79ae52a37c4a5`. It is not merged into `main`.

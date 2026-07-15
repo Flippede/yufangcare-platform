@@ -38,3 +38,16 @@
 - No automatic reward funding or settlement.
 
 Production backup, migration and online smoke evidence are intentionally recorded only after controlled deployment.
+
+## Production deployment evidence
+
+- Production URL: `https://yfth.top`
+- Production feature commit: `d94294361f020d9cea98b82aece165869c51e100`
+- Deployment completed: `2026-07-15 18:35:19`
+- Backup: `/www/backup/yfth-user-role-assets-referral-20260715-183455`
+- mp-weixin acceptance artifact: `/www/releases/yfth-user-role-assets-referral/20260715-183455/mp-weixin.tar.gz`
+- Migration `20260718100000 AddYfthUserRoleManagementPermissions` is up.
+- Nginx, PHP-FPM, MySQL 8.0.46, Queue, Timer and Workerman were confirmed active using their real production service names.
+- Public H5 shell, customer center, Admin shell/static assets and the headquarters user-role page returned successfully. The authenticated headquarters page loaded six real CRMEB users with masked phone data; unauthenticated role-API access returned the existing login-expired JSON response.
+- The authenticated customer-center browser session displayed real CRMEB mall balance, points and coupon count, the explicit mall-assets/YFTH-rewards separation, and the permanent-member promotion eligibility state without blocking console errors.
+- Existing `.env`, uploads, runtime payment certificates, OSS, SMS, WeChat and payment configuration were preserved. No real payment, SMS, WeChat authorization, refund, payout or WeChat upload was performed.
