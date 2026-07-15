@@ -10,9 +10,9 @@
 					id="image"
 					ref="canvas"
 					style="width: 100%; height: 100%; display: block"
-					@tap.stop="canvasClick($event)"
-					@click.stop="canvasClick($event)"
 				></image>
+				<!-- uni-image does not consistently emit H5 click events; keep the hit area on a view. -->
+				<view class="verify-image-hitbox" @tap.stop="canvasClick($event)" @click.stop="canvasClick($event)"></view>
 				<view
 					v-for="(tempPoint, index) in tempPoints"
 					:key="index"
@@ -502,6 +502,17 @@ export default {
 	top: 0;
 	right: 0;
 	z-index: 2;
+}
+
+.verify-image-panel .verify-image-hitbox {
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+	z-index: 2;
+	cursor: crosshair;
+	touch-action: manipulation;
 }
 
 .verify-image-panel .icon-refresh {

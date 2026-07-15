@@ -29,6 +29,7 @@ const pages = read('pages.json');
   ['getH5MousePos(e, rect)', 'H5 pointer coordinate helper'],
   ['clientX', 'desktop pointer support'],
   ['changedTouches', 'mobile touch support'],
+  ['verify-image-hitbox', 'pointer hit area'],
   ['@tap.stop="canvasClick($event)"', 'tap binding'],
   ['验证失败，请刷新后重试', 'captcha retry feedback'],
 ].forEach(([needle, label]) => requireText(verifyPoint, needle, label));
