@@ -139,8 +139,8 @@
 						<block v-for="(item, index) in MyMenus" :key="index">
 							<view class="item" v-if="item.url != '#' && item.url != '/pages/service/index'" @click="goMenuPage(item.url, item.name)">
 								<view class="configured-service-icon">
+									<text>{{ serviceMenuInitial(item.name) }}</text>
 									<image v-if="item.pic" :src="item.pic"></image>
-									<text v-else>{{ serviceMenuInitial(item.name) }}</text>
 								</view>
 								<text class="name">{{ $t(item.name) }}</text>
 							</view>
@@ -157,8 +157,8 @@
 								@click="goMenuPage(item.url, item.name)"
 							>
 								<view class="configured-service-icon">
+									<text>{{ serviceMenuInitial(item.name) }}</text>
 									<image v-if="item.pic" :src="item.pic"></image>
-									<text v-else>{{ serviceMenuInitial(item.name) }}</text>
 								</view>
 								<text class="name">{{ $t(item.name) }}</text>
 							</view>
@@ -1326,6 +1326,7 @@ body {
 		}
 
 		.configured-service-icon {
+			position: relative;
 			display: flex;
 			align-items: center;
 			justify-content: center;
@@ -1339,6 +1340,9 @@ body {
 			font-weight: 700;
 
 			image {
+				position: absolute;
+				top: 6rpx;
+				left: 6rpx;
 				width: 52rpx;
 				height: 52rpx;
 				margin-bottom: 0;
