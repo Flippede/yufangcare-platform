@@ -1,9 +1,18 @@
 <template>
 	<view class="login-wrapper" :style="colorStyle">
-		<view class="shading">
-			<image :src="logoUrl" />
+		<view class="shading" aria-label="御方通和登录">
+			<view class="brand-mark">
+				<image v-if="logoUrl" :src="logoUrl" mode="aspectFit" />
+				<text v-else>御</text>
+			</view>
+			<view class="brand-title">御方通和</view>
+			<view class="brand-copy">康养生活服务平台</view>
 		</view>
 		<view class="whiteBg" v-if="formItem === 1">
+			<view class="mode-switch">
+				<view :class="{ active: current === 1 }" @tap="switchMode(1)">手机号登录</view>
+				<view :class="{ active: current === 0 }" @tap="switchMode(0)">账号登录</view>
+			</view>
 			<view class="list" v-if="current !== 1">
 				<form @submit.prevent="submit">
 					<view class="item">
@@ -34,7 +43,7 @@
 					<view class="acea-row row-middle">
 						<image src="../static/code_2.png" style="width: 28rpx; height: 32rpx"></image>
 						<input type="text" :placeholder="$t(`填写验证码`)" :maxlength="6" class="codeIput" v-model="captcha" />
-						<button class="code" :disabled="disabled" :class="disabled === true ? 'on' : ''" @click="code">
+						<button class="code" :disabled="disabled" :class="disabled === true ? 'on' : ''" @tap.stop="code">
 							{{ text }}
 						</button>
 					</view>
@@ -47,12 +56,11 @@
 					</view>
 				</view> -->
 			</view>
-			<view class="logon" @click="loginMobile" v-if="current !== 0">{{ $t(`登录`) }}</view>
-			<view class="logon" @click="submit" v-if="current === 0">{{ $t(`登录`) }}</view>
+			<button class="logon" :class="{ disabled: loginDisabled }" :disabled="loginDisabled" @tap="handleLogin">{{ $t(`登录`) }}</button>
 			<!-- #ifndef APP-PLUS -->
 			<view class="tips">
-				<view v-if="current == 0" @click="current = 1">{{ $t(`快速登录`) }}</view>
-				<view v-if="current == 1" @click="current = 0">{{ $t(`账号登录`) }}</view>
+				<view v-if="current == 0" @tap="switchMode(1)">{{ $t(`快速登录`) }}</view>
+				<view v-if="current == 1" @tap="switchMode(0)">{{ $t(`账号登录`) }}</view>
 			</view>
 			<!-- #endif -->
 			<!-- #ifdef APP-PLUS -->
@@ -152,6 +160,13 @@ export default {
 			}
 		}
 	},
+	computed: {
+		loginDisabled() {
+			if (!this.protocol) return true;
+			if (this.current === 0) return !this.account || !this.password || !this.keyLock;
+			return !this.account || !this.captcha || !this.keyLock;
+		}
+	},
 	onLoad() {
 		let self = this;
 		uni.getSystemInfo({
@@ -161,8 +176,9 @@ export default {
 				}
 			}
 		});
-		if (uni.getStorageSync('copyRight').copyrightContext) {
-			this.copyRight = uni.getStorageSync('copyRight').copyrightContext;
+		const copyRight = uni.getStorageSync('copyRight');
+		if (copyRight && copyRight.copyrightContext) {
+			this.copyRight = copyRight.copyrightContext;
 		}
 	},
 	mounted() {
@@ -172,6 +188,15 @@ export default {
 	methods: {
 		ChangeIsDefault(e) {
 			this.$set(this, 'protocol', !this.protocol);
+		},
+		switchMode(mode) {
+			this.current = mode;
+			this.password = '';
+			this.captcha = '';
+		},
+		handleLogin() {
+			if (this.loginDisabled) return;
+			return this.current === 0 ? this.submit() : this.loginMobile();
 		},
 		privacy(type) {
 			uni.navigateTo({
@@ -841,5 +866,178 @@ page {
 
 .main-color {
 	color: var(--view-theme);
+}
+
+/* YFTH consumer login surface: the interaction remains on the existing CRMEB APIs. */
+.login-wrapper {
+	box-sizing: border-box;
+	min-height: 100vh;
+	padding: 64rpx 32rpx 48rpx;
+	background: linear-gradient(180deg, #d3a064 0, #e8c797 28%, #f8f3ea 46%, #fffdf8 100%);
+}
+
+.login-wrapper .shading {
+	margin-top: 0;
+	min-height: 236rpx;
+	flex-direction: column;
+	color: #fffaf1;
+}
+
+.login-wrapper .brand-mark {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 108rpx;
+	height: 108rpx;
+	margin-bottom: 18rpx;
+	border: 2rpx solid rgba(255, 255, 255, 0.72);
+	border-radius: 32rpx;
+	background: rgba(255, 252, 244, 0.2);
+	box-shadow: 0 12rpx 32rpx rgba(105, 67, 23, 0.15);
+	font-size: 52rpx;
+	font-weight: 600;
+}
+
+.login-wrapper .brand-mark image {
+	width: 82rpx;
+	height: 82rpx;
+}
+
+.login-wrapper .brand-title {
+	font-size: 42rpx;
+	font-weight: 600;
+	letter-spacing: 2rpx;
+}
+
+.login-wrapper .brand-copy {
+	margin-top: 10rpx;
+	font-size: 24rpx;
+	letter-spacing: 1rpx;
+	opacity: 0.9;
+}
+
+.login-wrapper .whiteBg {
+	margin-top: 0;
+	padding: 34rpx 30rpx 30rpx;
+	border: 1rpx solid rgba(205, 160, 93, 0.22);
+	border-radius: 28rpx;
+	background: rgba(255, 253, 248, 0.96);
+	box-shadow: 0 16rpx 48rpx rgba(100, 70, 30, 0.12);
+}
+
+.login-wrapper .mode-switch {
+	display: flex;
+	gap: 46rpx;
+	margin-bottom: 22rpx;
+	border-bottom: 1rpx solid #eee1cf;
+	font-size: 28rpx;
+	color: #9b8976;
+}
+
+.login-wrapper .mode-switch > view {
+	position: relative;
+	padding: 0 4rpx 18rpx;
+}
+
+.login-wrapper .mode-switch > view.active {
+	color: #9b6a2c;
+	font-weight: 600;
+}
+
+.login-wrapper .mode-switch > view.active::after {
+	position: absolute;
+	bottom: -1rpx;
+	left: 50%;
+	width: 50rpx;
+	height: 5rpx;
+	border-radius: 8rpx;
+	background: #c99551;
+	content: '';
+	transform: translateX(-50%);
+}
+
+.login-wrapper .whiteBg .list .item {
+	border-bottom-color: #eee4d7;
+	background: transparent;
+}
+
+.login-wrapper .whiteBg .list .item .row-middle {
+	padding: 16rpx 12rpx;
+}
+
+.login-wrapper .whiteBg .list .item .row-middle input {
+	color: #3d3024;
+}
+
+.login-wrapper .whiteBg .list .item .row-middle .code {
+	min-width: 136rpx;
+	margin: 0;
+	padding: 0 16rpx;
+	border: 1rpx solid #d4ab70;
+	border-radius: 32rpx;
+	background: #fff8ed;
+	color: #996323;
+	font-size: 24rpx;
+	line-height: 54rpx;
+	text-align: center;
+}
+
+.login-wrapper .whiteBg .list .item .row-middle .code.on,
+.login-wrapper .whiteBg .list .item .row-middle .code[disabled] {
+	border-color: #e7dac9;
+	background: #f1ece5;
+	color: #ad9e8e;
+}
+
+.login-wrapper .whiteBg .logon {
+	width: 100%;
+	height: 92rpx;
+	margin-top: 44rpx;
+	border: 0;
+	border-radius: 46rpx;
+	background: #bd8542;
+	box-shadow: 0 10rpx 20rpx rgba(151, 101, 41, 0.18);
+	color: #fff;
+	font-size: 32rpx;
+	font-weight: 600;
+	line-height: 92rpx;
+}
+
+.login-wrapper .whiteBg .logon::after {
+	border: 0;
+}
+
+.login-wrapper .whiteBg .logon.disabled,
+.login-wrapper .whiteBg .logon[disabled] {
+	background: #ded5ca;
+	box-shadow: none;
+	color: #a79b8d;
+}
+
+.login-wrapper .whiteBg .tips {
+	margin: 24rpx 0 0;
+	color: #9b6a2c;
+}
+
+.login-wrapper .protocol {
+	margin-top: 32rpx;
+	color: #8f8172;
+	line-height: 38rpx;
+}
+
+.login-wrapper .main-color {
+	color: #9b6a2c;
+}
+
+@media (min-width: 640px) {
+	.login-wrapper {
+		width: 540px;
+		margin: 0 auto;
+		padding-top: 44px;
+	}
+
+	.login-wrapper .shading {
+		min-height: 156px;
+	}
 }
 </style>

@@ -3,7 +3,8 @@
 		<goodsCate1 v-if="category == 1" ref="classOne" :isNew="isNew"></goodsCate1>
 		<goodsCate2 v-if="category == 2" ref="classTwo" :isNew="isNew" @jumpIndex="jumpIndex"></goodsCate2>
 		<goodsCate3 v-if="category == 3" ref="classThree" :isNew="isNew" @jumpIndex="jumpIndex"></goodsCate3>
-		<pageFooter v-if="category == 1" @newDataStatus="newDataStatus" v-show="showBar"></pageFooter>
+		<!-- Keep category on the native four-tab navigation instead of replacing it with DIY footer data. -->
+		<pageFooter v-if="category == 1" :isTabBar="false" @newDataStatus="newDataStatus" v-show="false"></pageFooter>
 	</view>
 </template>
 
@@ -101,11 +102,8 @@ export default {
 						const firstCategory = this.$refs.classOne;
 						if (!firstCategory) return;
 						firstCategory.is_diy = data.is_diy;
-						if (!this.is_diy) {
-							uni.hideTabBar();
-						} else {
-							firstCategory.getNav();
-						}
+						uni.showTabBar();
+						firstCategory.getNav();
 					}
 				});
 			};

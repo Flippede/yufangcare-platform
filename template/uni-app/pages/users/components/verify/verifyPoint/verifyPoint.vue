@@ -10,7 +10,8 @@
 					id="image"
 					ref="canvas"
 					style="width: 100%; height: 100%; display: block"
-					@click="bindingClick ? canvasClick($event) : undefined"
+					@tap.stop="canvasClick($event)"
+					@click.stop="canvasClick($event)"
 				></image>
 				<view
 					v-for="(tempPoint, index) in tempPoints"
@@ -112,7 +113,8 @@ export default {
 			showRefresh: true,
 			bindingClick: true,
 			imgLeft: '',
-			imgTop: ''
+			imgTop: '',
+			lastPointerAt: 0
 		};
 	},
 	methods: {
@@ -127,6 +129,20 @@ export default {
 			});
 		},
 		canvasClick(e) {
+			// #ifdef H5
+			const now = Date.now();
+			if (!this.bindingClick || now - this.lastPointerAt < 80) return;
+			const target = e && (e.currentTarget || e.target);
+			if (target && target.getBoundingClientRect) {
+				const position = this.getH5MousePos(e, target.getBoundingClientRect());
+				if (position) {
+					this.lastPointerAt = now;
+					this.registerH5Point(position);
+				}
+				return;
+			}
+			// #endif
+			// #ifndef H5
 			const query = uni.createSelectorQuery().in(this);
 			query
 				.select('#image')
@@ -180,6 +196,54 @@ export default {
 					}
 				})
 				.exec();
+			// #endif
+		},
+		getH5MousePos(e, rect) {
+			const touch = e && ((e.touches && e.touches[0]) || (e.changedTouches && e.changedTouches[0]));
+			const detail = (e && e.detail) || {};
+			const rawX = typeof (e && e.clientX) === 'number' ? e.clientX : (touch ? touch.clientX : detail.x);
+			const rawY = typeof (e && e.clientY) === 'number' ? e.clientY : (touch ? touch.clientY : detail.y);
+			if (typeof rawX !== 'number' || typeof rawY !== 'number') return null;
+			const x = Math.ceil(rawX - rect.left);
+			const y = Math.ceil(rawY - rect.top);
+			if (x < 0 || y < 0 || x > rect.width || y > rect.height) return null;
+			return { x, y };
+		},
+		registerH5Point(position) {
+			this.checkPosArr.push(position);
+			if (this.num < this.checkNum) {
+				this.num = this.createPoint(position);
+				return;
+			}
+			this.num = this.createPoint(position);
+			this.checkPosArr = this.pointTransfrom(this.checkPosArr, this.imgSize);
+			setTimeout(() => {
+				const captchaVerification = this.secretKey
+					? aesEncrypt(this.backToken + '---' + JSON.stringify(this.checkPosArr), this.secretKey)
+					: this.backToken + '---' + JSON.stringify(this.checkPosArr);
+				const data = {
+					captchaType: this.captchaType,
+					pointJson: this.secretKey ? aesEncrypt(JSON.stringify(this.checkPosArr), this.secretKey) : JSON.stringify(this.checkPosArr),
+					token: this.backToken
+				};
+				ajcaptchaCheck(data).then(() => {
+					this.barAreaColor = '#4cae4c';
+					this.barAreaBorderColor = '#5cb85c';
+					this.text = '验证成功';
+					this.bindingClick = false;
+					setTimeout(() => {
+						if (this.mode == 'pop') this.$parent.clickShow = false;
+						this.refresh();
+					}, 1500);
+					this.$emit('success', { captchaVerification });
+				}).catch(() => {
+					this.$parent.$emit('error', this);
+					this.barAreaColor = '#d9534f';
+					this.barAreaBorderColor = '#d9534f';
+					this.text = '验证失败，请刷新后重试';
+					setTimeout(() => this.refresh(), 700);
+				});
+			}, 400);
 		},
 		//获取坐标
 		getMousePos: function (obj, e) {
@@ -199,6 +263,7 @@ export default {
 			this.barAreaColor = '#000';
 			this.barAreaBorderColor = '#ddd';
 			this.bindingClick = true;
+			this.lastPointerAt = 0;
 
 			this.fontPos.splice(0, this.fontPos.length);
 			this.checkPosArr.splice(0, this.checkPosArr.length);
