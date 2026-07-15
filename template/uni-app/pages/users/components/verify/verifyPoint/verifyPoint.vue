@@ -12,7 +12,7 @@
 					style="width: 100%; height: 100%; display: block"
 				></image>
 				<!-- uni-image does not consistently emit H5 click events; keep the hit area on a view. -->
-				<view class="verify-image-hitbox" @tap.stop="canvasClick($event)" @click.stop="canvasClick($event)"></view>
+				<view class="verify-image-hitbox" @tap.stop="canvasClick($event)" @click.native.stop="canvasClick($event)"></view>
 				<view
 					v-for="(tempPoint, index) in tempPoints"
 					:key="index"
