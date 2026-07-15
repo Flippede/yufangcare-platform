@@ -14,36 +14,24 @@
 		<view class="mid" style="flex: 1; overflow: hidden" :style="colorStyle">
 			<scroll-view scroll-y="true" style="height: 100%">
 				<view class="head">
-					<view class="user-card" :class="member_style == 3 ? 'unBg' : ''">
-						<view class="bg"></view>
+					<view class="customer-profile">
+						<view class="profile-actions">
+							<navigator v-if="isLogin" url="/pages/users/user_info/index" hover-class="none">
+								<view class="iconfont icon-shezhi"></view>
+							</navigator>
+							<navigator v-if="isLogin" url="/pages/users/message_center/index" hover-class="none">
+								<view v-if="userInfo.service_num" class="message-count">
+									{{ userInfo.service_num >= 100 ? '99+' : userInfo.service_num }}
+								</view>
+								<view class="iconfont icon-s-kefu"></view>
+							</navigator>
+						</view>
 						<view class="user-info">
 							<view>
-								<!-- 注释这个是加的bnt -->
-								<!-- #ifdef H5 -->
-								<!-- <button class="bntImg" v-if="userInfo.is_complete == 0 && isWeixin"
-									@click="getWechatuserinfo">
-									<image class="avatar" src='/static/images/f.png'></image>
-									<view class="avatarName">{{$t('获取头像')}}</view>
-								</button> -->
-								<!-- #endif -->
-								<!-- #ifndef APP-PLUS -->
-								<view class="avatar-box" :class="{ on: userInfo.is_money_level }">
+								<view class="avatar-box">
 									<image class="avatar" :src="userInfo.avatar" v-if="userInfo.avatar" @click="goEdit()"></image>
 									<image v-else class="avatar" src="/static/images/f.png" mode="" @click="goEdit()"></image>
-									<view class="headwear" v-if="userInfo.is_money_level && userInfo.svip_open">
-										<image src="/static/images/headwear.png"></image>
-									</view>
 								</view>
-								<!-- #endif -->
-								<!-- #ifdef APP-PLUS -->
-								<view class="avatar-box" :class="{ on: userInfo.is_money_level }">
-									<image class="avatar" :src="userInfo.avatar" v-if="userInfo.avatar" @click="goEdit()"></image>
-									<image v-else class="avatar" src="/static/images/f.png" mode="" @click="goEdit()"></image>
-									<view class="headwear" v-if="userInfo.is_money_level && userInfo.svip_open">
-										<image src="/static/images/headwear.png"></image>
-									</view>
-								</view>
-								<!-- #endif -->
 							</view>
 							<view class="info">
 								<!-- #ifdef MP || APP-PLUS -->
@@ -58,10 +46,6 @@
 								<!-- #endif -->
 								<view class="name" v-if="userInfo.uid">
 									<text class="line1 nickname">{{ userInfo.nickname }}</text>
-									<image class="live" :src="userInfo.vip_icon" v-if="userInfo.vip_icon"></image>
-									<view class="vip" v-if="userInfo.is_money_level > 0 && userInfo.svip_open">
-										<image src="/static/images/svip.png"></image>
-									</view>
 								</view>
 								<view class="num" v-if="userInfo.phone" @click="goEdit()">
 									<view class="num-txt">{{ userInfo.phone }}</view>
@@ -75,77 +59,15 @@
 								</view>
 								<!-- #endif -->
 							</view>
-							<view class="message">
-								<navigator v-if="isLogin" url="/pages/users/user_info/index" hover-class="none">
-									<view class="iconfont icon-shezhi"></view>
-								</navigator>
+						</view>
+						<view class="membership-summary" @click="goYfthPackageMembership">
+							<view class="membership-copy">
+								<view class="membership-eyebrow">御方通和会员</view>
+								<view class="membership-label">{{ yfthMembershipLabel }}</view>
+								<view class="membership-desc">{{ yfthMembershipDescription }}</view>
 							</view>
-							<view class="message">
-								<navigator v-if="isLogin" url="/pages/users/message_center/index" hover-class="none">
-									<view v-if="userInfo.service_num" class="num">
-										{{ userInfo.service_num >= 100 ? '99+' : userInfo.service_num }}
-									</view>
-									<view class="iconfont icon-s-kefu"></view>
-								</navigator>
-							</view>
-							<!-- #ifdef MP -->
-							<!-- <view class="setting" @click="Setting"><text class="iconfont icon-shezhi"></text></view> -->
-							<!-- #endif -->
+							<view class="membership-link">查看 <text class="iconfont icon-jiantou"></text></view>
 						</view>
-						<view class="num-wrapper">
-							<view class="num-item" v-if="userInfo.balance_func_status" @click="goMenuPage('/pages/users/user_money/index')">
-								<text class="num">{{ userInfo.now_money || 0 }}</text>
-								<view class="txt">{{ $t('余额') }}</view>
-							</view>
-							<view class="num-item" v-else @click="goMenuPage('/pages/users/user_goods_collection/index')">
-								<text class="num">{{ userInfo.collectCount || 0 }}</text>
-								<view class="txt">{{ $t('收藏') }}</view>
-							</view>
-							<view class="num-item" @click="goMenuPage('/pages/users/user_coupon/index')">
-								<text class="num">{{ userInfo.couponCount || 0 }}</text>
-								<view class="txt">{{ $t('优惠券') }}</view>
-							</view>
-							<view class="num-item" @click="goMenuPage('/pages/users/user_integral/index')">
-								<text class="num">{{ userInfo.integral || 0 }}</text>
-								<view class="txt">{{ $t('积分') }}</view>
-							</view>
-						</view>
-						<!-- <view class="sign" @click="goSignIn">签到</view> -->
-					</view>
-					<view class="yfth-entry-card" v-if="isLogin && hasYfthBusinessIdentity" @click="goYfthWorkbench">
-						<view>
-							<view class="yfth-entry-title">御方通和经营工作台</view>
-							<view class="yfth-entry-desc">加盟商、店长、店员和服务导师从这里进入</view>
-						</view>
-						<text class="iconfont icon-jiantou"></text>
-					</view>
-					<view class="yfth-entry-card" v-if="isLogin" @click="goYfthAttribution">
-						<view>
-							<view class="yfth-entry-title">我的归属</view>
-							<view class="yfth-entry-desc">查看当前门店归属和一级推荐状态</view>
-						</view>
-						<text class="iconfont icon-jiantou"></text>
-					</view>
-					<view class="yfth-entry-card" v-if="isLogin" @click="goYfthPackageMembership">
-						<view>
-							<view class="yfth-entry-title">套餐会员与一级推荐</view>
-							<view class="yfth-entry-desc">查看会员资格、购买套餐、邀请入口和奖励候选</view>
-						</view>
-						<text class="iconfont icon-jiantou"></text>
-					</view>
-					<view class="yfth-entry-card" v-if="isLogin" @click="goYfthPackagePurchase">
-						<view>
-							<view class="yfth-entry-title">购买康养套餐</view>
-							<view class="yfth-entry-desc">浏览已发布套餐，选择服务门店后完成支付</view>
-						</view>
-						<text class="iconfont icon-jiantou"></text>
-					</view>
-					<view class="yfth-entry-card yfth-apply-card" v-if="isLogin" @click="goYfthFranchiseApplications">
-						<view>
-							<view class="yfth-entry-title">御方通和合作中心</view>
-							<view class="yfth-entry-desc">提交加盟申请，查看总部沟通进度</view>
-						</view>
-						<text class="iconfont icon-jiantou"></text>
 					</view>
 					<view class="order-wrapper">
 						<view class="order-hd flex">
@@ -189,16 +111,35 @@
 						</block>
 					</swiper>
 				</view>
-				<!-- 会员菜单 -->
-				<view class="user-menus" style="margin-top: 20rpx" v-if="my_menus_status">
-					<view class="menu-title" v-if="my_menus_status == 1">{{ $t('我的服务') }}</view>
-					<view :class="{ 'list-box': my_menus_status == 1, 'column-box': my_menus_status == 2 }">
+				<!-- 我的服务：YFTH 固定业务入口与后台配置菜单统一展示 -->
+				<view class="user-menus customer-services" v-if="isLogin || (my_menus_status && MyMenus.length)">
+					<view class="menu-title">{{ $t('我的服务') }}</view>
+					<view class="list-box">
+						<view class="item yfth-service-item" v-if="isLogin && hasYfthBusinessIdentity" @click="goYfthWorkbench">
+							<view class="service-icon service-icon-work">营</view>
+							<text class="name">经营工作台</text>
+						</view>
+						<view class="item yfth-service-item" v-if="isLogin" @click="goYfthAttribution">
+							<view class="service-icon service-icon-store">归</view>
+							<text class="name">我的归属</text>
+						</view>
+						<view class="item yfth-service-item" v-if="isLogin" @click="goYfthPackageMembership">
+							<view class="service-icon service-icon-member">会</view>
+							<text class="name">套餐会员与一级推荐</text>
+						</view>
+						<view class="item yfth-service-item" v-if="isLogin" @click="goYfthPackagePurchase">
+							<view class="service-icon service-icon-package">套</view>
+							<text class="name">购买康养套餐</text>
+						</view>
+						<view class="item yfth-service-item" v-if="isLogin" @click="goYfthFranchiseApplications">
+							<view class="service-icon service-icon-cooperate">合</view>
+							<text class="name">御方通和合作中心</text>
+						</view>
 						<!-- #ifdef APP-PLUS || H5 -->
 						<block v-for="(item, index) in MyMenus" :key="index">
 							<view class="item" v-if="item.url != '#' && item.url != '/pages/service/index'" @click="goMenuPage(item.url, item.name)">
 								<image :src="item.pic"></image>
 								<text class="name">{{ $t(item.name) }}</text>
-								<text class="iconfont icon-jiantou" v-if="my_menus_status == 2"></text>
 							</view>
 						</block>
 						<!-- #endif -->
@@ -214,21 +155,18 @@
 							>
 								<image :src="item.pic"></image>
 								<text class="name">{{ $t(item.name) }}</text>
-								<text class="iconfont icon-jiantou" v-if="my_menus_status == 2"></text>
 							</view>
 						</block>
 
 						<button class="item" open-type="contact" v-if="routineContact == 1">
 							<image src="/static/images/contact.png"></image>
 							<text class="name">{{ $t('联系客服') }}</text>
-							<text class="iconfont icon-jiantou" v-if="my_menus_status == 2"></text>
 						</button>
 						<!-- #endif -->
 						<!-- #ifdef APP-PLUS -->
 						<view class="item" hover-class="none" @click="goMenuPage('/pages/users/privacy/index?type=3')">
 							<image src="/static/images/menu.png"></image>
 							<text class="name">{{ $t('隐私协议') }}</text>
-							<text class="iconfont icon-jiantou" v-if="my_menus_status == 2"></text>
 						</view>
 						<!-- #endif -->
 					</view>
@@ -269,6 +207,7 @@ import pageFooter from '@/components/pageFooter/index.vue';
 import { getCustomer } from '@/utils/index.js';
 import editUserModal from '@/components/eidtUserModal/index.vue';
 import { isBusinessRole, loadYfthIdentities } from '@/libs/yfthContext.js';
+import { getYfthPackageMembershipMe } from '@/api/yfth.js';
 export default {
 	components: {
 		pageFooter,
@@ -279,7 +218,21 @@ export default {
 		...mapGetters({
 			cartNum: 'cartNum',
 			isLogin: 'isLogin'
-		})
+		}),
+		yfthMembershipLabel() {
+			if (!this.isLogin) return '登录后查看';
+			if (this.yfthMembershipState === 'loading') return '正在读取';
+			if (this.yfthMembershipState === 'error') return '状态暂不可用';
+			return this.yfthMembershipProfile.membership && this.yfthMembershipProfile.membership.is_member ? '永久会员' : '未开通会员';
+		},
+		yfthMembershipDescription() {
+			if (!this.isLogin) return '登录后查看会员资格与康养权益';
+			if (this.yfthMembershipState === 'loading') return '正在同步真实会员资格';
+			if (this.yfthMembershipState === 'error') return '点击进入会员中心重新加载';
+			return this.yfthMembershipProfile.membership && this.yfthMembershipProfile.membership.is_member
+				? '永久有效，查看邀请与奖励记录'
+				: '购买并激活康养套餐后获得资格';
+		}
 	},
 	filters: {
 		coundTime(val) {
@@ -356,6 +309,9 @@ export default {
 			member_style: 0,
 			hasYfthBusinessIdentity: false,
 			yfthBusinessIdentityRequestSeq: 0,
+			yfthMembershipProfile: {},
+			yfthMembershipState: 'idle',
+			yfthMembershipRequestSeq: 0,
 			my_banner_status: 0,
 			is_diy: uni.getStorageSync('is_diy')
 		};
@@ -428,12 +384,15 @@ export default {
 		if (that.isLogin) {
 			this.getUserInfo().then(() => {
 				this.loadYfthBusinessEntry();
+				this.loadYfthMembership();
 			}).catch(() => {
 				this.resetYfthBusinessEntry();
+				this.resetYfthMembership();
 			});
 			this.setVisit();
 		} else {
 			this.resetYfthBusinessEntry();
+			this.resetYfthMembership();
 		}
 		this.getMyMenus();
 	},
@@ -466,10 +425,13 @@ export default {
 		// 授权回调
 		onLoadFun() {
 			this.resetYfthBusinessEntry();
+			this.resetYfthMembership();
 			this.getUserInfo().then(() => {
 				this.loadYfthBusinessEntry();
+				this.loadYfthMembership();
 			}).catch(() => {
 				this.resetYfthBusinessEntry();
+				this.resetYfthMembership();
 			});
 			this.getMyMenus();
 			this.setVisit();
@@ -499,6 +461,32 @@ export default {
 			}).catch(() => {
 				if (requestSeq === this.yfthBusinessIdentityRequestSeq) {
 					this.hasYfthBusinessIdentity = false;
+				}
+				return false;
+			});
+		},
+		resetYfthMembership() {
+			this.yfthMembershipRequestSeq += 1;
+			this.yfthMembershipProfile = {};
+			this.yfthMembershipState = 'idle';
+		},
+		loadYfthMembership() {
+			const requestSeq = this.yfthMembershipRequestSeq + 1;
+			this.yfthMembershipRequestSeq = requestSeq;
+			if (!this.isLogin) {
+				this.resetYfthMembership();
+				return Promise.resolve(false);
+			}
+			this.yfthMembershipState = 'loading';
+			return getYfthPackageMembershipMe().then((res) => {
+				if (requestSeq !== this.yfthMembershipRequestSeq) return false;
+				this.yfthMembershipProfile = res.data || {};
+				this.yfthMembershipState = 'ready';
+				return true;
+			}).catch(() => {
+				if (requestSeq === this.yfthMembershipRequestSeq) {
+					this.yfthMembershipProfile = {};
+					this.yfthMembershipState = 'error';
 				}
 				return false;
 			});
@@ -992,85 +980,73 @@ body {
 	.head {
 		// background: #fff;
 
-		.user-card {
+		.customer-profile {
 			position: relative;
-			width: 100%;
-			height: 380rpx;
-			margin: 0 auto;
-			padding: 35rpx 28rpx;
-			background-image: url('~@/static/images/user01.png');
-			background-size: 100% auto;
-			background-color: var(--view-theme);
+			width: 690rpx;
+			margin: 24rpx auto 0;
+			padding: 34rpx 30rpx 28rpx;
+			border-radius: 20rpx;
+			box-sizing: border-box;
+			background: linear-gradient(135deg, #c89b5c 0%, #ad7a40 100%);
+			box-shadow: 0 14rpx 34rpx rgba(96, 69, 37, 0.14);
+
+			.profile-actions {
+				position: absolute;
+				right: 28rpx;
+				top: 28rpx;
+				display: flex;
+				align-items: center;
+				gap: 24rpx;
+				z-index: 30;
+
+				navigator {
+					position: relative;
+				}
+
+				.iconfont {
+					font-size: 36rpx;
+					color: #fff;
+				}
+
+				.message-count {
+					position: absolute;
+					top: -12rpx;
+					right: -14rpx;
+					min-width: 28rpx;
+					height: 28rpx;
+					padding: 0 6rpx;
+					border-radius: 14rpx;
+					box-sizing: border-box;
+					background: #fff;
+					color: #a66d2f;
+					font-size: 18rpx;
+					line-height: 28rpx;
+					text-align: center;
+				}
+			}
 
 			.user-info {
 				z-index: 20;
 				position: relative;
 				display: flex;
 
-				.headwear {
-					position: absolute;
-					right: -4rpx;
-					top: -14rpx;
-					width: 44rpx;
-					height: 44rpx;
-
-					image {
-						width: 100%;
-						height: 100%;
-					}
-				}
-
-				.live {
-					width: 28rpx;
-					height: 28rpx;
-					margin-left: 20rpx;
-				}
-
-				.bntImg {
-					width: 120rpx;
-					height: 120rpx;
-					border-radius: 50%;
-					text-align: center;
-					line-height: 120rpx;
-					background-color: unset;
-					position: relative;
-
-					.avatarName {
-						font-size: 16rpx;
-						color: #fff;
-						text-align: center;
-						background-color: rgba(0, 0, 0, 0.6);
-						height: 37rpx;
-						line-height: 37rpx;
-						position: absolute;
-						bottom: 0;
-						left: 0;
-						width: 100%;
-					}
-				}
-
 				.avatar-box {
 					position: relative;
 					display: flex;
 					align-items: center;
 					justify-content: center;
-					width: 120rpx;
-					height: 120rpx;
+					width: 104rpx;
+					height: 104rpx;
 					border-radius: 50%;
-
-					&.on {
-						.avatar {
-							border: 2px solid #ffac65;
-							border-radius: 50%;
-							box-sizing: border-box;
-						}
-					}
+					border: 4rpx solid rgba(255, 255, 255, 0.78);
+					box-sizing: border-box;
+					overflow: hidden;
 				}
 
 				.avatar {
 					position: relative;
-					width: 120rpx;
-					height: 120rpx;
+					width: 100%;
+					height: 100%;
 					border-radius: 50%;
 				}
 
@@ -1079,35 +1055,27 @@ body {
 					display: flex;
 					flex-direction: column;
 					justify-content: space-between;
-					margin-left: 20rpx;
-					padding: 20rpx 0;
+					margin-left: 22rpx;
+					padding: 8rpx 150rpx 8rpx 0;
 
 					.name {
 						display: flex;
 						align-items: center;
 						color: #fff;
-						font-size: 31rpx;
+						font-size: 32rpx;
+						font-weight: 600;
 
 						.nickname {
 							max-width: 8em;
 						}
 
-						.vip {
-							margin-left: 10rpx;
-
-							image {
-								width: 78rpx;
-								height: 30rpx;
-								display: block;
-							}
-						}
 					}
 
 					.num {
 						display: flex;
 						align-items: center;
 						font-size: 26rpx;
-						color: rgba(255, 255, 255, 0.6);
+						color: rgba(255, 255, 255, 0.78);
 
 						image {
 							width: 22rpx;
@@ -1118,118 +1086,43 @@ body {
 				}
 			}
 
-			.message {
-				align-self: flex-start;
-				position: relative;
-				margin-top: 15rpx;
-				margin-right: 20rpx;
-
-				.num {
-					position: absolute;
-					top: -8rpx;
-					left: 18rpx;
-					padding: 0 6rpx;
-					height: 28rpx;
-					border-radius: 12rpx;
-					background-color: #fff;
-					font-size: 18rpx;
-					line-height: 28rpx;
-					text-align: center;
-					color: var(--view-theme);
-				}
-
-				.iconfont {
-					font-size: 40rpx;
-					color: #fff;
-				}
-			}
-
-			.num-wrapper {
-				z-index: 30;
-				position: relative;
+			.membership-summary {
 				display: flex;
 				align-items: center;
 				justify-content: space-between;
-				margin-top: 22rpx;
-				// padding: 0 47rpx;
+				margin-top: 26rpx;
+				padding: 24rpx 24rpx;
+				border: 1rpx solid rgba(255, 255, 255, 0.28);
+				border-radius: 14rpx;
+				background: rgba(255, 255, 255, 0.14);
 				color: #fff;
 
-				.num-item {
-					width: 33.33%;
-					text-align: center;
+				.membership-eyebrow {
+					font-size: 22rpx;
+					opacity: 0.76;
+				}
 
-					& ~ .num-item {
-						position: relative;
+				.membership-label {
+					margin-top: 4rpx;
+					font-size: 32rpx;
+					font-weight: 700;
+				}
 
-						&:before {
-							content: '';
-							position: absolute;
-							width: 1rpx;
-							height: 28rpx;
-							top: 50%;
-							margin-top: -14rpx;
-							background-color: rgba(255, 255, 255, 0.4);
-							left: 0;
-						}
-					}
+				.membership-desc {
+					margin-top: 6rpx;
+					font-size: 22rpx;
+					opacity: 0.82;
+				}
 
-					.num {
-						font-size: 42rpx;
-						font-weight: bold;
-					}
+				.membership-link {
+					font-size: 23rpx;
+					white-space: nowrap;
 
-					.txt {
-						margin-top: 8rpx;
-						font-size: 26rpx;
-						color: rgba(255, 255, 255, 0.6);
+					.iconfont {
+						font-size: 21rpx;
 					}
 				}
 			}
-
-			.sign {
-				z-index: 200;
-				position: absolute;
-				right: -12rpx;
-				top: 80rpx;
-				display: flex;
-				align-items: center;
-				justify-content: center;
-				width: 120rpx;
-				height: 60rpx;
-				background: linear-gradient(90deg, rgba(255, 225, 87, 1) 0%, rgba(238, 193, 15, 1) 100%);
-				border-radius: 29rpx 4rpx 4rpx 29rpx;
-				color: #282828;
-				font-size: 28rpx;
-				font-weight: bold;
-			}
-		}
-
-		.yfth-entry-card {
-			margin: 20rpx 30rpx 26rpx;
-			padding: 24rpx 26rpx;
-			border-radius: 18rpx;
-			background: linear-gradient(135deg, #fff8e8, #f2dfb5);
-			display: flex;
-			align-items: center;
-			justify-content: space-between;
-			color: #5b3b23;
-			box-shadow: 0 10rpx 24rpx rgba(91, 59, 35, 0.08);
-		}
-
-		.yfth-apply-card {
-			margin-top: -8rpx;
-			background: linear-gradient(135deg, #fffaf2, #e8d3aa);
-		}
-
-		.yfth-entry-title {
-			font-size: 30rpx;
-			font-weight: 700;
-		}
-
-		.yfth-entry-desc {
-			margin-top: 8rpx;
-			color: #8a6a48;
-			font-size: 24rpx;
 		}
 
 		.order-wrapper {
@@ -1237,12 +1130,12 @@ body {
 			margin: 0 30rpx;
 			border-radius: 16rpx;
 			position: relative;
-			margin-top: -10rpx;
+			margin-top: 20rpx;
 
 			.order-hd {
 				justify-content: space-between;
 				padding: 30rpx 20rpx 10rpx 30rpx;
-				margin-top: 25rpx;
+				margin-top: 0;
 				font-size: 30rpx;
 				color: #282828;
 
@@ -1320,6 +1213,9 @@ body {
 		background-color: #fff;
 		margin: 0 30rpx;
 		border-radius: 16rpx;
+		&.customer-services {
+			margin-top: 20rpx;
+		}
 		.column-box {
 			padding: 30rpx 20rpx 10rpx 30rpx;
 			.item {
@@ -1369,8 +1265,11 @@ body {
 				font-size: 26rpx;
 				color: #333333;
 				.name {
-					flex: 1;
-					text-align: left;
+					width: 100%;
+					padding: 0 8rpx;
+					box-sizing: border-box;
+					text-align: center;
+					line-height: 1.35;
 				}
 				image {
 					width: 52rpx;
@@ -1381,6 +1280,38 @@ body {
 				&:last-child::before {
 					display: none;
 				}
+			}
+		}
+
+		.yfth-service-item {
+			.service-icon {
+				display: flex;
+				align-items: center;
+				justify-content: center;
+				width: 64rpx;
+				height: 64rpx;
+				margin-bottom: 14rpx;
+				border-radius: 20rpx;
+				background: #f5ead8;
+				color: #a66f33;
+				font-size: 26rpx;
+				font-weight: 700;
+			}
+
+			.service-icon-member,
+			.service-icon-work {
+				background: #e9f0eb;
+				color: #416755;
+			}
+
+			.service-icon-package {
+				background: #f4e8d4;
+				color: #9b642d;
+			}
+
+			.service-icon-cooperate {
+				background: #ece8df;
+				color: #706554;
 			}
 		}
 
