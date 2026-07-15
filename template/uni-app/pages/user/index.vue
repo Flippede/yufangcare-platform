@@ -302,7 +302,6 @@
 						</block>
 					</view>
 				</view>
-				<image :src="copyRightPic" alt="" class="support"></image>
 				<view class="uni-p-b-98"></view>
 			</scroll-view>
 			<editUserModal :isShow="editModal" @closeEdit="closeEdit" @editSuccess="editSuccess"></editUserModal>
@@ -415,8 +414,7 @@ export default {
 			hasYfthBusinessIdentity: false,
 			yfthBusinessIdentityRequestSeq: 0,
 			my_banner_status: 0,
-			is_diy: uni.getStorageSync('is_diy'),
-			copyRightPic: '/static/images/support.png' //版权图片
+			is_diy: uni.getStorageSync('is_diy')
 		};
 	},
 	onLoad(option) {
@@ -462,7 +460,6 @@ export default {
 		let routes = getCurrentPages(); // 获取当前打开过的页面路由数组
 		let curRoute = routes[routes.length - 1].route; //获取当前页面路由
 		this.activeRouter = '/' + curRoute;
-		this.getCopyRight();
 	},
 	onReady() {
 		let self = this;
@@ -496,7 +493,6 @@ export default {
 			this.resetYfthBusinessEntry();
 		}
 		this.getMyMenus();
-		this.getCopyRight();
 	},
 	onPullDownRefresh() {
 		this.onLoadFun();
@@ -887,12 +883,6 @@ export default {
 					});
 				}
 			});
-		},
-		getCopyRight() {
-			const copyRight = uni.getStorageSync('copyRight');
-			if (copyRight.copyrightImage) {
-				this.copyRightPic = copyRight.copyrightImage;
-			}
 		}
 	}
 };
