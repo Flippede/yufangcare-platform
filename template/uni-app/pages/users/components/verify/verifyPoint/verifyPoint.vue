@@ -120,7 +120,7 @@ export default {
 	mounted() {
 		if (typeof document === 'undefined') return;
 		this.$nextTick(() => {
-			this.h5PointerTarget = this.$el.querySelector('.verify-image-hitbox');
+			this.h5PointerTarget = document.querySelector('.verify-image-hitbox');
 			this.h5PointerHandler = (event) => this.canvasClick(event);
 			if (this.h5PointerTarget) this.h5PointerTarget.addEventListener('click', this.h5PointerHandler);
 		});
