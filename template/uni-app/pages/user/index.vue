@@ -68,6 +68,16 @@
 							</view>
 							<view class="membership-link">查看 <text class="iconfont icon-jiantou"></text></view>
 						</view>
+						<view v-if="isLogin" class="identity-summary">
+							<view>
+								<text class="identity-eyebrow">当前身份</text>
+								<text class="identity-name">{{ yfthCurrentIdentityText }}</text>
+							</view>
+							<view class="identity-actions">
+								<text @click.stop="goYfthWorkbench">切换身份</text>
+								<text v-if="yfthCurrentContext.is_business_role" @click.stop="goYfthCurrentWorkbench">进入工作台</text>
+							</view>
+						</view>
 					</view>
 					<view class="mall-assets" v-if="isLogin">
 						<view class="asset-item" @click="goMenuPage('/pages/users/user_money/index')">
@@ -94,6 +104,11 @@
 						</view>
 						<view v-else class="membership-prompt" @click="goYfthPackagePurchase">
 							<view><text class="prompt-title">购买套餐后获得推广资格</text><text class="prompt-copy">激活永久会员，使用一级邀请与奖励查询</text></view>
+							<text class="prompt-arrow">›</text>
+						</view>
+						<view class="referral-scan-entry" @click="goYfthReferralScan">
+							<view class="scan-mark">扫</view>
+							<view><text class="scan-title">扫一扫推广码</text><text class="scan-copy">支持微信扫码、H5 摄像头、二维码图片或邀请链接</text></view>
 							<text class="prompt-arrow">›</text>
 						</view>
 					</view>
@@ -228,7 +243,7 @@ import colors from '@/mixins/color';
 import pageFooter from '@/components/pageFooter/index.vue';
 import { getCustomer } from '@/utils/index.js';
 import editUserModal from '@/components/eidtUserModal/index.vue';
-import { isBusinessRole, loadYfthIdentities } from '@/libs/yfthContext.js';
+import { currentContext, isBusinessRole, loadYfthIdentities, roleLabel } from '@/libs/yfthContext.js';
 import { getYfthPackageMembershipMe } from '@/api/yfth.js';
 export default {
 	components: {
@@ -254,6 +269,11 @@ export default {
 			return this.yfthMembershipProfile.membership && this.yfthMembershipProfile.membership.is_member
 				? '永久有效，查看邀请与奖励记录'
 				: '购买并激活康养套餐后获得资格';
+		},
+		yfthCurrentIdentityText() {
+			const context = this.yfthCurrentContext || {};
+			const role = roleLabel(context.role_code || 'customer');
+			return context.store_name ? `${role} · ${context.store_name}` : role;
 		},
 		isYfthPermanentMember() {
 			return Boolean(this.yfthMembershipProfile.membership && this.yfthMembershipProfile.membership.is_member);
@@ -333,6 +353,8 @@ export default {
 			business_status: 0,
 			member_style: 0,
 			hasYfthBusinessIdentity: false,
+			yfthIdentities: [],
+			yfthCurrentContext: {},
 			yfthBusinessIdentityRequestSeq: 0,
 			yfthMembershipProfile: {},
 			yfthMembershipState: 'idle',
@@ -463,6 +485,8 @@ export default {
 		},
 		resetYfthBusinessEntry() {
 			this.hasYfthBusinessIdentity = false;
+			this.yfthIdentities = [];
+			this.yfthCurrentContext = {};
 			this.yfthBusinessIdentityRequestSeq += 1;
 		},
 		loadYfthBusinessEntry() {
@@ -481,6 +505,8 @@ export default {
 				if (requestSeq !== this.yfthBusinessIdentityRequestSeq || Number(currentUid) !== Number(requestUid)) {
 					return false;
 				}
+				this.yfthIdentities = list;
+				this.yfthCurrentContext = currentContext();
 				this.hasYfthBusinessIdentity = list.some((item) => isBusinessRole(item.role_code));
 				return this.hasYfthBusinessIdentity;
 			}).catch(() => {
@@ -775,10 +801,23 @@ export default {
 			});
 		},
 
+		goYfthCurrentWorkbench() {
+			if (!this.isLogin) { toLogin(); return; }
+			if (!this.yfthCurrentContext || !this.yfthCurrentContext.is_business_role) {
+				this.goYfthWorkbench();
+				return;
+			}
+			uni.navigateTo({ url: '/pages/yfth/workbench/index' });
+		},
+
 		goYfthReferralCode() {
 			if (!this.isLogin) { toLogin(); return; }
 			if (!this.isYfthPermanentMember) { this.goYfthPackagePurchase(); return; }
 			uni.navigateTo({ url: '/pages/yfth/referral/code' });
+		},
+
+		goYfthReferralScan() {
+			uni.navigateTo({ url: '/pages/yfth/referral/scan' });
 		},
 
 		goYfthRewards() {
@@ -1163,6 +1202,23 @@ body {
 					}
 				}
 			}
+
+			.identity-summary {
+				display: flex;
+				align-items: center;
+				justify-content: space-between;
+				gap: 18rpx;
+				margin-top: 18rpx;
+				padding: 18rpx 22rpx;
+				border-radius: 12rpx;
+				background: rgba(255, 255, 255, 0.92);
+				color: #654824;
+
+				> view:first-child { display: flex; flex-direction: column; min-width: 0; }
+				.identity-eyebrow { color: #99866f; font-size: 20rpx; }
+				.identity-name { overflow: hidden; margin-top: 4rpx; font-size: 25rpx; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+				.identity-actions { display: flex; flex-shrink: 0; gap: 18rpx; color: #8b642f; font-size: 22rpx; }
+			}
 		}
 
 		.order-wrapper {
@@ -1544,6 +1600,11 @@ body {
 	.prompt-title { color: #704d28; font-size: 27rpx; font-weight: 650; }
 	.prompt-copy { color: #9a8a78; font-size: 21rpx; }
 	.prompt-arrow { color: #a67842; font-size: 44rpx; }
+	.referral-scan-entry { display: flex; align-items: center; gap: 18rpx; margin-top: 18rpx; padding: 19rpx 20rpx; border: 1px solid #ecdfcc; border-radius: 10rpx; background: #fffdfa; }
+	.scan-mark { flex: 0 0 58rpx; width: 58rpx; height: 58rpx; border-radius: 16rpx; color: #fff; background: #a47a43; font-size: 24rpx; font-weight: 700; line-height: 58rpx; text-align: center; }
+	.referral-scan-entry > view:nth-child(2) { display: flex; flex: 1; flex-direction: column; min-width: 0; gap: 6rpx; }
+	.scan-title { color: #5d4122; font-size: 25rpx; font-weight: 650; }
+	.scan-copy { color: #9a8a78; font-size: 19rpx; line-height: 1.4; }
 }
 
 </style>

@@ -313,6 +313,12 @@
 					}
 				},
 				{
+					"path": "referral/scan",
+					"style": {
+						"navigationBarTitleText": "扫一扫推广码"
+					}
+				},
+				{
 					"path": "referral/candidates",
 					"style": {
 						"navigationBarTitleText": "推荐进度"

@@ -40,6 +40,18 @@ export function yfthUserRoleRevoke(id, data) {
   return request({ url: `yfth/user_role/role/${id}/revoke`, method: 'post', data });
 }
 
+export function yfthAcceptanceFixture() {
+  return request({ url: 'yfth/user_role/fixture', method: 'get' });
+}
+
+export function yfthAcceptanceFixtureGenerate(data) {
+  return request({ url: 'yfth/user_role/fixture/generate', method: 'post', data });
+}
+
+export function yfthAcceptanceFixtureReset(data) {
+  return request({ url: 'yfth/user_role/fixture/reset', method: 'post', data });
+}
+
 export function yfthSubjectList(params) {
   return request({
     url: 'yfth/foundation/subject',

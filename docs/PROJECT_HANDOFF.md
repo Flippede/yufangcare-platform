@@ -1,5 +1,16 @@
 # 项目交接文档
 
+## Current Fact Snapshot - Role Acceptance Fixture And Referral Scan Closure
+
+- Current feature branch: `codex/yfth-user-role-assets-referral-code-v1`, based on stable `main` / `origin/main` `cf58036638a1d53d7a29c6aa41a79ae52a37c4a5`. This closure is not merged into `main`.
+- The existing headquarters page `御方通和 / 用户经营身份` remains the single role-management surface. Its visible menu now also contains the controlled acceptance-fixture panel; only explicit headquarters permissions can read, generate, reset, grant, or revoke. Store-side accounts cannot elevate identities.
+- Fixture generation is disabled unless `YFTH.ACCEPTANCE_FIXTURE_ENABLED` is explicitly enabled. It idempotently prepares a marked B1 test store, franchisee, manager, staff, C1 permanent member, C2 non-member, required store capabilities, package data, and versioned 15% / 25% / 60% plus mall-consumption ratio data without changing real users, stores, products, orders, or payment records.
+- Temporary account passwords are never returned by the API or committed to Git. They are written only to the configured server-private credential file with directory mode `0700` and file mode `0600`.
+- Reset requires a reason and confirmation. It only disables or closes facts owned by the marked fixture. Immutable membership, attribution, and referral history are preserved; if a prior C2 has closed attribution history, a later generation rotates to a new marked C2 instead of deleting or rewriting authority history.
+- The customer center now exposes the trusted current operating role/store, server-validated role switching, workbench entry, and a visible referral scan entry. The scan surface uses WeChat scanning on mp-weixin and supports H5 camera scanning, QR-image upload, or a pasted YFTH invite link/token.
+- Invite acceptance still uses the existing Stage 2 V2 one-level referral and Stage 1A B1 attribution authority. The success DTO exposes only safe display facts (`referrer_nickname`, `store_name`) and continues to reject self-scan, permanent-member recipients, conflicting attribution, existing active referrals, and expired/replaced/foreign tokens.
+- Verification passed with PHP 7.4.33 and isolated MySQL Community 8.0.46: syntax, migration run/targeted rollback/rerun, dedicated fixture and existing role-management real flows, contract checks, request/context checks, Admin/H5/mp-weixin production builds, and `git diff --check`. No real payment, SMS, WeChat authorization, production rollback, or WeChat upload was executed.
+
 ## Current Fact Snapshot - User Role Assets And Referral QR V1 Production Closure
 
 - Feature branch `codex/yfth-user-role-assets-referral-code-v1` contains the production release at feature commit `d94294361f020d9cea98b82aece165869c51e100`; it remains separate from stable `main` and is preserved on `origin` for user acceptance before any controlled merge.

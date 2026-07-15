@@ -1,5 +1,17 @@
 # YFTH User Role Assets And Referral QR V1 Runtime Validation
 
+## Acceptance fixture and scan closure - 2026-07-15
+
+- Added migration `20260718110000_create_yfth_acceptance_fixture.php`. Isolated MySQL Community 8.0.46 `run -> targeted rollback -> rerun` passed; rollback removed the manifest and all three permissions, and rerun restored the table, unique fixture key, and permissions.
+- PHP 7.4.33 syntax passed for every backend, migration, config, and test file changed by this closure.
+- `yfth_acceptance_fixture_real_flow_check.php` passed: headquarters-only generation, private credentials, five marked accounts, B1 store/roles, C1 membership, C2 non-member state, reward rules, duplicate-generation idempotency, C1-to-C2 acceptance, self-scan rejection, safe reset, immutable fact preservation, C2 rotation after closed history, regeneration, and second reset.
+- `yfth_user_role_management_real_flow_check.php` passed against the same isolated database: headquarters search/grant/revoke, multi-store roles, duplicate idempotency, store-side denial, inactive-store denial, audit, and unchanged customer/member/mall-asset facts.
+- `yfth_user_role_assets_referral_contract_check.php`, the existing package/referral contract, `yfth_multi_role_shell_contract_check.js`, and `yfth_request_fallback_check.js` passed.
+- Admin production build completed with the existing Vue 2 CSS-order and stale Browserslist warnings. The output was mirrored into `crmeb/public/admin`, and the generated role-management chunk contains the fixture API/page.
+- H5 production build completed using HBuilderX `uniapp-cli`, Node 18.20.8, and the HBuilderX plugin directory as `VUE_CLI_CONTEXT`; existing missing-export and asset-size warnings remained non-blocking.
+- mp-weixin production compile completed with `--no-opt`; existing skeleton-key, missing-export, and component-subpackage recommendations remained non-blocking.
+- No real payment, SMS, WeChat authorization, refund, payout, production rollback, or WeChat upload was executed.
+
 ## Environment
 
 - PHP: portable PHP 7.4.33

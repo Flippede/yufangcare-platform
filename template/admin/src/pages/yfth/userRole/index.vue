@@ -1,6 +1,34 @@
 <template>
   <div class="user-role-page">
     <el-alert title="经营身份按门店独立授予，不会覆盖顾客或永久会员身份。所有变更均需填写原因并写入统一审计。" type="info" :closable="false" />
+    <el-card class="fixture-card" shadow="never">
+      <div slot="header" class="fixture-header">
+        <div>
+          <b>受控验收测试数据</b>
+          <span>仅生成带 TEST 标识的隔离门店和虚构账号，密码只保存到服务器私有文件。</span>
+        </div>
+        <el-tag :type="fixture.enabled ? (fixture.status === 'active' ? 'success' : 'info') : 'danger'">
+          {{ fixture.enabled ? fixtureStatusText : '环境开关未启用' }}
+        </el-tag>
+      </div>
+      <div class="fixture-actions">
+        <el-button type="primary" :disabled="!fixture.enabled" :loading="fixtureSaving" @click="generateFixture">生成或补齐完整测试门店与账号</el-button>
+        <el-button type="danger" plain :disabled="!fixture.enabled || fixture.status !== 'active'" :loading="fixtureSaving" @click="resetFixture">重置测试数据</el-button>
+        <el-button icon="el-icon-refresh" @click="loadFixture">刷新状态</el-button>
+      </div>
+      <el-alert
+        v-if="fixture.exists"
+        :title="`测试门店：${fixture.store.name || '-'}（ID ${fixture.store.id || '-'}）；账号凭据文件：${fixture.credential_file || '-'}`"
+        type="warning"
+        :closable="false"
+      />
+      <el-table v-if="fixture.exists" :data="fixture.accounts || []" border size="mini" class="fixture-table">
+        <el-table-column prop="nickname" label="测试身份" min-width="150" />
+        <el-table-column prop="account" label="登录账号" min-width="180" />
+        <el-table-column prop="phone_masked" label="虚构手机号" width="130" />
+        <el-table-column prop="uid" label="UID" width="90" />
+      </el-table>
+    </el-card>
     <div class="toolbar">
       <el-input v-model.trim="query.keyword" clearable placeholder="手机号、昵称、账号或 UID" @keyup.enter.native="load(true)" />
       <el-button type="primary" icon="el-icon-search" @click="load(true)">查询</el-button>
@@ -51,19 +79,66 @@
 </template>
 
 <script>
-import { yfthUserRoleDetail, yfthUserRoleGrant, yfthUserRoleRevoke, yfthUserRoleUsers } from '@/api/yfth';
+import {
+  yfthAcceptanceFixture,
+  yfthAcceptanceFixtureGenerate,
+  yfthAcceptanceFixtureReset,
+  yfthUserRoleDetail,
+  yfthUserRoleGrant,
+  yfthUserRoleRevoke,
+  yfthUserRoleUsers,
+} from '@/api/yfth';
 
 export default {
   data() {
     return {
-      loading: false, saving: false, list: [], total: 0, stores: [], roleOptions: [],
+      loading: false, saving: false, fixtureSaving: false, list: [], total: 0, stores: [], roleOptions: [],
       query: { keyword: '', page: 1, limit: 20 }, detail: null, selected: null,
       detailVisible: false, grantVisible: false,
       grantForm: { store_id: '', role_code: '', reason: '' },
+      fixture: { enabled: false, exists: false, status: 'not_generated', store: {}, accounts: [] },
     };
   },
-  created() { this.load(); },
+  computed: {
+    fixtureStatusText() {
+      return { active: '已启用', disabled: '已重置', not_generated: '尚未生成' }[this.fixture.status] || this.fixture.status;
+    },
+  },
+  created() { this.load(); this.loadFixture(); },
   methods: {
+    loadFixture() {
+      return yfthAcceptanceFixture().then((res) => {
+        this.fixture = Object.assign({ enabled: false, exists: false, status: 'not_generated', store: {}, accounts: [] }, res.data || {});
+      });
+    },
+    generateFixture() {
+      this.$prompt('请填写本次生成或补齐测试数据的原因', '生成受控验收数据', {
+        confirmButtonText: '确认生成', cancelButtonText: '取消',
+        inputValidator: (value) => Boolean(String(value || '').trim()) || '必须填写原因',
+      }).then(({ value }) => {
+        this.fixtureSaving = true;
+        return yfthAcceptanceFixtureGenerate({ reason: String(value).trim(), request_id: `acceptance-fixture-generate-${Date.now()}` });
+      }).then((res) => {
+        this.fixture = res.data || this.fixture;
+        this.$message.success('测试门店和账号已生成或补齐，密码请从服务器私有文件读取');
+        return this.load(true);
+      }).finally(() => { this.fixtureSaving = false; });
+    },
+    resetFixture() {
+      this.$confirm('仅停用本工具标记的测试对象。若 C2 已形成会员等复杂事实，系统会拒绝重置。是否继续？', '二次确认', {
+        confirmButtonText: '继续', cancelButtonText: '取消', type: 'warning',
+      }).then(() => this.$prompt('请填写重置原因', '重置受控验收数据', {
+        confirmButtonText: '确认重置', cancelButtonText: '取消',
+        inputValidator: (value) => Boolean(String(value || '').trim()) || '必须填写原因',
+      })).then(({ value }) => {
+        this.fixtureSaving = true;
+        return yfthAcceptanceFixtureReset({ reason: String(value).trim(), request_id: `acceptance-fixture-reset-${Date.now()}` });
+      }).then((res) => {
+        this.fixture = res.data || this.fixture;
+        this.$message.success('测试数据已安全停用');
+        return this.load(true);
+      }).finally(() => { this.fixtureSaving = false; });
+    },
     load(reset) {
       if (reset === true) this.query.page = 1;
       this.loading = true;
@@ -97,6 +172,12 @@ export default {
 
 <style scoped>
 .user-role-page { padding: 16px; }
+.fixture-card { margin-top: 16px; }
+.fixture-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.fixture-header b { display: block; margin-bottom: 6px; font-size: 15px; }
+.fixture-header span { color: #909399; font-size: 12px; }
+.fixture-actions { margin-bottom: 14px; }
+.fixture-table { margin-top: 14px; }
 .toolbar { display: flex; gap: 10px; margin: 16px 0; }
 .toolbar .el-input { width: 320px; }
 .pager { margin-top: 16px; text-align: right; }

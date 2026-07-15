@@ -328,10 +328,16 @@ class PackageMembershipReferralServices extends YfthFoundationBaseServices
     {
         $attribution = (array)($result['attribution'] ?? []);
         $relation = (array)($result['relation'] ?? []);
+        $storeId = (int)($result['store_id'] ?? $relation['store_id'] ?? 0);
+        $storeName = $storeId > 0 ? (string)Db::name('system_store')->where('id', $storeId)->value('name') : '';
+        $referrerUid = (int)($relation['referrer_uid'] ?? 0);
+        $referrerName = $referrerUid > 0 ? (string)Db::name('user')->where('uid', $referrerUid)->value('nickname') : '';
         return [
             'changed' => (bool)($result['changed'] ?? false),
             'idempotent_replay' => (bool)($result['idempotent_replay'] ?? false),
-            'store_id' => (int)($result['store_id'] ?? $relation['store_id'] ?? 0),
+            'store_id' => $storeId,
+            'store_name' => $storeName,
+            'referrer_nickname' => $referrerName,
             'attribution' => $attribution ? [
                 'store_id' => (int)($attribution['store_id'] ?? 0),
                 'status' => (string)($attribution['status'] ?? ''),

@@ -59,3 +59,24 @@ These values are labelled as mall assets. YFTH direct-referral candidates and of
 ## 6. Frozen boundaries
 
 CRMEB login/token, users, stores, products, orders, payment, refund, coupons and wallet fields remain authoritative and unchanged. Package activation, referral candidate generation, reward confirmation and offline settlement state machines are reused without redesign.
+
+## 7. Controlled acceptance fixture
+
+- Migration `20260718110000_create_yfth_acceptance_fixture.php` adds the small `yfth_acceptance_fixture` manifest and three explicit read/generate/reset permissions. The manifest records ownership and lifecycle references; it is not a second user, store, package, membership, or referral model.
+- The tool is fail closed unless `YFTH.ACCEPTANCE_FIXTURE_ENABLED=true`. The credential output path is configured by `YFTH.ACCEPTANCE_ACCOUNT_FILE` and must be outside the public web tree.
+- Generation creates or repairs only records carrying the fixture marker `[YFTH-ACCEPTANCE-TEST-V1]`. It reuses CRMEB users and stores plus existing YFTH subject, qualification, capability, package activation, membership, role, attribution, referral, audit, and idempotency services.
+- Repeated generation is idempotent. Reset requires a reason and only disables marked records or closes the fixture's active referral/attribution through existing authority services. It never physically deletes immutable membership or authority history.
+- A closed attribution cannot be rebound. When a fixture C2 has immutable history, regeneration safely rotates to another marked C2 account so repeated acceptance rounds remain possible without corrupting history.
+
+Admin fixture endpoints:
+
+- `GET /adminapi/yfth/user_role/acceptance/fixture`
+- `POST /adminapi/yfth/user_role/acceptance/fixture/generate`
+- `POST /adminapi/yfth/user_role/acceptance/fixture/reset`
+
+## 8. Operating context and scan surfaces
+
+- `UserIdentityServices` enriches the existing trusted identities with real store names. Customer mode remains a server-validated context, while permanent membership remains a business status rather than a switchable operating role.
+- The customer center shows the current trusted operating role/store and routes business identities through the existing role/store switch and workbench guards. Frontend role or store parameters never grant authority.
+- `pages/yfth/referral/scan` supports mp-weixin `scanCode`; H5 uses `BarcodeDetector` camera/image decoding when available and always provides the paste-link/token fallback. Only YFTH invite routes or the existing 64-hex invite token are accepted.
+- The accept result uses the existing invite service and returns safe display names without exposing another user's UID or internal relation/event identifiers.

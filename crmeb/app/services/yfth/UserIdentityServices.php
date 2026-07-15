@@ -4,6 +4,7 @@ namespace app\services\yfth;
 
 use app\dao\yfth\YfthUserIdentityDao;
 use crmeb\exceptions\ApiException;
+use think\facade\Db;
 
 class UserIdentityServices extends YfthFoundationBaseServices
 {
@@ -62,7 +63,16 @@ class UserIdentityServices extends YfthFoundationBaseServices
             ];
         }
 
-        return array_values($this->uniqueIdentityRows($roles));
+        $roles = array_values($this->uniqueIdentityRows($roles));
+        $storeIds = array_values(array_unique(array_filter(array_map(function ($row) {
+            return (int)($row['store_id'] ?? 0);
+        }, $roles))));
+        $storeNames = $storeIds ? Db::name('system_store')->whereIn('id', $storeIds)->column('name', 'id') : [];
+        foreach ($roles as &$role) {
+            $role['store_name'] = (string)($storeNames[(int)($role['store_id'] ?? 0)] ?? '');
+        }
+        unset($role);
+        return $roles;
     }
 
     public function getActiveIdentity(int $uid, string $roleCode)
