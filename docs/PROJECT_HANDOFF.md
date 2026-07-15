@@ -1,6 +1,16 @@
 # 项目交接文档
 
-## Current Fact Snapshot - Customer Center Visual Closure
+## Current Fact Snapshot - Custom Homepage And User Center Main Closure
+
+- The reviewed and production-validated feature branch `codex/yfth-custom-homepage-v1` was fast-forwarded into `main` at feature commit `8709a7e268a77e735d710bf13ce56fef4aa3f83a`; the local and remote feature branches remain preserved.
+- The configurable warm-gold YFTH homepage, configurable category content, four-item customer footer (`首页 / 分类 / 购物车 / 我的`), category-page recovery, customer login and click-captcha fixes, legacy-template cleanup, productized customer center, and responsive phone-canvas layout are now part of stable `main`.
+- Homepage shortcuts and cards remain configurable through `御方通和 / 首页配置`; CRMEB category and product content continues to use existing backend data and APIs, with no formal product ID hard-coded in the customer frontend.
+- The customer center retains the unified member summary, independent order center, and aligned service grid. Existing attribution, package membership, package purchase, cooperation center, order, product, cart, login, SMS, and payment business logic was not replaced by this merge.
+- Production continues to serve the accepted release at `https://yfth.top`. This closure did not redeploy production, run migrations, connect to production data, send SMS, perform payment, or upload a WeChat build.
+- Targeted homepage, login/navigation, category, package-purchase, and customer-surface contract checks passed; `git diff --check` passed. Previously completed Admin/H5/mp-weixin builds and online acceptance were not repeated in this lightweight merge.
+- The next planned stage is headquarters management for user operating identities, customer-facing mall balance/points display, and member promotion codes. That stage has not started.
+
+## Historical Snapshot - Customer Center Visual Closure
 
 - The customer-center implementation remains on `codex/yfth-custom-homepage-v1`; production H5 source commit is `b974f15`. The branch remains unmerged to stable `main`.
 - `https://yfth.top/pages/user/index` now uses three clear levels: one warm-gold customer/member summary, the existing independent order center, and one consolidated service grid. The former stacked YFTH attribution, package-membership, package-purchase and cooperation cards were removed from the top area.
@@ -11,7 +21,7 @@
 - Targeted customer-surface and package-purchase contracts passed. Clean H5 production build and mp-weixin production compile passed with only existing asset-size, skeleton-key and component-subpackage notices. No WeChat upload was performed.
 - Production H5 releases were backed up under `/root/yfth-backups/h5-user-center-layout-20260715-151247`, `/root/yfth-backups/h5-user-center-polish-20260715-152121`, `/root/yfth-backups/h5-user-center-final-20260715-153001`, and `/root/yfth-backups/h5-user-center-routefix-20260715-154021`. No `.env`, database, upload, OSS, SMS, WeChat or payment-certificate data was modified.
 
-## Current Fact Snapshot - Custom YFTH Homepage V1 Production Release
+## Historical Snapshot - Custom YFTH Homepage V1 Production Release
 
 - Feature branch `codex/yfth-custom-homepage-v1` remains unmerged to `main`. Production release commit is `3e5d73d8b19f020ac48d7dae768e360ffe88229c`, including the homepage feature, route-contract correction, and production `store_category` schema compatibility fix.
 - `https://yfth.top` now runs the fixed warm-gold YFTH customer homepage. The public API returns the fixed 12 shortcut positions, six two-column sections, and live CRMEB content; its default production fallback currently resolves the enabled YFTH category and four live products with existing OSS images. Published package templates are not yet configured, so the package region is intentionally empty while the existing package-list entry remains available.
