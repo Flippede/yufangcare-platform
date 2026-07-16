@@ -20,9 +20,11 @@ It does not create a second identity, recommendation, wallet, coupon, order, or 
 ## 2. Operating-role authority
 
 - Source of truth: `yfth_user_store_role`.
-- Supported grants: `franchisee`, `store_manager`, `store_staff`.
+- Supported store-role grants: `franchisee`, `store_manager`, `store_staff`.
+- Headquarters may also grant the independent permanent-membership qualification after selecting its authoritative B1. This path writes the existing permanent-membership current/event and attribution authority; it does not masquerade as a store role or create a paid package snapshot.
 - A role is scoped to a concrete active CRMEB `system_store` record.
 - One user can hold multiple valid store roles; a grant never deletes customer identity or permanent membership.
+- The Admin DTO groups franchisee as one independent operating identity with its explicitly granted store list. Manager and staff remain displayed per store. Server-side role/store validation remains unchanged.
 - Headquarters scope is enforced in the controller and service. Store accounts cannot grant or revoke roles.
 - Grant and revoke require a reason and write `yfth_audit_event` with operator, store, role, target and before/after facts.
 - Repeated grant or revoke is idempotent. Revocation is a status transition, not physical deletion.
@@ -88,5 +90,13 @@ The acceptance fixture keeps stable `yfth_stg_*` login names without storing pas
 
 - `UserIdentityServices` enriches the existing trusted identities with real store names. Customer mode remains a server-validated context, while permanent membership remains a business status rather than a switchable operating role.
 - The customer center shows the current trusted operating role/store and routes business identities through the existing role/store switch and workbench guards. Frontend role or store parameters never grant authority.
-- `pages/yfth/referral/scan` supports mp-weixin `scanCode`; H5 uses `BarcodeDetector` camera/image decoding when available and always provides the paste-link/token fallback. Only YFTH invite routes or the existing 64-hex invite token are accepted.
+- `pages/yfth/referral/scan` supports native mp-weixin `uni.scanCode`. H5 opens `getUserMedia` directly, prefers native `BarcodeDetector`, and falls back to bundled `jsQR` frame/image decoding on Safari, WeChat browsers, and desktop browsers that lack `BarcodeDetector`. Image upload and paste-link/token inputs remain available. Only YFTH invite routes or the existing 64-hex invite token are accepted.
+- The promotion page can save the generated QR to a local file in H5 and to the photo album in mp-weixin through the existing QR component. Saving does not expose UID or internal authority identifiers.
 - The accept result uses the existing invite service and returns safe display names without exposing another user's UID or internal relation/event identifiers.
+
+## 9. Store customer projection
+
+- Stage 1A attribution current/event remains the authority for B1 ownership. `yfth_customer_relation` is the existing store-CRM read model used by the customer list and detail surfaces.
+- Successful invite acceptance and headquarters membership grant synchronize an active same-store customer relation in the same business transaction. Replays are idempotent; an active relation for another store fails closed instead of being silently reassigned.
+- Existing authority rows can be repaired through the explicit CLI-only `yfth_customer_authority_projection_repair.php`. It requires an execution flag, operator, reason, and consistency validation before creating a missing projection. It never rewrites authority current/event history.
+- Fixture reset disables only the fixture-owned customer projection when closing the test referral, so repeated acceptance rounds do not leave a stale visible test customer.

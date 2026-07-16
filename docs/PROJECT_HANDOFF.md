@@ -1,5 +1,14 @@
 # 项目交接文档
 
+## Current Fact Snapshot - Member Grant, Referral Scan And Store Customer Projection Closure
+
+- Current feature branch: `codex/yfth-user-role-assets-referral-code-v1`; stable `main` / `origin/main` remains `cf58036638a1d53d7a29c6aa41a79ae52a37c4a5`. This development snapshot does not claim a main merge or production deployment.
+- H5 referral scanning now opens the camera whenever `getUserMedia` is available. It uses native `BarcodeDetector` when present and falls back to the bundled `jsQR` decoder when the browser does not implement that API. QR-image upload and invite-link/token input remain available. The mp-weixin build continues to use native `uni.scanCode`.
+- Permanent members can save their promotion QR: H5 downloads the generated image and mp-weixin uses the existing photo-album save path. No CRMEB legacy distribution QR or `user_spread` relation is used.
+- Headquarters user-role management now separates permanent-membership authorization from store operating roles. Permanent membership is an independent, non-expiring business qualification with authoritative B1 attribution; franchisee is displayed as one independent operating identity that may manage multiple explicitly granted stores, while manager and staff remain store-scoped roles.
+- Successful Stage 2 invite acceptance and headquarters permanent-member grant now project the authoritative user/store fact into `yfth_customer_relation`. Store customer CRM therefore reads invited or authorized users without replacing Stage 1A current/event authority. A guarded CLI repair backfills missing projections from consistent active attribution and fails closed on conflicting store relations.
+- PHP 7.4 syntax, dedicated contracts, source guard, isolated MySQL Community 8.0.46 migration run/targeted rollback/rerun, role-management real flow, acceptance-fixture real flow, Stage 2 V2 referral real flow, Admin production build, H5 production build, mp-weixin production compile, existing uni-app checks, and `git diff --check` passed. No real payment, SMS, WeChat upload, production rollback, or production deployment was executed in this local closure.
+
 ## Current Fact Snapshot - Admin User Role Navigation Hotfix
 
 - Production `https://yfth.top` runs hotfix commit `4f3aa4222b830507028eedeab06aaf0e2621f739` from the preserved branch `codex/yfth-user-role-assets-referral-code-v1`; stable `main` was not changed or merged.

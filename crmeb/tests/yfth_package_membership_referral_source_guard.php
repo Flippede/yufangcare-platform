@@ -51,6 +51,7 @@ $assert($actualSources === [
     'package_membership_referral_invite',
     'package_membership_activation',
     'historical_package_activation',
+    'headquarters_membership_grant',
 ], 'production_authority_source_allowlist_is_exact');
 
 $listeners = '';

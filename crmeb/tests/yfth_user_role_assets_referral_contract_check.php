@@ -24,6 +24,9 @@ $fixtureMigration = $read('database/migrations/20260718110000_create_yfth_accept
 $passwordMigration = $read('database/migrations/20260718120000_add_yfth_acceptance_password_reset_permission.php');
 $fixtureService = $read('app/services/yfth/HqAcceptanceFixtureServices.php');
 $membership = $read('app/services/yfth/PackageMembershipReferralServices.php');
+$membershipAuthority = $read('app/services/yfth/PackageMembershipServices.php');
+$franchiseCustomer = $read('app/services/yfth/FranchiseCustomerServices.php');
+$membershipGrantMigration = $read('database/migrations/20260718130000_allow_headquarters_permanent_membership_grant.php');
 $adminPage = (string)file_get_contents(dirname($root) . '/template/admin/src/pages/yfth/userRole/index.vue');
 $userPage = (string)file_get_contents(dirname($root) . '/template/uni-app/pages/user/index.vue');
 $codePage = (string)file_get_contents(dirname($root) . '/template/uni-app/pages/yfth/referral/code.vue');
@@ -37,7 +40,10 @@ foreach (['assertHeadquarters', 'assertHeadquarterScope', 'UserStoreRoleServices
     $assert(strpos($service, $needle) !== false, 'role_service_contains:' . $needle);
 }
 $assert(strpos($service, 'YfthUserIdentityDao') === false, 'role_write_does_not_replace_global_identity');
-$assert(strpos($service, 'YfthPermanentMembershipDao') === false, 'role_write_does_not_replace_membership');
+$assert(strpos($service, 'YfthPermanentMembershipDao') === false, 'role_service_does_not_write_membership_dao_directly');
+$assert(strpos($service, 'grantByHeadquarters') !== false, 'headquarters_can_grant_real_permanent_membership');
+$assert(strpos($membershipAuthority, 'membership_granted_by_headquarters') !== false, 'membership_grant_is_evented_and_audited');
+$assert(strpos($membershipGrantMigration, 'source_package_instance_id` INT UNSIGNED NULL') !== false, 'manual_membership_has_explicit_nullable_package_source');
 foreach (['franchisee', 'store_manager', 'store_staff'] as $roleCode) {
     $assert(strpos($service, "'{$roleCode}'") !== false, 'supported_store_role:' . $roleCode);
 }
@@ -71,6 +77,7 @@ $assert(strpos($nativeUserPage, "name: 'yfth_user_role'") !== false, 'native_use
 $assert(strpos($nativeUserPage, "path: '/yfth/user-role'") === false, 'native_user_list_does_not_escape_admin_route_base');
 $assert(strpos($adminPage, '生成或补齐完整测试门店与账号') !== false, 'admin_page_exposes_fixture_action');
 $assert(strpos($adminPage, 'yfthUserRoleGrant') !== false && strpos($adminPage, 'yfthUserRoleRevoke') !== false, 'admin_page_uses_real_role_api');
+$assert(strpos($adminPage, '授权会员') !== false && strpos($adminPage, '加盟商身份独立存在') !== false, 'admin_page_separates_membership_and_franchisee_identity');
 $assert(strpos($adminPage, '操作原因') !== false, 'admin_page_requires_reason');
 
 foreach (['now_money', 'integral', 'couponCount', '商城资产与御方通和推荐奖励独立核算'] as $needle) {
@@ -84,9 +91,12 @@ foreach (['issueYfthDirectReferralInvite', 'getYfthPackageMembershipMe', 'zb-cod
 foreach (['yfth_pending_referral_invite', 'toLogin', 'acceptYfthDirectReferralInvite', 'idempotency_key'] as $needle) {
     $assert(strpos($acceptPage, $needle) !== false, 'scan_login_continuation_contains:' . $needle);
 }
-foreach (['uni.scanCode', 'BarcodeDetector', 'chooseQrImage', 'invite_token', '/pages/yfth/referral/accept'] as $needle) {
+foreach (['uni.scanCode', 'BarcodeDetector', 'jsQR', 'chooseQrImage', 'invite_token', '/pages/yfth/referral/accept'] as $needle) {
     $assert(strpos($scanPage, $needle) !== false, 'referral_scan_contains:' . $needle);
 }
+$assert(strpos($codePage, 'saveQr') !== false && strpos($codePage, '_saveCode') !== false, 'promotion_qr_can_be_saved_to_device');
+$assert(strpos($membership, 'syncAuthorityCustomerInTransaction') !== false, 'invite_accept_projects_authority_to_store_customer_view');
+$assert(strpos($franchiseCustomer, 'backfillAuthorityCustomers') !== false, 'existing_authority_has_controlled_customer_projection_repair');
 $assert(strpos($userPage, 'goYfthReferralScan') !== false, 'user_center_exposes_referral_scan');
 $assert(strpos($userPage, '当前身份') !== false && strpos($userPage, '进入工作台') !== false, 'user_center_exposes_current_role');
 $assert(strpos($roleSwitchPage, "switchYfthRole('customer', 0)") !== false, 'customer_switch_uses_server_context');

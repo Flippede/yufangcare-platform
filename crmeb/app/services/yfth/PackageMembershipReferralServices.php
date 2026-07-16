@@ -223,6 +223,17 @@ class PackageMembershipReferralServices extends YfthFoundationBaseServices
                     throw new ApiException('direct_referral_active_relation_exists');
                 }
                 $relationId = (int)($relation['relation']['id'] ?? 0);
+                $customerProjection = app()->make(FranchiseCustomerServices::class)->syncAuthorityCustomerInTransaction(
+                    $uid,
+                    $storeId,
+                    'direct_referral',
+                    $relationId,
+                    $ownerUid,
+                    $uid,
+                    'customer',
+                    'direct_referral_invite_accepted',
+                    $mutation->requestId()
+                );
                 $this->dao->update((int)$invite['id'], [
                     'status' => 'used',
                     'accepted_uid' => $uid,
@@ -236,8 +247,10 @@ class PackageMembershipReferralServices extends YfthFoundationBaseServices
                     'changed' => true,
                     'invite_id' => (int)$invite['id'],
                     'store_id' => $storeId,
+                    'referrer_nickname' => (string)Db::name('user')->where('uid', $ownerUid)->value('nickname'),
                     'attribution' => $attribution['after'],
                     'relation' => $relation['relation'],
+                    'customer_projection' => $customerProjection,
                 ];
             }
         );
@@ -330,8 +343,7 @@ class PackageMembershipReferralServices extends YfthFoundationBaseServices
         $relation = (array)($result['relation'] ?? []);
         $storeId = (int)($result['store_id'] ?? $relation['store_id'] ?? 0);
         $storeName = $storeId > 0 ? (string)Db::name('system_store')->where('id', $storeId)->value('name') : '';
-        $referrerUid = (int)($relation['referrer_uid'] ?? 0);
-        $referrerName = $referrerUid > 0 ? (string)Db::name('user')->where('uid', $referrerUid)->value('nickname') : '';
+        $referrerName = (string)($result['referrer_nickname'] ?? '');
         return [
             'changed' => (bool)($result['changed'] ?? false),
             'idempotent_replay' => (bool)($result['idempotent_replay'] ?? false),

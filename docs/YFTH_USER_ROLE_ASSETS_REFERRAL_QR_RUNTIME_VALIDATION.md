@@ -1,5 +1,16 @@
 # YFTH User Role Assets And Referral QR V1 Runtime Validation
 
+## Member grant, scan fallback and store-customer projection validation - 2026-07-16
+
+- PHP 7.4.33 syntax passed for the changed services, migration, repair command, and tests.
+- The dedicated contract and Stage 2 V2 source guard passed. The role-management real flow proved headquarters permanent-member grant, duplicate idempotency, independent membership/store-role semantics, authoritative B1 attribution, customer projection, and store-side grant denial.
+- Isolated MySQL Community 8.0.46 validation passed for migration `20260718130000`: run made `source_package_instance_id` nullable, targeted rollback restored the non-null package-only shape when no headquarters-granted facts existed, and rerun restored the forward schema.
+- The Stage 2 V2 real flow proved invite acceptance creates store-CRM visibility, then deliberately removed the projection and proved the controlled authority backfill restores it. The acceptance-fixture flow proved C2 visibility and fixture-only projection disable on reset.
+- Admin production build passed with existing CSS-order and stale Browserslist warnings. H5 production build passed with existing asset-size recommendations. mp-weixin production compile passed with existing skeleton-key and component-subpackage recommendations.
+- Compiled H5 includes camera decoding with native `BarcodeDetector` plus bundled `jsQR` fallback; compiled mp-weixin retains native `uni.scanCode`. The promotion QR save actions compiled for both targets.
+- Existing uni-app multi-role and request-fallback checks passed. `git diff --check` passed with line-ending notices only.
+- No real SMS, payment, refund, payout, production rollback, WeChat authorization, or WeChat upload was executed. Production deployment evidence must be recorded separately after controlled backup and release.
+
 ## Admin user-role navigation production hotfix - 2026-07-16
 
 - Root cause: `template/admin/src/pages/user/list/index.vue` used `/yfth/user-role` as an absolute path, escaping the Admin `/admin` route prefix and loading the customer shell.

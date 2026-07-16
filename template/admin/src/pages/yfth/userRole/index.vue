@@ -1,6 +1,6 @@
 <template>
   <div class="user-role-page">
-    <el-alert title="经营身份按门店独立授予，不会覆盖顾客或永久会员身份。所有变更均需填写原因并写入统一审计。" type="info" :closable="false" />
+    <el-alert title="永久会员是独立基础身份；加盟商是独立经营身份，其下可关联多家可管理门店。店长、店员仍按门店授权，所有变更均需原因并写入审计。" type="info" :closable="false" />
     <el-card class="fixture-card" shadow="never">
       <div slot="header" class="fixture-header">
         <div>
@@ -54,15 +54,24 @@
           <el-tag v-for="role in row.store_roles" :key="role.id" size="mini" class="role-tag">{{ role.store_name || ('门店 ' + role.store_id) }} · {{ role.role_name }}</el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="170" fixed="right">
-        <template slot-scope="{ row }"><el-button type="text" @click="openDetail(row)">查看</el-button><el-button type="text" @click="openGrant(row)">授予身份</el-button></template>
+      <el-table-column label="操作" width="290" fixed="right">
+        <template slot-scope="{ row }">
+          <el-button type="text" @click="openDetail(row)">查看</el-button>
+          <el-button v-if="!row.permanent_member" type="text" @click="openGrant(row, 'permanent_member')">授权会员</el-button>
+          <el-button type="text" @click="openGrant(row, 'franchisee')">加盟商</el-button>
+          <el-button type="text" @click="openGrant(row)">店长/店员</el-button>
+        </template>
       </el-table-column>
     </el-table>
     <el-pagination class="pager" layout="total, prev, pager, next" :total="total" :page-size="query.limit" :current-page.sync="query.page" @current-change="load" />
 
     <el-dialog title="用户经营身份" :visible.sync="detailVisible" width="720px">
       <div v-if="detail" class="detail-head"><b>{{ detail.nickname || detail.account || '-' }}</b><span>UID {{ detail.uid }}</span><span>{{ detail.phone_masked }}</span></div>
-      <el-table :data="detail ? detail.store_roles : []" border size="small">
+      <div v-if="detail" class="identity-summary">
+        <div><b>基础身份</b><el-tag size="mini">顾客</el-tag><el-tag v-if="detail.permanent_member" size="mini" type="success">永久会员</el-tag><span v-else class="muted">未授权永久会员</span></div>
+        <div><b>加盟商</b><span v-if="!franchiseeRoles(detail).length" class="muted">未授权</span><el-tag v-for="role in franchiseeRoles(detail)" :key="role.id" size="mini" class="role-tag">{{ role.store_name || ('门店 ' + role.store_id) }}<i v-if="role.status === 'active'" class="el-icon-close revoke-icon" @click="revoke(role)" /></el-tag></div>
+      </div>
+      <el-table :data="detail ? storeStaffRoles(detail) : []" border size="small">
         <el-table-column prop="store_name" label="门店" min-width="160" />
         <el-table-column prop="role_name" label="身份" width="110" />
         <el-table-column prop="status" label="状态" width="100" />
@@ -70,11 +79,12 @@
       </el-table>
     </el-dialog>
 
-    <el-dialog title="授予经营身份" :visible.sync="grantVisible" width="480px">
+    <el-dialog :title="grantDialogTitle" :visible.sync="grantVisible" width="480px">
       <el-form label-width="90px">
         <el-form-item label="用户"><span>{{ selected ? `${selected.nickname || selected.account}（UID ${selected.uid}）` : '' }}</span></el-form-item>
         <el-form-item label="门店"><el-select v-model="grantForm.store_id" filterable placeholder="选择启用门店"><el-option v-for="store in stores" :key="store.id" :label="store.name" :value="store.id" /></el-select></el-form-item>
-        <el-form-item label="经营身份"><el-select v-model="grantForm.role_code" placeholder="选择身份"><el-option v-for="role in roleOptions" :key="role.value" :label="role.label" :value="role.value" /></el-select></el-form-item>
+        <el-form-item v-if="!grantPresetRole" label="经营身份"><el-select v-model="grantForm.role_code" placeholder="选择身份"><el-option v-for="role in staffRoleOptions" :key="role.value" :label="role.label" :value="role.value" /></el-select></el-form-item>
+        <el-form-item v-else label="授权类型"><el-tag>{{ grantRoleLabel }}</el-tag><div v-if="grantPresetRole === 'franchisee'" class="form-tip">加盟商身份独立存在；所选门店只定义该加盟商可管理的门店范围，可重复添加其他门店。</div><div v-if="grantPresetRole === 'permanent_member'" class="form-tip">永久会员一经授权不提供普通撤销；同时建立该会员的永久门店归属。</div></el-form-item>
         <el-form-item label="操作原因"><el-input v-model.trim="grantForm.reason" type="textarea" :rows="3" maxlength="255" show-word-limit /></el-form-item>
       </el-form>
       <span slot="footer"><el-button @click="grantVisible = false">取消</el-button><el-button type="primary" :loading="saving" @click="grant">确认授予</el-button></span>
@@ -99,7 +109,7 @@ export default {
     return {
       loading: false, saving: false, fixtureSaving: false, list: [], total: 0, stores: [], roleOptions: [],
       query: { keyword: '', page: 1, limit: 20 }, detail: null, selected: null,
-      detailVisible: false, grantVisible: false,
+      detailVisible: false, grantVisible: false, grantPresetRole: '',
       grantForm: { store_id: '', role_code: '', reason: '' },
       fixture: { enabled: false, exists: false, status: 'not_generated', store: {}, accounts: [] },
     };
@@ -108,6 +118,9 @@ export default {
     fixtureStatusText() {
       return { active: '已启用', disabled: '已重置', not_generated: '尚未生成' }[this.fixture.status] || this.fixture.status;
     },
+    staffRoleOptions() { return this.roleOptions.filter((item) => ['store_manager', 'store_staff'].includes(item.value)); },
+    grantRoleLabel() { return { permanent_member: '永久会员', franchisee: '加盟商' }[this.grantPresetRole] || '经营身份'; },
+    grantDialogTitle() { return this.grantPresetRole ? `授权${this.grantRoleLabel}` : '授权店长/店员'; },
   },
   created() {
     this.load();
@@ -176,16 +189,18 @@ export default {
     openDetail(row) {
       yfthUserRoleDetail(row.uid).then((res) => { this.detail = res.data || null; this.detailVisible = true; });
     },
-    openGrant(row) {
-      this.selected = row; this.grantForm = { store_id: '', role_code: '', reason: '' }; this.grantVisible = true;
+    openGrant(row, presetRole) {
+      this.selected = row; this.grantPresetRole = presetRole || ''; this.grantForm = { store_id: '', role_code: presetRole || '', reason: '' }; this.grantVisible = true;
     },
     grant() {
       if (!this.grantForm.store_id || !this.grantForm.role_code || !this.grantForm.reason) return this.$message.warning('请选择门店、身份并填写原因');
       this.saving = true;
       const data = { ...this.grantForm, request_id: `hq-role-grant-${Date.now()}` };
-      yfthUserRoleGrant(this.selected.uid, data).then(() => { this.$message.success('经营身份已授予'); this.grantVisible = false; this.load(); })
+      yfthUserRoleGrant(this.selected.uid, data).then(() => { this.$message.success(`${this.grantRoleLabel}已授予`); this.grantVisible = false; this.load(); })
         .finally(() => { this.saving = false; });
     },
+    franchiseeRoles(detail) { return (detail.store_roles || []).filter((item) => item.role_code === 'franchisee' && item.status === 'active'); },
+    storeStaffRoles(detail) { return (detail.store_roles || []).filter((item) => item.role_code !== 'franchisee'); },
     revoke(row) {
       this.$prompt('请输入撤销原因', '撤销经营身份', { inputValidator: (value) => Boolean(String(value || '').trim()) || '必须填写原因' })
         .then(({ value }) => yfthUserRoleRevoke(row.id, { reason: String(value).trim(), request_id: `hq-role-revoke-${Date.now()}` }))
@@ -211,5 +226,11 @@ export default {
 .user-cell img { width: 38px; height: 38px; border-radius: 50%; object-fit: cover; }
 .role-tag { margin: 2px 6px 2px 0; }
 .detail-head { display: flex; gap: 18px; margin-bottom: 16px; color: #606266; }
+.identity-summary { margin-bottom: 16px; padding: 12px 14px; background: #f7f8fa; }
+.identity-summary>div { display: flex; align-items: center; gap: 8px; min-height: 34px; }
+.identity-summary b { width: 72px; color: #303133; }
+.muted, .form-tip { color: #909399; }
+.form-tip { margin-top: 8px; font-size: 12px; line-height: 1.55; }
+.revoke-icon { margin-left: 6px; cursor: pointer; }
 .danger { color: #f56c6c; }
 </style>

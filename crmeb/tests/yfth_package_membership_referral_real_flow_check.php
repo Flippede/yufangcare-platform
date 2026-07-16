@@ -195,6 +195,13 @@ try {
     $first = (array)Db::name('yfth_hq_active_referral_current')->where('referred_uid', 920002)->find();
     $assert((int)$first['store_id'] === $storeA, 'c2_inherits_c1_store');
     $assert((int)Db::name('yfth_hq_active_referral_current')->where('referred_uid', 920002)->value('referrer_uid') === $c1, 'one_level_relation_created');
+    $assert((int)Db::name('yfth_customer_relation')->where('uid', 920002)->where('store_id', $storeA)->where('status', 'active')->count() === 1, 'invite_accept_projects_customer_into_store_crm');
+    Db::name('yfth_customer_relation')->where('uid', 920002)->delete();
+    $repair = app()->make(\app\services\yfth\FranchiseCustomerServices::class)->backfillAuthorityCustomers(
+        $storeA, 100, $c1, 'isolated projection repair', 'pmr-projection-repair'
+    );
+    $assert($repair['failed'] === 0 && $repair['created'] >= 1, 'authority_customer_projection_repair_succeeds');
+    $assert((int)Db::name('yfth_customer_relation')->where('uid', 920002)->where('store_id', $storeA)->where('status', 'active')->count() === 1, 'projection_repair_restores_store_customer_visibility');
 
     $duplicateInvite = $referral->issueInvite($c1, ['request_id' => 'pmr-existing-referral']);
     $duplicateRejected = false;
@@ -461,7 +468,7 @@ echo "[OK] YFTH package membership and direct referral V2 real flow verified.\n"
 function pmrCleanup(): void
 {
     foreach ([
-        'yfth_direct_referral_reward_candidate', 'yfth_direct_referral_rule_version', 'yfth_direct_referral_invite',
+        'yfth_customer_relation', 'yfth_direct_referral_reward_candidate', 'yfth_direct_referral_rule_version', 'yfth_direct_referral_invite',
         'yfth_permanent_membership_event', 'yfth_permanent_membership', 'yfth_hq_active_referral_event',
         'yfth_hq_active_referral_current', 'yfth_hq_customer_attribution_event', 'yfth_hq_customer_attribution_current',
         'yfth_idempotency_record', 'yfth_audit_event', 'yfth_benefit_item', 'yfth_benefit_period',

@@ -99,6 +99,7 @@ try {
     $assert($accepted['changed'] && (int)$accepted['store_id'] === $storeId, 'c1_invites_c2_into_b1');
     $assert((int)Db::name('yfth_hq_active_referral_current')->where('referrer_uid', $memberUid)->where('referred_uid', $customerUid)->where('store_id', $storeId)->where('status', 'active')->count() === 1, 'direct_referral_persisted');
     $assert((int)Db::name('yfth_hq_customer_attribution_current')->where('uid', $customerUid)->where('store_id', $storeId)->where('status', 'active')->count() === 1, 'c2_attribution_persisted');
+    $assert((int)Db::name('yfth_customer_relation')->where('uid', $customerUid)->where('store_id', $storeId)->where('status', 'active')->count() === 1, 'c2_visible_in_store_customer_crm');
     $expect(function () use ($referral, $memberUid, $invite) {
         $referral->acceptInvite($memberUid, (string)$invite['invite_token'], ['idempotency_key' => 'fixture-self-scan-' . bin2hex(random_bytes(3))]);
     }, 'direct_referral_invite', 'self_scan_rejected');
@@ -110,6 +111,7 @@ try {
     $assert((int)Db::name('yfth_user_store_role')->where('store_id', $storeId)->where('status', 'active')->count() === 0, 'reset_revokes_test_roles');
     $assert((int)Db::name('yfth_hq_active_referral_current')->where('referred_uid', $customerUid)->where('status', 'active')->count() === 0, 'reset_closes_test_referral');
     $assert((int)Db::name('yfth_hq_customer_attribution_current')->where('uid', $customerUid)->where('status', 'active')->count() === 0, 'reset_closes_test_attribution');
+    $assert((int)Db::name('yfth_customer_relation')->where('uid', $customerUid)->where('status', 'active')->count() === 0, 'reset_disables_test_customer_projection');
     $assert((int)Db::name('yfth_permanent_membership')->where('uid', $memberUid)->where('status', 'active')->count() === 1, 'reset_preserves_immutable_membership_fact');
 
     $regenerated = $service->generate([

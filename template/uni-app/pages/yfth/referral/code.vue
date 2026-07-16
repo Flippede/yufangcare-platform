@@ -16,12 +16,13 @@
 			<block v-else>
 				<view class="panel code-panel">
 					<view v-if="inviteLink" class="qr-wrap">
-						<zb-code ref="qrcode" cid="yfth-referral-qr" :val="inviteLink" :size="390" :onval="true" :loadMake="true" foreground="#7b572c" />
+						<zb-code ref="qrcode" cid="yfth-referral-qr" :val="inviteLink" :size="390" :onval="true" :loadMake="true" foreground="#7b572c" @result="onQrReady" />
 					</view>
 					<view v-else class="qr-placeholder">推广码生成中</view>
 					<view class="expiry">有效期至 {{ expiryText }}，失效后可刷新生成</view>
 					<view class="actions">
 						<button @click="copyLink">复制邀请链接</button>
+						<button @click="saveQr">保存二维码</button>
 						<button class="primary" @click="issue">刷新推广码</button>
 					</view>
 					<button class="share-button" open-type="share">分享给好友</button>
@@ -46,7 +47,7 @@ import zbCode from '@/components/zb-code/zb-code.vue';
 
 export default {
 	components: { zbCode },
-	data() { return { loading: true, error: '', profile: {}, invite: {}, issuing: false }; },
+	data() { return { loading: true, error: '', profile: {}, invite: {}, issuing: false, qrImage: '' }; },
 	computed: {
 		isMember() { return Boolean(this.profile.membership && this.profile.membership.is_member); },
 		promotion() { return this.profile.promotion || {}; },
@@ -87,6 +88,23 @@ export default {
 				.finally(() => { this.issuing = false; });
 		},
 		copyLink() { if (this.inviteLink) uni.setClipboardData({ data: this.inviteLink }); },
+		onQrReady(value) { this.qrImage = String(value || ''); },
+		saveQr() {
+			if (!this.qrImage) return uni.showToast({ title: '二维码尚未生成', icon: 'none' });
+			// #ifdef H5
+			const anchor = document.createElement('a');
+			anchor.href = this.qrImage;
+			anchor.download = `御方通和推广码-${Date.now()}.png`;
+			document.body.appendChild(anchor);
+			anchor.click();
+			document.body.removeChild(anchor);
+			uni.showToast({ title: '二维码图片已保存或下载', icon: 'none' });
+			return;
+			// #endif
+			// #ifndef H5
+			if (this.$refs.qrcode && this.$refs.qrcode._saveCode) this.$refs.qrcode._saveCode();
+			// #endif
+		},
 		goPackage() { uni.navigateTo({ url: '/pages/yfth/package/list' }); },
 		goAttribution() { uni.navigateTo({ url: '/pages/yfth/authority/index' }); },
 		goRewards() { uni.navigateTo({ url: '/pages/yfth/referral/ledger' }); }

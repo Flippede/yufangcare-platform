@@ -111,6 +111,7 @@ class PackageMembershipServices extends YfthFoundationBaseServices
             if ((string)$existing['status'] !== 'active' || (int)$existing['store_id'] !== $storeId) {
                 throw new ApiException('permanent_membership_authority_conflict');
             }
+            $this->syncCustomerProjection($existing, $uid, 'customer', $sourceType, $requestId);
             return ['member' => $existing, 'created' => false];
         }
 
@@ -173,7 +174,131 @@ class PackageMembershipServices extends YfthFoundationBaseServices
             $sourceType,
             $requestId
         );
+        $this->syncCustomerProjection($member, $uid, 'customer', $sourceType, $requestId);
         return ['member' => $member, 'created' => true];
+    }
+
+    public function grantByHeadquarters(
+        int $uid,
+        int $storeId,
+        int $operatorUid,
+        string $reason,
+        string $requestId
+    ): array {
+        $reason = trim($reason);
+        $requestId = trim($requestId);
+        if ($uid <= 0 || $storeId <= 0 || $operatorUid <= 0 || $reason === '' || $requestId === '') {
+            throw new ApiException('headquarters_membership_grant_invalid');
+        }
+
+        return Db::transaction(function () use ($uid, $storeId, $operatorUid, $reason, $requestId) {
+            $sourceType = 'headquarters_membership_grant';
+            $source = HqAuthoritySource::fromTrusted($sourceType, $uid);
+            $mutation = new HqAuthorityMutation(
+                $source,
+                $operatorUid,
+                'headquarters_admin',
+                $reason,
+                $requestId,
+                'headquarters_membership_grant:' . $uid
+            );
+            $lockedCurrents = $this->attribution->lockCurrents([$uid]);
+            $attribution = $this->attribution->assignFirstWithLockedCurrentsInTransaction(
+                $uid,
+                $storeId,
+                $mutation,
+                $lockedCurrents
+            );
+            $existing = $this->row($this->dao->search([])->where('uid', $uid)->lock(true)->find());
+            if ($existing) {
+                if ((string)$existing['status'] !== 'active' || (int)$existing['store_id'] !== $storeId) {
+                    throw new ApiException('permanent_membership_authority_conflict');
+                }
+                $projection = $this->syncCustomerProjection(
+                    $existing,
+                    $operatorUid,
+                    'headquarters_admin',
+                    $reason,
+                    $requestId
+                );
+                return [
+                    'member' => $this->userDto($existing),
+                    'created' => false,
+                    'idempotent' => true,
+                    'attribution' => $attribution['after'],
+                    'customer_projection' => $projection,
+                ];
+            }
+
+            $now = time();
+            try {
+                $member = $this->dao->save([
+                    'membership_no' => $this->makeNo('YFPM'),
+                    'uid' => $uid,
+                    'store_id' => $storeId,
+                    'source_package_instance_id' => null,
+                    'source_purchase_id' => 0,
+                    'source_rule_version_id' => 0,
+                    'actual_paid_amount_cent' => 0,
+                    'currency' => 'CNY',
+                    'status' => 'active',
+                    'authority_version' => 1,
+                    'source_type' => $sourceType,
+                    'activated_at' => $now,
+                    'request_id' => substr($requestId, 0, 64),
+                    'add_time' => $now,
+                    'update_time' => $now,
+                ])->toArray();
+            } catch (\Throwable $e) {
+                if ($this->isUniqueConflict($e)) {
+                    throw new ApiException('permanent_membership_unique_conflict');
+                }
+                throw $e;
+            }
+            $this->eventDao->save([
+                'event_no' => $this->makeNo('YFPME'),
+                'membership_id' => (int)$member['id'],
+                'uid' => $uid,
+                'store_id' => $storeId,
+                'authority_version' => 1,
+                'event_type' => 'membership_granted_by_headquarters',
+                'source_type' => $sourceType,
+                'source_id' => (string)$uid,
+                'source_unique_key' => hash('sha256', 'membership|' . $sourceType . '|uid|' . $uid),
+                'actual_paid_amount_cent' => 0,
+                'operator_uid' => $operatorUid,
+                'operator_role_code' => 'headquarters_admin',
+                'request_id' => substr($requestId, 0, 64),
+                'add_time' => $now,
+            ]);
+            $this->audit->recordSafely(
+                self::DOMAIN,
+                'permanent_membership',
+                (string)$member['id'],
+                'membership_granted_by_headquarters',
+                [],
+                $this->userDto($member),
+                $operatorUid,
+                'headquarters_admin',
+                $storeId,
+                $reason,
+                $requestId
+            );
+            $projection = $this->syncCustomerProjection(
+                $member,
+                $operatorUid,
+                'headquarters_admin',
+                $reason,
+                $requestId
+            );
+            return [
+                'member' => $this->userDto($member),
+                'created' => true,
+                'idempotent' => false,
+                'attribution' => $attribution['after'],
+                'customer_projection' => $projection,
+            ];
+        });
     }
 
     public function adminList(array $where): array
@@ -297,7 +422,7 @@ class PackageMembershipServices extends YfthFoundationBaseServices
             'activated_at' => (int)$row['activated_at'],
             'actual_paid_amount_cent' => (int)$row['actual_paid_amount_cent'],
             'currency' => (string)$row['currency'],
-            'source' => 'package_activation',
+            'source' => (string)($row['source_type'] ?? 'package_activation'),
         ];
     }
 
@@ -330,6 +455,26 @@ class PackageMembershipServices extends YfthFoundationBaseServices
             throw new ApiException('money_snapshot_invalid');
         }
         return (int)$matches[1] * 100 + (int)str_pad($matches[2] ?? '', 2, '0');
+    }
+
+    private function syncCustomerProjection(
+        array $member,
+        int $operatorUid,
+        string $operatorRole,
+        string $reason,
+        string $requestId
+    ): array {
+        return app()->make(FranchiseCustomerServices::class)->syncAuthorityCustomerInTransaction(
+            (int)$member['uid'],
+            (int)$member['store_id'],
+            'permanent_membership',
+            (int)$member['id'],
+            0,
+            $operatorUid,
+            $operatorRole,
+            $reason,
+            $requestId
+        );
     }
 
     private function makeNo(string $prefix): string

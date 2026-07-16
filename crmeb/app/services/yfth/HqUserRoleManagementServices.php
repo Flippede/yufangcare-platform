@@ -11,6 +11,7 @@ use think\facade\Db;
 class HqUserRoleManagementServices
 {
     private const DOMAIN = 'yfth_user_role_management';
+    private const MEMBERSHIP_ROLE = 'permanent_member';
     private const ROLE_NAMES = [
         'franchisee' => '加盟商',
         'store_manager' => '店长',
@@ -106,10 +107,19 @@ class HqUserRoleManagementServices
         $reason = $this->reason($data);
         $requestId = $this->requestId($data);
         $this->user($uid);
+        app()->make(StoreAccessServices::class)->assertStoreActive($storeId);
+        if ($roleCode === self::MEMBERSHIP_ROLE) {
+            $result = $this->membership->grantByHeadquarters($uid, $storeId, $adminId, $reason, $requestId);
+            return [
+                'changed' => (bool)($result['created'] ?? false),
+                'idempotent' => (bool)($result['idempotent'] ?? false),
+                'membership' => (array)($result['member'] ?? []),
+                'attribution' => (array)($result['attribution'] ?? []),
+            ];
+        }
         if (!isset(self::ROLE_NAMES[$roleCode])) {
             throw new ApiException('user_store_role_code_invalid');
         }
-        app()->make(StoreAccessServices::class)->assertStoreActive($storeId);
 
         return Db::transaction(function () use ($uid, $storeId, $roleCode, $reason, $requestId, $adminId) {
             $existing = $this->roleRow($this->roles->search([])
@@ -195,6 +205,9 @@ class HqUserRoleManagementServices
         $roles = array_map(function ($row) {
             return $this->roleDto($row);
         }, $roleRows);
+        $franchiseeStores = array_values(array_filter($roles, function ($role) {
+            return (string)$role['role_code'] === 'franchisee' && (string)$role['status'] === YfthConstants::STATUS_ACTIVE;
+        }));
         $attribution = Db::name('yfth_hq_customer_attribution_current')->where('uid', $uid)->find() ?: [];
         $referral = Db::name('yfth_hq_active_referral_current')->where('referred_uid', $uid)->find() ?: [];
         $attributionStore = !empty($attribution['store_id']) ? $this->storeName((int)$attribution['store_id']) : '';
@@ -237,6 +250,10 @@ class HqUserRoleManagementServices
             ],
             'identities' => $this->identities->listUserIdentities($uid),
             'store_roles' => $roles,
+            'franchisee_identity' => [
+                'active' => count($franchiseeStores) > 0,
+                'stores' => $franchiseeStores,
+            ],
             'audit_events' => $auditEvents,
         ];
     }

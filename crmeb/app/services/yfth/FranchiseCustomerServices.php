@@ -19,6 +19,7 @@ class FranchiseCustomerServices extends YfthFoundationBaseServices
     private const STORE_ROLES = ['franchisee', 'store_manager', 'store_staff'];
     private const CUSTOMER_STATUSES = ['potential', 'leads', 'registered', 'purchased', 'serving', 'repeat', 'lost'];
     private const TRUSTED_ATTRIBUTION_SOURCES = ['order', 'appointment', 'writeoff'];
+    private const AUTHORITY_PROJECTION_SOURCES = ['direct_referral', 'permanent_membership', 'permanent_attribution'];
     private const FOLLOW_TYPES = ['phone', 'wechat', 'store_visit', 'other'];
 
     public function __construct(YfthCustomerRelationDao $dao)
@@ -67,6 +68,128 @@ class FranchiseCustomerServices extends YfthFoundationBaseServices
             ]), $scope);
             return ['relation' => $this->formatRelation($relation, true)];
         });
+    }
+
+    /**
+     * Projects an already-validated YFTH authority fact into the store CRM view.
+     * This method is intentionally not exposed as a client binding endpoint.
+     */
+    public function syncAuthorityCustomerInTransaction(
+        int $uid,
+        int $storeId,
+        string $source,
+        int $referenceId,
+        int $ownerUid,
+        int $operatorUid,
+        string $operatorRole,
+        string $reason,
+        string $requestId
+    ): array {
+        if ($uid <= 0 || $storeId <= 0 || $referenceId <= 0 || !in_array($source, self::AUTHORITY_PROJECTION_SOURCES, true)) {
+            throw new ApiException('customer_authority_projection_invalid');
+        }
+        app()->make(StoreAccessServices::class)->assertStoreActive($storeId);
+
+        $active = $this->row($this->dao->search([])->where('active_key', (string)$uid)->lock(true)->find());
+        if ($active) {
+            if ((int)$active['store_id'] !== $storeId) {
+                throw new ApiException('customer_relation_authority_conflict');
+            }
+            return ['changed' => false, 'relation' => $this->formatRelation($active, true)];
+        }
+
+        $now = time();
+        try {
+            $saved = $this->dao->save([
+                'uid' => $uid,
+                'store_id' => $storeId,
+                'owner_uid' => max(0, $ownerUid),
+                'source' => $source,
+                'reference_id' => $referenceId,
+                'customer_status' => 'registered',
+                'status' => YfthConstants::STATUS_ACTIVE,
+                'bind_time' => $now,
+                'create_time' => $now,
+                'update_time' => $now,
+                'active_key' => (string)$uid,
+            ]);
+        } catch (\Throwable $e) {
+            if (!$this->isUniqueConflict($e)) {
+                throw $e;
+            }
+            $active = $this->row($this->dao->search([])->where('active_key', (string)$uid)->lock(true)->find());
+            if (!$active || (int)$active['store_id'] !== $storeId) {
+                throw new ApiException('customer_relation_authority_conflict');
+            }
+            return ['changed' => false, 'relation' => $this->formatRelation($active, true)];
+        }
+
+        $relation = $this->row($saved);
+        app()->make(AuditEventServices::class)->recordSafely(
+            self::DOMAIN,
+            'customer_relation',
+            (string)$relation['id'],
+            'authority_projection',
+            [],
+            $this->sanitizeState($relation),
+            $operatorUid,
+            $operatorRole,
+            $storeId,
+            $reason,
+            $requestId
+        );
+        return ['changed' => true, 'relation' => $this->formatRelation($relation, true)];
+    }
+
+    public function backfillAuthorityCustomers(
+        int $storeId,
+        int $limit,
+        int $operatorUid,
+        string $reason,
+        string $requestId
+    ): array {
+        if ($operatorUid <= 0 || trim($reason) === '' || trim($requestId) === '') {
+            throw new ApiException('customer_authority_backfill_operator_required');
+        }
+        $limit = max(1, min(1000, $limit));
+        $query = Db::name('yfth_hq_customer_attribution_current')
+            ->where('status', 'active')->where('store_id', '>', 0)->order('id asc')->limit($limit);
+        if ($storeId > 0) {
+            $query->where('store_id', $storeId);
+        }
+        $rows = $query->field('id,uid,store_id')->select()->toArray();
+        $result = ['scanned' => count($rows), 'created' => 0, 'existing' => 0, 'failed' => 0, 'errors' => []];
+        foreach ($rows as $row) {
+            try {
+                $item = Db::transaction(function () use ($row, $operatorUid, $reason, $requestId) {
+                    $current = (array)Db::name('yfth_hq_customer_attribution_current')
+                        ->where('id', (int)$row['id'])->lock(true)->find();
+                    if (!$current || (string)($current['status'] ?? '') !== 'active') {
+                        throw new ApiException('customer_authority_backfill_current_changed');
+                    }
+                    app()->make(HqAuthorityConsistencyValidator::class)->assertAttribution($current, true);
+                    $referrerUid = (int)Db::name('yfth_hq_active_referral_current')
+                        ->where('referred_uid', (int)$current['uid'])->where('store_id', (int)$current['store_id'])
+                        ->where('status', 'active')->value('referrer_uid');
+                    return $this->syncAuthorityCustomerInTransaction(
+                        (int)$current['uid'],
+                        (int)$current['store_id'],
+                        'permanent_attribution',
+                        (int)$row['id'],
+                        $referrerUid,
+                        $operatorUid,
+                        'headquarters_admin',
+                        $reason,
+                        $requestId . ':' . (int)$row['id']
+                    );
+                });
+                $result[$item['changed'] ? 'created' : 'existing']++;
+            } catch (\Throwable $e) {
+                $result['failed']++;
+                $result['errors'][] = ['uid' => (int)$row['uid'], 'error' => substr($e->getMessage(), 0, 120)];
+            }
+        }
+        return $result;
     }
 
     public function customerList(Request $request, array $where): array
@@ -401,7 +524,7 @@ class FranchiseCustomerServices extends YfthFoundationBaseServices
     private function normalizeAttributionSource(string $source, bool $strict): string
     {
         $source = trim($source);
-        if (in_array($source, self::TRUSTED_ATTRIBUTION_SOURCES, true)) {
+        if (in_array($source, array_merge(self::TRUSTED_ATTRIBUTION_SOURCES, self::AUTHORITY_PROJECTION_SOURCES), true)) {
             return $source;
         }
         if ($strict) {
@@ -437,6 +560,9 @@ class FranchiseCustomerServices extends YfthFoundationBaseServices
             'appointment' => '预约',
             'writeoff' => '核销',
             'headquarters_assign' => '总部分配',
+            'direct_referral' => '一级推荐归属',
+            'permanent_membership' => '永久会员归属',
+            'permanent_attribution' => '权威归属同步',
         ];
         return $map[$source] ?? $source;
     }
@@ -450,5 +576,16 @@ class FranchiseCustomerServices extends YfthFoundationBaseServices
             'other' => '其他',
         ];
         return $map[$type] ?? $type;
+    }
+
+    private function row($row): array
+    {
+        return $row ? (is_array($row) ? $row : $row->toArray()) : [];
+    }
+
+    private function isUniqueConflict(\Throwable $e): bool
+    {
+        $message = strtolower($e->getMessage());
+        return strpos($message, 'duplicate') !== false || strpos($message, '1062') !== false || (string)$e->getCode() === '23000';
     }
 }

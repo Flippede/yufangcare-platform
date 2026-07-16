@@ -218,6 +218,10 @@ class HqAcceptanceFixtureServices
 
         Db::transaction(function () use ($fixture, $reason, $adminId, $adminInfo) {
             $this->closeTestReferral((int)$fixture['customer_uid'], $adminId, $reason);
+            Db::name('yfth_customer_relation')->where('uid', (int)$fixture['customer_uid'])
+                ->where('store_id', (int)$fixture['store_id'])->where('status', 'active')->update([
+                    'status' => 'disabled', 'active_key' => null, 'update_time' => time(),
+                ]);
             $this->expireTestInvites((int)$fixture['member_uid']);
             foreach (['franchisee_uid', 'manager_uid', 'staff_uid'] as $field) {
                 $rows = Db::name('yfth_user_store_role')

@@ -37,6 +37,12 @@ try {
 
     $uid = 970001; $storeA = 9701; $storeB = 9702; $now = time();
     Db::name('yfth_audit_event')->where('business_domain', 'yfth_user_role_management')->delete();
+    Db::name('yfth_audit_event')->where('business_domain', 'yfth_package_membership_referral')->where('operator_uid', 1)->delete();
+    Db::name('yfth_customer_relation')->where('uid', $uid)->delete();
+    Db::name('yfth_permanent_membership_event')->where('uid', $uid)->delete();
+    Db::name('yfth_permanent_membership')->where('uid', $uid)->delete();
+    Db::name('yfth_hq_customer_attribution_event')->where('uid', $uid)->delete();
+    Db::name('yfth_hq_customer_attribution_current')->where('uid', $uid)->delete();
     Db::name('yfth_user_store_role')->where('uid', $uid)->delete();
     Db::name('user')->where('uid', $uid)->delete();
     Db::name('system_store')->whereIn('id', [$storeA, $storeB])->delete();
@@ -70,6 +76,7 @@ try {
     $grantStaff = $service->grant($uid, ['store_id' => $storeA, 'role_code' => 'store_staff', 'reason' => 'isolated grant staff', 'request_id' => 'role-grant-staff'], 1, $hq);
     $assert($grantA['changed'] && $grantB['changed'] && $grantStaff['changed'], 'headquarters_grants_three_store_roles');
     $assert((int)Db::name('yfth_user_store_role')->where('uid', $uid)->where('status', 'active')->count() === 3, 'multiple_store_roles_coexist');
+    $assert($membershipBefore === (int)Db::name('yfth_permanent_membership')->where('uid', $uid)->count(), 'operating_role_grants_do_not_create_membership');
     $summaries = $service->summaries([$uid], $hq);
     $assert(count($summaries[$uid]['store_roles'] ?? []) === 3, 'native_user_list_receives_yfth_role_summary');
     $replay = $service->grant($uid, ['store_id' => $storeA, 'role_code' => 'franchisee', 'reason' => 'isolated replay', 'request_id' => 'role-grant-a-replay'], 1, $hq);
@@ -84,6 +91,27 @@ try {
     }, 'store_not_active', 'inactive_store_role_rejected');
     Db::name('system_store')->where('id', $storeB)->update(['is_show' => 1]);
 
+    $membershipGrant = $service->grant($uid, [
+        'store_id' => $storeA,
+        'role_code' => 'permanent_member',
+        'reason' => 'isolated headquarters membership grant',
+        'request_id' => 'membership-grant-a',
+    ], 1, $hq);
+    $assert($membershipGrant['changed'] && !$membershipGrant['idempotent'], 'headquarters_grants_permanent_membership');
+    $assert((int)Db::name('yfth_permanent_membership')->where('uid', $uid)->where('store_id', $storeA)->where('status', 'active')->count() === 1, 'permanent_membership_authority_persisted');
+    $assert((int)Db::name('yfth_hq_customer_attribution_current')->where('uid', $uid)->where('store_id', $storeA)->where('status', 'active')->count() === 1, 'membership_grant_assigns_authoritative_store');
+    $assert((int)Db::name('yfth_customer_relation')->where('uid', $uid)->where('store_id', $storeA)->where('status', 'active')->count() === 1, 'membership_grant_projects_store_customer');
+    $membershipReplay = $service->grant($uid, [
+        'store_id' => $storeA,
+        'role_code' => 'permanent_member',
+        'reason' => 'isolated membership replay',
+        'request_id' => 'membership-grant-a-replay',
+    ], 1, $hq);
+    $assert(!$membershipReplay['changed'] && $membershipReplay['idempotent'], 'duplicate_membership_grant_is_idempotent');
+    $expect(function () use ($service, $uid, $storeA, $storeAdmin) {
+        $service->grant($uid, ['store_id' => $storeA, 'role_code' => 'permanent_member', 'reason' => 'forbidden membership escalation'], 9709, $storeAdmin);
+    }, 'headquarter_permission_required', 'store_admin_cannot_grant_membership');
+
     $revoked = $service->revoke((int)$grantStaff['role']['id'], ['reason' => 'isolated revoke', 'request_id' => 'role-revoke-staff'], 1, $hq);
     $assert($revoked['changed'] && (string)$revoked['role']['status'] === 'disabled', 'headquarters_revokes_store_role');
     $assert((int)Db::name('yfth_user_store_role')->where('uid', $uid)->where('status', 'active')->count() === 2, 'revoke_preserves_other_store_roles');
@@ -93,7 +121,7 @@ try {
     $assetAfter = Db::name('user')->where('uid', $uid)->field('now_money,integral')->find();
     $assert($assetBefore === $assetAfter, 'role_changes_do_not_write_crmeb_assets');
     $assert($identityBefore === (int)Db::name('yfth_user_identity')->where('uid', $uid)->count(), 'customer_identity_is_not_overwritten');
-    $assert($membershipBefore === (int)Db::name('yfth_permanent_membership')->where('uid', $uid)->count(), 'membership_is_not_overwritten');
+    $assert((int)Db::name('yfth_permanent_membership')->where('uid', $uid)->count() === 1, 'membership_grant_keeps_single_authority');
     $assert((int)Db::name('yfth_audit_event')->where('business_domain', 'yfth_user_role_management')->where('action', 'grant')->count() === 3, 'grant_audit_written');
     $assert((int)Db::name('yfth_audit_event')->where('business_domain', 'yfth_user_role_management')->where('action', 'revoke')->count() === 1, 'revoke_audit_written');
 } catch (Throwable $e) {

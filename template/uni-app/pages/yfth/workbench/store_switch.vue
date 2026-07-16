@@ -14,15 +14,15 @@
 </template>
 
 <script>
-import { currentContext, isBusinessRole, loadYfthIdentities, switchYfthStore } from '@/libs/yfthContext.js';
+import { currentContext, isBusinessRole, loadYfthIdentities, switchYfthRole } from '@/libs/yfthContext.js';
 
 export default {
 	data() {
-		return { loading: true, context: {}, identities: [] };
+		return { loading: true, context: {}, identities: [], requestedRole: '' };
 	},
 	computed: {
 		stores() {
-			const role = this.context.role_code;
+			const role = this.requestedRole || this.context.role_code;
 			const map = {};
 			this.identities.filter((item) => item.role_code === role && item.store_id).forEach((item) => {
 				map[item.store_id] = item;
@@ -30,9 +30,12 @@ export default {
 			return Object.keys(map).map((key) => map[key]);
 		}
 	},
+	onLoad(options) {
+		this.requestedRole = String((options && options.role_code) || '');
+	},
 	onShow() {
 		this.context = currentContext();
-		if (!isBusinessRole(this.context.role_code)) {
+		if (!isBusinessRole(this.requestedRole || this.context.role_code)) {
 			uni.reLaunch({ url: '/pages/index/index' });
 			return;
 		}
@@ -47,7 +50,7 @@ export default {
 	},
 	methods: {
 		choose(item) {
-			switchYfthStore(item.store_id).then(() => {
+			switchYfthRole(this.requestedRole || item.role_code, item.store_id).then(() => {
 				uni.redirectTo({ url: '/pages/yfth/workbench/index' });
 			}).catch((err) => {
 				uni.showToast({ title: String((err && err.msg) || err), icon: 'none' });
