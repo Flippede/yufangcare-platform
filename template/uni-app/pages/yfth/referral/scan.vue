@@ -1,7 +1,18 @@
 <template>
 	<view class="scanner-page">
 		<!-- #ifdef H5 -->
-		<video id="yfth-referral-camera" class="camera-view" autoplay muted playsinline></video>
+		<video
+			id="yfth-referral-camera"
+			class="camera-view"
+			autoplay
+			muted
+			playsinline
+			:controls="false"
+			:show-center-play-btn="false"
+			:show-progress="false"
+			:enable-progress-gesture="false"
+			object-fit="cover"
+		></video>
 		<!-- #endif -->
 		<view class="camera-shade"></view>
 		<view class="scanner-header" :style="{ paddingTop: safeTop + 'px' }">
