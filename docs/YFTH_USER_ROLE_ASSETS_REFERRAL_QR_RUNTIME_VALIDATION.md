@@ -1,5 +1,13 @@
 # YFTH User Role Assets And Referral QR V1 Runtime Validation
 
+## Admin user-role navigation production hotfix - 2026-07-16
+
+- Root cause: `template/admin/src/pages/user/list/index.vue` used `/yfth/user-role` as an absolute path, escaping the Admin `/admin` route prefix and loading the customer shell.
+- The user-list action now uses the registered `yfth_user_role` route name. The production bundle contains the named route and no longer contains the obsolete absolute path.
+- `npm run build` completed with the project's existing CSS-order and Browserslist warnings. The rebuilt Admin output was deployed after backup `/www/backups/yfth-admin-user-role-20260716-153030`.
+- Production PHP 7.4 syntax and `yfth_user_role_assets_referral_contract_check.php` passed. A real authenticated browser click opened `/admin/yfth/user-role?uid=13` and rendered the role-management page, fixture panel, and UID 13 data instead of a blank page.
+- No migration, database write, customer-side bundle, production configuration, payment, SMS, or WeChat operation was performed.
+
 ## Final production login, identity and referral closure - 2026-07-16
 
 - Production business release commit: `0268395bab2ba78bcb908abaf626757958267a00`; URL: `https://yfth.top`; backup: `/www/backup/yfth-user-login-identity-referral-20260716-114210`.

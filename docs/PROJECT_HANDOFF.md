@@ -1,5 +1,13 @@
 # 项目交接文档
 
+## Current Fact Snapshot - Admin User Role Navigation Hotfix
+
+- Production `https://yfth.top` runs hotfix commit `4f3aa4222b830507028eedeab06aaf0e2621f739` from the preserved branch `codex/yfth-user-role-assets-referral-code-v1`; stable `main` was not changed or merged.
+- Root cause: the native Admin user list navigated to the absolute customer-shell path `/yfth/user-role`, which omitted the configured `/admin` route prefix and rendered a blank customer application shell.
+- The action now navigates through the registered Admin route name `yfth_user_role`, preserving the `/admin/yfth/user-role?uid=<uid>` path and existing query parameter.
+- The production Admin bundle was rebuilt and replaced after backup `/www/backups/yfth-admin-user-role-20260716-153030`. The PHP contract check and a real browser click from the user list to UID 13 passed; the role-management, fixture, and user data sections rendered normally.
+- No database, migration, `.env`, upload, OSS, SMS, WeChat, payment, product, order, or customer data was changed.
+
 ## Current Fact Snapshot - Final User Login Identity And Referral Production Closure
 
 - Production `https://yfth.top` runs business release commit `0268395bab2ba78bcb908abaf626757958267a00` from the preserved branch `codex/yfth-user-role-assets-referral-code-v1`; stable `main` remains `cf58036638a1d53d7a29c6aa41a79ae52a37c4a5` and was not merged or changed in this stage.
