@@ -90,6 +90,7 @@ export default {
 			scanCanvas: null,
 			lastScanAt: 0,
 			nativeScannerOpened: false,
+			h5FilePicker: null,
 			safeTop: 20,
 			safeBottom: 0
 		};
@@ -114,8 +115,8 @@ export default {
 	onReady() {
 		this.$nextTick(() => this.scan());
 	},
-	onUnload() { this.stopCamera(); },
-	onHide() { this.stopCamera(); },
+	onUnload() { this.stopCamera(); this.cleanupH5FilePicker(); },
+		onHide() { this.stopCamera(); },
 	methods: {
 		scan() {
 			// #ifdef MP-WEIXIN
@@ -180,6 +181,10 @@ export default {
 			if (this.cameraActive) this.animationFrame = window.requestAnimationFrame(() => this.detectLoop(video));
 		},
 		chooseQrImage() {
+			// #ifdef H5
+			this.chooseH5QrImage();
+			return;
+			// #endif
 			uni.chooseImage({ count: 1, sourceType: ['album'], success: (res) => {
 				const path = res.tempFilePaths && res.tempFilePaths[0];
 				if (!path) return this.toast('未选择二维码图片');
@@ -188,6 +193,41 @@ export default {
 					this.consume(value);
 				}).catch(() => this.toast('图片中未识别到有效推广二维码'));
 			} });
+		},
+		chooseH5QrImage() {
+			if (typeof document === 'undefined') return this.toast('当前浏览器无法读取相册');
+			this.cleanupH5FilePicker();
+			const picker = document.createElement('input');
+			picker.type = 'file';
+			picker.accept = 'image/png,image/jpeg,image/webp,image/gif';
+			picker.multiple = false;
+			picker.setAttribute('aria-label', '选择二维码图片');
+			picker.style.position = 'fixed';
+			picker.style.left = '-9999px';
+			picker.style.bottom = '0';
+			picker.style.width = '1px';
+			picker.style.height = '1px';
+			picker.style.opacity = '0';
+			this.h5FilePicker = picker;
+			picker.addEventListener('change', () => {
+				const file = picker.files && picker.files[0];
+				this.cleanupH5FilePicker();
+				if (!file) return;
+				if (!/^image\//i.test(String(file.type || ''))) return this.toast('请选择二维码图片');
+				const objectUrl = window.URL.createObjectURL(file);
+				this.loadImage(objectUrl).then((image) => this.decodeQrSource(image)).then((value) => {
+					if (!value) throw new Error('qr_not_found');
+					this.consume(value);
+				}).catch(() => this.toast('图片中未识别到有效推广二维码')).finally(() => {
+					window.URL.revokeObjectURL(objectUrl);
+				});
+			});
+			document.body.appendChild(picker);
+			picker.click();
+		},
+		cleanupH5FilePicker() {
+			if (this.h5FilePicker && this.h5FilePicker.parentNode) this.h5FilePicker.parentNode.removeChild(this.h5FilePicker);
+			this.h5FilePicker = null;
 		},
 		decodeQrSource(source) {
 			if (this.detector && this.detector.detect) {

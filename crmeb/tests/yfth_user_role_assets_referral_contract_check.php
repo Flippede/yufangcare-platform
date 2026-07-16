@@ -98,6 +98,9 @@ $assert(strpos($scanPage, 'onlyFromCamera: false') !== false, 'native_scanner_al
 $assert(strpos($scanPage, 'onReady()') !== false && strpos($scanPage, 'this.scan()') !== false, 'referral_scanner_opens_immediately');
 $assert(strpos($scanPage, 'class="camera-view"') !== false && strpos($scanPage, 'class="scanner-footer"') !== false, 'h5_scanner_uses_fullscreen_camera_surface');
 $assert(strpos($scanPage, ':controls="false"') !== false && strpos($scanPage, ':show-center-play-btn="false"') !== false, 'h5_scanner_hides_media_playback_controls');
+$assert(strpos($scanPage, "document.createElement('input')") !== false && strpos($scanPage, "picker.type = 'file'") !== false, 'h5_album_uses_native_file_picker');
+$assert(strpos($scanPage, "picker.accept = 'image/png,image/jpeg,image/webp,image/gif'") !== false, 'h5_album_picker_accepts_qr_images');
+$assert(strpos($scanPage, 'window.URL.createObjectURL(file)') !== false && strpos($scanPage, 'window.URL.revokeObjectURL(objectUrl)') !== false, 'h5_album_file_lifecycle_is_bounded');
 $assert(strpos($userPage, 'iconfont icon-saoma') !== false, 'user_center_exposes_top_scan_icon');
 $assert(strpos($userPage, 'class="referral-scan-entry"') === false, 'user_center_removes_large_referral_scan_card');
 $assert(strpos($codePage, 'saveQr') !== false && strpos($codePage, '_saveCode') !== false, 'promotion_qr_can_be_saved_to_device');
