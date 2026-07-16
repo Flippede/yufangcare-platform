@@ -31,6 +31,7 @@ $acceptPage = (string)file_get_contents(dirname($root) . '/template/uni-app/page
 $scanPage = (string)file_get_contents(dirname($root) . '/template/uni-app/pages/yfth/referral/scan.vue');
 $roleSwitchPage = (string)file_get_contents(dirname($root) . '/template/uni-app/pages/yfth/workbench/role_switch.vue');
 $pages = (string)file_get_contents(dirname($root) . '/template/uni-app/pages.json');
+$nativeUserPage = (string)file_get_contents(dirname($root) . '/template/admin/src/pages/user/list/index.vue');
 
 foreach (['assertHeadquarters', 'assertHeadquarterScope', 'UserStoreRoleServices', 'YfthUserStoreRoleDao', "'grant'", "'revoke'", 'user_store_role_reason_required', 'AuditEventServices'] as $needle) {
     $assert(strpos($service, $needle) !== false, 'role_service_contains:' . $needle);
@@ -63,9 +64,11 @@ $assert(strpos($controller . $route, 'yfth/user_role/fixture/password/reset') !=
 $assert(strpos($fixtureService, 'temporary_passwords_once') !== false, 'fixture_password_reset_is_one_time_response');
 $assert(strpos($fixtureService, 'yfth_stg_b1_franchisee') !== false && strpos($fixtureService, 'yfth_stg_c2_customer') !== false, 'fixture_uses_stable_staging_accounts');
 $assert(strpos((string)file_get_contents($root . '/app/adminapi/controller/v1/user/User.php'), 'HqUserRoleManagementServices') !== false, 'native_user_list_uses_yfth_summary');
-$assert(strpos((string)file_get_contents($root . '/../template/admin/src/pages/user/list/index.vue'), '御方通和套餐会员') !== false, 'native_user_list_shows_yfth_membership');
-$assert(strpos((string)file_get_contents($root . '/../template/admin/src/pages/user/list/index.vue'), '永久归属门店') !== false, 'native_user_list_shows_attribution');
-$assert(strpos((string)file_get_contents($root . '/../template/admin/src/pages/user/list/index.vue'), '管理经营身份') !== false, 'native_user_list_links_role_management');
+$assert(strpos($nativeUserPage, '御方通和套餐会员') !== false, 'native_user_list_shows_yfth_membership');
+$assert(strpos($nativeUserPage, '永久归属门店') !== false, 'native_user_list_shows_attribution');
+$assert(strpos($nativeUserPage, '管理经营身份') !== false, 'native_user_list_links_role_management');
+$assert(strpos($nativeUserPage, "name: 'yfth_user_role'") !== false, 'native_user_list_uses_admin_named_route');
+$assert(strpos($nativeUserPage, "path: '/yfth/user-role'") === false, 'native_user_list_does_not_escape_admin_route_base');
 $assert(strpos($adminPage, '生成或补齐完整测试门店与账号') !== false, 'admin_page_exposes_fixture_action');
 $assert(strpos($adminPage, 'yfthUserRoleGrant') !== false && strpos($adminPage, 'yfthUserRoleRevoke') !== false, 'admin_page_uses_real_role_api');
 $assert(strpos($adminPage, '操作原因') !== false, 'admin_page_requires_reason');

@@ -950,7 +950,7 @@ export default {
       }
     },
     manageYfthRole(row) {
-      this.$router.push({ path: '/yfth/user-role', query: { uid: row.uid } });
+      this.$router.push({ name: 'yfth_user_role', query: { uid: row.uid } });
     },
     openYfthDetail(row) {
       yfthUserRoleDetail(row.uid).then((res) => {
