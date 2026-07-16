@@ -1,5 +1,12 @@
 # YFTH User Role Assets And Referral QR V1 Runtime Validation
 
+## Fullscreen referral scanner production closure - 2026-07-16
+
+- Feature commit `c635afd` is deployed at `https://yfth.top`; backup `/www/backup/yfth-fullscreen-referral-scan-20260716-202201` and release `/www/releases/yfth-fullscreen-referral-scan-20260716-202201` are retained.
+- Real browser verification found the top profile scan icon, no legacy member scan card, successful navigation to the full-screen scanner, hidden video playback controls, and visible album/invite fallback controls. The deployed H5 contains one current referral-scan chunk and no old `打开摄像头扫码` string.
+- HTTP checks for home and scan routes returned 200 and Nginx configuration/reload passed. The automated browser did not expose a physical camera, so optical QR recognition remains a device acceptance item. The mp-weixin build was retained as a release artifact and was not uploaded to WeChat.
+- Production database, `.env`, uploads, OSS, SMS, WeChat, payment, products, orders, identity, attribution, and referral facts were unchanged.
+
 ## Fullscreen referral scanner validation - 2026-07-16
 
 - The customer center exposes scanning as a profile-header icon and no longer renders the large referral-scan card in the member section.

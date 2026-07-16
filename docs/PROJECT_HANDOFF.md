@@ -1,5 +1,13 @@
 # 项目交接文档
 
+## Current Fact Snapshot - Fullscreen Referral Scanner Production Closure
+
+- Production `https://yfth.top` now serves the fullscreen referral-scanner release from feature commit `c635afd`; stable `main` was not merged or changed.
+- The large member-section scan card was removed. A compact scan icon is now placed in the customer profile header before settings and messages, and its real production click opens `/pages/yfth/referral/scan`.
+- H5 opens a full-height camera surface automatically with no media playback controls, a centered scan frame, explicit back action, bottom album QR picker, and compact invite-code fallback. mp-weixin was compiled with native `uni.scanCode` and album selection enabled, but was not uploaded to WeChat.
+- Production browser checks found one top scan icon, zero legacy scan cards, a full-screen scanner DOM, hidden video controls, and no old `打开摄像头扫码` bundle string. The automated browser had no physical camera device, so no optical scan is claimed.
+- Pre-release backup: `/www/backup/yfth-fullscreen-referral-scan-20260716-202201`; retained release artifacts: `/www/releases/yfth-fullscreen-referral-scan-20260716-202201`. No database, `.env`, uploads, OSS, SMS, WeChat, payment certificate, product, order, or referral fact was changed.
+
 ## Current Fact Snapshot - Fullscreen Referral Scanner Development Closure
 
 - The preserved feature branch `codex/yfth-user-role-assets-referral-code-v1` replaces the customer-center referral-scan card with a compact scan icon placed before settings and messages in the profile header.
