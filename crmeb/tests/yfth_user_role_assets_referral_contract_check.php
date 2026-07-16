@@ -21,6 +21,7 @@ $controller = $read('app/adminapi/controller/v1/yfth/HqUserRole.php');
 $route = $read('app/adminapi/route/yfth.php');
 $migration = $read('database/migrations/20260718100000_add_yfth_user_role_management_permissions.php');
 $fixtureMigration = $read('database/migrations/20260718110000_create_yfth_acceptance_fixture.php');
+$passwordMigration = $read('database/migrations/20260718120000_add_yfth_acceptance_password_reset_permission.php');
 $fixtureService = $read('app/services/yfth/HqAcceptanceFixtureServices.php');
 $membership = $read('app/services/yfth/PackageMembershipReferralServices.php');
 $adminPage = (string)file_get_contents(dirname($root) . '/template/admin/src/pages/yfth/userRole/index.vue');
@@ -48,6 +49,7 @@ foreach (['yfth-user-role-management-index', 'yfth-user-role-management-list', '
 foreach (['yfth-user-role-management-fixture-read', 'yfth-user-role-management-fixture-generate', 'yfth-user-role-management-fixture-reset'] as $auth) {
     $assert(strpos($fixtureMigration, $auth) !== false, 'fixture_permission_exists:' . $auth);
 }
+$assert(strpos($passwordMigration, 'yfth-user-role-management-fixture-password-reset') !== false, 'fixture_password_reset_permission_exists');
 foreach (['acceptance_fixture_enabled', 'assertHeadquarterScope', 'YFTH-ACCEPTANCE-TEST-V1', '0600', 'acceptance_fixture_user_marker_invalid'] as $needle) {
     $assert(strpos($fixtureService, $needle) !== false, 'controlled_fixture_contains:' . $needle);
 }
@@ -57,6 +59,13 @@ $assert(strpos($fixtureService, 'Db::name(\'user\')->delete') === false, 'fixtur
 $assert(strpos($fixtureService, 'Db::name(\'system_store\')->delete') === false, 'fixture_reset_does_not_delete_store');
 $assert(strpos($controller . $route, 'yfth/user_role/fixture/generate') !== false, 'fixture_generate_route_protected');
 $assert(strpos($controller . $route, 'yfth/user_role/fixture/reset') !== false, 'fixture_reset_route_protected');
+$assert(strpos($controller . $route, 'yfth/user_role/fixture/password/reset') !== false, 'fixture_password_reset_route_protected');
+$assert(strpos($fixtureService, 'temporary_passwords_once') !== false, 'fixture_password_reset_is_one_time_response');
+$assert(strpos($fixtureService, 'yfth_stg_b1_franchisee') !== false && strpos($fixtureService, 'yfth_stg_c2_customer') !== false, 'fixture_uses_stable_staging_accounts');
+$assert(strpos((string)file_get_contents($root . '/app/adminapi/controller/v1/user/User.php'), 'HqUserRoleManagementServices') !== false, 'native_user_list_uses_yfth_summary');
+$assert(strpos((string)file_get_contents($root . '/../template/admin/src/pages/user/list/index.vue'), '御方通和套餐会员') !== false, 'native_user_list_shows_yfth_membership');
+$assert(strpos((string)file_get_contents($root . '/../template/admin/src/pages/user/list/index.vue'), '永久归属门店') !== false, 'native_user_list_shows_attribution');
+$assert(strpos((string)file_get_contents($root . '/../template/admin/src/pages/user/list/index.vue'), '管理经营身份') !== false, 'native_user_list_links_role_management');
 $assert(strpos($adminPage, '生成或补齐完整测试门店与账号') !== false, 'admin_page_exposes_fixture_action');
 $assert(strpos($adminPage, 'yfthUserRoleGrant') !== false && strpos($adminPage, 'yfthUserRoleRevoke') !== false, 'admin_page_uses_real_role_api');
 $assert(strpos($adminPage, '操作原因') !== false, 'admin_page_requires_reason');

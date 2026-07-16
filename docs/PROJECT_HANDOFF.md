@@ -1,5 +1,14 @@
 # 项目交接文档
 
+## Current Fact Snapshot - User Login Identity And Referral Closure Development
+
+- Current branch: `codex/yfth-user-role-assets-referral-code-v1`, based on stable `main` / `origin/main` `cf58036638a1d53d7a29c6aa41a79ae52a37c4a5`. This snapshot does not claim a main merge.
+- The H5 account-login surface now accepts the existing CRMEB account field up to 32 characters, keeps SMS login unchanged, shows an explicit loading state, and surfaces backend or post-login user-loading errors instead of silently doing nothing.
+- The native headquarters user list now presents YFTH package membership, permanent attribution, active one-level referral, store-scoped operating identities, CRMEB mall balance, and CRMEB points. Legacy CRMEB paid-member/distribution/superior-user actions are hidden from this product surface; their underlying CRMEB tables and services were not deleted.
+- `御方通和 / 用户经营身份` remains the visible headquarters-only role-management surface. The controlled fixture uses the stable `yfth_stg_*` acceptance accounts, preserves immutable history, rotates a fresh C2 behind the stable public test account, and can reset temporary passwords with a reason. Passwords are returned once to the authorized headquarters operator and persisted only in the configured mode-0600 private file.
+- Isolated MySQL Community 8.0.46 real flows passed for five CRMEB account-password logins, fixture idempotency, headquarters role grant/revoke, store-side escalation denial, multi-store roles, audit, C1-to-C2 invitation, self-scan rejection, immutable-history preservation, and fresh-C2 rotation. Admin, H5, and mp-weixin production builds passed with existing non-blocking warnings.
+- No production payment, SMS, WeChat authorization, WeChat upload, automatic payout, multi-level referral, or CRMEB balance/points reward credit was added or executed. Production deployment evidence must be read from a later operational snapshot after controlled release.
+
 ## Current Fact Snapshot - Role Test Data And Referral Scan Production Acceptance
 
 - Production `https://yfth.top` now runs feature commit `5a36968fb121ac3bf9ce324103cb3954ad2af003` from the preserved branch `codex/yfth-user-role-assets-referral-code-v1`; stable `main` remains unchanged and this feature is not merged.

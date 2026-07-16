@@ -62,7 +62,7 @@ class HqUserRoleManagementServices
             });
         }
         $count = (clone $query)->count();
-        $rows = $query->field('uid,nickname,avatar,phone,account,status')->page($page, $limit)->order('uid desc')->select()->toArray();
+        $rows = $query->field('uid,nickname,avatar,phone,account,status,now_money,integral')->page($page, $limit)->order('uid desc')->select()->toArray();
         foreach ($rows as &$row) {
             $row = $this->userDto($row, false);
         }
@@ -78,6 +78,24 @@ class HqUserRoleManagementServices
     {
         $this->assertHeadquarters($adminInfo);
         return $this->userDto($this->user($uid), true);
+    }
+
+    public function summaries(array $uids, array $adminInfo): array
+    {
+        $this->assertHeadquarters($adminInfo);
+        $uids = array_values(array_unique(array_filter(array_map('intval', $uids))));
+        if (!$uids) {
+            return [];
+        }
+        $rows = $this->users->search([])->whereIn('uid', $uids)
+            ->field('uid,nickname,avatar,phone,account,status,now_money,integral,is_del')->select()->toArray();
+        $result = [];
+        foreach ($rows as $row) {
+            if ((int)($row['is_del'] ?? 0) === 0) {
+                $result[(int)$row['uid']] = $this->userDto($row, false);
+            }
+        }
+        return $result;
     }
 
     public function grant(int $uid, array $data, int $adminId, array $adminInfo): array
@@ -177,6 +195,22 @@ class HqUserRoleManagementServices
         $roles = array_map(function ($row) {
             return $this->roleDto($row);
         }, $roleRows);
+        $attribution = Db::name('yfth_hq_customer_attribution_current')->where('uid', $uid)->find() ?: [];
+        $referral = Db::name('yfth_hq_active_referral_current')->where('referred_uid', $uid)->find() ?: [];
+        $attributionStore = !empty($attribution['store_id']) ? $this->storeName((int)$attribution['store_id']) : '';
+        $referrer = !empty($referral['referrer_uid'])
+            ? $this->users->get((int)$referral['referrer_uid'], ['uid', 'nickname', 'account'])
+            : null;
+        $referrer = $referrer ? (is_array($referrer) ? $referrer : $referrer->toArray()) : [];
+        $auditEvents = [];
+        if ($includeHistory && $roleRows) {
+            $auditEvents = Db::name('yfth_audit_event')
+                ->where('business_domain', self::DOMAIN)
+                ->where('object_type', 'user_store_role')
+                ->whereIn('object_id', array_map('strval', array_column($roleRows, 'id')))
+                ->field('id,action,operator_uid,role_code,store_id,reason,add_time')
+                ->order('id desc')->limit(100)->select()->toArray();
+        }
         return [
             'uid' => $uid,
             'nickname' => (string)($user['nickname'] ?? ''),
@@ -187,8 +221,23 @@ class HqUserRoleManagementServices
             'customer' => true,
             'permanent_member' => (bool)$membership['is_member'],
             'membership' => $membership['is_member'] ? $membership['member'] : null,
+            'mall_balance' => (string)($user['now_money'] ?? '0.00'),
+            'mall_integral' => (string)($user['integral'] ?? '0'),
+            'attribution' => [
+                'status' => (string)($attribution['status'] ?? 'unassigned'),
+                'store_id' => (int)($attribution['store_id'] ?? 0),
+                'store_name' => $attributionStore,
+                'source_type' => (string)($attribution['source_type'] ?? ''),
+            ],
+            'referral' => [
+                'status' => (string)($referral['status'] ?? 'none'),
+                'store_id' => (int)($referral['store_id'] ?? 0),
+                'store_name' => !empty($referral['store_id']) ? $this->storeName((int)$referral['store_id']) : '',
+                'referrer_name' => (string)($referrer['nickname'] ?? $referrer['account'] ?? ''),
+            ],
             'identities' => $this->identities->listUserIdentities($uid),
             'store_roles' => $roles,
+            'audit_events' => $auditEvents,
         ];
     }
 
@@ -225,7 +274,7 @@ class HqUserRoleManagementServices
 
     private function user(int $uid): array
     {
-        $row = $uid > 0 ? $this->users->get($uid, ['uid', 'nickname', 'avatar', 'phone', 'account', 'status', 'is_del']) : null;
+        $row = $uid > 0 ? $this->users->get($uid, ['uid', 'nickname', 'avatar', 'phone', 'account', 'status', 'is_del', 'now_money', 'integral']) : null;
         $row = $row ? (is_array($row) ? $row : $row->toArray()) : [];
         if (!$row || (int)($row['is_del'] ?? 0) !== 0) {
             throw new ApiException('user_not_found');
@@ -261,5 +310,13 @@ class HqUserRoleManagementServices
     private function roleRow($row): array
     {
         return $row ? (is_array($row) ? $row : $row->toArray()) : [];
+    }
+
+    private function storeName(int $storeId): string
+    {
+        if ($storeId <= 0) {
+            return '';
+        }
+        return (string)($this->stores->value(['id' => $storeId], 'name') ?: '');
     }
 }

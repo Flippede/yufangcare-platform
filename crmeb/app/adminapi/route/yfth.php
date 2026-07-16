@@ -178,6 +178,7 @@ Route::group('yfth', function () {
         Route::get('fixture', 'v1.yfth.HqUserRole/fixture')->option(['real_name' => '总部查看受控验收测试数据']);
         Route::post('fixture/generate', 'v1.yfth.HqUserRole/generateFixture')->option(['real_name' => '总部生成受控验收测试数据']);
         Route::post('fixture/reset', 'v1.yfth.HqUserRole/resetFixture')->option(['real_name' => '总部重置受控验收测试数据']);
+        Route::post('fixture/password/reset', 'v1.yfth.HqUserRole/resetFixturePasswords')->option(['real_name' => '总部重置受控验收测试账号密码']);
         Route::get('user', 'v1.yfth.HqUserRole/users')->option(['real_name' => '总部用户经营身份列表']);
         Route::get('user/:uid', 'v1.yfth.HqUserRole/detail')->option(['real_name' => '总部用户经营身份详情']);
         Route::post('user/:uid/grant', 'v1.yfth.HqUserRole/grant')->option(['real_name' => '总部授予用户经营身份']);

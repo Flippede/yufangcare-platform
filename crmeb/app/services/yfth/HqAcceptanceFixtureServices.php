@@ -17,11 +17,18 @@ class HqAcceptanceFixtureServices
     private const PACKAGE_INSTANCE_NO = 'YFTH-TEST-INSTANCE-V1';
 
     private const ACCOUNTS = [
-        'franchisee_uid' => ['account' => 'yfth_test_b1_owner', 'phone' => '19999100001', 'nickname' => 'TEST B1 加盟商', 'role' => 'franchisee'],
-        'manager_uid' => ['account' => 'yfth_test_b1_manager', 'phone' => '19999100002', 'nickname' => 'TEST B1 店长', 'role' => 'store_manager'],
-        'staff_uid' => ['account' => 'yfth_test_b1_staff', 'phone' => '19999100003', 'nickname' => 'TEST B1 店员', 'role' => 'store_staff'],
-        'member_uid' => ['account' => 'yfth_test_c1_member', 'phone' => '19999100004', 'nickname' => 'TEST C1 永久会员', 'role' => 'customer'],
-        'customer_uid' => ['account' => 'yfth_test_c2_customer', 'phone' => '19999100005', 'nickname' => 'TEST C2 普通顾客', 'role' => 'customer'],
+        'franchisee_uid' => ['account' => 'yfth_stg_b1_franchisee', 'phone' => '19999100001', 'nickname' => 'TEST B1 加盟商', 'role' => 'franchisee'],
+        'manager_uid' => ['account' => 'yfth_stg_b1_manager', 'phone' => '19999100002', 'nickname' => 'TEST B1 店长', 'role' => 'store_manager'],
+        'staff_uid' => ['account' => 'yfth_stg_b1_staff', 'phone' => '19999100003', 'nickname' => 'TEST B1 店员', 'role' => 'store_staff'],
+        'member_uid' => ['account' => 'yfth_stg_c1_member', 'phone' => '19999100004', 'nickname' => 'TEST C1 永久会员', 'role' => 'customer'],
+        'customer_uid' => ['account' => 'yfth_stg_c2_customer', 'phone' => '19999100005', 'nickname' => 'TEST C2 普通顾客', 'role' => 'customer'],
+    ];
+    private const LEGACY_ACCOUNTS = [
+        'franchisee_uid' => 'yfth_test_b1_owner',
+        'manager_uid' => 'yfth_test_b1_manager',
+        'staff_uid' => 'yfth_test_b1_staff',
+        'member_uid' => 'yfth_test_c1_member',
+        'customer_uid' => 'yfth_test_c2_customer',
     ];
 
     private $adminScope;
@@ -52,21 +59,28 @@ class HqAcceptanceFixtureServices
         $this->assertHeadquarters($adminInfo);
         $this->assertEnabled();
         $reason = $this->reason($data);
-        $password = $this->loadOrCreatePassword();
+        $passwords = $this->loadOrCreatePasswords();
 
-        $fixture = Db::transaction(function () use ($reason, $password, $adminId, $adminInfo) {
+        $fixture = Db::transaction(function () use ($reason, $passwords, $adminId, $adminInfo) {
             $users = [];
             $currentFixture = $this->fixture();
             foreach (self::ACCOUNTS as $field => $account) {
                 if ($field === 'customer_uid') {
                     $account = $this->customerAccountForGeneration($currentFixture, $account);
                 }
-                $users[$field] = $this->ensureUser($account, $password);
+                $preferredUid = (int)($currentFixture[$field] ?? 0);
+                if ($field === 'customer_uid' && $preferredUid > 0) {
+                    $current = Db::name('user')->where('uid', $preferredUid)->find();
+                    if (!$current || (string)$current['account'] !== (string)$account['account']) {
+                        $preferredUid = 0;
+                    }
+                }
+                $users[$field] = $this->ensureUser($account, $passwords[$field], $preferredUid);
                 if ($field === 'customer_uid'
                     && !empty($currentFixture['customer_uid'])
                     && (int)$currentFixture['customer_uid'] !== (int)$users[$field]) {
-                    Db::name('user')->where('uid', (int)$currentFixture['customer_uid'])
-                        ->where('mark', self::MARKER)->update(['status' => 0]);
+                    $archivedUid = (int)$currentFixture['customer_uid'];
+                    $this->archiveFixtureCustomer($archivedUid);
                 }
             }
             $storeId = $this->ensureStore();
@@ -125,7 +139,7 @@ class HqAcceptanceFixtureServices
             return $this->fixture();
         });
 
-        $this->writeAccountFile($password, $fixture);
+        $this->writeAccountFile($passwords, $fixture);
         $this->audit->recordSafely(
             'yfth_acceptance_fixture',
             'acceptance_fixture',
@@ -140,6 +154,52 @@ class HqAcceptanceFixtureServices
             $this->requestId($data, 'fixture-generate')
         );
         return $this->summaryDto($fixture, true);
+    }
+
+    public function resetPasswords(array $data, int $adminId, array $adminInfo): array
+    {
+        $this->assertHeadquarters($adminInfo);
+        $this->assertEnabled();
+        $reason = $this->reason($data);
+        $fixture = $this->fixture();
+        if (!$fixture || (string)$fixture['status'] !== 'active') {
+            throw new AdminException('acceptance_fixture_not_active');
+        }
+        $this->assertFixtureOwnership($fixture);
+        $passwords = [];
+        foreach (self::ACCOUNTS as $field => $account) {
+            $passwords[$field] = 'Yfth!' . bin2hex(random_bytes(7));
+        }
+        Db::transaction(function () use ($fixture, $passwords) {
+            foreach (self::ACCOUNTS as $field => $account) {
+                Db::name('user')->where('uid', (int)$fixture[$field])->where('mark', self::MARKER)
+                    ->update(['pwd' => md5($passwords[$field]), 'status' => 1]);
+            }
+        });
+        $this->writeAccountFile($passwords, $fixture);
+        $this->audit->recordSafely(
+            'yfth_acceptance_fixture',
+            'acceptance_fixture',
+            (string)$fixture['id'],
+            'password_reset',
+            [],
+            ['account_count' => count(self::ACCOUNTS)],
+            $adminId,
+            'headquarters_admin',
+            (int)$fixture['store_id'],
+            $reason,
+            $this->requestId($data, 'fixture-password-reset')
+        );
+        $result = $this->summaryDto($fixture, true);
+        $result['temporary_passwords_once'] = [];
+        foreach ($this->fixtureAccounts($fixture) as $account) {
+            $field = $account['fixture_role'] . '_uid';
+            $result['temporary_passwords_once'][] = [
+                'account' => $account['account'],
+                'password' => $passwords[$field],
+            ];
+        }
+        return $result;
     }
 
     public function reset(array $data, int $adminId, array $adminInfo): array
@@ -227,9 +287,19 @@ class HqAcceptanceFixtureServices
         return $this->summaryDto($after, true);
     }
 
-    private function ensureUser(array $account, string $password): int
+    private function ensureUser(array $account, string $password, int $preferredUid = 0): int
     {
         $row = Db::name('user')->where('account', $account['account'])->whereOr('phone', $account['phone'])->find();
+        $preferred = $preferredUid > 0 ? Db::name('user')->where('uid', $preferredUid)->find() : [];
+        if ($preferred && (string)($preferred['mark'] ?? '') !== self::MARKER) {
+            throw new AdminException('acceptance_fixture_preferred_user_not_owned');
+        }
+        if ($row && $preferred && (int)$row['uid'] !== (int)$preferred['uid']) {
+            throw new AdminException('acceptance_test_account_conflicts_with_fixture_user:' . $account['account']);
+        }
+        if (!$row && $preferred) {
+            $row = $preferred;
+        }
         if ($row && (string)($row['mark'] ?? '') !== self::MARKER) {
             throw new AdminException('acceptance_test_account_conflicts_with_real_user:' . $account['account']);
         }
@@ -568,28 +638,46 @@ class HqAcceptanceFixtureServices
         }
         foreach (self::ACCOUNTS as $field => $account) {
             $user = Db::name('user')->where('uid', (int)$fixture[$field])->find();
-            $accountMatches = $field === 'customer_uid'
-                ? strpos((string)($user['account'] ?? ''), $account['account']) === 0
-                : (string)($user['account'] ?? '') === $account['account'];
+            $actualAccount = (string)($user['account'] ?? '');
+            $currentMatches = $field === 'customer_uid'
+                ? strpos($actualAccount, $account['account']) === 0
+                : $actualAccount === $account['account'];
+            $legacyMatches = $field === 'customer_uid'
+                ? strpos($actualAccount, self::LEGACY_ACCOUNTS[$field]) === 0
+                : $actualAccount === self::LEGACY_ACCOUNTS[$field];
+            $accountMatches = $currentMatches || $legacyMatches;
             if (!$user || (string)($user['mark'] ?? '') !== self::MARKER || !$accountMatches) {
                 throw new AdminException('acceptance_fixture_user_marker_invalid:' . $field);
             }
         }
     }
 
-    private function loadOrCreatePassword(): string
+    private function loadOrCreatePasswords(): array
     {
         $path = $this->accountFile();
+        $values = [];
+        $legacy = '';
         if (is_file($path)) {
             $content = (string)file_get_contents($path);
-            if (preg_match('/^PASSWORD=(.+)$/m', $content, $matches) && strlen(trim($matches[1])) >= 12) {
-                return trim($matches[1]);
+            if (preg_match('/^PASSWORD=(.+)$/m', $content, $matches)) {
+                $legacy = trim($matches[1]);
+            }
+            foreach (self::ACCOUNTS as $field => $account) {
+                $key = strtoupper(str_replace('_uid', '', $field)) . '_PASSWORD';
+                if (preg_match('/^' . preg_quote($key, '/') . '=(.+)$/m', $content, $matches)) {
+                    $values[$field] = trim($matches[1]);
+                }
             }
         }
-        return 'Yfth!' . bin2hex(random_bytes(8));
+        foreach (self::ACCOUNTS as $field => $account) {
+            if (strlen((string)($values[$field] ?? '')) < 12) {
+                $values[$field] = strlen($legacy) >= 12 ? $legacy : 'Yfth!' . bin2hex(random_bytes(8));
+            }
+        }
+        return $values;
     }
 
-    private function writeAccountFile(string $password, array $fixture): void
+    private function writeAccountFile(array $passwords, array $fixture): void
     {
         $path = $this->accountFile();
         $dir = dirname($path);
@@ -602,10 +690,13 @@ class HqAcceptanceFixtureServices
             'FIXTURE=' . self::FIXTURE_KEY,
             'STORE_ID=' . (int)$fixture['store_id'],
             'STORE_NAME=' . self::STORE_NAME,
-            'PASSWORD=' . $password,
         ];
         foreach ($this->fixtureAccounts($fixture) as $account) {
-            $lines[] = strtoupper($account['fixture_role']) . '=' . $account['account'] . ' (' . $account['phone'] . ')';
+            $key = strtoupper($account['fixture_role']);
+            $field = $account['fixture_role'] . '_uid';
+            $lines[] = $key . '_ACCOUNT=' . $account['account'];
+            $lines[] = $key . '_PHONE=' . $account['phone'];
+            $lines[] = $key . '_PASSWORD=' . $passwords[$field];
         }
         if (file_put_contents($path, implode(PHP_EOL, $lines) . PHP_EOL, LOCK_EX) === false) {
             throw new AdminException('acceptance_account_file_write_failed');
@@ -617,6 +708,9 @@ class HqAcceptanceFixtureServices
     {
         $accounts = [];
         foreach ($this->fixtureAccounts($fixture) as $account) {
+            $membership = $account['uid'] > 0 ? $this->membership->effectiveMembership((int)$account['uid']) : ['is_member' => false];
+            $attribution = $account['uid'] > 0 ? Db::name('yfth_hq_customer_attribution_current')->where('uid', (int)$account['uid'])->find() : [];
+            $referral = $account['uid'] > 0 ? Db::name('yfth_hq_active_referral_current')->where('referred_uid', (int)$account['uid'])->find() : [];
             $accounts[] = [
                 'uid' => (int)$account['uid'],
                 'fixture_role' => $account['fixture_role'],
@@ -624,6 +718,12 @@ class HqAcceptanceFixtureServices
                 'nickname' => $account['nickname'],
                 'account' => $account['account'],
                 'phone_masked' => substr($account['phone'], 0, 3) . '****' . substr($account['phone'], -4),
+                'login_ready' => $account['uid'] > 0 && (int)Db::name('user')->where('uid', (int)$account['uid'])->value('status') === 1,
+                'permanent_member' => (bool)($membership['is_member'] ?? false),
+                'attribution_status' => (string)($attribution['status'] ?? 'unassigned'),
+                'attribution_store_id' => (int)($attribution['store_id'] ?? 0),
+                'referral_status' => (string)($referral['status'] ?? 'none'),
+                'invited_count' => (int)Db::name('yfth_hq_active_referral_current')->where('referrer_uid', (int)$account['uid'])->where('status', 'active')->count(),
             ];
         }
         return [
@@ -687,6 +787,14 @@ class HqAcceptanceFixtureServices
             }
             $user = Db::name('user')->where('account', $candidate['account'])->find();
             if (!$user) {
+                $phoneOwner = Db::name('user')->where('phone', $candidate['phone'])->find();
+                if ($version === 1 && $phoneOwner && (string)($phoneOwner['mark'] ?? '') === self::MARKER) {
+                    $authority = Db::name('yfth_hq_customer_attribution_current')->where('uid', (int)$phoneOwner['uid'])->find();
+                    if ($authority && !((string)$authority['status'] === 'unassigned' && (int)$authority['authority_version'] === 0)) {
+                        $this->archiveFixtureCustomer((int)$phoneOwner['uid']);
+                        return $candidate;
+                    }
+                }
                 return $candidate;
             }
             if ((string)($user['mark'] ?? '') !== self::MARKER) {
@@ -696,8 +804,21 @@ class HqAcceptanceFixtureServices
             if (!$authority || ((string)$authority['status'] === 'unassigned' && (int)$authority['authority_version'] === 0)) {
                 return $candidate;
             }
+            if ($version === 1) {
+                $this->archiveFixtureCustomer((int)$user['uid']);
+                return $candidate;
+            }
         }
         throw new AdminException('acceptance_fixture_customer_pool_exhausted');
+    }
+
+    private function archiveFixtureCustomer(int $uid): void
+    {
+        Db::name('user')->where('uid', $uid)->where('mark', self::MARKER)->update([
+            'account' => 'yfth_archived_c2_' . $uid,
+            'phone' => '19777' . str_pad((string)$uid, 10, '0', STR_PAD_LEFT),
+            'status' => 0,
+        ]);
     }
 
     private function fixtureAccounts(array $fixture): array

@@ -70,9 +70,12 @@ CRMEB login/token, users, stores, products, orders, payment, refund, coupons and
 
 Admin fixture endpoints:
 
-- `GET /adminapi/yfth/user_role/acceptance/fixture`
-- `POST /adminapi/yfth/user_role/acceptance/fixture/generate`
-- `POST /adminapi/yfth/user_role/acceptance/fixture/reset`
+- `GET /adminapi/yfth/user_role/fixture`
+- `POST /adminapi/yfth/user_role/fixture/generate`
+- `POST /adminapi/yfth/user_role/fixture/reset`
+- `POST /adminapi/yfth/user_role/fixture/password/reset`
+
+The acceptance fixture keeps stable `yfth_stg_*` login names without storing passwords in Git or documentation. Password reset is headquarters-only, requires a reason, exposes generated values only in that response, and rewrites the configured server-private mode-0600 credential file. A C2 with immutable attribution/referral history is archived by UID and replaced by a clean user behind the stable C2 acceptance account; history is not deleted or rewritten.
 
 ## 8. Operating context and scan surfaces
 

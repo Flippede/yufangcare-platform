@@ -88,17 +88,6 @@
                   ></el-option>
                 </el-select>
               </el-form-item>
-              <el-form-item label="分销等级：">
-                <el-select v-model="agent_level" placeholder="请选择分销等级" clearable class="form_content_width">
-                  <el-option value="all" label="全部"></el-option>
-                  <el-option
-                    :value="item.grade"
-                    v-for="(item, index) in membershipList"
-                    :key="index"
-                    :label="item.name"
-                  ></el-option>
-                </el-select>
-              </el-form-item>
               <el-form-item label="用户标签：" label-for="label_id">
                 <div class="labelInput acea-row row-between-wrapper" v-db-click @click="openSelectLabel">
                   <div style="width: 222px">
@@ -111,20 +100,6 @@
                   </div>
                   <div class="ivu-icon ivu-icon-ios-arrow-down"></div>
                 </div>
-              </el-form-item>
-              <el-form-item label="用户身份：">
-                <el-select v-model="userFrom.is_promoter" placeholder="请选择" clearable class="form_content_width">
-                  <el-option value="" label="全部"></el-option>
-                  <el-option value="1" label="推广员"></el-option>
-                  <el-option value="0" label="普通用户"></el-option>
-                </el-select>
-              </el-form-item>
-              <el-form-item label="付费会员：" label-for="isMember">
-                <el-select v-model="userFrom.isMember" placeholder="请选择" clearable class="form_content_width">
-                  <el-option value="" label="全部"></el-option>
-                  <el-option value="1" label="是"></el-option>
-                  <el-option value="0" label="否"></el-option>
-                </el-select>
               </el-form-item>
               <el-form-item label="储值余额：" label-for="balance">
                 <el-input
@@ -348,24 +323,34 @@
             <div v-if="scope.row.is_del == 1" style="color: red">用户已注销</div>
           </template>
         </el-table-column>
-        <el-table-column label="付费会员" min-width="90">
+        <el-table-column label="御方通和套餐会员" min-width="130">
           <template slot-scope="scope">
-            <div>{{ scope.row.isMember ? '是' : '否' }}</div>
+            <el-tag size="mini" :type="scope.row.yfth && scope.row.yfth.permanent_member ? 'success' : 'info'">
+              {{ scope.row.yfth && scope.row.yfth.permanent_member ? '永久会员' : '非会员' }}
+            </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="用户等级" min-width="90">
+        <el-table-column label="永久归属门店" min-width="150">
           <template slot-scope="scope">
-            <div>{{ scope.row.level }}</div>
+            <div>{{ (scope.row.yfth && scope.row.yfth.attribution.store_name) || '未归属' }}</div>
           </template>
         </el-table-column>
-        <el-table-column label="分组" min-width="100">
+        <el-table-column label="当前一级推荐" min-width="160">
           <template slot-scope="scope">
-            <div>{{ scope.row.group_id }}</div>
+            <div v-if="scope.row.yfth && scope.row.yfth.referral.status !== 'none'">
+              {{ scope.row.yfth.referral.referrer_name || '-' }} · {{ scope.row.yfth.referral.status }}
+            </div>
+            <div v-else>无</div>
           </template>
         </el-table-column>
-        <el-table-column label="分销等级" min-width="100">
+        <el-table-column label="经营身份及门店" min-width="220">
           <template slot-scope="scope">
-            <div>{{ scope.row.agent_level_name }}</div>
+            <template v-if="scope.row.yfth && scope.row.yfth.store_roles.length">
+              <el-tag v-for="role in scope.row.yfth.store_roles" :key="role.id" size="mini" class="mr5">
+                {{ role.store_name }} · {{ role.role_name }}
+              </el-tag>
+            </template>
+            <span v-else>顾客</span>
           </template>
         </el-table-column>
         <el-table-column label="手机号" min-width="100">
@@ -373,39 +358,31 @@
             <div>{{ scope.row.phone }}</div>
           </template>
         </el-table-column>
-        <el-table-column label="用户类型" min-width="100">
-          <template slot-scope="scope">
-            <div>{{ scope.row.user_type }}</div>
-          </template>
-        </el-table-column>
-        <el-table-column label="上级用户" min-width="100">
-          <template slot-scope="scope">
-            <div>{{ scope.row.spread_uid_nickname }}</div>
-          </template>
-        </el-table-column>
-        <el-table-column label="余额" prop="now_money" min-width="100" :sortable="true">
+        <el-table-column label="商城余额" prop="now_money" min-width="100" :sortable="true">
           <template slot-scope="scope">
             <div>{{ scope.row.now_money }}</div>
           </template>
         </el-table-column>
-        <el-table-column label="操作" fixed="right" width="120">
+        <el-table-column label="商城积分" prop="integral" min-width="100">
+          <template slot-scope="scope">
+            <div>{{ scope.row.integral }}</div>
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" fixed="right" width="180">
           <template slot-scope="scope">
             <template v-if="scope.row.is_del != 1">
-              <a v-db-click @click="userDetail(scope.row)">详情</a>
+              <a v-if="scope.row.yfth" v-db-click @click="manageYfthRole(scope.row)">管理经营身份</a>
+              <a v-else v-db-click @click="userDetail(scope.row)">详情</a>
 
               <el-divider direction="vertical"></el-divider>
               <el-dropdown size="small" @command="changeMenu(scope.row, $event, scope.$index)" :transfer="true">
                 <span class="el-dropdown-link">更多<i class="el-icon-arrow-down el-icon--right"></i> </span>
                 <el-dropdown-menu slot="dropdown">
-                  <!-- <el-dropdown-item command="1">编辑</el-dropdown-item> -->
+                  <el-dropdown-item command="yfth">查看会员/归属/推荐</el-dropdown-item>
                   <el-dropdown-item command="2">修改余额</el-dropdown-item>
                   <el-dropdown-item command="8">修改积分</el-dropdown-item>
-                  <el-dropdown-item command="3">赠送会员</el-dropdown-item>
-                  <!--                                <el-dropdown-item command="4" v-if="row.vip_name">清除等级</el-dropdown-item>-->
                   <el-dropdown-item command="5">设置分组</el-dropdown-item>
                   <el-dropdown-item command="6">设置标签</el-dropdown-item>
-                  <el-dropdown-item command="7">修改上级推广人</el-dropdown-item>
-                  <el-dropdown-item command="99" v-if="scope.row.spread_uid">清除上级推广人</el-dropdown-item>
                 </el-dropdown-menu>
               </el-dropdown>
             </template>
@@ -426,6 +403,18 @@
         />
       </div>
     </el-card>
+    <el-dialog title="御方通和用户状态" :visible.sync="yfthDetailVisible" width="720px">
+      <div v-if="yfthDetail">
+        <el-descriptions :column="2" border>
+          <el-descriptions-item label="用户">{{ yfthDetail.nickname || yfthDetail.account || '-' }}（UID {{ yfthDetail.uid }}）</el-descriptions-item>
+          <el-descriptions-item label="套餐会员">{{ yfthDetail.permanent_member ? '永久会员' : '非会员' }}</el-descriptions-item>
+          <el-descriptions-item label="永久归属">{{ yfthDetail.attribution.store_name || '未归属' }} · {{ yfthDetail.attribution.status }}</el-descriptions-item>
+          <el-descriptions-item label="一级推荐">{{ yfthDetail.referral.referrer_name || '无' }} · {{ yfthDetail.referral.status }}</el-descriptions-item>
+          <el-descriptions-item label="商城余额">{{ yfthDetail.mall_balance }}</el-descriptions-item>
+          <el-descriptions-item label="商城积分">{{ yfthDetail.mall_integral }}</el-descriptions-item>
+        </el-descriptions>
+      </div>
+    </el-dialog>
     <!-- 编辑表单 积分余额-->
     <edit-from ref="edits" :FromData="FromData" @submitFail="submitFail"></edit-from>
     <!-- 发送优惠券-->
@@ -546,6 +535,7 @@ import newsCategory from '@/components/newsCategory/index';
 import customerInfo from '@/components/customerInfo';
 import { cityList } from '@/api/app';
 import { membershipDataListApi } from '@/api/membershipLevel';
+import { yfthUserRoleDetail } from '@/api/yfth';
 
 export default {
   name: 'user_list',
@@ -661,6 +651,8 @@ export default {
       labelLists: [],
       selectedIds: [], //选中合并项的id
       ids: [],
+      yfthDetail: null,
+      yfthDetailVisible: false,
     };
   },
   computed: {
@@ -926,6 +918,9 @@ export default {
       uid.push(row.uid);
       let uids = { uids: uid };
       switch (name) {
+        case 'yfth':
+          this.openYfthDetail(row);
+          break;
         case '1':
           this.edit(row);
           break;
@@ -953,6 +948,15 @@ export default {
         default:
           this.del(row, '解除【 ' + this.tenText(row.nickname) + ' 】的上级推广人', index, 'tuiguang');
       }
+    },
+    manageYfthRole(row) {
+      this.$router.push({ path: '/yfth/user-role', query: { uid: row.uid } });
+    },
+    openYfthDetail(row) {
+      yfthUserRoleDetail(row.uid).then((res) => {
+        this.yfthDetail = res.data || null;
+        this.yfthDetailVisible = true;
+      });
     },
     tenText(str) {
       if (str.length > 10) {

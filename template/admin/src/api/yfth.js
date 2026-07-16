@@ -52,6 +52,10 @@ export function yfthAcceptanceFixtureReset(data) {
   return request({ url: 'yfth/user_role/fixture/reset', method: 'post', data });
 }
 
+export function yfthAcceptanceFixturePasswordReset(data) {
+  return request({ url: 'yfth/user_role/fixture/password/reset', method: 'post', data });
+}
+
 export function yfthSubjectList(params) {
   return request({
     url: 'yfth/foundation/subject',

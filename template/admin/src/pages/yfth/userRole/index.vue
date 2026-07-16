@@ -14,6 +14,7 @@
       <div class="fixture-actions">
         <el-button type="primary" :disabled="!fixture.enabled" :loading="fixtureSaving" @click="generateFixture">生成或补齐完整测试门店与账号</el-button>
         <el-button type="danger" plain :disabled="!fixture.enabled || fixture.status !== 'active'" :loading="fixtureSaving" @click="resetFixture">重置测试数据</el-button>
+        <el-button type="warning" plain :disabled="!fixture.enabled || fixture.status !== 'active'" :loading="fixtureSaving" @click="resetFixturePasswords">重置临时密码</el-button>
         <el-button icon="el-icon-refresh" @click="loadFixture">刷新状态</el-button>
       </div>
       <el-alert
@@ -27,6 +28,9 @@
         <el-table-column prop="account" label="登录账号" min-width="180" />
         <el-table-column prop="phone_masked" label="虚构手机号" width="130" />
         <el-table-column prop="uid" label="UID" width="90" />
+        <el-table-column label="登录" width="80"><template slot-scope="{ row }"><el-tag size="mini" :type="row.login_ready ? 'success' : 'danger'">{{ row.login_ready ? '可登录' : '不可用' }}</el-tag></template></el-table-column>
+        <el-table-column label="会员/归属" min-width="190"><template slot-scope="{ row }"><div>{{ row.permanent_member ? '永久会员' : '非会员' }}</div><div>{{ row.attribution_status }}<span v-if="row.attribution_store_id"> · 门店 {{ row.attribution_store_id }}</span></div></template></el-table-column>
+        <el-table-column label="推荐状态" min-width="130"><template slot-scope="{ row }"><div>{{ row.referral_status }}</div><div v-if="row.invited_count">已邀请 {{ row.invited_count }} 人</div></template></el-table-column>
       </el-table>
     </el-card>
     <div class="toolbar">
@@ -82,6 +86,7 @@
 import {
   yfthAcceptanceFixture,
   yfthAcceptanceFixtureGenerate,
+  yfthAcceptanceFixturePasswordReset,
   yfthAcceptanceFixtureReset,
   yfthUserRoleDetail,
   yfthUserRoleGrant,
@@ -104,7 +109,12 @@ export default {
       return { active: '已启用', disabled: '已重置', not_generated: '尚未生成' }[this.fixture.status] || this.fixture.status;
     },
   },
-  created() { this.load(); this.loadFixture(); },
+  created() {
+    this.load();
+    this.loadFixture();
+    const uid = Number(this.$route.query.uid || 0);
+    if (uid > 0) this.openDetail({ uid });
+  },
   methods: {
     loadFixture() {
       return yfthAcceptanceFixture().then((res) => {
@@ -137,6 +147,22 @@ export default {
         this.fixture = res.data || this.fixture;
         this.$message.success('测试数据已安全停用');
         return this.load(true);
+      }).finally(() => { this.fixtureSaving = false; });
+    },
+    resetFixturePasswords() {
+      this.$prompt('请输入临时密码重置原因。新密码仅在本次响应中显示一次，并同步写入服务器 600 权限私有文件。', '重置测试账号临时密码', {
+        confirmButtonText: '确认重置', cancelButtonText: '取消',
+        inputValidator: (value) => Boolean(String(value || '').trim()) || '必须填写原因',
+      }).then(({ value }) => {
+        this.fixtureSaving = true;
+        return yfthAcceptanceFixturePasswordReset({ reason: String(value).trim(), request_id: `fixture-password-reset-${Date.now()}` });
+      }).then((res) => {
+        const data = res.data || {};
+        const passwords = data.temporary_passwords_once || [];
+        delete data.temporary_passwords_once;
+        this.fixture = data;
+        const lines = passwords.map((item) => `${item.account}：${item.password}`);
+        return this.$alert(lines.join('\n'), '临时密码（仅显示一次）', { confirmButtonText: '我已安全保存' });
       }).finally(() => { this.fixtureSaving = false; });
     },
     load(reset) {

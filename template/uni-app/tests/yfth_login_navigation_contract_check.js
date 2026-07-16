@@ -22,6 +22,10 @@ const pages = read('pages.json');
 [
   ['loginDisabled()', 'explicit login button state'],
   ['@tap="handleLogin"', 'single login action'],
+  ['maxlength="32"', 'long staging account support'],
+  ["/^[a-z0-9_]{5,32}$/i", 'account syntax validation'],
+  ["loginLoading ? '登录中...'", 'visible login progress'],
+  ["error || '登录后读取用户信息失败'", 'post-login user error feedback'],
   ['mode-switch', 'login mode switch'],
 	['protocol-check', 'stable protocol selection control'],
 	['@tap="toggleProtocol"', 'protocol text and control interaction'],

@@ -63,12 +63,15 @@ try {
     $search = $service->users(['keyword' => '13900097001', 'page' => 1, 'limit' => 20], $hq);
     $assert(count($search['list']) === 1 && (int)$search['list'][0]['uid'] === $uid, 'headquarters_searches_real_user');
     $assert((string)$search['list'][0]['phone_masked'] === '139****7001', 'admin_dto_masks_phone');
+    $assert((string)$search['list'][0]['mall_balance'] === '123.45' && (string)$search['list'][0]['mall_integral'] === '678', 'headquarters_dto_reads_crmeb_assets');
 
     $grantA = $service->grant($uid, ['store_id' => $storeA, 'role_code' => 'franchisee', 'reason' => 'isolated grant A', 'request_id' => 'role-grant-a'], 1, $hq);
     $grantB = $service->grant($uid, ['store_id' => $storeB, 'role_code' => 'store_manager', 'reason' => 'isolated grant B', 'request_id' => 'role-grant-b'], 1, $hq);
     $grantStaff = $service->grant($uid, ['store_id' => $storeA, 'role_code' => 'store_staff', 'reason' => 'isolated grant staff', 'request_id' => 'role-grant-staff'], 1, $hq);
     $assert($grantA['changed'] && $grantB['changed'] && $grantStaff['changed'], 'headquarters_grants_three_store_roles');
     $assert((int)Db::name('yfth_user_store_role')->where('uid', $uid)->where('status', 'active')->count() === 3, 'multiple_store_roles_coexist');
+    $summaries = $service->summaries([$uid], $hq);
+    $assert(count($summaries[$uid]['store_roles'] ?? []) === 3, 'native_user_list_receives_yfth_role_summary');
     $replay = $service->grant($uid, ['store_id' => $storeA, 'role_code' => 'franchisee', 'reason' => 'isolated replay', 'request_id' => 'role-grant-a-replay'], 1, $hq);
     $assert(!$replay['changed'] && $replay['idempotent'], 'duplicate_grant_is_idempotent');
 

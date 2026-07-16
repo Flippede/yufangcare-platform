@@ -16,6 +16,8 @@ use app\adminapi\controller\AuthController;
 use crmeb\services\CacheService;
 use think\exception\ValidateException;
 use think\facade\App;
+use app\services\yfth\AdminStoreContextServices;
+use app\services\yfth\HqUserRoleManagementServices;
 
 class User extends AuthController
 {
@@ -67,7 +69,18 @@ class User extends AuthController
             ['agent_level', 0],
         ]);
         $where['label_id'] = toIntArray($where['label_id']);
-        return app('json')->success($this->services->index($where));
+        $result = $this->services->index($where);
+        $context = app()->make(AdminStoreContextServices::class)->resolve($this->adminInfo ?: []);
+        if (!empty($context['is_super_admin']) || !empty($context['is_headquarter_admin'])) {
+            $summaries = app()->make(HqUserRoleManagementServices::class)->summaries(
+                array_column($result['list'] ?? [], 'uid'),
+                $this->adminInfo ?: []
+            );
+            foreach ($result['list'] as &$row) {
+                $row['yfth'] = $summaries[(int)$row['uid']] ?? null;
+            }
+        }
+        return app('json')->success($result);
     }
 
     /**

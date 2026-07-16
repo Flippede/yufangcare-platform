@@ -1,5 +1,15 @@
 # YFTH User Role Assets And Referral QR V1 Runtime Validation
 
+## Login, headquarters user list and stable fixture closure - 2026-07-16
+
+- PHP 7.4.33 syntax passed for the changed controller, service, route, migration, and test files.
+- `yfth_user_role_assets_referral_contract_check.php` passed, including the native user-list YFTH summary and the headquarters-only password-reset permission.
+- On a fresh isolated MySQL Community 8.0.46 database, all migrations ran successfully. `yfth_acceptance_fixture_real_flow_check.php` proved that all five stable `yfth_stg_*` CRMEB user accounts can obtain user tokens through the original account-password login service.
+- The same fixture flow proved duplicate generation is idempotent, C1 can bind C2 to the same B1, self-scan is rejected, reset closes only marked test authority, immutable facts remain, and regeneration creates a fresh C2 while retaining the stable acceptance account name.
+- `yfth_user_role_management_real_flow_check.php` passed for search, CRMEB mall-asset DTOs, three store-role grants, native user-list summaries, multi-store identities, duplicate idempotency, store-side denial, inactive-store denial, revoke, audit, and unchanged customer/member/assets facts.
+- Admin production build passed and was mirrored into `crmeb/public/admin`. H5 production and mp-weixin production builds passed with only the project's existing CSS-order, Browserslist, asset-size, skeleton-key, and subpackage recommendations.
+- No real SMS, payment, refund, WeChat authorization, payout, WeChat upload, production database rollback, or production deployment was executed during this local validation.
+
 ## Production acceptance closure - 2026-07-15
 
 - Feature commit: `5a36968fb121ac3bf9ce324103cb3954ad2af003`; production URL: `https://yfth.top`.

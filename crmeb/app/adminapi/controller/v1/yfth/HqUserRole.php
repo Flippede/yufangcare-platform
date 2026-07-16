@@ -63,6 +63,16 @@ class HqUserRole extends AuthController
         return app('json')->success($services->reset($this->fixturePayload(), (int)$this->adminId, $this->adminInfo ?: []));
     }
 
+    public function resetFixturePasswords(HqAcceptanceFixtureServices $services)
+    {
+        $this->auth('yfth/user_role/fixture/password/reset', 'POST');
+        return app('json')->success($services->resetPasswords(
+            $this->fixturePayload(),
+            (int)$this->adminId,
+            $this->adminInfo ?: []
+        ));
+    }
+
     private function auth(string $rule, string $method): void
     {
         app()->make(SystemRoleServices::class)->assertApiAuthForAdmin($this->adminInfo ?: [], $rule, $method);

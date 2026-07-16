@@ -2,6 +2,7 @@
 
 use app\services\yfth\HqAcceptanceFixtureServices;
 use app\services\yfth\PackageMembershipReferralServices;
+use app\services\user\LoginServices;
 use think\facade\Config;
 use think\facade\Db;
 
@@ -45,7 +46,7 @@ try {
 
     $first = $service->generate(['reason' => 'isolated acceptance generation', 'request_id' => 'fixture-real-flow-1'], 1, $hq);
     $assert($first['exists'] && $first['status'] === 'active', 'fixture_generated');
-    $assert(is_file($credentialFile) && strpos((string)file_get_contents($credentialFile), 'PASSWORD=') !== false, 'credential_written_outside_web_tree');
+    $assert(is_file($credentialFile) && strpos((string)file_get_contents($credentialFile), 'FRANCHISEE_PASSWORD=') !== false, 'credential_written_outside_web_tree');
     $assert($first['password_exposed'] === false, 'password_not_exposed_by_api');
     $storeId = (int)$first['store']['id'];
     $uids = array_column($first['accounts'], 'uid', 'fixture_role');
@@ -57,6 +58,22 @@ try {
     $assert((int)Db::name('yfth_permanent_membership')->where('uid', $memberUid)->where('store_id', $storeId)->where('status', 'active')->count() === 1, 'c1_permanent_membership_active');
     $assert((int)Db::name('yfth_permanent_membership')->where('uid', $customerUid)->where('status', 'active')->count() === 0, 'c2_starts_non_member');
     $assert((int)Db::name('yfth_direct_referral_rule_version')->where('status', 'published')->where('package_ratio_first_bps', 1500)->where('package_ratio_second_bps', 2500)->where('package_ratio_third_bps', 6000)->count() === 1, 'reward_rule_ready');
+    foreach (['yfth_stg_b1_franchisee', 'yfth_stg_b1_manager', 'yfth_stg_b1_staff', 'yfth_stg_c1_member', 'yfth_stg_c2_customer'] as $account) {
+        $assert((int)Db::name('user')->where('account', $account)->where('status', 1)->count() === 1, 'staging_account_ready:' . $account);
+    }
+
+    $passwordReset = $service->resetPasswords([
+        'reason' => 'isolated password reset', 'request_id' => 'fixture-password-reset-' . getmypid(),
+    ], 1, $hq);
+    $assert(count($passwordReset['temporary_passwords_once'] ?? []) === 5, 'password_reset_returns_once_to_authorized_admin');
+    $assert(strpos((string)file_get_contents($credentialFile), 'CUSTOMER_PASSWORD=') !== false, 'password_reset_updates_private_file');
+    $login = app()->make(LoginServices::class);
+    foreach ($passwordReset['temporary_passwords_once'] as $credential) {
+        $loginResult = $login->login((string)$credential['account'], (string)$credential['password'], 0, 0);
+        $assert(!empty($loginResult['token']), 'account_password_login_works:' . $credential['account']);
+    }
+    $summaryAfterPasswordReset = $service->summary($hq);
+    $assert(!isset($summaryAfterPasswordReset['temporary_passwords_once']), 'passwords_not_returned_by_later_summary');
 
     $countsBeforeReplay = [
         'store' => (int)Db::name('system_store')->where('name', 'TEST 隔离测试 B1 门店')->count(),

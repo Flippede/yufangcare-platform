@@ -18,7 +18,7 @@
 					<view class="item">
 						<view class="acea-row row-middle">
 							<image src="../static/phone_1.png" style="width: 24rpx; height: 34rpx"></image>
-							<input type="text" :placeholder="$t(`输入手机号码`)" v-model="account" maxlength="11" required />
+							<input type="text" placeholder="输入账号或手机号" v-model.trim="account" maxlength="32" required />
 						</view>
 					</view>
 					<view class="item">
@@ -56,7 +56,9 @@
 					</view>
 				</view> -->
 			</view>
-			<button class="logon" :class="{ disabled: loginDisabled }" :disabled="loginDisabled" @tap="handleLogin">{{ $t(`登录`) }}</button>
+			<button class="logon" :class="{ disabled: loginDisabled || loginLoading }" :disabled="loginDisabled || loginLoading" @tap="handleLogin">
+				{{ loginLoading ? '登录中...' : $t(`登录`) }}
+			</button>
 			<!-- #ifndef APP-PLUS -->
 			<view class="tips">
 				<view v-if="current == 0" @tap="switchMode(1)">{{ $t(`快速登录`) }}</view>
@@ -150,6 +152,7 @@ export default {
 			appleUserInfo: null,
 			appleShow: false, // 苹果登录版本必须要求ios13以上的
 			keyLock: true,
+			loginLoading: false,
 			captchaType: 'clickWord',
 		};
 	},
@@ -197,7 +200,10 @@ export default {
 			this.captcha = '';
 		},
 		handleLogin() {
-			if (this.loginDisabled) return;
+			if (this.loginLoading) return;
+			if (this.loginDisabled) {
+				return this.$util.Tips({ title: this.protocol ? '请填写完整登录信息' : '请先阅读并同意协议' });
+			}
 			return this.current === 0 ? this.submit() : this.loginMobile();
 		},
 		privacy(type) {
@@ -606,9 +612,9 @@ export default {
 				return that.$util.Tips({
 					title: that.$t(`请填写账号`)
 				});
-			if (!/^[\w\d]{5,16}$/i.test(that.account))
+			if (!/^[a-z0-9_]{5,32}$/i.test(that.account))
 				return that.$util.Tips({
-					title: that.$t(`请输入正确的账号`)
+					title: '账号应为 5-32 位字母、数字或下划线'
 				});
 			if (!that.password)
 				return that.$util.Tips({
@@ -621,6 +627,8 @@ export default {
 					title: that.$t(`请勿重复点击`)
 				});
 			}
+			this.loginLoading = true;
+			uni.showLoading({ title: '登录中', mask: true });
 			loginH5({
 				account: that.account,
 				password: that.password,
@@ -638,19 +646,27 @@ export default {
 						.then((res) => {
 							this.keyLock = true;
 							that.$store.commit('SETUID', res.data.uid);
+							if (backUrl.indexOf('/pages/users/login/index') !== -1) {
+								backUrl = '/pages/index/index';
+							}
 							uni.reLaunch({
 								url: backUrl
 							});
 						})
 						.catch((error) => {
 							this.keyLock = true;
+							that.$util.Tips({ title: String((error && (error.msg || error.message)) || error || '登录后读取用户信息失败') });
 						});
 				})
 				.catch((e) => {
 					this.keyLock = true;
 					that.$util.Tips({
-						title: e
+						title: String((e && (e.msg || e.message)) || e || '账号或密码错误')
 					});
+				})
+				.finally(() => {
+					this.loginLoading = false;
+					uni.hideLoading();
 				});
 		}
 	}
