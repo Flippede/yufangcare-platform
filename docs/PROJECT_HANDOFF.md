@@ -1,5 +1,13 @@
 # 项目交接文档
 
+## Current Fact Snapshot - Fullscreen Referral Scanner Development Closure
+
+- The preserved feature branch `codex/yfth-user-role-assets-referral-code-v1` replaces the customer-center referral-scan card with a compact scan icon placed before settings and messages in the profile header.
+- The H5 scan route now opens its camera automatically into a full-height scanner surface with a centered scan frame, visible back action, bottom album action, and a compact invite-code fallback. Camera denial or unavailable hardware produces an explicit state rather than a blank page or embedded miniature camera.
+- The mp-weixin build invokes native `uni.scanCode` immediately with album selection enabled. It therefore uses the WeChat full-screen scanner instead of embedding a camera component in the customer page.
+- The existing Stage 2 invite token, login continuation, one-level referral acceptance, self-scan/conflict rejection, QR-image decoding, and promotion-QR saving remain unchanged. No backend, database, migration, identity, order, payment, or reward logic was changed.
+- The dedicated contract, existing uni-app context/request checks, H5 production build, mp-weixin production compile, and `git diff --check` passed. Production deployment and physical-device optical scanning must be recorded separately after release; no WeChat upload was performed in this development closure.
+
 ## Current Fact Snapshot - Member Grant, Referral Scan And Store Customer Production Closure
 
 - Production `https://yfth.top` now runs business release `072eff50fadfd5d80e1317c1913b5ab966ffd779` from the preserved branch `codex/yfth-user-role-assets-referral-code-v1`; stable `main` was not merged or changed.

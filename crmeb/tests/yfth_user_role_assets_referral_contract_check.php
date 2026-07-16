@@ -94,6 +94,11 @@ foreach (['yfth_pending_referral_invite', 'toLogin', 'acceptYfthDirectReferralIn
 foreach (['uni.scanCode', 'BarcodeDetector', 'jsQR', 'chooseQrImage', 'invite_token', '/pages/yfth/referral/accept'] as $needle) {
     $assert(strpos($scanPage, $needle) !== false, 'referral_scan_contains:' . $needle);
 }
+$assert(strpos($scanPage, 'onlyFromCamera: false') !== false, 'native_scanner_allows_album_qr');
+$assert(strpos($scanPage, 'onReady()') !== false && strpos($scanPage, 'this.scan()') !== false, 'referral_scanner_opens_immediately');
+$assert(strpos($scanPage, 'class="camera-view"') !== false && strpos($scanPage, 'class="scanner-footer"') !== false, 'h5_scanner_uses_fullscreen_camera_surface');
+$assert(strpos($userPage, 'iconfont icon-saoma') !== false, 'user_center_exposes_top_scan_icon');
+$assert(strpos($userPage, 'class="referral-scan-entry"') === false, 'user_center_removes_large_referral_scan_card');
 $assert(strpos($codePage, 'saveQr') !== false && strpos($codePage, '_saveCode') !== false, 'promotion_qr_can_be_saved_to_device');
 $assert(strpos($membership, 'syncAuthorityCustomerInTransaction') !== false, 'invite_accept_projects_authority_to_store_customer_view');
 $assert(strpos($franchiseCustomer, 'backfillAuthorityCustomers') !== false, 'existing_authority_has_controlled_customer_projection_repair');

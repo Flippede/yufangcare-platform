@@ -16,6 +16,9 @@
 				<view class="head">
 					<view class="customer-profile">
 						<view class="profile-actions">
+							<view class="profile-action" aria-label="扫一扫" @click="goYfthReferralScan">
+								<view class="iconfont icon-saoma"></view>
+							</view>
 							<navigator v-if="isLogin" url="/pages/users/user_info/index" hover-class="none">
 								<view class="iconfont icon-shezhi"></view>
 							</navigator>
@@ -104,11 +107,6 @@
 						</view>
 						<view v-else class="membership-prompt" @click="goYfthPackagePurchase">
 							<view><text class="prompt-title">购买套餐后获得推广资格</text><text class="prompt-copy">激活永久会员，使用一级邀请与奖励查询</text></view>
-							<text class="prompt-arrow">›</text>
-						</view>
-						<view class="referral-scan-entry" @click="goYfthReferralScan">
-							<view class="scan-mark">扫</view>
-							<view><text class="scan-title">扫一扫推广码</text><text class="scan-copy">支持微信扫码、H5 摄像头、二维码图片或邀请链接</text></view>
 							<text class="prompt-arrow">›</text>
 						</view>
 					</view>
@@ -1078,8 +1076,14 @@ body {
 				gap: 24rpx;
 				z-index: 30;
 
-				navigator {
+				navigator,
+				.profile-action {
 					position: relative;
+					display: flex;
+					align-items: center;
+					justify-content: center;
+					width: 42rpx;
+					height: 42rpx;
 				}
 
 				.iconfont {
@@ -1600,11 +1604,6 @@ body {
 	.prompt-title { color: #704d28; font-size: 27rpx; font-weight: 650; }
 	.prompt-copy { color: #9a8a78; font-size: 21rpx; }
 	.prompt-arrow { color: #a67842; font-size: 44rpx; }
-	.referral-scan-entry { display: flex; align-items: center; gap: 18rpx; margin-top: 18rpx; padding: 19rpx 20rpx; border: 1px solid #ecdfcc; border-radius: 10rpx; background: #fffdfa; }
-	.scan-mark { flex: 0 0 58rpx; width: 58rpx; height: 58rpx; border-radius: 16rpx; color: #fff; background: #a47a43; font-size: 24rpx; font-weight: 700; line-height: 58rpx; text-align: center; }
-	.referral-scan-entry > view:nth-child(2) { display: flex; flex: 1; flex-direction: column; min-width: 0; gap: 6rpx; }
-	.scan-title { color: #5d4122; font-size: 25rpx; font-weight: 650; }
-	.scan-copy { color: #9a8a78; font-size: 19rpx; line-height: 1.4; }
 }
 
 </style>

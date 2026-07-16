@@ -1,21 +1,61 @@
 <template>
-	<view class="page">
-		<view class="hero">
-			<view class="scan-icon">扫</view>
-			<view><view class="title">扫一扫推广码</view><view class="subtitle">仅识别御方通和一级会员邀请</view></view>
+	<view class="scanner-page">
+		<!-- #ifdef H5 -->
+		<video id="yfth-referral-camera" class="camera-view" autoplay muted playsinline></video>
+		<!-- #endif -->
+		<view class="camera-shade"></view>
+		<view class="scanner-header" :style="{ paddingTop: safeTop + 'px' }">
+			<view class="round-action back-action" aria-label="返回" @click="goBack">
+				<text class="iconfont icon-fanhui"></text>
+			</view>
+			<text class="scanner-title">扫一扫</text>
+			<view class="header-spacer"></view>
 		</view>
-		<view class="panel">
-			<button class="primary" @click="scan">打开摄像头扫码</button>
+
+		<view class="scan-stage">
+			<view class="scan-frame" :class="{ inactive: !cameraActive }">
+				<view class="corner corner-tl"></view>
+				<view class="corner corner-tr"></view>
+				<view class="corner corner-bl"></view>
+				<view class="corner corner-br"></view>
+				<view v-if="cameraActive" class="scan-line"></view>
+			</view>
+			<text v-if="cameraActive" class="scan-hint">将御方通和推广二维码放入框内</text>
+			<view v-else class="camera-state">
+				<text class="state-title">{{ cameraStateTitle }}</text>
+				<text class="state-copy">{{ cameraStateCopy }}</text>
+				<text v-if="canRetryCamera" class="retry-link" @click="scan">重新打开摄像头</text>
+			</view>
+		</view>
+
+		<view class="scanner-footer" :style="{ paddingBottom: safeBottom + 18 + 'px' }">
+			<view class="input-action" @click="toggleInput">
+				<text class="input-icon">⌨</text>
+				<text>输入邀请码</text>
+			</view>
 			<!-- #ifdef H5 -->
-			<video id="yfth-referral-camera" v-show="cameraActive" class="camera" autoplay muted playsinline></video>
-			<view v-if="cameraActive" class="camera-tip">将推广二维码放入画面中央，识别成功后会自动进入邀请确认</view>
-			<button class="secondary" @click="chooseQrImage">上传二维码图片</button>
+			<view class="album-action" aria-label="从相册选择二维码" @click="chooseQrImage">
+				<text class="iconfont icon-tupian"></text>
+				<text>相册</text>
+			</view>
 			<!-- #endif -->
-			<view class="divider"><text>或</text></view>
-			<textarea v-model.trim="input" maxlength="1024" placeholder="粘贴邀请链接或 64 位推广码" />
-			<button class="secondary" @click="submitInput">识别邀请</button>
+			<!-- #ifndef H5 -->
+			<view class="album-action" aria-label="从相册选择二维码" @click="scan">
+				<text class="iconfont icon-tupian"></text>
+				<text>相册</text>
+			</view>
+			<!-- #endif -->
 		</view>
-		<view class="notice">只接受本站推广链接和御方通和推广码。登录状态不会写入二维码，未登录用户会先完成登录，再自动继续邀请确认。</view>
+
+		<view v-if="inputVisible" class="input-mask" @click="toggleInput">
+			<view class="input-sheet" @click.stop>
+				<view class="sheet-handle"></view>
+				<view class="sheet-title">输入邀请链接或邀请码</view>
+				<textarea v-model.trim="input" maxlength="1024" placeholder="粘贴邀请链接或 64 位推广码" />
+				<button class="submit-button" @click="submitInput">识别邀请</button>
+				<button class="cancel-button" @click="toggleInput">取消</button>
+			</view>
+		</view>
 	</view>
 </template>
 
@@ -26,15 +66,55 @@ import jsQR from 'jsqr';
 
 export default {
 	data() {
-		return { input: '', cameraActive: false, stream: null, detector: null, detecting: false, animationFrame: 0, scanCanvas: null, lastScanAt: 0 };
+		return {
+			input: '',
+			inputVisible: false,
+			cameraActive: false,
+			cameraPending: true,
+			cameraError: '',
+			stream: null,
+			detector: null,
+			detecting: false,
+			animationFrame: 0,
+			scanCanvas: null,
+			lastScanAt: 0,
+			nativeScannerOpened: false,
+			safeTop: 20,
+			safeBottom: 0
+		};
+	},
+	computed: {
+		cameraStateTitle() {
+			return this.cameraPending ? '正在打开摄像头' : '摄像头未能启动';
+		},
+		cameraStateCopy() {
+			if (this.cameraPending) return '首次使用时请允许摄像头权限';
+			return this.cameraError || '请检查摄像头权限，或从相册选择二维码';
+		},
+		canRetryCamera() {
+			return !this.cameraPending && !this.cameraActive;
+		}
+	},
+	onLoad() {
+		const system = uni.getSystemInfoSync ? uni.getSystemInfoSync() : {};
+		this.safeTop = Number((system.safeAreaInsets && system.safeAreaInsets.top) || system.statusBarHeight || 20);
+		this.safeBottom = Number((system.safeAreaInsets && system.safeAreaInsets.bottom) || 0);
+	},
+	onReady() {
+		this.$nextTick(() => this.scan());
 	},
 	onUnload() { this.stopCamera(); },
 	onHide() { this.stopCamera(); },
 	methods: {
 		scan() {
 			// #ifdef MP-WEIXIN
-			uni.scanCode({ onlyFromCamera: true, scanType: ['qrCode'], success: (res) => this.consume(res.result), fail: (err) => {
-				if (!String((err && err.errMsg) || '').includes('cancel')) this.toast('扫码失败，请重试');
+			if (this.nativeScannerOpened) return;
+			this.nativeScannerOpened = true;
+			uni.scanCode({ onlyFromCamera: false, scanType: ['qrCode'], success: (res) => this.consume(res.result), fail: (err) => {
+				this.nativeScannerOpened = false;
+				if (String((err && err.errMsg) || '').includes('cancel')) return this.goBack();
+				this.cameraPending = false;
+				this.cameraError = '扫码未完成，请重试或从相册选择二维码';
 			} });
 			return;
 			// #endif
@@ -42,28 +122,35 @@ export default {
 			this.startH5Camera();
 			return;
 			// #endif
-			this.toast('当前端不支持摄像头扫码，请粘贴邀请链接');
+			this.cameraPending = false;
+			this.cameraError = '当前设备无法调用扫码能力，请输入邀请链接';
 		},
 		startH5Camera() {
+			this.cameraPending = true;
+			this.cameraError = '';
 			if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-				this.toast('当前浏览器无法调用摄像头，请检查 HTTPS 和摄像头权限，或上传二维码图片');
+				this.cameraPending = false;
+				this.cameraError = '当前浏览器无法调用摄像头，请改用相册或邀请码';
 				return;
 			}
-			this.stopCamera();
+			this.stopCamera(false);
 			this.detector = window.BarcodeDetector ? new window.BarcodeDetector({ formats: ['qr_code'] }) : null;
 			navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false }).then((stream) => {
 				this.stream = stream;
 				this.cameraActive = true;
+				this.cameraPending = false;
 				this.$nextTick(() => {
 					const root = document.getElementById('yfth-referral-camera');
 					const video = root && root.tagName === 'VIDEO' ? root : (root && root.querySelector ? root.querySelector('video') : null);
 					if (!video) throw new Error('camera_element_unavailable');
 					video.srcObject = stream;
+					video.setAttribute('playsinline', 'true');
 					video.play().then(() => this.detectLoop(video));
 				});
 			}).catch(() => {
-				this.stopCamera();
-				this.toast('无法打开摄像头，请检查权限或改用图片/链接');
+				this.stopCamera(false);
+				this.cameraPending = false;
+				this.cameraError = '无法打开摄像头，请检查浏览器权限或改用相册';
 			});
 		},
 		detectLoop(video) {
@@ -86,9 +173,9 @@ export default {
 				const path = res.tempFilePaths && res.tempFilePaths[0];
 				if (!path) return this.toast('未选择二维码图片');
 				this.loadImage(path).then((image) => this.decodeQrSource(image)).then((value) => {
-						if (!value) throw new Error('qr_not_found');
-						this.consume(value);
-					}).catch(() => this.toast('图片中未识别到有效推广二维码'));
+					if (!value) throw new Error('qr_not_found');
+					this.consume(value);
+				}).catch(() => this.toast('图片中未识别到有效推广二维码'));
 			} });
 		},
 		decodeQrSource(source) {
@@ -121,10 +208,14 @@ export default {
 				image.src = path;
 			});
 		},
+		toggleInput() {
+			this.inputVisible = !this.inputVisible;
+		},
 		submitInput() { this.consume(this.input); },
 		consume(value) {
 			const token = this.extractToken(value);
 			if (!token) return this.toast('不是有效的御方通和推广码或邀请链接');
+			this.stopCamera();
 			uni.navigateTo({ url: `/pages/yfth/referral/accept?invite_token=${token}` });
 		},
 		extractToken(value) {
@@ -135,7 +226,11 @@ export default {
 			const match = text.match(/[?&]invite_token=([a-f0-9]{64})(?:&|$)/i);
 			return match ? match[1].toLowerCase() : '';
 		},
-		stopCamera() {
+		goBack() {
+			this.stopCamera();
+			uni.navigateBack({ delta: 1 });
+		},
+		stopCamera(resetState = true) {
 			this.cameraActive = false;
 			if (this.animationFrame && typeof window !== 'undefined') window.cancelAnimationFrame(this.animationFrame);
 			this.animationFrame = 0;
@@ -143,6 +238,7 @@ export default {
 			this.stream = null;
 			this.detecting = false;
 			this.lastScanAt = 0;
+			if (resetState) this.cameraPending = false;
 		},
 		toast(title) { uni.showToast({ title, icon: 'none', duration: 2400 }); }
 	}
@@ -150,15 +246,44 @@ export default {
 </script>
 
 <style scoped>
-.page { min-height: 100vh; padding: 28rpx; box-sizing: border-box; color: #34291e; background: #f5f2ec; }
-.hero { display: flex; align-items: center; gap: 22rpx; padding: 36rpx 30rpx; border-radius: 14rpx; color: #fff; background: #9b713b; }
-.scan-icon { width: 78rpx; height: 78rpx; border: 1rpx solid rgba(255,255,255,.55); border-radius: 22rpx; font-size: 34rpx; line-height: 78rpx; text-align: center; }
-.title { font-size: 36rpx; font-weight: 700; }.subtitle { margin-top: 7rpx; font-size: 23rpx; opacity: .82; }
-.panel { margin-top: 22rpx; padding: 28rpx; border-radius: 14rpx; background: #fff; }
-button { width: 100%; margin: 0; border-radius: 10rpx; font-size: 27rpx; }.primary { color: #fff; background: #9b713b; }.secondary { margin-top: 18rpx; color: #765126; background: #f6eddf; }
-.camera { width: 100%; height: 420rpx; margin-top: 20rpx; border-radius: 10rpx; background: #191919; }
-.camera-tip { margin-top: 12rpx; color: #8b8276; font-size: 22rpx; line-height: 1.5; text-align: center; }
-.divider { position: relative; margin: 28rpx 0; color: #a1988c; font-size: 22rpx; text-align: center; }.divider::before { position: absolute; top: 50%; left: 0; width: 100%; height: 1px; background: #eee8df; content: ''; }.divider text { position: relative; padding: 0 18rpx; background: #fff; }
-textarea { width: 100%; height: 150rpx; padding: 18rpx; box-sizing: border-box; border: 1px solid #e5ded4; border-radius: 10rpx; font-size: 24rpx; background: #fffdfa; }
-.notice { margin-top: 20rpx; padding: 22rpx; border: 1px solid #eadbc3; border-radius: 10rpx; color: #7b603d; background: #fbf6ed; font-size: 22rpx; line-height: 1.6; }
+.scanner-page { position: fixed; inset: 0; width: 100%; max-width: 480px; min-height: 100vh; margin: 0 auto; overflow: hidden; color: #fff; background: #10110f; }
+.camera-view { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; background: #10110f; }
+.camera-shade { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0,0,0,.42) 0%, rgba(0,0,0,.04) 32%, rgba(0,0,0,.08) 63%, rgba(0,0,0,.65) 100%); pointer-events: none; }
+.scanner-header { position: absolute; top: 0; right: 0; left: 0; display: grid; grid-template-columns: 76rpx 1fr 76rpx; align-items: center; padding-right: 28rpx; padding-left: 28rpx; z-index: 3; }
+.scanner-title { font-size: 30rpx; font-weight: 600; text-align: center; text-shadow: 0 1px 5px rgba(0,0,0,.45); }
+.round-action { display: flex; align-items: center; justify-content: center; width: 70rpx; height: 70rpx; border-radius: 50%; color: #20211f; background: rgba(255,255,255,.94); box-shadow: 0 6rpx 20rpx rgba(0,0,0,.18); }
+.round-action .iconfont { font-size: 32rpx; }
+.header-spacer { width: 70rpx; height: 70rpx; }
+.scan-stage { position: absolute; top: 21%; right: 0; left: 0; display: flex; flex-direction: column; align-items: center; z-index: 2; }
+.scan-frame { position: relative; width: 500rpx; max-width: 72vw; aspect-ratio: 1; }
+.scan-frame.inactive { opacity: .45; }
+.corner { position: absolute; width: 70rpx; height: 70rpx; border-color: #fff; border-style: solid; }
+.corner-tl { top: 0; left: 0; border-width: 6rpx 0 0 6rpx; border-radius: 18rpx 0 0; }
+.corner-tr { top: 0; right: 0; border-width: 6rpx 6rpx 0 0; border-radius: 0 18rpx 0 0; }
+.corner-bl { bottom: 0; left: 0; border-width: 0 0 6rpx 6rpx; border-radius: 0 0 0 18rpx; }
+.corner-br { right: 0; bottom: 0; border-width: 0 6rpx 6rpx 0; border-radius: 0 0 18rpx; }
+.scan-line { position: absolute; right: 16rpx; left: 16rpx; height: 4rpx; border-radius: 2rpx; background: #36e8a0; box-shadow: 0 0 18rpx 5rpx rgba(54,232,160,.52); animation: scanMove 2.2s ease-in-out infinite; }
+.scan-hint { margin-top: 34rpx; font-size: 24rpx; text-shadow: 0 2rpx 8rpx rgba(0,0,0,.6); }
+.camera-state { position: absolute; top: 50%; left: 50%; display: flex; width: 430rpx; max-width: 70vw; flex-direction: column; align-items: center; gap: 14rpx; transform: translate(-50%, -50%); text-align: center; }
+.state-title { font-size: 29rpx; font-weight: 600; }
+.state-copy { color: rgba(255,255,255,.72); font-size: 22rpx; line-height: 1.55; }
+.retry-link { margin-top: 8rpx; padding: 14rpx 24rpx; border: 1px solid rgba(255,255,255,.7); border-radius: 32rpx; font-size: 22rpx; }
+.scanner-footer { position: absolute; right: 0; bottom: 0; left: 0; display: flex; align-items: flex-end; justify-content: space-between; padding: 28rpx 54rpx; z-index: 3; }
+.input-action, .album-action { display: flex; flex-direction: column; align-items: center; gap: 10rpx; color: #fff; font-size: 21rpx; text-shadow: 0 2rpx 7rpx rgba(0,0,0,.55); }
+.input-icon, .album-action .iconfont { display: flex; align-items: center; justify-content: center; width: 92rpx; height: 92rpx; border: 1px solid rgba(255,255,255,.48); border-radius: 50%; background: rgba(28,28,27,.5); font-size: 38rpx; backdrop-filter: blur(8px); }
+.album-action .iconfont { font-size: 40rpx; }
+.input-mask { position: absolute; inset: 0; display: flex; align-items: flex-end; background: rgba(0,0,0,.54); z-index: 8; }
+.input-sheet { width: 100%; padding: 20rpx 30rpx calc(28rpx + env(safe-area-inset-bottom)); border-radius: 24rpx 24rpx 0 0; box-sizing: border-box; color: #31291f; background: #fff; }
+.sheet-handle { width: 72rpx; height: 7rpx; margin: 0 auto 24rpx; border-radius: 4rpx; background: #d8d3cc; }
+.sheet-title { margin-bottom: 18rpx; font-size: 29rpx; font-weight: 650; }
+.input-sheet textarea { width: 100%; height: 150rpx; padding: 18rpx; border: 1px solid #e3dbcf; border-radius: 10rpx; box-sizing: border-box; font-size: 24rpx; background: #faf8f4; }
+.input-sheet button { width: 100%; height: 78rpx; margin: 18rpx 0 0; border-radius: 10rpx; font-size: 26rpx; line-height: 78rpx; }
+.submit-button { color: #fff; background: #9b713b; }
+.cancel-button { color: #72685c; background: #f2eee8; }
+@keyframes scanMove { 0%, 100% { top: 10%; opacity: .6; } 50% { top: 88%; opacity: 1; } }
+/* #ifdef H5 */
+@media screen and (min-width: 768px) {
+	.scanner-page { right: auto; left: 50%; transform: translateX(-50%); box-shadow: 0 0 45px rgba(0,0,0,.2); }
+}
+/* #endif */
 </style>

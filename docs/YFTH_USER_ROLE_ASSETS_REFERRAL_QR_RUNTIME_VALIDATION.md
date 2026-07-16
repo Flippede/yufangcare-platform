@@ -1,5 +1,11 @@
 # YFTH User Role Assets And Referral QR V1 Runtime Validation
 
+## Fullscreen referral scanner validation - 2026-07-16
+
+- The customer center exposes scanning as a profile-header icon and no longer renders the large referral-scan card in the member section.
+- H5 compiles an automatically opened, full-height camera surface with a scan frame, back action, album QR decoding, explicit camera-error state, and compact invite-code fallback. mp-weixin compiles the native full-screen `uni.scanCode` flow with `onlyFromCamera: false`, allowing the platform scanner to use either camera or album.
+- The dedicated role/assets/referral contract, existing multi-role shell check, request-fallback check, H5 production build, mp-weixin production compile, and `git diff --check` passed. The automated environment did not provide a physical camera and this record does not claim an optical scan or WeChat-platform upload.
+
 ## Member grant, scan and customer projection production closure - 2026-07-16
 
 - Production business release: `072eff50fadfd5d80e1317c1913b5ab966ffd779`; URL: `https://yfth.top`; backup: `/www/backup/yfth-member-scan-customer-20260716-193253`; release: `/www/releases/yfth-member-scan-customer-20260716-193253`.

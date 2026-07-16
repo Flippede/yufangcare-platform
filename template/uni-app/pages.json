@@ -315,7 +315,9 @@
 				{
 					"path": "referral/scan",
 					"style": {
-						"navigationBarTitleText": "扫一扫推广码"
+						"navigationStyle": "custom",
+						"disableScroll": true,
+						"backgroundColor": "#090909"
 					}
 				},
 				{
