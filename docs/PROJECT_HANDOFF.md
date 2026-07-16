@@ -1,5 +1,16 @@
 # 项目交接文档
 
+## Current Fact Snapshot - Member Grant, Referral Scan And Store Customer Production Closure
+
+- Production `https://yfth.top` now runs business release `072eff50fadfd5d80e1317c1913b5ab966ffd779` from the preserved branch `codex/yfth-user-role-assets-referral-code-v1`; stable `main` was not merged or changed.
+- H5 referral scan now opens the camera without requiring `BarcodeDetector`: browsers with that API use it, while Safari/WeChat/desktop variants without it use bundled `jsQR`. Image upload and invite link/token input remain available. The mp-weixin production artifact retains native `uni.scanCode`; it was compiled and retained but was not uploaded to WeChat.
+- The member promotion page can save the generated QR to a local file in H5 or the photo album in mp-weixin. No CRMEB legacy distribution QR is used.
+- Headquarters Admin visibly offers permanent-member authorization separately from franchisee, manager, and staff operations. Franchisee is presented as one independent operating identity with a list of managed stores; manager and staff remain store-scoped. Permanent membership remains non-expiring and is not exposed as a revocable store role.
+- Production migration `20260718130000 AllowHeadquartersPermanentMembershipGrant` is up. The controlled projection repair scanned two consistent active attribution rows, created two missing store-customer projections, and reported zero failures. Production now reports two active authority rows, two active store customers, and zero missing projections; TEST B1 therefore no longer has an empty customer list for those bound users.
+- Backup: `/www/backup/yfth-member-scan-customer-20260716-193253`; release artifacts: `/www/releases/yfth-member-scan-customer-20260716-193253`. The backup contains the pre-release source/static tree, `.env`, payment certificates, service/permission facts, and a verified full MySQL 8 logical dump with 248 table definitions.
+- Production PHP syntax and contract checks passed. Admin, H5, and mp-weixin production builds passed locally; deployed H5/Admin assets and required strings were verified online. Authenticated Admin rendered the new role-management UI; the public scan page rendered with no blocking console error. The automated browser had no usable media device, so a live optical camera scan was not claimed; the camera path and fallback decoder were verified by build, deployed bundle, and contract evidence.
+- Existing `.env`, products, images, uploads, OSS, SMS, WeChat, payment certificates, orders, and real business data were preserved. Nginx, PHP-FPM, MySQL 8, Redis, Queue, Timer, and Workerman are active. No real payment, SMS, refund, WeChat authorization, payout, production rollback, or WeChat upload was executed.
+
 ## Current Fact Snapshot - Member Grant, Referral Scan And Store Customer Projection Closure
 
 - Current feature branch: `codex/yfth-user-role-assets-referral-code-v1`; stable `main` / `origin/main` remains `cf58036638a1d53d7a29c6aa41a79ae52a37c4a5`. This development snapshot does not claim a main merge or production deployment.

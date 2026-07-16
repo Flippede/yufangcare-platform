@@ -1,5 +1,15 @@
 # YFTH User Role Assets And Referral QR V1 Runtime Validation
 
+## Member grant, scan and customer projection production closure - 2026-07-16
+
+- Production business release: `072eff50fadfd5d80e1317c1913b5ab966ffd779`; URL: `https://yfth.top`; backup: `/www/backup/yfth-member-scan-customer-20260716-193253`; release: `/www/releases/yfth-member-scan-customer-20260716-193253`.
+- The verified full MySQL 8 backup contains 248 table definitions. Migration `20260718130000` completed and the package-source column is nullable for headquarters-granted memberships.
+- The controlled authority projection repair returned `scanned=2`, `created=2`, `existing=0`, `failed=0`. Follow-up SQL reported two active authority rows, two active store-customer rows, and zero missing projections; both visible customers belong to marked TEST B1.
+- Authenticated production Admin rendered the user-role page and visible permanent-member/franchisee/manager-staff actions. The public H5 scan page rendered the camera, image-upload, and invite-input paths. Deployed bundles contain the `jsQR` fallback, QR save action, and new Admin identity labels; required JS/CSS assets returned HTTP 200.
+- The automated Chrome session did not expose a usable camera device, so no optical camera scan was claimed. H5 camera entry no longer depends on `BarcodeDetector`, and the mp-weixin production compile retains native `uni.scanCode`; no WeChat upload was performed.
+- Production services remained active and recent application logs had no fatal/uncaught/parse-error match. CRMEB has no `cache:clear` command in this version; that non-existent command was allowed to fail without using Redis `FLUSHALL` or changing unrelated cache data.
+- No real SMS, payment, refund, payout, WeChat authorization, production rollback, or WeChat upload was executed.
+
 ## Member grant, scan fallback and store-customer projection validation - 2026-07-16
 
 - PHP 7.4.33 syntax passed for the changed services, migration, repair command, and tests.
