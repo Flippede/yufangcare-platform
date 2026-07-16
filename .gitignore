@@ -48,6 +48,3 @@ crmeb/public/WXCertUtil/cert/
 /docker-compose/MacArm/mysql/log/
 /docker-compose/linux/mysql/data/
 /docker-compose/linux/mysql/log/
-
-# Local CodeGraph index
-.codegraph/
