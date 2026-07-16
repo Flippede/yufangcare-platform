@@ -1,5 +1,15 @@
 # YFTH User Role Assets And Referral QR V1 Runtime Validation
 
+## Final production login, identity and referral closure - 2026-07-16
+
+- Production business release commit: `0268395bab2ba78bcb908abaf626757958267a00`; URL: `https://yfth.top`; backup: `/www/backup/yfth-user-login-identity-referral-20260716-114210`.
+- All five stable customer-side accounts completed real `POST /api/login` token login. The separate headquarters account completed real `POST /adminapi/login`; customer accounts were confirmed absent from the Admin table and the headquarters account absent from the CRMEB customer table.
+- Real HTTP checks resolved franchisee, store manager and store staff to TEST B1. A headquarters grant/revoke round-trip wrote two audit facts and left no active temporary role. Staff reward-settlement access and a manager request for an ungranted store were both rejected.
+- A real C1 invite was issued and accepted by C2. C2 received the existing active one-level referral and authoritative TEST B1 attribution; self-scan and duplicate acceptance did not create another relation. The fixture was then reset and regenerated, leaving the stable C2 account as a non-member with no attribution and no active referral for user acceptance.
+- Real browser checks completed account login, the four-item customer footer, C1 member/promotion/scan surfaces, the visible headquarters role-management and fixture page, and the customer-to-manager role switch into the TEST B1 workbench. Browser console error count was zero on the checked H5 and Admin tabs.
+- Production migration `20260718120000 AddYfthAcceptancePasswordResetPermission` is up. Server source, Admin assets and H5 assets exactly match the uploaded release. MySQL 8, Redis, PHP-FPM, Nginx, Queue, Timer and Workerman were active, and recent application logs contained no fatal/uncaught/parse-error match.
+- The credential files remain private and mode `0600`; no password is recorded here. No SMS, real payment, refund, WeChat authorization, payout, production rollback or WeChat upload was executed.
+
 ## Login, headquarters user list and stable fixture closure - 2026-07-16
 
 - PHP 7.4.33 syntax passed for the changed controller, service, route, migration, and test files.

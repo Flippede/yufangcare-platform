@@ -1,5 +1,12 @@
 # YFTH User Role Assets And Referral QR V1
 
+## Production closure
+
+- Business release `0268395bab2ba78bcb908abaf626757958267a00` is deployed at `https://yfth.top` from the preserved feature branch; it is not merged into stable `main`.
+- Headquarters user management, stable acceptance accounts, server-validated role switching, permanent-member promotion QR and the multi-input scan page are visible and were verified through their real production surfaces.
+- The production acceptance fixture is active for TEST B1. C1 is a permanent member attributed to TEST B1; final C2 is a clean non-member with no attribution or active referral so the user can perform the first binding flow.
+- Credentials remain only in server-private mode-0600 files. Production products, orders, uploads, OSS, SMS, WeChat and payment configuration were not replaced, and no paid transaction or SMS was triggered.
+
 ## 1. Scope
 
 This stage adds three narrowly scoped surfaces:

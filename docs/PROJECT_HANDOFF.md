@@ -1,5 +1,18 @@
 # 项目交接文档
 
+## Current Fact Snapshot - Final User Login Identity And Referral Production Closure
+
+- Production `https://yfth.top` runs business release commit `0268395bab2ba78bcb908abaf626757958267a00` from the preserved branch `codex/yfth-user-role-assets-referral-code-v1`; stable `main` remains `cf58036638a1d53d7a29c6aa41a79ae52a37c4a5` and was not merged or changed in this stage.
+- The H5 account-login validation now accepts the stable `yfth_stg_*` CRMEB accounts. All five customer-side accounts and the separate headquarters administrator obtained real tokens through their correct login surfaces. The five customer-side accounts are not Admin users, and the headquarters account is not a customer user.
+- The visible headquarters path is `御方通和康养服务 / 用户经营身份`. The native user list presents YFTH membership, B1 attribution, active one-level referral, store roles, CRMEB balance and points; legacy paid-member, distribution-level and superior-user operations are hidden from the YFTH product surface without deleting CRMEB internals.
+- Production acceptance proved headquarters grant then revoke with audit, franchisee/manager/staff context resolution to TEST B1, manager workbench entry, staff settlement denial and forged cross-store context denial. Store roles never replaced customer identity or permanent membership.
+- C1 rendered the permanent-member promotion page, authoritative TEST B1 attribution, invite count and reward entry. The scan page rendered camera, QR-image and invite-link/token paths. A real C1-to-C2 invite acceptance succeeded once, self-scan and duplicate acceptance were rejected, and both parties shared TEST B1 during that proof.
+- After acceptance proof, the fixture was safely reset and regenerated. The final public `yfth_stg_c2_customer` is deliberately a non-member with no permanent attribution and no active referral, ready for the user's first scan acceptance. Immutable historical rows were retained instead of deleted or rewritten.
+- The private credential file is retained at `/www/private/yfth-acceptance/yfth-production-test-accounts.txt` and copied to `/root/yfth-staging-test-accounts.txt`; both remain outside the web tree with mode `0600`. Password values are not stored in Git, project documentation, browser output or ordinary logs.
+- Pre-release backup: `/www/backup/yfth-user-login-identity-referral-20260716-114210`; release evidence: `/www/releases/yfth-user-login-identity-referral-20260716-114210`. Existing `.env`, products, images, uploads, OSS, SMS, WeChat, payment certificates, orders and real business data were preserved.
+- PHP 7.4 syntax, isolated MySQL Community 8.0.46 migrations and direct real flows, Admin/H5/mp-weixin builds, production HTTP checks and real browser checks passed. Nginx, PHP-FPM, MySQL 8, Redis, Queue, Timer and Workerman are active; no recent fatal application log or blocking browser-console error was found.
+- No real payment, SMS, WeChat authorization, refund, automatic payout, WeChat upload or production rollback was executed. Multi-level referral and automatic reward credit to CRMEB balance or points remain outside V1.
+
 ## Current Fact Snapshot - User Login Identity And Referral Closure Development
 
 - Current branch: `codex/yfth-user-role-assets-referral-code-v1`, based on stable `main` / `origin/main` `cf58036638a1d53d7a29c6aa41a79ae52a37c4a5`. This snapshot does not claim a main merge.
