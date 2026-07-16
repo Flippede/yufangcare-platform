@@ -1,5 +1,12 @@
 # 项目交接文档
 
+## Current Fact Snapshot - H5 Referral Album Picker Production Hotfix
+
+- Production `https://yfth.top` now serves referral-album hotfix `c898fc6` from the preserved feature branch; stable `main` was not merged or changed.
+- Root cause: the generic H5 `uni.chooseImage` path did not reliably create an actionable system picker in the deployed mobile-browser surface. The album action now synchronously creates a native `input[type=file]`, accepts QR image formats, decodes the selected local image through the existing `jsQR` path, and revokes its temporary object URL after use.
+- A real production browser click created exactly one native file input with the accessible label `选择二维码图片`; the no-camera state remained explicit and the scanner route returned HTTP 200. Physical phone album selection remains the final device acceptance action.
+- Backup: `/www/backup/yfth-referral-album-20260716-204534`; retained release: `/www/releases/yfth-referral-album-20260716-204534`. No database, `.env`, uploads, OSS, SMS, WeChat, payment, product, order, identity, attribution, or referral fact was changed.
+
 ## Current Fact Snapshot - Fullscreen Referral Scanner Production Closure
 
 - Production `https://yfth.top` now serves the fullscreen referral-scanner release from feature commit `c635afd`; stable `main` was not merged or changed.

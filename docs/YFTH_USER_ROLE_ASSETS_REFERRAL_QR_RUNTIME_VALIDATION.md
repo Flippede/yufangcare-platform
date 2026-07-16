@@ -1,5 +1,11 @@
 # YFTH User Role Assets And Referral QR V1 Runtime Validation
 
+## H5 referral album picker production hotfix - 2026-07-16
+
+- H5 production and mp-weixin production compilation passed after replacing the unreliable H5 generic image picker with a native file input. The dedicated contract verifies picker creation, accepted image MIME types, and bounded object-URL cleanup.
+- Production browser click evidence found one `input[type=file]` and the accessible `选择二维码图片` control after activating the album action. The deployed scan chunk contains the native image accept list and the route returned HTTP 200.
+- Production release `c898fc6`, backup `/www/backup/yfth-referral-album-20260716-204534`, and artifact directory `/www/releases/yfth-referral-album-20260716-204534` are retained. No WeChat upload, database change, SMS, payment, or production rollback was executed.
+
 ## Fullscreen referral scanner production closure - 2026-07-16
 
 - Feature commit `c635afd` is deployed at `https://yfth.top`; backup `/www/backup/yfth-fullscreen-referral-scan-20260716-202201` and release `/www/releases/yfth-fullscreen-referral-scan-20260716-202201` are retained.
