@@ -42,6 +42,7 @@ $storeAcquisitionController = $read('app/api/controller/v1/yfth/StoreAcquisition
 $storeAcquisitionMigration = $read('database/migrations/20260718140000_create_yfth_store_acquisition_codes.php');
 $storeAcquisitionCodePage = (string)file_get_contents(dirname($root) . '/template/uni-app/pages/yfth/store_acquisition/code.vue');
 $storeAcquisitionAcceptPage = (string)file_get_contents(dirname($root) . '/template/uni-app/pages/yfth/store_acquisition/accept.vue');
+$qrCodeRuntime = (string)file_get_contents(dirname($root) . '/template/uni-app/components/zb-code/qrcode.js');
 $loginLibrary = (string)file_get_contents(dirname($root) . '/template/uni-app/libs/login.js');
 $loginPage = (string)file_get_contents(dirname($root) . '/template/uni-app/pages/users/login/index.vue');
 $wechatLoginPage = (string)file_get_contents(dirname($root) . '/template/uni-app/pages/users/wechat_login/index.vue');
@@ -162,6 +163,12 @@ foreach (['yfth_store_acquisition_code', 'yfth_store_acquisition_acceptance', 'u
 }
 $assert(strpos($storeAcquisitionController, 'acquisition_token') !== false, 'acquisition_controller_accepts_opaque_token_only');
 $assert(strpos($storeAcquisitionCodePage, 'saveQr') !== false && strpos($storeAcquisitionCodePage, '_saveCode') !== false, 'employee_acquisition_qr_can_be_saved');
+$assert(strpos($qrCodeRuntime, "document.createElement('canvas')") !== false
+    && strpos($qrCodeRuntime, "canvas.getContext('2d')") !== false
+    && strpos($qrCodeRuntime, "canvas.toDataURL('image/png')") !== false,
+    'h5_qr_uses_native_browser_canvas');
+$assert(strpos($qrCodeRuntime, 'uni.createCanvasContext(options.canvasId,options.context)') !== false,
+    'mini_program_qr_keeps_uni_canvas_path');
 $assert(strpos($storeAcquisitionService, 'MiniProgramService::getUrlLink') !== false && strpos($storeAcquisitionService, 'h5_launch_url') !== false, 'employee_qr_exposes_dedicated_h5_fallback');
 $assert(strpos($storeAcquisitionCodePage, 'this.code.h5_launch_url') !== false, 'employee_qr_uses_current_site_acquisition_route');
 $assert(strpos($storeAcquisitionCodePage, 'resolveYfthContext') !== false, 'employee_acquisition_page_revalidates_role_and_store');

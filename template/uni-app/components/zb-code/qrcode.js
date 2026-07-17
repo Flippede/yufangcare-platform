@@ -818,12 +818,51 @@ title:options.loadingText,
 mask:true
 });
 }
-var ctx=uni.createCanvasContext(options.canvasId,options.context);
 var count=qrCodeAlg.getModuleCount();
 var ratioSize=options.size;
 var ratioImgSize=options.imageSize;
 var tileW=(ratioSize/count).toPrecision(4);
 var tileH=(ratioSize/count).toPrecision(4);
+// #ifdef H5
+// The legacy uni.createCanvasContext adapter is unavailable in current H5 builds.
+// Render with the browser canvas API and keep the same data-URL callback contract.
+var canvas=document.createElement('canvas');
+canvas.width=ratioSize;
+canvas.height=ratioSize;
+var nativeCtx=canvas.getContext('2d');
+if(!nativeCtx){
+if(options.cbResult){
+options.cbResult('');
+}
+if(options.showLoading){
+uni.hideLoading();
+}
+return;
+}
+for(var nativeRow=0;nativeRow<count;nativeRow++){
+for(var nativeCol=0;nativeCol<count;nativeCol++){
+var nativeW=(Math.ceil((nativeCol+1)*tileW)-Math.floor(nativeCol*tileW));
+var nativeH=(Math.ceil((nativeRow+1)*tileH)-Math.floor(nativeRow*tileH));
+var nativeForeground=getForeGround({
+row:nativeRow,
+col:nativeCol,
+count:count,
+options:options
+});
+nativeCtx.fillStyle=qrCodeAlg.modules[nativeRow][nativeCol]?nativeForeground:options.background;
+nativeCtx.fillRect(Math.round(nativeCol*tileW),Math.round(nativeRow*tileH),nativeW,nativeH);
+}
+}
+if(options.cbResult){
+options.cbResult(canvas.toDataURL('image/png'));
+}
+if(options.showLoading){
+uni.hideLoading();
+}
+return;
+// #endif
+// #ifndef H5
+var ctx=uni.createCanvasContext(options.canvasId,options.context);
 for(var row=0;row<count;row++){
 for(var col=0;col<count;col++){
 var w=(Math.ceil((col+1)*tileW)-Math.floor(col*tileW));
@@ -891,6 +930,7 @@ uni.hideLoading();
 },options.text.length+100);
 });
 },options.usingComponents?0:150);
+// #endif
 }
 createCanvas(this.options);
 let empty=function(v){
