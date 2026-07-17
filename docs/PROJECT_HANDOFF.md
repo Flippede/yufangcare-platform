@@ -6,7 +6,8 @@
 - Captcha point selection keeps its component-scoped pointer listener and `touch-action: manipulation`; account/password login, SMS login, order navigation, service navigation, and the existing CRMEB routes are otherwise unchanged.
 - A focused contract now rejects future document-wide captcha touch listeners, the misspelled call, and global HTML touch rules. Login/navigation, multi-role shell, and request-fallback checks passed; clean H5 production build and mp-weixin production compile passed with existing non-blocking size and component-placement notices.
 - Public home, login, and logo endpoints responded with HTTP 200 and approximately 0.08-0.09 second total times during diagnosis. The observed desktop login completion included token login, user-info refresh, and role routing rather than slow base HTTP delivery.
-- Production deployment and browser/device interaction evidence are recorded after the committed artifact is released. No database, migration, identity, order, payment, product, upload, OSS, SMS, WeChat credential, or payment-certificate change is part of this fix.
+- Production `https://yfth.top` now serves commit `071908711f51213fa073b69cb22a84298910d916` through entry `static/js/index.e2d7f094.js`. A real browser session completed account login, opened the customer center, entered the pending-payment order list, and entered the cooperation center; the browser console had no error or warning. Public home, user, entry, and login chunks returned HTTP 200.
+- Production backup: `/www/backup/yfth-h5-touch-20260717-171415`; retained release: `/www/releases/yfth-h5-touch-20260717-171415`. The production `.env` SHA-256 remained `490642298d4e8aff0e1d0471185499bfda3643c7e5a472465c927e7893b73c3a`. No database, migration, identity, order, payment, product, upload, OSS, SMS, WeChat credential, or payment-certificate change was performed.
 
 ## Current Fact Snapshot - H5 Store Acquisition QR Rendering Fix
 

@@ -5,7 +5,8 @@
 - The login captcha shell previously registered document-wide `touchstart` and `touchmove` listeners whenever it mounted, never removed them, and called the misspelled `preventDefalut`. Repeated login visits accumulated listeners and a slightly horizontal mobile gesture could cancel the subsequent click across unrelated customer pages.
 - The shell now initializes only its captcha UUID. Point selection remains scoped to the captcha hitbox and retains mouse, pointer, and mobile-touch coordinate support.
 - The focused login/navigation contract rejects reintroduction of global captcha touch interception. Login/navigation, multi-role shell, and request-fallback checks passed. Clean H5 production and mp-weixin production builds passed; no WeChat upload was performed.
-- Production deployment and final browser interaction results are appended after release. No backend service, database schema, business fact, payment, SMS, or credential changed.
+- Production `https://yfth.top` serves commit `071908711f51213fa073b69cb22a84298910d916` through `static/js/index.e2d7f094.js`. A real browser session completed account login, customer-center navigation, pending-payment order navigation, and cooperation-center navigation without console errors. Relevant H5 routes and chunks returned HTTP 200.
+- Production backup: `/www/backup/yfth-h5-touch-20260717-171415`; retained release: `/www/releases/yfth-h5-touch-20260717-171415`. The `.env` checksum stayed unchanged. No backend service, database schema, business fact, payment, SMS, credential, or WeChat upload changed.
 
 ## Headquarters mall and manager-only procurement production closure - 2026-07-17
 
