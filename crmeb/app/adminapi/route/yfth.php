@@ -206,8 +206,8 @@ Route::group('yfth', function () {
         Route::post('user/:uid/grant', 'v1.yfth.HqUserRole/grant')->option(['real_name' => '总部授予用户经营身份']);
         Route::post('user/:uid/membership/grant', 'v1.yfth.HqUserRole/grantMembership')->option(['real_name' => '总部授予用户永久会员']);
         Route::post('user/:uid/partner/grant', 'v1.yfth.HqUserRole/grantPartner')->option(['real_name' => '总部授予用户招商合伙人身份']);
-        Route::get('user/:uid/purge/preflight', 'v1.yfth.HqUserRole/purgePreflight')->option(['real_name' => '总部预检调试用户删除']);
-        Route::delete('user/:uid/purge', 'v1.yfth.HqUserRole/purge')->option(['real_name' => '总部删除无业务事实的调试用户']);
+        Route::get('user/:uid/closure/preflight', 'v1.yfth.HqUserRole/closurePreflight')->option(['real_name' => '总部用户销户预检']);
+        Route::delete('user/:uid/closure', 'v1.yfth.HqUserRole/closure')->option(['real_name' => '总部代办用户销户']);
         Route::post('role/:id/revoke', 'v1.yfth.HqUserRole/revoke')->option(['real_name' => '总部撤销用户经营身份']);
     })->option(['parent' => 'yfth', 'cate_name' => 'HQ User Role Management']);
     Route::group('reward_settlement', function () {

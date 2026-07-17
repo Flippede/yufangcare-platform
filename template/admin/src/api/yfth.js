@@ -48,12 +48,12 @@ export function yfthUserPartnerGrant(uid, data) {
   return request({ url: `yfth/user_role/user/${uid}/partner/grant`, method: 'post', data });
 }
 
-export function yfthUserDebugPurgePreflight(uid) {
-  return request({ url: `yfth/user_role/user/${uid}/purge/preflight`, method: 'get' });
+export function yfthUserAccountClosurePreflight(uid) {
+  return request({ url: `yfth/user_role/user/${uid}/closure/preflight`, method: 'get' });
 }
 
-export function yfthUserDebugPurge(uid, data) {
-  return request({ url: `yfth/user_role/user/${uid}/purge`, method: 'delete', data });
+export function yfthUserAccountClosure(uid, data) {
+  return request({ url: `yfth/user_role/user/${uid}/closure`, method: 'delete', data });
 }
 
 export function yfthUserRoleRevoke(id, data) {

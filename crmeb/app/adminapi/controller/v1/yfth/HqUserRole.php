@@ -5,9 +5,9 @@ namespace app\adminapi\controller\v1\yfth;
 use app\adminapi\controller\AuthController;
 use app\services\system\admin\SystemRoleServices;
 use app\services\yfth\HqAcceptanceFixtureServices;
-use app\services\yfth\HqUserDebugPurgeServices;
 use app\services\yfth\HqUserRoleManagementServices;
 use app\services\yfth\FranchisePartnerServices;
+use app\services\yfth\UserAccountClosureServices;
 
 class HqUserRole extends AuthController
 {
@@ -110,17 +110,18 @@ class HqUserRole extends AuthController
         ));
     }
 
-    public function purgePreflight(HqUserDebugPurgeServices $services, $uid)
+    public function closurePreflight(UserAccountClosureServices $services, $uid)
     {
-        $this->auth('yfth/user_role/user/<uid>/purge/preflight', 'GET');
-        return app('json')->success($services->preflight((int)$uid, $this->adminInfo ?: []));
+        $this->auth('yfth/user_role/user/<uid>/closure/preflight', 'GET');
+        return app('json')->success($services->preflightForHeadquarters((int)$uid, $this->adminInfo ?: []));
     }
 
-    public function purge(HqUserDebugPurgeServices $services, $uid)
+    public function closure(UserAccountClosureServices $services, $uid)
     {
-        $this->auth('yfth/user_role/user/<uid>/purge', 'DELETE');
-        return app('json')->success($services->purge((int)$uid, $this->request->postMore([
+        $this->auth('yfth/user_role/user/<uid>/closure', 'DELETE');
+        return app('json')->success($services->closeForHeadquarters((int)$uid, $this->request->postMore([
             ['confirmation', ''],
+            ['reason', ''],
         ]), (int)$this->adminId, $this->adminInfo ?: []));
     }
 

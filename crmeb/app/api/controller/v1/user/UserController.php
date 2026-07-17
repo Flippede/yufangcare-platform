@@ -12,9 +12,9 @@ namespace app\api\controller\v1\user;
 
 use app\Request;
 use app\services\product\product\StoreProductLogServices;
-use app\services\user\UserCancelServices;
 use app\services\user\UserServices;
 use app\services\wechat\WechatUserServices;
+use app\services\yfth\UserAccountClosureServices;
 
 
 /**
@@ -197,12 +197,17 @@ class UserController
      * @param Request $request
      * @return mixed
      */
-    public function SetUserCancel(Request $request)
+    public function userCancelPreflight(Request $request, UserAccountClosureServices $services)
     {
-        /** @var UserCancelServices $userCancelServices */
-        $userCancelServices = app()->make(UserCancelServices::class);
-        $userCancelServices->SetUserCancel($request->uid());
-        return app('json')->success(410135);
+        return app('json')->success($services->preflightForUser((int)$request->uid()));
+    }
+
+    public function SetUserCancel(Request $request, UserAccountClosureServices $services)
+    {
+        $data = $request->postMore([
+            ['confirmation', ''],
+        ]);
+        return app('json')->success(410135, $services->closeForUser((int)$request->uid(), $data));
     }
 
     /**

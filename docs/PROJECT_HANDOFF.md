@@ -1,5 +1,16 @@
 # 项目交接文档
 
+## Current Fact Snapshot - Formal User Account Closure V1 Development Closure
+
+- Current branch: `codex/yfth-franchise-opening-partner-hierarchy-v1`; development started at `cc927a6d33187d7b39e994009110181ec8cfd7ff`. Stable `main` / `origin/main` remains `cf58036638a1d53d7a29c6aa41a79ae52a37c4a5`; this change has not been merged or deployed.
+- The former headquarters-only debug purge has been replaced by one formal account-closure domain shared by customer self-service and headquarters-assisted closure. Customer self-service is available from the existing account-cancellation page; headquarters uses `御方通和 / 用户经营身份 / 账号销户`, with headquarters scope, dedicated API permissions, a mandatory reason, and the exact phrase `确认注销`.
+- Eligible accounts are deleted in one transaction. The service discovers every real database column named `uid`, `user_id`, or `*_uid`; each reference must be explicitly deleted or detached, while every unknown reference fails closed. The user row is deleted last, followed by a second full reference scan. Any residual UID-shaped reference rolls back the transaction.
+- Successful closure removes the CRMEB account/profile/session-facing data and YFTH membership, operating identity, permanent attribution, direct referral, store-acquisition, store-customer relation, and customer-follow projections. The user therefore disappears from the owning store's customer list, and the same account/phone can register later as a new user. The user-facing preflight exposes only safe blocker categories, not internal table or event details.
+- Orders, payments, refunds, bills, fulfilment facts, settled rewards, franchise/opening/partner performance, and any other immutable or unknown business record are never hard-delete allowlisted. If such a fact exists, both self-service and headquarters closure are rejected before mutation; partial deletion is forbidden. This is the legal/accounting safety boundary for the request to remove all user-linked database information.
+- Forward migration `20260719120000_formalize_yfth_user_account_closure.php` converts the two old hidden debug-purge permissions into formal closure preflight/execute permissions without creating a duplicate menu or third deletion mechanism. The old debug service and real-flow test were removed.
+- Verification passed: PHP 7.4 syntax, dedicated closure contract, existing role/assets/referral contract, isolated MySQL Community 8.0.46 self-service and headquarters real flow, zero-residual UID scan, store-customer deletion, fresh re-registration, immutable-order blocking, migration run/targeted rollback/rerun/duplicate run, Admin production build, H5 production build, mp-weixin production compile, and `git diff --check`. Existing build-size, CSS-order, skeleton-key, and component-placement warnings remain non-blocking.
+- No production database, production user, order, payment, SMS, WeChat platform, upload, OSS setting, certificate, or server deployment was touched. Formal production rollout must first back up the affected code, Admin/H5 assets, permission rows, and user/YFTH tables, then run only the forward migration and the reviewed release artifacts.
+
 ## Current Fact Snapshot - Partner Application QR Rendering Closure
 
 - Branch `codex/yfth-franchise-opening-partner-hierarchy-v1` fixes the blank franchise-application QR area for county, prefecture, province, regional-director, and platform-director partner workbenches. Functional commit: `c5f3ca6c29b4a29c75deb9880f43f728d29e19f3`; stable `main` remains unchanged and this branch has not been merged.
@@ -35,7 +46,9 @@
 - Real production browser verification passed for both controlled TEST B1 staff and manager accounts. Each page rendered one visible `195 x 195` PNG QR image, the correct store name, and the correct source role. No new `createCanvasContext`, `setFillStyle`, or QR-generation exception occurred after the release.
 - Production H5 backup: `/www/backup/yfth-h5-qr-20260717-164344`; retained release: `/www/releases/yfth-h5-qr-20260717-164344`. The production `.env` SHA-256 remained unchanged. No database migration, payment, SMS, WeChat upload, product, order, upload, OSS, or payment-certificate change was performed.
 
-## Current Fact Snapshot - Debug User Purge Confirmation Simplification
+## Historical Fact Snapshot - Debug User Purge Confirmation Simplification
+
+This historical debug-only workflow is superseded by `Formal User Account Closure V1` at the top of this document and is no longer the current deletion path.
 
 - Branch `codex/yfth-franchise-opening-partner-hierarchy-v1` simplifies the headquarters debug-user purge dialog to one exact manual confirmation: `确认删除`. The former account re-entry, dynamic `DELETE UID ...` phrase, and eight-character free-text reason are no longer requested.
 - The dialog displays a prominent red exclamation warning, the target user and preflight result, and enables the destructive button only after the exact four-character phrase is entered. The backend independently verifies the same phrase and records a fixed server-owned audit reason.
@@ -98,7 +111,9 @@
 - Production read-only database verification found exactly one accepted acquisition row for that controlled C2, one active Stage 1A attribution to store `1`, and one active store-customer relation to store `1`. The customer is therefore visible from the store projection; no package-writeoff route, permanent-member referral, CRMEB legacy spread relation, reward candidate, payment, or SMS was used.
 - Production H5 backup: `/www/backup/yfth-store-acquisition-login-20260717-122252`; retained release: `/www/releases/yfth-store-acquisition-login-20260717-122252`; deployed entry asset: `static/js/index.957a5d2d.js`. Existing `.env`, database configuration, products, orders, uploads, OSS, SMS, WeChat, payment certificates, and Admin assets were preserved. The mp-weixin artifact compiled successfully but was not uploaded to WeChat.
 
-## Current Fact Snapshot - Store Acquisition Binding And HQ User Safeguards Closure
+## Historical Fact Snapshot - Store Acquisition Binding And HQ User Safeguards Closure
+
+The store-acquisition facts below remain historical and stable. Its debug-purge paragraph is superseded by `Formal User Account Closure V1` and must not be treated as the current account-deletion contract.
 
 - Feature branch `codex/yfth-user-role-assets-referral-code-v1` closes the production gap where a manager/staff store QR could be resolved but never accepted: the public QR now always points to the current H5 store-acquisition landing page, the landing page automatically completes acceptance after login, verifies the returned active attribution, shows `门店绑定成功`, and then returns to the mall homepage.
 - Store acceptance continues to use the existing transaction: the authoritative Stage 1A attribution and store-customer projection are written together. It does not open the package-writeoff page, create a permanent-member referral, or write CRMEB legacy distribution fields.

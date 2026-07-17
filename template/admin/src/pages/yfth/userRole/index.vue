@@ -55,13 +55,13 @@
           <el-tag v-for="role in row.store_roles" :key="role.id" size="mini" class="role-tag">{{ role.store_name || ('门店 ' + role.store_id) }} · {{ role.role_name }}</el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="总部授权与调试" width="430" fixed="right">
+      <el-table-column label="总部授权与账号" width="430" fixed="right">
         <template slot-scope="{ row }">
           <el-button type="text" @click="openDetail(row)">查看</el-button>
           <el-button v-if="!row.permanent_member" type="text" @click="openGrant(row, 'permanent_member')">授权会员</el-button>
           <el-button v-if="!(row.partner_identity && row.partner_identity.active)" type="text" @click="openPartnerGrant(row)">授予合伙人</el-button>
           <el-button type="text" @click="openGrant(row)">店长/店员</el-button>
-          <el-button type="text" class="danger" @click="openPurge(row)">调试删除</el-button>
+          <el-button type="text" class="danger" @click="openClosure(row)">账号销户</el-button>
         </template>
       </el-table-column>
     </el-table>
@@ -113,27 +113,30 @@
       <span slot="footer"><el-button @click="partnerGrantVisible = false">取消</el-button><el-button type="warning" :loading="saving" @click="grantPartner">确认授予</el-button></span>
     </el-dialog>
 
-    <el-dialog title="调试用户完整删除" :visible.sync="purgeVisible" width="640px" :close-on-click-modal="false">
-      <div class="purge-danger-header">
+    <el-dialog title="总部代办用户销户" :visible.sync="closureVisible" width="680px" :close-on-click-modal="false">
+      <div class="closure-danger-header">
         <i class="el-icon-warning" aria-hidden="true" />
-        <span>重要：删除后无法恢复，仅允许删除没有不可逆业务事实的调试用户。</span>
+        <span>重要：销户成功后无法恢复。系统会删除账号、身份、归属、推荐及门店客户关系；存在不可逆账务事实时必须拒绝。</span>
       </div>
-      <div v-if="purgePreflight" class="purge-summary">
-        <p><b>目标：</b>{{ purgePreflight.nickname || '-' }} / {{ purgePreflight.account }} / UID {{ purgePreflight.uid }}</p>
-        <p><b>预检：</b><el-tag :type="purgePreflight.can_purge ? 'success' : 'danger'">{{ purgePreflight.can_purge ? '可删除' : '已拒绝' }}</el-tag> {{ purgePreflight.safety_note }}</p>
-        <el-table :data="purgePreflight.blocking_references || []" border size="mini" empty-text="无阻塞引用">
+      <div v-if="closurePreflight" class="closure-summary">
+        <p><b>目标：</b>{{ closurePreflight.nickname || '-' }} / {{ closurePreflight.account }} / UID {{ closurePreflight.uid }}</p>
+        <p><b>预检：</b><el-tag :type="closurePreflight.can_close ? 'success' : 'danger'">{{ closurePreflight.can_close ? '可以完整销户' : '已拒绝销户' }}</el-tag> {{ closurePreflight.safety_note }}</p>
+        <el-table :data="closurePreflight.blocking_references || []" border size="mini" empty-text="无阻塞引用">
           <el-table-column prop="table" label="阻塞表" min-width="220" />
           <el-table-column prop="column" label="字段" width="150" />
           <el-table-column prop="count" label="行数" width="80" />
         </el-table>
-        <el-form v-if="purgePreflight.can_purge" label-width="110px" class="purge-form">
-          <el-form-item label="确认删除">
-            <el-input v-model.trim="purgeForm.confirmation" placeholder="请输入：确认删除" @keyup.enter.native="purgeUser" />
-            <div class="purge-confirm-tip">请输入“确认删除”四个字后执行。</div>
+        <el-form v-if="closurePreflight.can_close" label-width="110px" class="closure-form">
+          <el-form-item label="代办原因">
+            <el-input v-model.trim="closureForm.reason" type="textarea" :rows="3" maxlength="255" show-word-limit placeholder="请填写总部代办销户原因" />
+          </el-form-item>
+          <el-form-item label="确认销户">
+            <el-input v-model.trim="closureForm.confirmation" placeholder="请输入：确认注销" @keyup.enter.native="closeAccount" />
+            <div class="closure-confirm-tip">请输入“确认注销”四个字后执行。</div>
           </el-form-item>
         </el-form>
       </div>
-      <span slot="footer"><el-button @click="purgeVisible = false">取消</el-button><el-button type="danger" :disabled="!purgePreflight || !purgePreflight.can_purge || purgeForm.confirmation !== purgePreflight.confirmation_phrase" :loading="purgeSaving" @click="purgeUser">我已核对，执行删除</el-button></span>
+      <span slot="footer"><el-button @click="closureVisible = false">取消</el-button><el-button type="danger" :disabled="!closureReady" :loading="closureSaving" @click="closeAccount">我已核对，执行永久销户</el-button></span>
     </el-dialog>
   </div>
 </template>
@@ -147,8 +150,8 @@ import {
   yfthPartnerGrantOptions,
   yfthUserMembershipGrant,
   yfthUserPartnerGrant,
-  yfthUserDebugPurge,
-  yfthUserDebugPurgePreflight,
+  yfthUserAccountClosure,
+  yfthUserAccountClosurePreflight,
   yfthUserRoleDetail,
   yfthUserRoleGrant,
   yfthUserRoleRevoke,
@@ -160,11 +163,11 @@ export default {
     return {
       loading: false, saving: false, fixtureSaving: false, list: [], total: 0, stores: [], roleOptions: [],
       query: { keyword: '', page: 1, limit: 20 }, detail: null, selected: null,
-      detailVisible: false, grantVisible: false, grantPresetRole: '', partnerGrantVisible: false, purgeVisible: false, purgeSaving: false,
+      detailVisible: false, grantVisible: false, grantPresetRole: '', partnerGrantVisible: false, closureVisible: false, closureSaving: false,
       grantForm: { store_id: '', role_code: '', reason: '' },
       partnerGrantForm: { rank_code: '', parent_uid: '', reason: '' },
       partnerRankOptions: [], partnerParentOptions: [], partnerParentRequired: false, partnerParentRankName: '', partnerOptionsLoading: false,
-      purgePreflight: null, purgeForm: { confirmation: '' },
+      closurePreflight: null, closureForm: { confirmation: '', reason: '' },
       fixture: { enabled: false, exists: false, status: 'not_generated', store: {}, accounts: [] },
     };
   },
@@ -175,6 +178,11 @@ export default {
     staffRoleOptions() { return this.roleOptions.filter((item) => ['store_manager', 'store_staff'].includes(item.value)); },
     grantRoleLabel() { return { permanent_member: '永久会员' }[this.grantPresetRole] || '经营身份'; },
     grantDialogTitle() { return this.grantPresetRole ? `授权${this.grantRoleLabel}` : '授权店长/店员'; },
+    closureReady() {
+      return Boolean(this.closurePreflight && this.closurePreflight.can_close
+        && this.closureForm.confirmation === this.closurePreflight.confirmation_phrase
+        && String(this.closureForm.reason || '').trim().length >= 4);
+    },
   },
   created() {
     this.load();
@@ -292,25 +300,26 @@ export default {
         return this.load();
       }).finally(() => { this.saving = false; });
     },
-    openPurge(row) {
+    openClosure(row) {
       this.selected = row;
-      this.purgePreflight = null;
-      this.purgeForm = { confirmation: '' };
-      this.purgeVisible = true;
-      yfthUserDebugPurgePreflight(row.uid).then((res) => { this.purgePreflight = res.data || null; });
+      this.closurePreflight = null;
+      this.closureForm = { confirmation: '', reason: '' };
+      this.closureVisible = true;
+      yfthUserAccountClosurePreflight(row.uid).then((res) => { this.closurePreflight = res.data || null; });
     },
-    purgeUser() {
-      if (!this.purgePreflight || !this.purgePreflight.can_purge) return;
-      if (this.purgeForm.confirmation !== this.purgePreflight.confirmation_phrase) {
-        return this.$message.warning('请输入“确认删除”四个字');
+    closeAccount() {
+      if (!this.closurePreflight || !this.closurePreflight.can_close) return;
+      if (this.closureForm.confirmation !== this.closurePreflight.confirmation_phrase) {
+        return this.$message.warning('请输入“确认注销”四个字');
       }
-      this.purgeSaving = true;
-      yfthUserDebugPurge(this.purgePreflight.uid, this.purgeForm).then(() => {
-        this.$message.success('调试用户及允许删除的关联数据已完整删除');
-        this.purgeVisible = false;
+      if (String(this.closureForm.reason || '').trim().length < 4) return this.$message.warning('请填写不少于4个字的代办原因');
+      this.closureSaving = true;
+      yfthUserAccountClosure(this.closurePreflight.uid, this.closureForm).then(() => {
+        this.$message.success('用户账号及可删除关联数据已完成销户');
+        this.closureVisible = false;
         this.detailVisible = false;
         return this.load(true);
-      }).finally(() => { this.purgeSaving = false; });
+      }).finally(() => { this.closureSaving = false; });
     },
     grant() {
       if (!this.grantForm.store_id || !this.grantForm.role_code || !this.grantForm.reason) return this.$message.warning('请选择门店、身份并填写原因');
@@ -357,11 +366,11 @@ export default {
 .partner-grant-form .el-select { width: 100%; }
 .revoke-icon { margin-left: 6px; cursor: pointer; }
 .danger { color: #f56c6c; }
-.purge-summary { margin-top: 16px; }
-.purge-summary p { line-height: 1.7; }
-.purge-form { margin-top: 18px; }
-.purge-danger-header { display: flex; align-items: center; gap: 10px; padding: 13px 16px; color: #f56c6c; background: #fef0f0; border: 1px solid #fbc4c4; }
-.purge-danger-header .el-icon-warning { flex: 0 0 auto; font-size: 26px; }
-.purge-danger-header span { color: #c45656; font-weight: 600; line-height: 1.5; }
-.purge-confirm-tip { margin-top: 6px; color: #f56c6c; line-height: 1.5; }
+.closure-summary { margin-top: 16px; }
+.closure-summary p { line-height: 1.7; }
+.closure-form { margin-top: 18px; }
+.closure-danger-header { display: flex; align-items: center; gap: 10px; padding: 13px 16px; color: #f56c6c; background: #fef0f0; border: 1px solid #fbc4c4; }
+.closure-danger-header .el-icon-warning { flex: 0 0 auto; font-size: 26px; }
+.closure-danger-header span { color: #c45656; font-weight: 600; line-height: 1.5; }
+.closure-confirm-tip { margin-top: 6px; color: #f56c6c; line-height: 1.5; }
 </style>

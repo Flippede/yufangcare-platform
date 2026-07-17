@@ -664,12 +664,17 @@ export function delClerkPercent(id) {
 }
 
 /**
- * 注销用户
- * @param int id
- * 
+ * 用户销户预检
  */
-export function cancelUser() {
-	return request.get('user_cancel');
+export function getUserCancelPreflight() {
+	return request.get('user_cancel/preflight');
+}
+
+/**
+ * 确认用户销户
+ */
+export function cancelUser(data) {
+	return request.post('user_cancel', data);
 }
 /**
  * 获取多语言类型

@@ -353,8 +353,9 @@ Route::group(function () {
         /** 佣金相关 */
         Route::get('commission', 'v1.user.UserBrokerageController/commission')->name('commission')->option(['real_name' => '推广数据']);//推广数据 昨天的佣金 累计提现金额 当前佣金
         Route::get('brokerage_rank', 'v1.user.UserBrokerageController/brokerageRank')->name('brokerageRank')->option(['real_name' => '佣金排行']);//佣金排行
-        /** 用户注销 */
-        Route::get('user_cancel', 'v1.user.UserController/SetUserCancel')->name('SetUserCancel')->option(['real_name' => '用户注销']);//用户注销
+        /** 用户正式销户 */
+        Route::get('user_cancel/preflight', 'v1.user.UserController/userCancelPreflight')->name('userCancelPreflight')->option(['real_name' => '用户销户预检']);
+        Route::post('user_cancel', 'v1.user.UserController/SetUserCancel')->name('SetUserCancel')->option(['real_name' => '用户确认销户']);
         /** 用户浏览记录 */
         Route::get('user/visit_list', 'v1.user.UserController/visitList')->name('visitList')->option(['real_name' => '商品浏览列表']);//商品浏览列表
         Route::delete('user/visit', 'v1.user.UserController/visitDelete')->name('visitDelete')->option(['real_name' => '商品浏览记录删除']);//商品浏览记录删除

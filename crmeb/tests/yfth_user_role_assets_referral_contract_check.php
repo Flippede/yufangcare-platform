@@ -29,10 +29,16 @@ $apiRoutes = $read('app/api/route/yfth_service.php');
 $membershipAuthority = $read('app/services/yfth/PackageMembershipServices.php');
 $franchiseCustomer = $read('app/services/yfth/FranchiseCustomerServices.php');
 $membershipGrantMigration = $read('database/migrations/20260718130000_allow_headquarters_permanent_membership_grant.php');
-$membershipPurgeMigration = $read('database/migrations/20260718150000_add_yfth_membership_and_debug_purge_permissions.php');
-$purgeService = $read('app/services/yfth/HqUserDebugPurgeServices.php');
+$membershipLegacyMigration = $read('database/migrations/20260718150000_add_yfth_membership_and_debug_purge_permissions.php');
+$closureMigration = $read('database/migrations/20260719120000_formalize_yfth_user_account_closure.php');
+$closureService = $read('app/services/yfth/UserAccountClosureServices.php');
+$userController = $read('app/api/controller/v1/user/UserController.php');
+$userRoutes = $read('app/api/route/v1.php');
 $adminPage = (string)file_get_contents(dirname($root) . '/template/admin/src/pages/yfth/userRole/index.vue');
+$adminApi = (string)file_get_contents(dirname($root) . '/template/admin/src/api/yfth.js');
 $userPage = (string)file_get_contents(dirname($root) . '/template/uni-app/pages/user/index.vue');
+$cancellationPage = (string)file_get_contents(dirname($root) . '/template/uni-app/pages/users/user_cancellation/index.vue');
+$userApi = (string)file_get_contents(dirname($root) . '/template/uni-app/api/user.js');
 $codePage = (string)file_get_contents(dirname($root) . '/template/uni-app/pages/yfth/referral/code.vue');
 $acceptPage = (string)file_get_contents(dirname($root) . '/template/uni-app/pages/yfth/referral/accept.vue');
 $scanPage = (string)file_get_contents(dirname($root) . '/template/uni-app/pages/yfth/referral/scan.vue');
@@ -63,16 +69,29 @@ $assert(strpos($membershipGrantMigration, 'source_package_instance_id` INT UNSIG
 $assert(strpos($controller . $route, 'yfth/user_role/user/<uid>/membership/grant') !== false, 'dedicated_membership_grant_route_exists');
 $assert(strpos($adminPage, 'yfthUserMembershipGrant') !== false, 'admin_membership_button_uses_dedicated_api');
 foreach (['yfth-user-role-membership-grant', 'yfth-user-debug-purge-preflight', 'yfth-user-debug-purge-execute'] as $auth) {
-    $assert(strpos($membershipPurgeMigration, $auth) !== false, 'membership_purge_permission_exists:' . $auth);
+    $assert(strpos($membershipLegacyMigration, $auth) !== false, 'legacy_permission_source_exists:' . $auth);
 }
-foreach (['user_debug_purge_enabled', 'discoverReferences', 'confirmation_phrase', 'blocking_references', 'debug_user_purge_residual_reference_detected'] as $needle) {
-    $assert(strpos($purgeService, $needle) !== false, 'debug_purge_guard_contains:' . $needle);
+foreach (['yfth-user-account-closure-preflight', 'yfth-user-account-closure-execute', '/closure/preflight', '/closure'] as $needle) {
+    $assert(strpos($closureMigration, $needle) !== false, 'closure_permission_migration_contains:' . $needle);
 }
-$assert(strpos($purgeService, "private const CONFIRMATION_PHRASE = '确认删除'") !== false, 'debug_purge_uses_simple_exact_confirmation');
-$assert(strpos($adminPage, 'purge-danger-header') !== false && strpos($adminPage, 'el-icon-warning') !== false, 'debug_purge_displays_red_warning_icon');
-$assert(strpos($adminPage, 'purgeForm.account') === false && strpos($adminPage, 'purgeForm.reason') === false, 'debug_purge_frontend_requires_confirmation_only');
-$assert(strpos($purgeService, "'store_order' =>") === false, 'debug_purge_never_allowlists_store_orders');
-$assert(strpos($purgeService, "'yfth_permanent_membership' =>") === false, 'debug_purge_never_allowlists_membership');
+foreach (['user_account_closure_enabled', 'discoverReferences', 'confirmation_phrase', 'blocking_references', 'publicProjection', 'yfth_user_account_closure'] as $needle) {
+    $assert(strpos($closureService, $needle) !== false, 'account_closure_guard_contains:' . $needle);
+}
+$assert(strpos($closureService, "private const CONFIRMATION_PHRASE = '确认注销'") !== false, 'account_closure_uses_exact_confirmation');
+$assert(strpos($closureService, "'yfth_customer_relation' => ['uid']") !== false, 'account_closure_removes_store_customer_projection');
+$assert(strpos($closureService, "'yfth_permanent_membership' => ['uid']") !== false, 'account_closure_removes_membership_projection');
+$assert(strpos($closureService, "'yfth_user_store_role' => ['uid']") !== false, 'account_closure_removes_store_roles');
+$assert(strpos($closureService, "'store_order' =>") === false, 'account_closure_never_allowlists_store_orders');
+$assert(strpos($closureService, "if (\$result['user.uid'] !== 1 || \$this->discoverReferences(\$uid))") !== false, 'account_closure_rolls_back_on_any_uid_residual');
+$assert(strpos($closureService, "'blocking_references' => \$preflight['blocking_references']") === false, 'user_preflight_does_not_expose_internal_table_names');
+$assert(!is_file($root . '/app/services/yfth/HqUserDebugPurgeServices.php'), 'legacy_debug_purge_service_removed');
+$assert(strpos($adminPage, 'closure-danger-header') !== false && strpos($adminPage, 'el-icon-warning') !== false, 'account_closure_displays_red_warning_icon');
+$assert(strpos($adminPage, '调试删除') === false && strpos($adminPage, '账号销户') !== false, 'admin_replaces_debug_delete_with_formal_closure');
+$assert(strpos($adminPage, 'closureForm.reason') !== false && strpos($adminPage, '确认注销') !== false, 'headquarters_closure_requires_reason_and_confirmation');
+$assert(strpos($controller . $route . $adminApi, 'closure/preflight') !== false, 'headquarters_closure_api_wired');
+$assert(strpos($userController . $userRoutes . $userApi, 'user_cancel/preflight') !== false, 'self_closure_preflight_wired');
+$assert(strpos($userRoutes, "Route::post('user_cancel'") !== false && strpos($userRoutes, "Route::get('user_cancel',") === false, 'self_closure_is_confirmed_post_not_legacy_get');
+$assert(strpos($cancellationPage, '账号正式销户') !== false && strpos($cancellationPage, '确认注销') !== false, 'self_closure_page_exposes_formal_confirmation');
 foreach (['franchisee', 'store_manager', 'store_staff'] as $roleCode) {
     $assert(strpos($service, "'{$roleCode}'") !== false, 'supported_store_role:' . $roleCode);
 }
