@@ -1,5 +1,14 @@
 # 项目交接文档
 
+## Current Fact Snapshot - Highest Operating Identity Default Closure
+
+- Feature branch `codex/yfth-user-role-assets-referral-code-v1` now derives the default customer-side context from the highest active server identity: `franchisee > store_manager > store_staff > service_mentor > customer`. Permanent membership remains a qualification and is not part of the switchable operating-role order.
+- Login landing, customer home, user center, role selection, store selection, and workbench loading now discard stale lower-role context. A manager therefore opens the manager workbench and cannot fall back to customer or staff UI; a staff-only account opens the staff workbench. If the highest role covers multiple stores, only the store may be switched.
+- The role-selection surface no longer exposes customer or lower-role fallback for an account with a higher active operating identity. Every resolved context is still verified by the existing user-token backend endpoint; frontend role parameters remain non-authoritative.
+- The multi-role shell contract, request fallback check, H5 production build, mp-weixin production compile, and `git diff --check` passed. No backend identity fact, database, migration, order, payment, referral, reward, product, or production configuration was changed by this closure.
+- Production `https://yfth.top` now serves the final cold-start fix commit `0f179d63ebcffc240bb137024696b6905ed0090e`. A real production browser login with the TEST manager account landed directly on `store_manager`; refresh, direct user-center navigation, and a cold root-page load all rendered the manager workbench, with no customer or staff surface and no blocking console error.
+- Final pre-release backup: `/www/backup/yfth-dominant-role-cold-start-20260717-111225`; retained release: `/www/releases/yfth-dominant-role-cold-start-20260717-111225`. H5 root, JavaScript, and CSS returned HTTP 200. The mp-weixin artifact was compiled locally but was not uploaded to WeChat. Existing `.env`, database, uploads, OSS, SMS, WeChat, payment, products, orders, and business facts were not changed.
+
 ## Current Fact Snapshot - Store Role Switching And Employee Acquisition Code Production Closure
 
 - Production `https://yfth.top` now runs feature code commit `1a170e06bd384095bebef533c3706032370aee7a` from preserved branch `codex/yfth-user-role-assets-referral-code-v1`; stable `main` was not merged or changed.
