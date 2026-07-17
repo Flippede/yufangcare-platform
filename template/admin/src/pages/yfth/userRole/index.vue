@@ -92,7 +92,10 @@
     </el-dialog>
 
     <el-dialog title="调试用户完整删除" :visible.sync="purgeVisible" width="640px" :close-on-click-modal="false">
-      <el-alert title="高危操作：仅允许删除无订单、支付、会员、经营身份、奖励等不可逆事实的调试用户。" type="error" :closable="false" />
+      <div class="purge-danger-header">
+        <i class="el-icon-warning" aria-hidden="true" />
+        <span>重要：删除后无法恢复，仅允许删除没有不可逆业务事实的调试用户。</span>
+      </div>
       <div v-if="purgePreflight" class="purge-summary">
         <p><b>目标：</b>{{ purgePreflight.nickname || '-' }} / {{ purgePreflight.account }} / UID {{ purgePreflight.uid }}</p>
         <p><b>预检：</b><el-tag :type="purgePreflight.can_purge ? 'success' : 'danger'">{{ purgePreflight.can_purge ? '可删除' : '已拒绝' }}</el-tag> {{ purgePreflight.safety_note }}</p>
@@ -102,12 +105,13 @@
           <el-table-column prop="count" label="行数" width="80" />
         </el-table>
         <el-form v-if="purgePreflight.can_purge" label-width="110px" class="purge-form">
-          <el-form-item label="账号确认"><el-input v-model.trim="purgeForm.account" :placeholder="purgePreflight.account" /></el-form-item>
-          <el-form-item label="确认短语"><el-input v-model.trim="purgeForm.confirmation" :placeholder="purgePreflight.confirmation_phrase" /></el-form-item>
-          <el-form-item label="删除原因"><el-input v-model.trim="purgeForm.reason" type="textarea" :rows="3" placeholder="至少 8 个字" /></el-form-item>
+          <el-form-item label="确认删除">
+            <el-input v-model.trim="purgeForm.confirmation" placeholder="请输入：确认删除" @keyup.enter.native="purgeUser" />
+            <div class="purge-confirm-tip">请输入“确认删除”四个字后执行。</div>
+          </el-form-item>
         </el-form>
       </div>
-      <span slot="footer"><el-button @click="purgeVisible = false">取消</el-button><el-button type="danger" :disabled="!purgePreflight || !purgePreflight.can_purge" :loading="purgeSaving" @click="purgeUser">我已核对，执行删除</el-button></span>
+      <span slot="footer"><el-button @click="purgeVisible = false">取消</el-button><el-button type="danger" :disabled="!purgePreflight || !purgePreflight.can_purge || purgeForm.confirmation !== purgePreflight.confirmation_phrase" :loading="purgeSaving" @click="purgeUser">我已核对，执行删除</el-button></span>
     </el-dialog>
   </div>
 </template>
@@ -134,7 +138,7 @@ export default {
       query: { keyword: '', page: 1, limit: 20 }, detail: null, selected: null,
       detailVisible: false, grantVisible: false, grantPresetRole: '', purgeVisible: false, purgeSaving: false,
       grantForm: { store_id: '', role_code: '', reason: '' },
-      purgePreflight: null, purgeForm: { account: '', confirmation: '', reason: '' },
+      purgePreflight: null, purgeForm: { confirmation: '' },
       fixture: { enabled: false, exists: false, status: 'not_generated', store: {}, accounts: [] },
     };
   },
@@ -219,14 +223,14 @@ export default {
     openPurge(row) {
       this.selected = row;
       this.purgePreflight = null;
-      this.purgeForm = { account: '', confirmation: '', reason: '' };
+      this.purgeForm = { confirmation: '' };
       this.purgeVisible = true;
       yfthUserDebugPurgePreflight(row.uid).then((res) => { this.purgePreflight = res.data || null; });
     },
     purgeUser() {
       if (!this.purgePreflight || !this.purgePreflight.can_purge) return;
-      if (!this.purgeForm.account || !this.purgeForm.confirmation || String(this.purgeForm.reason || '').trim().length < 8) {
-        return this.$message.warning('请精确输入账号、确认短语和至少 8 个字的原因');
+      if (this.purgeForm.confirmation !== this.purgePreflight.confirmation_phrase) {
+        return this.$message.warning('请输入“确认删除”四个字');
       }
       this.purgeSaving = true;
       yfthUserDebugPurge(this.purgePreflight.uid, this.purgeForm).then(() => {
@@ -282,4 +286,8 @@ export default {
 .purge-summary { margin-top: 16px; }
 .purge-summary p { line-height: 1.7; }
 .purge-form { margin-top: 18px; }
+.purge-danger-header { display: flex; align-items: center; gap: 10px; padding: 13px 16px; color: #f56c6c; background: #fef0f0; border: 1px solid #fbc4c4; }
+.purge-danger-header .el-icon-warning { flex: 0 0 auto; font-size: 26px; }
+.purge-danger-header span { color: #c45656; font-weight: 600; line-height: 1.5; }
+.purge-confirm-tip { margin-top: 6px; color: #f56c6c; line-height: 1.5; }
 </style>

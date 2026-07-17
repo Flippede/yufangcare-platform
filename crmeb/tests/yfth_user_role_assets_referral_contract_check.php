@@ -67,6 +67,9 @@ foreach (['yfth-user-role-membership-grant', 'yfth-user-debug-purge-preflight', 
 foreach (['user_debug_purge_enabled', 'discoverReferences', 'confirmation_phrase', 'blocking_references', 'debug_user_purge_residual_reference_detected'] as $needle) {
     $assert(strpos($purgeService, $needle) !== false, 'debug_purge_guard_contains:' . $needle);
 }
+$assert(strpos($purgeService, "private const CONFIRMATION_PHRASE = '确认删除'") !== false, 'debug_purge_uses_simple_exact_confirmation');
+$assert(strpos($adminPage, 'purge-danger-header') !== false && strpos($adminPage, 'el-icon-warning') !== false, 'debug_purge_displays_red_warning_icon');
+$assert(strpos($adminPage, 'purgeForm.account') === false && strpos($adminPage, 'purgeForm.reason') === false, 'debug_purge_frontend_requires_confirmation_only');
 $assert(strpos($purgeService, "'store_order' =>") === false, 'debug_purge_never_allowlists_store_orders');
 $assert(strpos($purgeService, "'yfth_permanent_membership' =>") === false, 'debug_purge_never_allowlists_membership');
 foreach (['franchisee', 'store_manager', 'store_staff'] as $roleCode) {

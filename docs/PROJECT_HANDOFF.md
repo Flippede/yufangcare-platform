@@ -1,5 +1,13 @@
 # 项目交接文档
 
+## Current Fact Snapshot - Debug User Purge Confirmation Simplification
+
+- Branch `codex/yfth-franchise-opening-partner-hierarchy-v1` simplifies the headquarters debug-user purge dialog to one exact manual confirmation: `确认删除`. The former account re-entry, dynamic `DELETE UID ...` phrase, and eight-character free-text reason are no longer requested.
+- The dialog displays a prominent red exclamation warning, the target user and preflight result, and enables the destructive button only after the exact four-character phrase is entered. The backend independently verifies the same phrase and records a fixed server-owned audit reason.
+- Safety boundaries are unchanged: the feature flag, headquarters scope, dedicated API permission, irreversible/unknown reference blockers, row lock, transaction-time preflight, target-account stability check, residual-reference check, and audit event all remain mandatory. Membership, orders, payments, operating roles, rewards, settlements, or unknown references still fail closed.
+- PHP 7.4 syntax, the focused role/assets/referral contract, the isolated MySQL Community 8.0.46 purge real flow, Admin production build, built-artifact string inspection, and `git diff --check` passed. No migration or production data operation was required by this change.
+- This snapshot records local development only. It does not claim a main merge or production deployment.
+
 ## Current Fact Snapshot - Franchise Opening And Five-level Partner Hierarchy V1 Production Closure
 
 - Production `https://yfth.top` now serves functional commit `040db75a5c575ba5c05e5d3c35d154eeeda49419` from preserved branch `codex/yfth-franchise-opening-partner-hierarchy-v1`. Stable `main` / `origin/main` remains `cf58036638a1d53d7a29c6aa41a79ae52a37c4a5`; this release has not been merged to main.

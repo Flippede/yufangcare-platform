@@ -12,6 +12,9 @@ use think\facade\Db;
  */
 class HqUserDebugPurgeServices
 {
+    private const CONFIRMATION_PHRASE = '确认删除';
+    private const AUDIT_REASON = '总部调试用户删除确认';
+
     private const REFERENCE_COLUMNS = [
         'uid', 'user_id', 'customer_uid', 'referrer_uid', 'referred_uid',
         'owner_uid', 'issuer_uid', 'accepted_uid',
@@ -79,7 +82,7 @@ class HqUserDebugPurgeServices
             'nickname' => (string)($user['nickname'] ?? ''),
             'phone_masked' => $this->maskPhone((string)($user['phone'] ?? '')),
             'can_purge' => $this->enabled() && !$blockers,
-            'confirmation_phrase' => $this->confirmationPhrase($uid, (string)($user['account'] ?? '')),
+            'confirmation_phrase' => self::CONFIRMATION_PHRASE,
             'deletable_references' => $deletable,
             'blocking_references' => $blockers,
             'safety_note' => $blockers
@@ -92,21 +95,13 @@ class HqUserDebugPurgeServices
     {
         $this->assertHeadquarters($adminInfo);
         $this->assertEnabled();
-        $reason = trim((string)($data['reason'] ?? ''));
-        $account = trim((string)($data['account'] ?? ''));
         $confirmation = trim((string)($data['confirmation'] ?? ''));
-        if (mb_strlen($reason) < 8) {
-            throw new AdminException('debug_user_purge_reason_too_short');
-        }
 
         $before = $this->preflight($uid, $adminInfo);
         if (!$before['can_purge']) {
             throw new AdminException('debug_user_purge_blocked_by_business_facts');
         }
-        if ($account === '' || !hash_equals((string)$before['account'], $account)) {
-            throw new AdminException('debug_user_purge_account_confirmation_invalid');
-        }
-        if (!hash_equals((string)$before['confirmation_phrase'], $confirmation)) {
+        if (!hash_equals(self::CONFIRMATION_PHRASE, $confirmation)) {
             throw new AdminException('debug_user_purge_phrase_invalid');
         }
 
@@ -147,7 +142,7 @@ class HqUserDebugPurgeServices
             $adminId,
             'headquarters_admin',
             0,
-            mb_substr($reason, 0, 255),
+            self::AUDIT_REASON,
             'debug-user-purge-' . $uid . '-' . date('YmdHis')
         );
 
@@ -198,11 +193,6 @@ class HqUserDebugPurgeServices
             throw new AdminException('debug_user_purge_user_not_found');
         }
         return $user;
-    }
-
-    private function confirmationPhrase(int $uid, string $account): string
-    {
-        return 'DELETE UID ' . $uid . ' ' . $account;
     }
 
     private function enabled(): bool

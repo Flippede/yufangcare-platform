@@ -94,9 +94,7 @@ class HqUserRole extends AuthController
     {
         $this->auth('yfth/user_role/user/<uid>/purge', 'DELETE');
         return app('json')->success($services->purge((int)$uid, $this->request->postMore([
-            ['account', ''],
             ['confirmation', ''],
-            ['reason', ''],
         ]), (int)$this->adminId, $this->adminInfo ?: []));
     }
 

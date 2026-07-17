@@ -62,6 +62,7 @@ try {
     $hq = ['id' => 1, 'level' => 0];
     $preflight = $service->preflight($uid, $hq);
     $assert($preflight['can_purge'] && !$preflight['blocking_references'], 'disposable_user_preflight_allows_only_known_references');
+    $assert($preflight['confirmation_phrase'] === '确认删除', 'simple_confirmation_phrase_exposed');
 
     Db::name('yfth_permanent_membership')->insert([
         'membership_no' => 'DEBUG-MEMBER-' . $uid, 'uid' => $uid, 'store_id' => 1,
@@ -72,8 +73,7 @@ try {
     $assert(!$blocked['can_purge'], 'membership_fact_blocks_hard_delete');
     $expect(function () use ($service, $uid, $blocked, $hq) {
         $service->purge($uid, [
-            'account' => $blocked['account'], 'confirmation' => $blocked['confirmation_phrase'],
-            'reason' => 'validation blocked delete',
+            'confirmation' => $blocked['confirmation_phrase'],
         ], 1, $hq);
     }, 'debug_user_purge_blocked_by_business_facts', 'blocked_user_cannot_be_deleted');
     Db::name('yfth_permanent_membership')->where('uid', $uid)->delete();
@@ -81,12 +81,11 @@ try {
     $ready = $service->preflight($uid, $hq);
     $expect(function () use ($service, $uid, $ready, $hq) {
         $service->purge($uid, [
-            'account' => $ready['account'], 'confirmation' => 'DELETE WRONG', 'reason' => 'validation wrong phrase',
+            'confirmation' => '删除确认',
         ], 1, $hq);
     }, 'debug_user_purge_phrase_invalid', 'exact_confirmation_phrase_required');
     $result = $service->purge($uid, [
-        'account' => $ready['account'], 'confirmation' => $ready['confirmation_phrase'],
-        'reason' => 'isolated validation complete purge',
+        'confirmation' => $ready['confirmation_phrase'],
     ], 1, $hq);
     $assert($result['deleted'], 'safe_debug_user_purge_completed');
     $assert((int)Db::name('user')->where('uid', $uid)->count() === 0, 'user_row_deleted');
