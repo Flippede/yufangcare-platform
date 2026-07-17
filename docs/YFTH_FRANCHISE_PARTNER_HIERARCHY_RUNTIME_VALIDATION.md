@@ -1,5 +1,14 @@
 # YFTH Franchise Partner Hierarchy V1 Runtime Validation
 
+## Partner Application QR Production Fix - 2026-07-17
+
+- Functional commit `c5f3ca6c29b4a29c75deb9880f43f728d29e19f3` fixes only the partner application QR presentation. The invite API, opaque token, hierarchy rules, application attribution, permissions, audit, and migration are unchanged.
+- The failure was an asynchronous render-order gap: the partner page initially mounted the shared QR component with an empty URL, then wrote the generated URL after the API call without a guaranteed redraw. The repaired page mounts only for a non-empty URL, keys the component by the generated value, explicitly invokes QR drawing after `$nextTick`, and exposes a visible generating/retry fallback instead of leaving a blank area.
+- PHP 7.4 syntax passed. `yfth_franchise_partner_contract_check.php` passed 105 assertions, including the asynchronous redraw and safe-state guards. H5 production build and mp-weixin production compile passed; built artifacts contain the explicit redraw and visible-image path. `git diff --check` and the focused sensitive-information scan passed.
+- Production H5 backup: `/www/backup/yfth-partner-application-qr-20260717-183125`; retained release: `/www/releases/yfth-partner-application-qr-20260717-183125`. Public home, entry JS, and CSS checks returned HTTP 200, and the production `.env` checksum was unchanged.
+- In a real authenticated browser session, the controlled county-partner account opened `/pages/yfth/franchise/partner/index`, generated/replaced its invite, and rendered one `195 x 195` QR image whose source was a valid PNG data URL. The matching YFTH application link was visible, the generation/error fallback was absent, and the browser console contained no warning or error.
+- No production database or migration operation, SMS, payment, refund, payout, WeChat upload, product/order change, upload/OSS replacement, or payment-certificate change was performed.
+
 ## Headquarters Manual Grant Production Release - 2026-07-17
 
 - Production backend and permission migration use functional commit `fa9502d4780b026999e5be86bfa368e1eea93f13`; the deployed Admin includes follow-up display fix `802b1560d38535510743dfa2da8e9d1ef20bcf0d` so only platform director displays the no-parent hint.

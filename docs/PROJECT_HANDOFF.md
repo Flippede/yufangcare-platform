@@ -1,5 +1,14 @@
 # 项目交接文档
 
+## Current Fact Snapshot - Partner Application QR Rendering Closure
+
+- Branch `codex/yfth-franchise-opening-partner-hierarchy-v1` fixes the blank franchise-application QR area for county, prefecture, province, regional-director, and platform-director partner workbenches. Functional commit: `c5f3ca6c29b4a29c75deb9880f43f728d29e19f3`; stable `main` remains unchanged and this branch has not been merged.
+- Root cause was the partner page's asynchronous invite lifecycle: the shared QR component could finish its initial empty-value mount before a newly generated invite URL arrived, so no later draw was guaranteed even though the invite API and link succeeded. The page now mounts the component only with a real URL, explicitly redraws after the next render tick, remounts by URL key, and displays a visible PNG result or a safe generating/retry state.
+- The invite token, partner hierarchy, application attribution, permissions, audit, and database schema were not changed. No placeholder relationship or automatic partner/store grant was introduced.
+- PHP 7.4 syntax, the 105-assertion partner contract, H5 production build, mp-weixin production compile, built-artifact inspection, sensitive-information scan, and `git diff --check` passed. Existing build-size and component-placement notices remained non-blocking.
+- Production `https://yfth.top` serves the repaired H5 artifact. A real authenticated county-partner browser session generated an application invite and rendered one visible `195 x 195` PNG QR image with the expected YFTH application link; no browser console warning or error was recorded.
+- Production H5 backup: `/www/backup/yfth-partner-application-qr-20260717-183125`; retained release: `/www/releases/yfth-partner-application-qr-20260717-183125`. The production `.env` SHA-256 remained unchanged. No database migration, production data edit, SMS, payment, refund, WeChat upload, OSS/upload replacement, or payment-certificate change was performed.
+
 ## Current Fact Snapshot - Headquarters Partner Identity Grant Development Closure
 
 - Branch `codex/yfth-franchise-opening-partner-hierarchy-v1` adds a visible `授予合伙人` action to `御方通和 / 用户经营身份`. Headquarters can grant county partner, prefecture partner, province partner, regional director, or platform director without creating a store role or replacing customer/permanent-membership facts.
