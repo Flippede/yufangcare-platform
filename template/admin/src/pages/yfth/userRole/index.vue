@@ -45,8 +45,8 @@
           <div class="user-cell"><img v-if="row.avatar" :src="row.avatar"><div><b>{{ row.nickname || row.account || '-' }}</b><div>{{ row.phone_masked || '-' }}</div></div></div>
         </template>
       </el-table-column>
-      <el-table-column label="基础身份" width="170">
-        <template slot-scope="{ row }"><el-tag size="mini">顾客</el-tag><el-tag v-if="row.permanent_member" size="mini" type="success">永久会员</el-tag></template>
+      <el-table-column label="基础身份" width="190">
+        <template slot-scope="{ row }"><el-tag size="mini">顾客</el-tag><el-tag v-if="row.permanent_member" size="mini" type="success">永久会员</el-tag><el-tag v-else size="mini" type="info">非会员</el-tag></template>
       </el-table-column>
       <el-table-column label="有效经营身份" min-width="260">
         <template slot-scope="{ row }">
@@ -54,12 +54,13 @@
           <el-tag v-for="role in row.store_roles" :key="role.id" size="mini" class="role-tag">{{ role.store_name || ('门店 ' + role.store_id) }} · {{ role.role_name }}</el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="290" fixed="right">
+      <el-table-column label="总部授权与调试" width="360" fixed="right">
         <template slot-scope="{ row }">
           <el-button type="text" @click="openDetail(row)">查看</el-button>
           <el-button v-if="!row.permanent_member" type="text" @click="openGrant(row, 'permanent_member')">授权会员</el-button>
           <el-button type="text" @click="openGrant(row, 'franchisee')">加盟商</el-button>
           <el-button type="text" @click="openGrant(row)">店长/店员</el-button>
+          <el-button type="text" class="danger" @click="openPurge(row)">调试删除</el-button>
         </template>
       </el-table-column>
     </el-table>
@@ -68,7 +69,7 @@
     <el-dialog title="用户经营身份" :visible.sync="detailVisible" width="720px">
       <div v-if="detail" class="detail-head"><b>{{ detail.nickname || detail.account || '-' }}</b><span>UID {{ detail.uid }}</span><span>{{ detail.phone_masked }}</span></div>
       <div v-if="detail" class="identity-summary">
-        <div><b>基础身份</b><el-tag size="mini">顾客</el-tag><el-tag v-if="detail.permanent_member" size="mini" type="success">永久会员</el-tag><span v-else class="muted">未授权永久会员</span></div>
+        <div><b>基础身份</b><el-tag size="mini">顾客</el-tag><el-tag v-if="detail.permanent_member" size="mini" type="success">永久会员</el-tag><span v-else class="muted">未授权永久会员</span><el-button v-if="!detail.permanent_member" type="primary" size="mini" @click="openGrant(detail, 'permanent_member')">总部授权永久会员</el-button></div>
         <div><b>加盟商</b><span v-if="!franchiseeRoles(detail).length" class="muted">未授权</span><el-tag v-for="role in franchiseeRoles(detail)" :key="role.id" size="mini" class="role-tag">{{ role.store_name || ('门店 ' + role.store_id) }}<i v-if="role.status === 'active'" class="el-icon-close revoke-icon" @click="revoke(role)" /></el-tag></div>
       </div>
       <el-table :data="detail ? storeStaffRoles(detail) : []" border size="small">
@@ -89,6 +90,25 @@
       </el-form>
       <span slot="footer"><el-button @click="grantVisible = false">取消</el-button><el-button type="primary" :loading="saving" @click="grant">确认授予</el-button></span>
     </el-dialog>
+
+    <el-dialog title="调试用户完整删除" :visible.sync="purgeVisible" width="640px" :close-on-click-modal="false">
+      <el-alert title="高危操作：仅允许删除无订单、支付、会员、经营身份、奖励等不可逆事实的调试用户。" type="error" :closable="false" />
+      <div v-if="purgePreflight" class="purge-summary">
+        <p><b>目标：</b>{{ purgePreflight.nickname || '-' }} / {{ purgePreflight.account }} / UID {{ purgePreflight.uid }}</p>
+        <p><b>预检：</b><el-tag :type="purgePreflight.can_purge ? 'success' : 'danger'">{{ purgePreflight.can_purge ? '可删除' : '已拒绝' }}</el-tag> {{ purgePreflight.safety_note }}</p>
+        <el-table :data="purgePreflight.blocking_references || []" border size="mini" empty-text="无阻塞引用">
+          <el-table-column prop="table" label="阻塞表" min-width="220" />
+          <el-table-column prop="column" label="字段" width="150" />
+          <el-table-column prop="count" label="行数" width="80" />
+        </el-table>
+        <el-form v-if="purgePreflight.can_purge" label-width="110px" class="purge-form">
+          <el-form-item label="账号确认"><el-input v-model.trim="purgeForm.account" :placeholder="purgePreflight.account" /></el-form-item>
+          <el-form-item label="确认短语"><el-input v-model.trim="purgeForm.confirmation" :placeholder="purgePreflight.confirmation_phrase" /></el-form-item>
+          <el-form-item label="删除原因"><el-input v-model.trim="purgeForm.reason" type="textarea" :rows="3" placeholder="至少 8 个字" /></el-form-item>
+        </el-form>
+      </div>
+      <span slot="footer"><el-button @click="purgeVisible = false">取消</el-button><el-button type="danger" :disabled="!purgePreflight || !purgePreflight.can_purge" :loading="purgeSaving" @click="purgeUser">我已核对，执行删除</el-button></span>
+    </el-dialog>
   </div>
 </template>
 
@@ -98,6 +118,9 @@ import {
   yfthAcceptanceFixtureGenerate,
   yfthAcceptanceFixturePasswordReset,
   yfthAcceptanceFixtureReset,
+  yfthUserMembershipGrant,
+  yfthUserDebugPurge,
+  yfthUserDebugPurgePreflight,
   yfthUserRoleDetail,
   yfthUserRoleGrant,
   yfthUserRoleRevoke,
@@ -109,8 +132,9 @@ export default {
     return {
       loading: false, saving: false, fixtureSaving: false, list: [], total: 0, stores: [], roleOptions: [],
       query: { keyword: '', page: 1, limit: 20 }, detail: null, selected: null,
-      detailVisible: false, grantVisible: false, grantPresetRole: '',
+      detailVisible: false, grantVisible: false, grantPresetRole: '', purgeVisible: false, purgeSaving: false,
       grantForm: { store_id: '', role_code: '', reason: '' },
+      purgePreflight: null, purgeForm: { account: '', confirmation: '', reason: '' },
       fixture: { enabled: false, exists: false, status: 'not_generated', store: {}, accounts: [] },
     };
   },
@@ -192,11 +216,34 @@ export default {
     openGrant(row, presetRole) {
       this.selected = row; this.grantPresetRole = presetRole || ''; this.grantForm = { store_id: '', role_code: presetRole || '', reason: '' }; this.grantVisible = true;
     },
+    openPurge(row) {
+      this.selected = row;
+      this.purgePreflight = null;
+      this.purgeForm = { account: '', confirmation: '', reason: '' };
+      this.purgeVisible = true;
+      yfthUserDebugPurgePreflight(row.uid).then((res) => { this.purgePreflight = res.data || null; });
+    },
+    purgeUser() {
+      if (!this.purgePreflight || !this.purgePreflight.can_purge) return;
+      if (!this.purgeForm.account || !this.purgeForm.confirmation || String(this.purgeForm.reason || '').trim().length < 8) {
+        return this.$message.warning('请精确输入账号、确认短语和至少 8 个字的原因');
+      }
+      this.purgeSaving = true;
+      yfthUserDebugPurge(this.purgePreflight.uid, this.purgeForm).then(() => {
+        this.$message.success('调试用户及允许删除的关联数据已完整删除');
+        this.purgeVisible = false;
+        this.detailVisible = false;
+        return this.load(true);
+      }).finally(() => { this.purgeSaving = false; });
+    },
     grant() {
       if (!this.grantForm.store_id || !this.grantForm.role_code || !this.grantForm.reason) return this.$message.warning('请选择门店、身份并填写原因');
       this.saving = true;
       const data = { ...this.grantForm, request_id: `hq-role-grant-${Date.now()}` };
-      yfthUserRoleGrant(this.selected.uid, data).then(() => { this.$message.success(`${this.grantRoleLabel}已授予`); this.grantVisible = false; this.load(); })
+      const request = this.grantPresetRole === 'permanent_member'
+        ? yfthUserMembershipGrant(this.selected.uid, data)
+        : yfthUserRoleGrant(this.selected.uid, data);
+      request.then(() => { this.$message.success(`${this.grantRoleLabel}已授予`); this.grantVisible = false; this.load(); })
         .finally(() => { this.saving = false; });
     },
     franchiseeRoles(detail) { return (detail.store_roles || []).filter((item) => item.role_code === 'franchisee' && item.status === 'active'); },
@@ -233,4 +280,7 @@ export default {
 .form-tip { margin-top: 8px; font-size: 12px; line-height: 1.55; }
 .revoke-icon { margin-left: 6px; cursor: pointer; }
 .danger { color: #f56c6c; }
+.purge-summary { margin-top: 16px; }
+.purge-summary p { line-height: 1.7; }
+.purge-form { margin-top: 18px; }
 </style>

@@ -5,6 +5,7 @@
 			<view class="title">确认门店归属</view>
 			<view v-if="state === 'loading'" class="message">正在核验门店专属码...</view>
 			<view v-else-if="state === 'login'" class="message">登录后将自动继续本次门店绑定</view>
+			<view v-else-if="state === 'binding'" class="message">正在建立门店归属，请稍候...</view>
 			<view v-else-if="state === 'confirm'" class="message">
 				<view class="store">{{ preview.store_name }}</view>
 				<view>来源：{{ preview.issuer_role_name }} {{ preview.issuer_name || '门店员工' }}</view>
@@ -13,12 +14,13 @@
 			<view v-else-if="state === 'success'" class="message success">
 				<view>门店绑定成功</view><view class="store">{{ result.store_name }}</view>
 				<view>来源：{{ result.source_role_name }} {{ result.source_employee_name }}</view>
+				<view class="muted">即将返回御方通和商城首页</view>
 			</view>
 			<view v-else class="message error">{{ error || '该门店码暂时无法使用' }}</view>
 			<button v-if="state === 'login'" class="primary" @click="login">去登录</button>
 			<button v-if="state === 'confirm'" class="primary" @click="accept">确认绑定</button>
 			<button v-if="state === 'error'" class="secondary" @click="resolve">重新核验</button>
-			<button v-if="state === 'success'" class="secondary" @click="goAttribution">查看我的归属</button>
+			<button v-if="state === 'success'" class="secondary" @click="goHome">返回商城首页</button>
 		</view>
 	</view>
 </template>
@@ -30,14 +32,15 @@ import { resolveYfthStoreAcquisitionCode, acceptYfthStoreAcquisitionCode } from 
 const PENDING_KEY = 'yfth_pending_store_acquisition';
 
 export default {
-	data() { return { token: '', state: 'loading', error: '', preview: {}, result: {}, submitting: false, redirecting: false }; },
+	data() { return { token: '', state: 'loading', error: '', preview: {}, result: {}, submitting: false, redirecting: false, successTimer: null }; },
 	computed: { ...mapGetters(['isLogin']) },
 	onLoad(options) {
 		this.token = String((options && options.acquisition_token) || uni.getStorageSync(PENDING_KEY) || '').trim().toLowerCase();
 		if (!/^[a-f0-9]{64}$/.test(this.token)) { this.state = 'error'; this.error = '门店专属码无效或已损坏'; return; }
 		uni.setStorageSync(PENDING_KEY, this.token);
 	},
-	onShow() { if (/^[a-f0-9]{64}$/.test(this.token)) this.resolve(); },
+	onShow() { if (/^[a-f0-9]{64}$/.test(this.token) && !this.submitting && this.state !== 'success') this.resolve(); },
+	onUnload() { if (this.successTimer) clearTimeout(this.successTimer); },
 	methods: {
 		resolve() {
 			this.state = 'loading'; this.error = '';
@@ -45,20 +48,27 @@ export default {
 				this.preview = res.data || {};
 				if (!this.isLogin) { this.state = 'login'; if (!this.redirecting) this.login(); return; }
 				this.state = 'confirm';
+				this.$nextTick(() => this.accept());
 			}).catch((err) => { this.state = 'error'; this.error = (err && (err.msg || err.message)) || '门店专属码不可用'; });
 		},
 		login() { this.redirecting = true; this.state = 'login'; toLogin(); setTimeout(() => { this.redirecting = false; }, 1200); },
 		accept() {
 			if (this.submitting || !this.isLogin) return;
-			this.submitting = true; this.state = 'loading';
+			this.submitting = true; this.state = 'binding';
 			const uid = Number(this.$store.state.app.uid || 0);
 			const operation = `store-acquisition-${this.token.slice(0, 16)}-${uid}`;
 			acceptYfthStoreAcquisitionCode({ acquisition_token: this.token, request_id: operation, idempotency_key: operation })
-				.then((res) => { this.result = res.data || {}; uni.removeStorageSync(PENDING_KEY); this.state = 'success'; })
+				.then((res) => {
+					this.result = res.data || {};
+					if (!this.result.accepted || this.result.attribution_status !== 'active') throw new Error('门店归属结果校验失败');
+					uni.removeStorageSync(PENDING_KEY);
+					this.state = 'success';
+					this.successTimer = setTimeout(() => this.goHome(), 1600);
+				})
 				.catch((err) => { this.state = 'error'; this.error = (err && (err.msg || err.message)) || '门店绑定失败'; })
 				.finally(() => { this.submitting = false; });
 		},
-		goAttribution() { uni.redirectTo({ url: '/pages/yfth/authority/index' }); }
+		goHome() { uni.reLaunch({ url: '/pages/index/index' }); }
 	}
 };
 </script>

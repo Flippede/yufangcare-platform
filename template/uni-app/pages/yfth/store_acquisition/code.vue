@@ -33,7 +33,9 @@ export default {
 	computed: {
 		codeLink() {
 			if (!this.code.acquisition_token) return '';
-			if (this.code.launch_url) return this.code.launch_url;
+			// The public QR must always land on the dedicated acquisition page. Mini Program
+			// URL Links may still point at an older published bundle before a WeChat release.
+			if (this.code.h5_launch_url) return this.code.h5_launch_url;
 			const path = `/pages/yfth/store_acquisition/accept?acquisition_token=${this.code.acquisition_token}`;
 			// #ifdef H5
 			return `${window.location.origin}${path}`;
@@ -58,8 +60,8 @@ export default {
 		restoreOrIssue() {
 			const cached = uni.getStorageSync(this.storageKey());
 			const now = Math.floor(Date.now() / 1000);
-			const cacheUsable = cached && cached.acquisition_token && Number(cached.expires_at || 0) > now
-				&& (!cached.launch_url || Number(cached.launch_url_expires_at || 0) > now);
+			const cacheUsable = cached && cached.acquisition_token && cached.h5_launch_url
+				&& Number(cached.expires_at || 0) > now;
 			getYfthStoreAcquisitionCode({ role_code: this.context.role_code, store_id: this.context.store_id })
 				.then((res) => {
 					const active = (res.data && res.data.active_code) || null;

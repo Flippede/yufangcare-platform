@@ -63,6 +63,7 @@ class StoreAcquisitionServices
         });
         $result['launch_url'] = $this->miniProgramUrlLink((string)$result['launch_path']);
         $result['launch_url_expires_at'] = $result['launch_url'] !== '' ? time() + 29 * 86400 : 0;
+        $result['h5_launch_url'] = rtrim((string)$request->domain(), '/') . (string)$result['launch_path'];
         return $result;
     }
 
@@ -253,6 +254,8 @@ class StoreAcquisitionServices
             'source_employee_name' => $issuerName,
             'source_role_name' => (string)$row['issuer_role_code'] === 'store_manager' ? '店长' : '店员',
             'customer_relation_id' => (int)($row['customer_relation_id'] ?? 0),
+            'attribution_current_id' => (int)($row['attribution_current_id'] ?? 0),
+            'attribution_status' => 'active',
         ];
     }
 

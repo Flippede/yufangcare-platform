@@ -1,5 +1,14 @@
 # YFTH User Role Assets And Referral QR V1 Runtime Validation
 
+## Store acquisition binding and HQ user safeguards validation - 2026-07-17
+
+- Root cause of the reported unbound customer: production had issued manager/staff acquisition codes but no acceptance rows. The QR landing page only resolved the code and waited for a second confirmation, while a mini-program URL Link could also target an older published bundle. The backend acceptance transaction itself was not split.
+- Store QR output now prefers the dedicated current-origin H5 acceptance URL. After login the page automatically calls the existing acceptance API, requires `accepted=true` and `attribution_status=active`, displays a success result, and re-launches the mall homepage. Package writeoff routes are not used.
+- The isolated MySQL 8.0.46 real flow proved creation of both authoritative attribution and store-customer projection, repeat idempotency, self-bind rejection, non-pristine attribution rejection, revoked issuer rejection, and absence of permanent-member referral or CRMEB spread writes.
+- Headquarters has a dedicated permanent-member grant endpoint and permission. The separate debug purge endpoint is disabled by default and fails closed when any membership, operating role, order, payment, reward, settlement, or unknown reference exists. A disposable-user test proved preflight, exact confirmation, transactional deletion, residual-reference rejection, and retained audit.
+- Migration `20260718150000 AddYfthMembershipAndDebugPurgePermissions` passed run, targeted rollback, and rerun; all three permission rows were removed and restored as expected. Admin, H5, and mp-weixin production builds passed with only existing non-blocking warnings.
+- No production user deletion, payment, SMS, refund, WeChat upload, or production rollback is claimed by this local validation entry.
+
 ## H5 referral album picker production hotfix - 2026-07-16
 
 - H5 production and mp-weixin production compilation passed after replacing the unreliable H5 generic image picker with a native file input. The dedicated contract verifies picker creation, accepted image MIME types, and bounded object-URL cleanup.

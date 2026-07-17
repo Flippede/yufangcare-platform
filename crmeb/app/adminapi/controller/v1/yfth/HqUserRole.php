@@ -5,6 +5,7 @@ namespace app\adminapi\controller\v1\yfth;
 use app\adminapi\controller\AuthController;
 use app\services\system\admin\SystemRoleServices;
 use app\services\yfth\HqAcceptanceFixtureServices;
+use app\services\yfth\HqUserDebugPurgeServices;
 use app\services\yfth\HqUserRoleManagementServices;
 
 class HqUserRole extends AuthController
@@ -31,6 +32,16 @@ class HqUserRole extends AuthController
         return app('json')->success($services->grant((int)$uid, $this->request->postMore([
             [['store_id', 'd'], 0],
             ['role_code', ''],
+            ['reason', ''],
+            ['request_id', ''],
+        ]), (int)$this->adminId, $this->adminInfo ?: []));
+    }
+
+    public function grantMembership(HqUserRoleManagementServices $services, $uid)
+    {
+        $this->auth('yfth/user_role/user/<uid>/membership/grant', 'POST');
+        return app('json')->success($services->grantMembership((int)$uid, $this->request->postMore([
+            [['store_id', 'd'], 0],
             ['reason', ''],
             ['request_id', ''],
         ]), (int)$this->adminId, $this->adminInfo ?: []));
@@ -71,6 +82,22 @@ class HqUserRole extends AuthController
             (int)$this->adminId,
             $this->adminInfo ?: []
         ));
+    }
+
+    public function purgePreflight(HqUserDebugPurgeServices $services, $uid)
+    {
+        $this->auth('yfth/user_role/user/<uid>/purge/preflight', 'GET');
+        return app('json')->success($services->preflight((int)$uid, $this->adminInfo ?: []));
+    }
+
+    public function purge(HqUserDebugPurgeServices $services, $uid)
+    {
+        $this->auth('yfth/user_role/user/<uid>/purge', 'DELETE');
+        return app('json')->success($services->purge((int)$uid, $this->request->postMore([
+            ['account', ''],
+            ['confirmation', ''],
+            ['reason', ''],
+        ]), (int)$this->adminId, $this->adminInfo ?: []));
     }
 
     private function auth(string $rule, string $method): void

@@ -27,6 +27,8 @@ $membership = $read('app/services/yfth/PackageMembershipReferralServices.php');
 $membershipAuthority = $read('app/services/yfth/PackageMembershipServices.php');
 $franchiseCustomer = $read('app/services/yfth/FranchiseCustomerServices.php');
 $membershipGrantMigration = $read('database/migrations/20260718130000_allow_headquarters_permanent_membership_grant.php');
+$membershipPurgeMigration = $read('database/migrations/20260718150000_add_yfth_membership_and_debug_purge_permissions.php');
+$purgeService = $read('app/services/yfth/HqUserDebugPurgeServices.php');
 $adminPage = (string)file_get_contents(dirname($root) . '/template/admin/src/pages/yfth/userRole/index.vue');
 $userPage = (string)file_get_contents(dirname($root) . '/template/uni-app/pages/user/index.vue');
 $codePage = (string)file_get_contents(dirname($root) . '/template/uni-app/pages/yfth/referral/code.vue');
@@ -50,6 +52,16 @@ $assert(strpos($service, 'YfthPermanentMembershipDao') === false, 'role_service_
 $assert(strpos($service, 'grantByHeadquarters') !== false, 'headquarters_can_grant_real_permanent_membership');
 $assert(strpos($membershipAuthority, 'membership_granted_by_headquarters') !== false, 'membership_grant_is_evented_and_audited');
 $assert(strpos($membershipGrantMigration, 'source_package_instance_id` INT UNSIGNED NULL') !== false, 'manual_membership_has_explicit_nullable_package_source');
+$assert(strpos($controller . $route, 'yfth/user_role/user/<uid>/membership/grant') !== false, 'dedicated_membership_grant_route_exists');
+$assert(strpos($adminPage, 'yfthUserMembershipGrant') !== false, 'admin_membership_button_uses_dedicated_api');
+foreach (['yfth-user-role-membership-grant', 'yfth-user-debug-purge-preflight', 'yfth-user-debug-purge-execute'] as $auth) {
+    $assert(strpos($membershipPurgeMigration, $auth) !== false, 'membership_purge_permission_exists:' . $auth);
+}
+foreach (['user_debug_purge_enabled', 'discoverReferences', 'confirmation_phrase', 'blocking_references', 'debug_user_purge_residual_reference_detected'] as $needle) {
+    $assert(strpos($purgeService, $needle) !== false, 'debug_purge_guard_contains:' . $needle);
+}
+$assert(strpos($purgeService, "'store_order' =>") === false, 'debug_purge_never_allowlists_store_orders');
+$assert(strpos($purgeService, "'yfth_permanent_membership' =>") === false, 'debug_purge_never_allowlists_membership');
 foreach (['franchisee', 'store_manager', 'store_staff'] as $roleCode) {
     $assert(strpos($service, "'{$roleCode}'") !== false, 'supported_store_role:' . $roleCode);
 }
@@ -114,7 +126,7 @@ $assert(strpos($membership, 'syncAuthorityCustomerInTransaction') !== false, 'in
 $assert(strpos($franchiseCustomer, 'backfillAuthorityCustomers') !== false, 'existing_authority_has_controlled_customer_projection_repair');
 $assert(strpos($userPage, 'goYfthReferralScan') !== false, 'user_center_exposes_referral_scan');
 $assert(strpos($userPage, '当前身份') !== false && strpos($userPage, '进入工作台') !== false, 'user_center_exposes_current_role');
-$assert(strpos($roleSwitchPage, "switchYfthRole('customer', 0)") !== false, 'customer_switch_uses_server_context');
+$assert(strpos($roleSwitchPage, 'resolveDominantYfthContext') !== false, 'role_switch_uses_server_resolved_dominant_context');
 $assert(strpos($roleSwitchPage, "uni.reLaunch") !== false && strpos($roleSwitchPage, "this.switching") !== false, 'business_role_switch_relaunches_with_busy_guard');
 $assert(strpos($workbenchPage, '我的门店获客码') !== false && strpos($workbenchPage, 'canIssueAcquisitionCode') !== false, 'manager_and_staff_acquisition_code_entry_visible');
 $assert(strpos($storeAcquisitionService, "private const ROLES = ['store_manager', 'store_staff']") !== false, 'acquisition_code_role_boundary');
@@ -129,9 +141,12 @@ foreach (['yfth_store_acquisition_code', 'yfth_store_acquisition_acceptance', 'u
 }
 $assert(strpos($storeAcquisitionController, 'acquisition_token') !== false, 'acquisition_controller_accepts_opaque_token_only');
 $assert(strpos($storeAcquisitionCodePage, 'saveQr') !== false && strpos($storeAcquisitionCodePage, '_saveCode') !== false, 'employee_acquisition_qr_can_be_saved');
-$assert(strpos($storeAcquisitionService, 'MiniProgramService::getUrlLink') !== false && strpos($storeAcquisitionCodePage, 'launch_url') !== false, 'employee_qr_prefers_external_wechat_miniprogram_link');
+$assert(strpos($storeAcquisitionService, 'MiniProgramService::getUrlLink') !== false && strpos($storeAcquisitionService, 'h5_launch_url') !== false, 'employee_qr_exposes_dedicated_h5_fallback');
+$assert(strpos($storeAcquisitionCodePage, 'this.code.h5_launch_url') !== false, 'employee_qr_uses_current_site_acquisition_route');
 $assert(strpos($storeAcquisitionCodePage, 'getYfthStoreAcquisitionCode') !== false && strpos($storeAcquisitionCodePage, 'active.code_no === cached.code_no') !== false, 'saved_employee_qr_is_reused_until_rotated_or_expired');
 $assert(strpos($storeAcquisitionAcceptPage, 'yfth_pending_store_acquisition') !== false && strpos($storeAcquisitionAcceptPage, 'toLogin') !== false, 'acquisition_login_continuation_exists');
+$assert(strpos($storeAcquisitionAcceptPage, 'this.$nextTick(() => this.accept())') !== false, 'acquisition_accepts_automatically_after_login');
+$assert(strpos($storeAcquisitionAcceptPage, "uni.reLaunch({ url: '/pages/index/index' })") !== false, 'acquisition_success_returns_to_mall_home');
 $assert(strpos($scanPage, 'acquisition_token') !== false && strpos($scanPage, '/pages/yfth/store_acquisition/accept') !== false, 'scanner_recognizes_store_acquisition_qr');
 $assert(substr_count($pages, '"path": "store_acquisition/code"') === 1, 'store_acquisition_code_route_unique');
 $assert(substr_count($pages, '"path": "store_acquisition/accept"') === 1, 'store_acquisition_accept_route_unique');

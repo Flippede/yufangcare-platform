@@ -156,6 +156,12 @@ class HqUserRoleManagementServices
         });
     }
 
+    public function grantMembership(int $uid, array $data, int $adminId, array $adminInfo): array
+    {
+        $data['role_code'] = self::MEMBERSHIP_ROLE;
+        return $this->grant($uid, $data, $adminId, $adminInfo);
+    }
+
     public function revoke(int $roleId, array $data, int $adminId, array $adminInfo): array
     {
         $this->assertHeadquarters($adminInfo);
@@ -282,9 +288,13 @@ class HqUserRoleManagementServices
 
     private function roleOptions(): array
     {
-        $result = [];
+        $result = [[
+            'value' => self::MEMBERSHIP_ROLE,
+            'label' => '永久会员',
+            'identity_type' => 'membership',
+        ]];
         foreach (self::ROLE_NAMES as $value => $label) {
-            $result[] = compact('value', 'label');
+            $result[] = array_merge(compact('value', 'label'), ['identity_type' => 'business_role']);
         }
         return $result;
     }

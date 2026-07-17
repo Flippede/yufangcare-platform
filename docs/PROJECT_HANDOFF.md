@@ -1,5 +1,14 @@
 # 项目交接文档
 
+## Current Fact Snapshot - Store Acquisition Binding And HQ User Safeguards Closure
+
+- Feature branch `codex/yfth-user-role-assets-referral-code-v1` closes the production gap where a manager/staff store QR could be resolved but never accepted: the public QR now always points to the current H5 store-acquisition landing page, the landing page automatically completes acceptance after login, verifies the returned active attribution, shows `门店绑定成功`, and then returns to the mall homepage.
+- Store acceptance continues to use the existing transaction: the authoritative Stage 1A attribution and store-customer projection are written together. It does not open the package-writeoff page, create a permanent-member referral, or write CRMEB legacy distribution fields.
+- Headquarters role management now exposes a dedicated permanent-member grant action and permission while preserving membership as a non-store business qualification. Store operating roles remain independently managed and do not replace customer or membership facts.
+- A headquarters-only debug purge surface was added behind `YFTH_USER_DEBUG_PURGE_ENABLED`. It first scans real schema references and permits hard deletion only for disposable test users whose references are all explicitly allowlisted. Membership, role, order, payment, reward, settlement, or any unknown reference fails closed. Exact account, an exact UID/account confirmation phrase, a reason, a second confirmation, transaction recheck, residual-reference verification, and audit are mandatory.
+- PHP 7.4 syntax, dedicated contract checks, isolated MySQL Community 8.0.46 store-acquisition and debug-purge real flows, migration run/targeted rollback/rerun, Admin production build, H5 production build, mp-weixin production compile, existing uni-app checks, and `git diff --check` are the required release evidence. Production deployment is recorded separately after backup and release.
+- This closure does not modify CRMEB orders, payment, refund, products, inventory, balance, points, legacy distribution, or recommendation/reward settlement logic. No unknown production user is deleted automatically.
+
 ## Current Fact Snapshot - Highest Operating Identity Default Closure
 
 - Feature branch `codex/yfth-user-role-assets-referral-code-v1` now derives the default customer-side context from the highest active server identity: `franchisee > store_manager > store_staff > service_mentor > customer`. Permanent membership remains a qualification and is not part of the switchable operating-role order.
