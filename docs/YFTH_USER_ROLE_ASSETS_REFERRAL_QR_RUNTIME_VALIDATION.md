@@ -2,6 +2,8 @@
 
 ## C1 direct-referral reward summary validation - 2026-07-17
 
+- Production feature commit `eca12d760ddbb910af060ef32f7c60ef3d9a8c83` was deployed after backup `/www/backup/yfth-direct-referral-summary-20260717-124757`; release artifacts remain at `/www/releases/yfth-direct-referral-summary-20260717-124757`.
+- A real C1 account-password browser flow opened the promotion page and rendered four direct-referral rows. A separate authenticated API check returned the same four names and zero reward amounts, matching the absence of production reward candidates, and found no internal UID/rule/sequence field. The homepage and referral JavaScript chunk returned HTTP 200; deployed PHP hashes matched the local commit.
 - Added a user-token-protected read endpoint for the permanent member's direct referrals. It validates every related Stage 1A referral current before returning display-name, avatar, relationship status, start time, and reward totals.
 - The amount summary reuses existing reward candidates and offline-settlement status: cancelled amounts are excluded, pending plus confirmed amounts remain pending, and settled amounts are reported separately. No CRMEB wallet, balance, points, brokerage, payout, or legacy spread field is read as the reward source.
 - The MySQL Community 8.0.46 isolated real flow proved that C1 sees the referred user's display name and the exact candidate amount, and that a relationship closed by C2 membership remains visible. Recursive DTO checks found no other-user UID, owner UID, reward sequence, or rule-version ID.
