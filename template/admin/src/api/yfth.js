@@ -40,6 +40,14 @@ export function yfthUserMembershipGrant(uid, data) {
   return request({ url: `yfth/user_role/user/${uid}/membership/grant`, method: 'post', data });
 }
 
+export function yfthPartnerGrantOptions(params) {
+  return request({ url: 'yfth/user_role/partner/grant_options', method: 'get', params });
+}
+
+export function yfthUserPartnerGrant(uid, data) {
+  return request({ url: `yfth/user_role/user/${uid}/partner/grant`, method: 'post', data });
+}
+
 export function yfthUserDebugPurgePreflight(uid) {
   return request({ url: `yfth/user_role/user/${uid}/purge/preflight`, method: 'get' });
 }

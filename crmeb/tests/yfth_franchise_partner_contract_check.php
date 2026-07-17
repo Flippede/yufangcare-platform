@@ -22,15 +22,19 @@ $contains = static function (string $text, string $needle): bool {
 };
 
 $migration = $read('database/migrations/20260719100000_create_yfth_franchise_partner_hierarchy.php');
+$grantMigration = $read('database/migrations/20260719110000_add_yfth_partner_manual_grant_permissions.php');
 $service = $read('app/services/yfth/FranchisePartnerServices.php');
 $opening = $read('app/services/yfth/FranchiseOpeningServices.php');
 $fixture = $read('app/services/yfth/HqAcceptanceFixtureServices.php');
 $roleService = $read('app/services/yfth/HqUserRoleManagementServices.php');
 $adminController = $read('app/adminapi/controller/v1/yfth/FranchisePartner.php');
+$userRoleController = $read('app/adminapi/controller/v1/yfth/HqUserRole.php');
 $apiController = $read('app/api/controller/v1/yfth/FranchisePartnerController.php');
 $adminRoute = $read('app/adminapi/route/yfth.php');
 $apiRoute = $read('app/api/route/yfth_service.php');
 $adminPage = $read('../template/admin/src/pages/yfth/franchisePartner/index.vue');
+$userRolePage = $read('../template/admin/src/pages/yfth/userRole/index.vue');
+$adminApi = $read('../template/admin/src/api/yfth.js');
 $userPage = $read('../template/uni-app/pages/yfth/franchise/partner/index.vue');
 
 foreach ([
@@ -57,6 +61,13 @@ foreach (['89100.00', '440', '40.00', '17.00', '10.00', '8.00', '5.00'] as $valu
 foreach (['county_partner', 'prefecture_partner', 'province_partner', 'regional_director', 'platform_director'] as $rank) {
     $assert($contains($service, "'{$rank}'") && $contains($migration, $rank), 'rank_supported:' . $rank);
 }
+$assert($contains($service, 'REQUIRED_PARENT_RANKS'), 'manual_grant_declares_adjacent_parent_matrix');
+$assert($contains($service, 'adminGrantOptions') && $contains($service, 'adminGrantPartner'), 'manual_grant_service_present');
+foreach (['partner_parent_required', 'partner_parent_rank_invalid', 'partner_top_rank_parent_forbidden', 'partner_already_active'] as $error) {
+    $assert($contains($service, $error), 'manual_grant_guard:' . $error);
+}
+$assert($contains($service, "'primary_store_id' => 0") && $contains($service, "'source_type' => 'headquarters_grant'"), 'manual_partner_grant_is_store_independent_and_auditable');
+$assert($contains($service, "'active_key' => 'partner:' . \$uid"), 'manual_grant_keeps_one_active_parent_relation');
 
 foreach ([
     'adminSaveRule', 'adminPublishRule', 'adminChangeRank', 'adminChangeParent',
@@ -92,6 +103,11 @@ foreach (['createInvite', 'workbench', 'team', 'rewards', 'promotionApply'] as $
     $assert($contains($apiController, $method), 'api_controller:' . $method);
 }
 $assert($contains($adminRoute, "Route::group('franchise_partner'"), 'admin_routes_registered');
+$assert($contains($adminRoute, "partner/grant_options") && $contains($adminRoute, "user/:uid/partner/grant"), 'manual_grant_routes_registered');
+$assert($contains($userRoleController, 'partnerGrantOptions') && $contains($userRoleController, 'grantPartner'), 'manual_grant_controller_present');
+$assert($contains($grantMigration, 'yfth-user-role-partner-grant-options') && $contains($grantMigration, 'yfth-user-role-partner-grant'), 'manual_grant_permissions_forward_migration');
+$assert($contains($userRolePage, '授予合伙人') && $contains($userRolePage, '直属上级'), 'manual_grant_admin_surface_present');
+$assert($contains($adminApi, 'yfthPartnerGrantOptions') && $contains($adminApi, 'yfthUserPartnerGrant'), 'manual_grant_admin_api_present');
 $assert($contains($apiRoute, "yfth/franchise/partner/workbench") && $contains($apiRoute, "yfth/franchise/partner/invite"), 'user_routes_registered');
 $assert($contains($apiRoute, 'yfth/franchise/partner/promotion/apply'), 'promotion_apply_route_registered');
 $assert($contains($adminPage, '招商合伙人详情') && $contains($adminPage, '收益与线下结算'), 'admin_surface_present');

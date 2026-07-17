@@ -6,6 +6,20 @@ This document is the current authority for the partner extension of the earlier 
 
 Permanent membership and first-level customer referral are separate domains. Partner hierarchy never writes CRMEB legacy distribution fields.
 
+## Headquarters Manual Grant
+
+The headquarters user-role surface may grant an initial partner profile without creating a store role. The five ranks use one strict adjacent-parent matrix:
+
+- `county_partner -> prefecture_partner`
+- `prefecture_partner -> province_partner`
+- `province_partner -> regional_director`
+- `regional_director -> platform_director`
+- `platform_director -> headquarters direct (no parent)`
+
+The server, not the browser, validates the target user, active parent profile, exact adjacent rank, self/cycle guard, and current relation. One active relation is protected by `uniq_yfth_partner_relation_active`. A repeated identical grant is idempotent; an active profile with a different rank or parent must use an explicit governance workflow and is not overwritten by grant. Manual profiles use `primary_store_id=0` and `source_type=headquarters_grant`, preserving the product rule that partner qualification is independent from manager/staff store roles.
+
+Each grant writes an immutable rank event plus unified profile and relation audit events. The forward permission migration adds `GET yfth/user_role/partner/grant_options` and `POST yfth/user_role/user/<uid>/partner/grant`; both remain headquarters-scoped and explicitly permission-checked.
+
 ## Formal Opening
 
 `partner QR or headquarters direct -> application -> materials -> contract -> offline payment proof -> finance confirmation -> preparation -> acceptance -> headquarters creates/enables store -> county partner grant -> optional manager grant -> opened`
@@ -23,7 +37,7 @@ Acceptance requires a signed contract, finance-confirmed payment, verified prepa
 - Rewards: `yfth_partner_reward_candidate`, `yfth_partner_reward_settlement`.
 - Governance: `yfth_partner_warning`, `yfth_partner_promotion_application`.
 
-Current rows have unique active keys. Relations permit one current direct parent and reject self/cyclic parent changes. Promotion applications allow one pending request per partner and only headquarters approval changes the rank.
+Current rows have unique active keys. Relations permit one current direct parent and reject missing, non-adjacent, inactive, self, or cyclic parent changes. Promotion applications allow one pending request per partner and only headquarters approval changes the rank.
 
 ## Rules And Snapshots
 

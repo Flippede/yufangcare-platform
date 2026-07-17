@@ -1,6 +1,6 @@
 <template>
   <div class="user-role-page">
-    <el-alert title="永久会员与招商合伙人是两套独立资格。县级合伙人只可通过正式开店或受控历史迁移产生；本页仅直接管理店长、店员，所有变更均写入审计。" type="info" :closable="false" />
+    <el-alert title="永久会员、门店岗位和招商合伙人是三套独立资格。总部可授予五级合伙人；平台董事无需上级，其余职级必须且只能绑定一名相邻上级。所有变更均写入审计。" type="info" :closable="false" />
     <el-card class="fixture-card" shadow="never">
       <div slot="header" class="fixture-header">
         <div>
@@ -55,10 +55,11 @@
           <el-tag v-for="role in row.store_roles" :key="role.id" size="mini" class="role-tag">{{ role.store_name || ('门店 ' + role.store_id) }} · {{ role.role_name }}</el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="总部授权与调试" width="360" fixed="right">
+      <el-table-column label="总部授权与调试" width="430" fixed="right">
         <template slot-scope="{ row }">
           <el-button type="text" @click="openDetail(row)">查看</el-button>
           <el-button v-if="!row.permanent_member" type="text" @click="openGrant(row, 'permanent_member')">授权会员</el-button>
+          <el-button v-if="!(row.partner_identity && row.partner_identity.active)" type="text" @click="openPartnerGrant(row)">授予合伙人</el-button>
           <el-button type="text" @click="openGrant(row)">店长/店员</el-button>
           <el-button type="text" class="danger" @click="openPurge(row)">调试删除</el-button>
         </template>
@@ -70,7 +71,7 @@
       <div v-if="detail" class="detail-head"><b>{{ detail.nickname || detail.account || '-' }}</b><span>UID {{ detail.uid }}</span><span>{{ detail.phone_masked }}</span></div>
       <div v-if="detail" class="identity-summary">
         <div><b>基础身份</b><el-tag size="mini">顾客</el-tag><el-tag v-if="detail.permanent_member" size="mini" type="success">永久会员</el-tag><span v-else class="muted">未授权永久会员</span><el-button v-if="!detail.permanent_member" type="primary" size="mini" @click="openGrant(detail, 'permanent_member')">总部授权永久会员</el-button></div>
-        <div><b>招商职级</b><span v-if="!(detail.partner_identity && detail.partner_identity.active)" class="muted">尚未通过正式开店取得</span><template v-else><el-tag size="mini" type="warning">{{ detail.partner_identity.rank_name }}</el-tag><span>{{ detail.partner_identity.store_name || ('门店 ' + detail.partner_identity.primary_store_id) }}</span></template></div>
+        <div><b>招商职级</b><span v-if="!(detail.partner_identity && detail.partner_identity.active)" class="muted">尚未授予招商合伙人身份</span><template v-else><el-tag size="mini" type="warning">{{ detail.partner_identity.rank_name }}</el-tag><span v-if="detail.partner_identity.parent_uid">直属上级：{{ detail.partner_identity.parent_name || ('UID ' + detail.partner_identity.parent_uid) }} · {{ detail.partner_identity.parent_rank_name }}</span><span v-else>总部直属（无上级）</span></template><el-button v-if="!(detail.partner_identity && detail.partner_identity.active)" type="warning" size="mini" @click="openPartnerGrant(detail)">总部授予合伙人</el-button></div>
       </div>
       <el-table :data="detail ? storeStaffRoles(detail) : []" border size="small">
         <el-table-column prop="store_name" label="门店" min-width="160" />
@@ -89,6 +90,27 @@
         <el-form-item label="操作原因"><el-input v-model.trim="grantForm.reason" type="textarea" :rows="3" maxlength="255" show-word-limit /></el-form-item>
       </el-form>
       <span slot="footer"><el-button @click="grantVisible = false">取消</el-button><el-button type="primary" :loading="saving" @click="grant">确认授予</el-button></span>
+    </el-dialog>
+
+    <el-dialog title="授予招商合伙人" :visible.sync="partnerGrantVisible" width="540px" :close-on-click-modal="false">
+      <el-alert title="合伙人身份不绑定门店。平台董事可直接授予；大区总监至县级合伙人必须选择唯一的相邻上级。" type="warning" :closable="false" />
+      <el-form label-width="110px" class="partner-grant-form">
+        <el-form-item label="用户"><span>{{ selected ? `${selected.nickname || selected.account}（UID ${selected.uid}）` : '' }}</span></el-form-item>
+        <el-form-item label="合伙人职级">
+          <el-select v-model="partnerGrantForm.rank_code" placeholder="选择五级合伙人身份" @change="loadPartnerParents">
+            <el-option v-for="rank in partnerRankOptions" :key="rank.value" :label="rank.label" :value="rank.value" />
+          </el-select>
+        </el-form-item>
+        <el-form-item v-if="partnerParentRequired" :label="`直属${partnerParentRankName}`">
+          <el-select v-model="partnerGrantForm.parent_uid" filterable placeholder="必须选择一名直属上级" :loading="partnerOptionsLoading">
+            <el-option v-for="parent in partnerParentOptions" :key="parent.uid" :label="partnerParentLabel(parent)" :value="parent.uid" />
+          </el-select>
+          <div v-if="!partnerOptionsLoading && !partnerParentOptions.length" class="form-tip danger">当前没有可用的{{ partnerParentRankName }}，请先授予上一级身份。</div>
+        </el-form-item>
+        <el-form-item v-else-if="partnerGrantForm.rank_code" label="直属上级"><el-tag type="success">平台董事由总部直接设置，无需上级</el-tag></el-form-item>
+        <el-form-item label="操作原因"><el-input v-model.trim="partnerGrantForm.reason" type="textarea" :rows="3" maxlength="255" show-word-limit /></el-form-item>
+      </el-form>
+      <span slot="footer"><el-button @click="partnerGrantVisible = false">取消</el-button><el-button type="warning" :loading="saving" @click="grantPartner">确认授予</el-button></span>
     </el-dialog>
 
     <el-dialog title="调试用户完整删除" :visible.sync="purgeVisible" width="640px" :close-on-click-modal="false">
@@ -122,7 +144,9 @@ import {
   yfthAcceptanceFixtureGenerate,
   yfthAcceptanceFixturePasswordReset,
   yfthAcceptanceFixtureReset,
+  yfthPartnerGrantOptions,
   yfthUserMembershipGrant,
+  yfthUserPartnerGrant,
   yfthUserDebugPurge,
   yfthUserDebugPurgePreflight,
   yfthUserRoleDetail,
@@ -136,8 +160,10 @@ export default {
     return {
       loading: false, saving: false, fixtureSaving: false, list: [], total: 0, stores: [], roleOptions: [],
       query: { keyword: '', page: 1, limit: 20 }, detail: null, selected: null,
-      detailVisible: false, grantVisible: false, grantPresetRole: '', purgeVisible: false, purgeSaving: false,
+      detailVisible: false, grantVisible: false, grantPresetRole: '', partnerGrantVisible: false, purgeVisible: false, purgeSaving: false,
       grantForm: { store_id: '', role_code: '', reason: '' },
+      partnerGrantForm: { rank_code: '', parent_uid: '', reason: '' },
+      partnerRankOptions: [], partnerParentOptions: [], partnerParentRequired: false, partnerParentRankName: '', partnerOptionsLoading: false,
       purgePreflight: null, purgeForm: { confirmation: '' },
       fixture: { enabled: false, exists: false, status: 'not_generated', store: {}, accounts: [] },
     };
@@ -220,6 +246,52 @@ export default {
     openGrant(row, presetRole) {
       this.selected = row; this.grantPresetRole = presetRole || ''; this.grantForm = { store_id: '', role_code: presetRole || '', reason: '' }; this.grantVisible = true;
     },
+    openPartnerGrant(row) {
+      this.selected = row;
+      this.partnerGrantForm = { rank_code: '', parent_uid: '', reason: '' };
+      this.partnerParentOptions = [];
+      this.partnerParentRequired = false;
+      this.partnerParentRankName = '';
+      this.partnerGrantVisible = true;
+      this.partnerOptionsLoading = true;
+      yfthPartnerGrantOptions({ rank_code: '' }).then((res) => {
+        this.partnerRankOptions = (res.data || {}).rank_options || [];
+      }).finally(() => { this.partnerOptionsLoading = false; });
+    },
+    loadPartnerParents(rankCode) {
+      this.partnerGrantForm.parent_uid = '';
+      this.partnerParentOptions = [];
+      this.partnerOptionsLoading = true;
+      yfthPartnerGrantOptions({ rank_code: rankCode }).then((res) => {
+        const data = res.data || {};
+        this.partnerRankOptions = data.rank_options || this.partnerRankOptions;
+        this.partnerParentRequired = Boolean(data.parent_required);
+        this.partnerParentRankName = data.required_parent_rank_name || '';
+        this.partnerParentOptions = data.parent_options || [];
+      }).finally(() => { this.partnerOptionsLoading = false; });
+    },
+    partnerParentLabel(parent) {
+      const name = parent.nickname || parent.account || `UID ${parent.uid}`;
+      const account = parent.account && parent.account !== name ? ` · ${parent.account}` : '';
+      return `${name}${account} · UID ${parent.uid}`;
+    },
+    grantPartner() {
+      if (!this.partnerGrantForm.rank_code || !this.partnerGrantForm.reason) return this.$message.warning('请选择合伙人职级并填写原因');
+      if (this.partnerParentRequired && !this.partnerGrantForm.parent_uid) return this.$message.warning(`必须选择一名${this.partnerParentRankName}`);
+      this.saving = true;
+      const data = {
+        rank_code: this.partnerGrantForm.rank_code,
+        parent_uid: this.partnerParentRequired ? Number(this.partnerGrantForm.parent_uid) : 0,
+        reason: this.partnerGrantForm.reason,
+        request_id: `hq-partner-grant-${Date.now()}`,
+      };
+      yfthUserPartnerGrant(this.selected.uid, data).then(() => {
+        this.$message.success('招商合伙人身份已授予');
+        this.partnerGrantVisible = false;
+        this.detailVisible = false;
+        return this.load();
+      }).finally(() => { this.saving = false; });
+    },
     openPurge(row) {
       this.selected = row;
       this.purgePreflight = null;
@@ -281,6 +353,8 @@ export default {
 .identity-summary b { width: 72px; color: #303133; }
 .muted, .form-tip { color: #909399; }
 .form-tip { margin-top: 8px; font-size: 12px; line-height: 1.55; }
+.partner-grant-form { margin-top: 18px; }
+.partner-grant-form .el-select { width: 100%; }
 .revoke-icon { margin-left: 6px; cursor: pointer; }
 .danger { color: #f56c6c; }
 .purge-summary { margin-top: 16px; }

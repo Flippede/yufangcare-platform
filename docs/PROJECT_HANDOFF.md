@@ -1,5 +1,12 @@
 # 项目交接文档
 
+## Current Fact Snapshot - Headquarters Partner Identity Grant Development Closure
+
+- Branch `codex/yfth-franchise-opening-partner-hierarchy-v1` adds a visible `授予合伙人` action to `御方通和 / 用户经营身份`. Headquarters can grant county partner, prefecture partner, province partner, regional director, or platform director without creating a store role or replacing customer/permanent-membership facts.
+- The server enforces one adjacent direct parent: county requires prefecture, prefecture requires province, province requires regional director, and regional director requires platform director. Platform director is the only rank granted without a parent. Missing, inactive, cross-level, self, or cyclic parents fail closed; the active-relation unique key still permits only one current direct parent.
+- New grants use `source_type=headquarters_grant`, write an immutable `yfth_partner_rank_event`, and write unified `yfth_audit_event` profile/relation records. Repeating the identical grant is idempotent; a grant request cannot silently overwrite an existing active rank or parent.
+- Forward migration `20260719110000_add_yfth_partner_manual_grant_permissions.php` adds only the hidden parent-option and grant API permissions under the existing user-role page. Isolated MySQL Community 8.0.46 run, targeted rollback, rerun, duplicate run, five-rank real flow, 103-assertion partner contract, PHP 7.4 syntax, and Admin production build passed. Production deployment is not claimed by this development snapshot.
+
 ## Current Fact Snapshot - H5 Global Touch Interaction Closure
 
 - Branch `codex/yfth-franchise-opening-partner-hierarchy-v1` removes the legacy captcha wrapper's document-wide H5 `touchstart` / `touchmove` interception and global `html` touch policy. The old listener survived after leaving login, accumulated on repeated visits, cancelled slightly horizontal finger gestures, and contained a misspelled `preventDefalut` call.

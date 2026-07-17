@@ -1,5 +1,14 @@
 # YFTH Franchise Partner Hierarchy V1 Runtime Validation
 
+## Headquarters Manual Grant Validation - 2026-07-17
+
+- PHP 7.4 syntax passed for the partner service, user-role projection/controller/routes, permission migration, and focused tests.
+- The partner contract passed 103 assertions and covers the adjacent-parent matrix, server guards, routes, permissions, Admin surface, and store-independent profile source.
+- Isolated MySQL Community 8.0.46 permission migration run, targeted rollback to `20260719100000`, rerun, and duplicate run passed. The rollback removed only the two new API permissions and preserved the existing partner tables.
+- The real flow granted platform director without a parent, then regional, province, prefecture, and county with exactly one adjacent parent each. Missing parent, cross-level parent, active-rank overwrite, and invalid parent change were rejected. Duplicate identical grant was idempotent, four non-top active relations remained, five immutable `headquarters_grant` rank events existed, and unified audit remained populated.
+- Admin production build passed with the existing 11 non-blocking CSS-order warnings. The built user-role route chunk contains the grant dialog and parent-option API. H5 and mp-weixin were not rebuilt because this change has no user-side source modification.
+- This section records local isolated validation only. Production migration, deployment, and browser verification are appended only after they actually complete.
+
 ## Production Release - 2026-07-17
 
 - Functional commit: `040db75a5c575ba5c05e5d3c35d154eeeda49419` on preserved branch `codex/yfth-franchise-opening-partner-hierarchy-v1`; no main merge was performed.

@@ -16,6 +16,13 @@ class FranchisePartnerServices extends YfthFoundationBaseServices
         'regional_director' => ['name' => '大区总监', 'level' => 4],
         'platform_director' => ['name' => '平台董事', 'level' => 5],
     ];
+    private const REQUIRED_PARENT_RANKS = [
+        'county_partner' => 'prefecture_partner',
+        'prefecture_partner' => 'province_partner',
+        'province_partner' => 'regional_director',
+        'regional_director' => 'platform_director',
+        'platform_director' => '',
+    ];
     private const PROFILE_STATUSES = ['active', 'paused', 'exited'];
     private const REWARD_TRANSITIONS = [
         'confirm' => ['from' => ['pending'], 'to' => 'confirmed'],
@@ -178,6 +185,171 @@ class FranchisePartnerServices extends YfthFoundationBaseServices
         return $this->partnerDetail($profile);
     }
 
+    public function adminGrantOptions(string $rankCode, string $keyword, array $adminInfo): array
+    {
+        $this->assertHeadquarters($adminInfo);
+        $rankCode = trim($rankCode);
+        if ($rankCode !== '' && !isset(self::RANKS[$rankCode])) {
+            throw new ApiException('partner_rank_invalid');
+        }
+        $requiredParentRank = $rankCode === '' ? '' : self::REQUIRED_PARENT_RANKS[$rankCode];
+        $parents = [];
+        if ($requiredParentRank !== '') {
+            $query = Db::name('yfth_partner_profile')->alias('p')
+                ->leftJoin('user u', 'u.uid=p.uid')
+                ->where(['p.rank_code' => $requiredParentRank, 'p.status' => 'active']);
+            $keyword = trim($keyword);
+            if ($keyword !== '') {
+                $query->where(function ($where) use ($keyword) {
+                    $where->whereLike('u.nickname|u.phone|u.account', '%' . $keyword . '%');
+                    if (ctype_digit($keyword)) {
+                        $where->whereOr('p.uid', (int)$keyword);
+                    }
+                });
+            }
+            $rows = $query->field('p.uid,p.rank_code,u.nickname,u.account,u.phone')
+                ->order('p.uid asc')->limit(100)->select()->toArray();
+            foreach ($rows as $row) {
+                $parents[] = [
+                    'uid' => (int)$row['uid'],
+                    'nickname' => (string)($row['nickname'] ?? ''),
+                    'account' => (string)($row['account'] ?? ''),
+                    'phone_masked' => $this->maskPhone((string)($row['phone'] ?? '')),
+                    'rank_code' => (string)$row['rank_code'],
+                    'rank_name' => self::RANKS[(string)$row['rank_code']]['name'],
+                ];
+            }
+        }
+        return [
+            'rank_options' => $this->rankOptions(),
+            'required_parent_rank' => $requiredParentRank,
+            'required_parent_rank_name' => $requiredParentRank !== '' ? self::RANKS[$requiredParentRank]['name'] : '',
+            'parent_required' => $requiredParentRank !== '',
+            'parent_options' => $parents,
+        ];
+    }
+
+    public function adminGrantPartner(int $uid, array $data, int $adminId, array $adminInfo): array
+    {
+        $this->assertHeadquarters($adminInfo);
+        $rankCode = trim((string)($data['rank_code'] ?? ''));
+        if (!isset(self::RANKS[$rankCode])) {
+            throw new ApiException('partner_rank_invalid');
+        }
+        $reason = $this->requiredReason($data);
+        $parentUid = max(0, (int)($data['parent_uid'] ?? 0));
+        $requiredParentRank = self::REQUIRED_PARENT_RANKS[$rankCode];
+        if ($requiredParentRank === '' && $parentUid !== 0) {
+            throw new ApiException('partner_top_rank_parent_forbidden');
+        }
+        if ($requiredParentRank !== '' && $parentUid <= 0) {
+            throw new ApiException('partner_parent_required');
+        }
+        if ($uid <= 0 || $uid === $parentUid) {
+            throw new ApiException('partner_relation_cycle_forbidden');
+        }
+        $user = Db::name('user')->where(['uid' => $uid, 'is_del' => 0])->find();
+        if (!$user) {
+            throw new ApiException('user_not_found');
+        }
+
+        return Db::transaction(function () use ($uid, $rankCode, $parentUid, $requiredParentRank, $reason, $adminId) {
+            $lockUids = array_values(array_unique(array_filter([$uid, $parentUid])));
+            sort($lockUids, SORT_NUMERIC);
+            $lockedProfiles = Db::name('yfth_partner_profile')->whereIn('uid', $lockUids)
+                ->order('uid asc')->lock(true)->select()->toArray();
+            $profiles = [];
+            foreach ($lockedProfiles as $profile) {
+                $profiles[(int)$profile['uid']] = $profile;
+            }
+            $before = $profiles[$uid] ?? [];
+            $parent = $parentUid > 0 ? ($profiles[$parentUid] ?? []) : [];
+            if ($requiredParentRank !== '') {
+                if (!$parent || (string)$parent['status'] !== 'active') {
+                    throw new ApiException('partner_parent_not_active');
+                }
+                if ((string)$parent['rank_code'] !== $requiredParentRank) {
+                    throw new ApiException('partner_parent_rank_invalid');
+                }
+                if ($this->wouldCreateCycle($uid, $parentUid)) {
+                    throw new ApiException('partner_relation_cycle_forbidden');
+                }
+            }
+
+            $relationBefore = Db::name('yfth_partner_relation')->where('active_key', 'partner:' . $uid)->lock(true)->find() ?: [];
+            if ($before && (string)$before['status'] === 'active') {
+                $sameRelation = $requiredParentRank === ''
+                    ? !$relationBefore
+                    : ($relationBefore && (int)$relationBefore['parent_uid'] === $parentUid);
+                if ((string)$before['rank_code'] === $rankCode && $sameRelation) {
+                    return [
+                        'partner' => $this->partnerDto($before),
+                        'relation' => $relationBefore,
+                        'idempotent' => true,
+                    ];
+                }
+                throw new ApiException('partner_already_active');
+            }
+
+            $now = time();
+            $profileData = [
+                'uid' => $uid,
+                'rank_code' => $rankCode,
+                'primary_store_id' => 0,
+                'source_type' => 'headquarters_grant',
+                'source_id' => $adminId,
+                'legacy_franchisee_role_id' => (int)($before['legacy_franchisee_role_id'] ?? 0),
+                'status' => 'active',
+                'start_time' => $now,
+                'end_time' => 0,
+                'active_key' => 'partner:' . $uid,
+                'create_time' => (int)($before['create_time'] ?? $now),
+                'update_time' => $now,
+            ];
+            if ($before) {
+                Db::name('yfth_partner_profile')->where('id', (int)$before['id'])->update($profileData);
+                $profileData['id'] = (int)$before['id'];
+            } else {
+                $profileData['id'] = (int)Db::name('yfth_partner_profile')->insertGetId($profileData);
+            }
+            if ($relationBefore) {
+                Db::name('yfth_partner_relation')->where('id', (int)$relationBefore['id'])->update([
+                    'status' => 'closed', 'end_time' => $now, 'active_key' => null, 'update_time' => $now,
+                ]);
+            }
+            $relation = [];
+            if ($parentUid > 0) {
+                $relationId = (int)Db::name('yfth_partner_relation')->insertGetId([
+                    'partner_uid' => $uid, 'parent_uid' => $parentUid, 'source_application_id' => 0,
+                    'status' => 'active', 'start_time' => $now, 'end_time' => 0,
+                    'reason' => $reason, 'operator_uid' => $adminId,
+                    'active_key' => 'partner:' . $uid, 'create_time' => $now, 'update_time' => $now,
+                ]);
+                $relation = Db::name('yfth_partner_relation')->where('id', $relationId)->find() ?: [];
+            }
+            Db::name('yfth_partner_rank_event')->insert([
+                'partner_uid' => $uid,
+                'from_rank' => (string)($before['rank_code'] ?? ''),
+                'to_rank' => $rankCode,
+                'action' => 'headquarters_grant',
+                'rule_version_id' => (int)($this->activeRule()['id'] ?? 0),
+                'reason' => $reason,
+                'evidence_snapshot' => $this->json(['parent_uid' => $parentUid, 'parent_rank' => $requiredParentRank]),
+                'operator_uid' => $adminId,
+                'create_time' => $now,
+            ]);
+            $this->recordAudit('partner_profile', (int)$profileData['id'], 'headquarters_grant', $before, $profileData, $adminId, 0, $reason);
+            if ($parentUid > 0) {
+                $this->recordAudit('partner_relation', (int)$relation['id'], 'headquarters_grant_parent', $relationBefore, $relation, $adminId, 0, $reason);
+            }
+            return [
+                'partner' => $this->partnerDto($profileData),
+                'relation' => $relation,
+                'idempotent' => false,
+            ];
+        });
+    }
+
     public function adminChangeRank(int $uid, array $data, int $adminId, array $adminInfo): array
     {
         $this->assertHeadquarters($adminInfo);
@@ -235,14 +407,42 @@ class FranchisePartnerServices extends YfthFoundationBaseServices
         $this->assertHeadquarters($adminInfo);
         $reason = $this->requiredReason($data);
         $parentUid = max(0, (int)($data['parent_uid'] ?? 0));
+        $profile = $this->profile($uid, true);
+        $rankCode = (string)$profile['rank_code'];
+        $requiredParentRank = self::REQUIRED_PARENT_RANKS[$rankCode] ?? null;
+        if ($requiredParentRank === null) {
+            throw new ApiException('partner_rank_invalid');
+        }
         if ($uid === $parentUid || ($parentUid > 0 && $this->wouldCreateCycle($uid, $parentUid))) {
             throw new ApiException('partner_relation_cycle_forbidden');
         }
-        if ($parentUid > 0) {
-            $this->profile($parentUid, true);
+        if ($requiredParentRank === '' && $parentUid !== 0) {
+            throw new ApiException('partner_top_rank_parent_forbidden');
         }
-        return Db::transaction(function () use ($uid, $parentUid, $adminId, $reason) {
-            $this->profile($uid, true);
+        if ($requiredParentRank !== '' && $parentUid <= 0) {
+            throw new ApiException('partner_parent_required');
+        }
+        if ($parentUid > 0) {
+            $parent = $this->profile($parentUid, true);
+            if ((string)$parent['rank_code'] !== $requiredParentRank) {
+                throw new ApiException('partner_parent_rank_invalid');
+            }
+        }
+        return Db::transaction(function () use ($uid, $parentUid, $adminId, $reason, $requiredParentRank) {
+            $locked = Db::name('yfth_partner_profile')->whereIn('uid', array_values(array_unique(array_filter([$uid, $parentUid]))))
+                ->order('uid asc')->lock(true)->select()->toArray();
+            $profiles = [];
+            foreach ($locked as $row) {
+                $profiles[(int)$row['uid']] = $row;
+            }
+            if (empty($profiles[$uid]) || (string)$profiles[$uid]['status'] !== 'active') {
+                throw new ApiException('partner_not_found');
+            }
+            if ($requiredParentRank !== '' && (empty($profiles[$parentUid])
+                || (string)$profiles[$parentUid]['status'] !== 'active'
+                || (string)$profiles[$parentUid]['rank_code'] !== $requiredParentRank)) {
+                throw new ApiException('partner_parent_rank_invalid');
+            }
             $before = Db::name('yfth_partner_relation')->where('active_key', 'partner:' . $uid)->lock(true)->find();
             if ($before && (int)$before['parent_uid'] === $parentUid) {
                 return ['relation' => $before, 'idempotent' => true];

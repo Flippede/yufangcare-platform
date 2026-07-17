@@ -143,6 +143,63 @@ try {
         'update_time' => time(),
     ]);
     $partner = app()->make(FranchisePartnerServices::class);
+    $manualRankUids = [];
+    $manualRanks = ['platform_director', 'regional_director', 'province_partner', 'prefecture_partner', 'county_partner'];
+    $manualRankAccountCodes = ['pd', 'rd', 'pp', 'pf', 'cp'];
+    foreach ($manualRanks as $index => $rankCode) {
+        $manualUser = $seedUser;
+        $manualUser['account'] = 'yfth_manual_' . $manualRankAccountCodes[$index] . '_' . $suffix;
+        $manualUser['phone'] = '196' . str_pad((string)(((int)$suffix * 10 + $index) % 100000000), 8, '0', STR_PAD_LEFT);
+        $manualUser['nickname'] = 'TEST manual ' . $rankCode;
+        $manualRankUids[$rankCode] = (int)Db::name('user')->insertGetId($manualUser);
+    }
+    $metadata = $partner->adminGrantOptions('', '', $hq);
+    $assert(count($metadata['rank_options']) === 5 && !$metadata['parent_required'], 'manual_grant_metadata_lists_five_ranks');
+    $platformGrant = $partner->adminGrantPartner($manualRankUids['platform_director'], [
+        'rank_code' => 'platform_director', 'parent_uid' => 0, 'reason' => 'isolated platform grant',
+    ], 1, $hq);
+    $assert((string)$platformGrant['partner']['rank_code'] === 'platform_director' && !$platformGrant['relation'], 'platform_director_granted_without_parent');
+    $expect(function () use ($partner, $manualRankUids, $hq) {
+        $partner->adminGrantPartner($manualRankUids['regional_director'], [
+            'rank_code' => 'regional_director', 'parent_uid' => 0, 'reason' => 'missing parent must fail',
+        ], 1, $hq);
+    }, 'partner_parent_required', 'regional_director_requires_parent');
+    $partner->adminGrantPartner($manualRankUids['regional_director'], [
+        'rank_code' => 'regional_director', 'parent_uid' => $manualRankUids['platform_director'], 'reason' => 'isolated regional grant',
+    ], 1, $hq);
+    $expect(function () use ($partner, $manualRankUids, $hq) {
+        $partner->adminGrantPartner($manualRankUids['province_partner'], [
+            'rank_code' => 'province_partner', 'parent_uid' => $manualRankUids['platform_director'], 'reason' => 'wrong adjacent rank',
+        ], 1, $hq);
+    }, 'partner_parent_rank_invalid', 'province_partner_rejects_non_adjacent_parent');
+    $partner->adminGrantPartner($manualRankUids['province_partner'], [
+        'rank_code' => 'province_partner', 'parent_uid' => $manualRankUids['regional_director'], 'reason' => 'isolated province grant',
+    ], 1, $hq);
+    $partner->adminGrantPartner($manualRankUids['prefecture_partner'], [
+        'rank_code' => 'prefecture_partner', 'parent_uid' => $manualRankUids['province_partner'], 'reason' => 'isolated prefecture grant',
+    ], 1, $hq);
+    $countyGrant = $partner->adminGrantPartner($manualRankUids['county_partner'], [
+        'rank_code' => 'county_partner', 'parent_uid' => $manualRankUids['prefecture_partner'], 'reason' => 'isolated county grant',
+    ], 1, $hq);
+    $countyGrantAgain = $partner->adminGrantPartner($manualRankUids['county_partner'], [
+        'rank_code' => 'county_partner', 'parent_uid' => $manualRankUids['prefecture_partner'], 'reason' => 'isolated county replay',
+    ], 1, $hq);
+    $assert(!$countyGrant['idempotent'] && $countyGrantAgain['idempotent'], 'duplicate_manual_grant_is_idempotent');
+    $assert((int)Db::name('yfth_partner_relation')->whereIn('partner_uid', array_values($manualRankUids))->where('status', 'active')->count() === 4, 'manual_chain_has_one_relation_per_non_top_rank');
+    $provinceOptions = $partner->adminGrantOptions('province_partner', 'manual', $hq);
+    $assert($provinceOptions['required_parent_rank'] === 'regional_director'
+        && in_array($manualRankUids['regional_director'], array_column($provinceOptions['parent_options'], 'uid'), true), 'parent_options_only_return_required_adjacent_rank');
+    $expect(function () use ($partner, $manualRankUids, $hq) {
+        $partner->adminGrantPartner($manualRankUids['county_partner'], [
+            'rank_code' => 'prefecture_partner', 'parent_uid' => $manualRankUids['province_partner'], 'reason' => 'must not overwrite active rank',
+        ], 1, $hq);
+    }, 'partner_already_active', 'manual_grant_cannot_overwrite_active_rank');
+    $expect(function () use ($partner, $manualRankUids, $hq) {
+        $partner->adminChangeParent($manualRankUids['county_partner'], [
+            'parent_uid' => $manualRankUids['platform_director'], 'reason' => 'wrong rank parent change',
+        ], 1, $hq);
+    }, 'partner_parent_rank_invalid', 'parent_change_rejects_non_adjacent_rank');
+    $assert((int)Db::name('yfth_partner_rank_event')->whereIn('partner_uid', array_values($manualRankUids))->where('action', 'headquarters_grant')->count() === 5, 'manual_grants_write_rank_events');
     $captured = $partner->captureRecruitSource($applicationId, $applicantUid, $token);
     $capturedChain = json_decode((string)$captured['chain_snapshot'], true) ?: [];
     $assert((string)$captured['source_type'] === 'partner_invite' && (int)$captured['direct_partner_uid'] === $rankUids['county_partner'], 'partner_qr_captures_direct_source');

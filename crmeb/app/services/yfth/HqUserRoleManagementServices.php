@@ -219,6 +219,14 @@ class HqUserRoleManagementServices
             return (string)$role['role_code'] === 'franchisee' && (string)$role['status'] === YfthConstants::STATUS_ACTIVE;
         }));
         $partner = Db::name('yfth_partner_profile')->where('uid', $uid)->find() ?: [];
+        $partnerRelation = $partner
+            ? (Db::name('yfth_partner_relation')->where('active_key', 'partner:' . $uid)->find() ?: [])
+            : [];
+        $partnerParent = !empty($partnerRelation['parent_uid'])
+            ? (Db::name('yfth_partner_profile')->alias('p')->leftJoin('user u', 'u.uid=p.uid')
+                ->where('p.uid', (int)$partnerRelation['parent_uid'])
+                ->field('p.uid,p.rank_code,p.status,u.nickname,u.account')->find() ?: [])
+            : [];
         $attribution = Db::name('yfth_hq_customer_attribution_current')->where('uid', $uid)->find() ?: [];
         $referral = Db::name('yfth_hq_active_referral_current')->where('referred_uid', $uid)->find() ?: [];
         $attributionStore = !empty($attribution['store_id']) ? $this->storeName((int)$attribution['store_id']) : '';
@@ -278,6 +286,16 @@ class HqUserRoleManagementServices
                 'primary_store_id' => (int)$partner['primary_store_id'],
                 'store_name' => !empty($partner['primary_store_id']) ? $this->storeName((int)$partner['primary_store_id']) : '',
                 'status' => (string)$partner['status'],
+                'parent_uid' => (int)($partnerRelation['parent_uid'] ?? 0),
+                'parent_name' => (string)($partnerParent['nickname'] ?? $partnerParent['account'] ?? ''),
+                'parent_rank_code' => (string)($partnerParent['rank_code'] ?? ''),
+                'parent_rank_name' => [
+                    'county_partner' => '县级合伙人',
+                    'prefecture_partner' => '地级合伙人',
+                    'province_partner' => '省级合伙人',
+                    'regional_director' => '大区总监',
+                    'platform_director' => '平台董事',
+                ][(string)($partnerParent['rank_code'] ?? '')] ?? '',
             ] : null,
             'audit_events' => $auditEvents,
         ];

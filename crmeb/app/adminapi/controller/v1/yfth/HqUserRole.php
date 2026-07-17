@@ -7,6 +7,7 @@ use app\services\system\admin\SystemRoleServices;
 use app\services\yfth\HqAcceptanceFixtureServices;
 use app\services\yfth\HqUserDebugPurgeServices;
 use app\services\yfth\HqUserRoleManagementServices;
+use app\services\yfth\FranchisePartnerServices;
 
 class HqUserRole extends AuthController
 {
@@ -42,6 +43,31 @@ class HqUserRole extends AuthController
         $this->auth('yfth/user_role/user/<uid>/membership/grant', 'POST');
         return app('json')->success($services->grantMembership((int)$uid, $this->request->postMore([
             [['store_id', 'd'], 0],
+            ['reason', ''],
+            ['request_id', ''],
+        ]), (int)$this->adminId, $this->adminInfo ?: []));
+    }
+
+    public function partnerGrantOptions(FranchisePartnerServices $services)
+    {
+        $this->auth('yfth/user_role/partner/grant_options', 'GET');
+        $data = $this->request->getMore([
+            ['rank_code', ''],
+            ['keyword', ''],
+        ]);
+        return app('json')->success($services->adminGrantOptions(
+            (string)$data['rank_code'],
+            (string)$data['keyword'],
+            $this->adminInfo ?: []
+        ));
+    }
+
+    public function grantPartner(FranchisePartnerServices $services, $uid)
+    {
+        $this->auth('yfth/user_role/user/<uid>/partner/grant', 'POST');
+        return app('json')->success($services->adminGrantPartner((int)$uid, $this->request->postMore([
+            ['rank_code', ''],
+            [['parent_uid', 'd'], 0],
             ['reason', ''],
             ['request_id', ''],
         ]), (int)$this->adminId, $this->adminInfo ?: []));
