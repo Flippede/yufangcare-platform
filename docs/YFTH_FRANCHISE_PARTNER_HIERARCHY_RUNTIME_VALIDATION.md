@@ -1,5 +1,14 @@
 # YFTH Franchise Partner Hierarchy V1 Runtime Validation
 
+## Headquarters Manual Grant Production Release - 2026-07-17
+
+- Production backend and permission migration use functional commit `fa9502d4780b026999e5be86bfa368e1eea93f13`; the deployed Admin includes follow-up display fix `802b1560d38535510743dfa2da8e9d1ef20bcf0d` so only platform director displays the no-parent hint.
+- Before release, a full MySQL dump and the affected code, Admin, and `.env` were backed up under `/root/yfth-backups/partner-manual-grant-20260717-175013`. The initially generated dump was rejected after a tablespace privilege warning; it was recreated with `--no-tablespaces`, `pipefail`, gzip verification, and the MySQL completion marker before deployment continued.
+- Migration `20260719110000` changed from `down` to `up` and registered exactly the two expected hidden API permissions. No production rollback was executed.
+- Public Admin returned HTTP 200, all four index-referenced JS/CSS assets existed, and an unauthenticated parent-option request reached the new route and failed safely with the existing expired-login response.
+- A signed-in production browser verified the visible grant entry, all five rank options, `province_partner -> regional_director`, and `platform_director -> no parent`. No grant was submitted during smoke verification, so production user identities were not changed by the deployment check.
+- The Admin-only follow-up release backed up its predecessor at `/root/yfth-backups/partner-manual-grant-ui-fix-20260717-180131/admin-fa9502d`. No `.env`, upload, OSS, SMS, WeChat, payment certificate, order, product, or user business data was replaced.
+
 ## Headquarters Manual Grant Validation - 2026-07-17
 
 - PHP 7.4 syntax passed for the partner service, user-role projection/controller/routes, permission migration, and focused tests.
