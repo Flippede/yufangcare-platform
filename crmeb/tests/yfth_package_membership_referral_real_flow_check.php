@@ -248,6 +248,22 @@ try {
     pmrCreateReferral($referral, 920001, 920003, 'flow-2');
     pmrActivate($coordinator, 920003, $storeA, 991003, 992003, '200.00');
     pmrAssertCandidate($assert, 920003, 2, 2500, 5000, 'second_package_candidate');
+    $directReferrals = $referral->directReferrals($c1, 1, 20);
+    pmrAssertRecursiveKeysAbsent($assert, $directReferrals, [
+        'referrer_uid', 'referred_uid', 'owner_uid', 'reward_sequence_no', 'rule_version_id',
+    ], 'direct_referral_summary_user_dto');
+    $directC3 = null;
+    foreach ($directReferrals['list'] as $directReferral) {
+        if ((string)$directReferral['display_name'] === 'PMR 920003') {
+            $directC3 = $directReferral;
+            break;
+        }
+    }
+    $assert($directC3 !== null, 'direct_referral_summary_contains_referred_user_name');
+    $assert($directC3 !== null && (int)$directC3['reward_amount_cent'] === 5000, 'direct_referral_summary_aggregates_reward_amount');
+    $assert($directC3 !== null && (int)$directC3['pending_amount_cent'] === 5000, 'direct_referral_summary_marks_pending_amount');
+    $assert($directC3 !== null && (int)$directC3['settled_amount_cent'] === 0, 'direct_referral_summary_keeps_settled_amount_separate');
+    $assert($directC3 !== null && (string)$directC3['relation_status'] === 'closed', 'direct_referral_summary_keeps_closed_membership_relation_visible');
 
     pmrCreateReferral($referral, 920001, 920004, 'flow-3');
     pmrActivate($coordinator, 920004, $storeA, 991004, 992004, '300.00');

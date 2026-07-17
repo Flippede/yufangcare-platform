@@ -41,4 +41,17 @@ class PackageMembershipReferralController
     {
         return app('json')->success($services->userCandidates((int)$request->uid()));
     }
+
+    public function referrals(Request $request, PackageMembershipReferralServices $services)
+    {
+        [$page, $limit] = $request->getMore([
+            ['page', 1],
+            ['limit', 20],
+        ], true);
+        return app('json')->success($services->directReferrals(
+            (int)$request->uid(),
+            (int)$page,
+            (int)$limit
+        ));
+    }
 }

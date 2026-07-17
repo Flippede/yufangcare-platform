@@ -1,5 +1,12 @@
 # 项目交接文档
 
+## Current Fact Snapshot - C1 Direct Referral Reward Summary
+
+- Feature branch `codex/yfth-user-role-assets-referral-code-v1` adds a C1-only read surface below the permanent-member promotion QR. It lists each real first-level referred customer by display name and avatar, including active, paused, and membership-closed relationships.
+- Reward amounts are aggregated from the existing immutable direct-referral reward candidates. Cancelled candidates are excluded; pending and confirmed amounts are shown as pending, while settled amounts are shown separately. The UI explicitly states that these records do not represent automatic payout or wallet credit.
+- The authenticated DTO exposes no referred UID, relation ID, order ID, reward sequence, or rule-version identifier. Every referral current is checked by the existing Stage 1A consistency validator before any response is returned.
+- No table, migration, wallet, balance, points, CRMEB legacy distribution relation, automatic settlement, or multi-level referral capability was added. PHP 7.4 syntax, the focused contracts, MySQL Community 8.0.46 isolated real flow, H5 production build, mp-weixin production compile, artifact checks, and `git diff --check` passed.
+
 ## Current Fact Snapshot - Production Store QR Attribution Closure
 
 - Production `https://yfth.top` now serves the store-attribution closure from preserved branch `codex/yfth-user-role-assets-referral-code-v1`: business safeguards commit `0c7781b1b0940b9200aa230cea0eea436f9ab737`, trusted role/store context fix `7cc679afd26a0519a64b5954b0bcee3d8d8d9723`, and login-continuation fix `446385f712317dcb247154385351a241a86cdf54`. Stable `main` remains unchanged and no production server-only source edit was retained.

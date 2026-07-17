@@ -24,6 +24,8 @@ $fixtureMigration = $read('database/migrations/20260718110000_create_yfth_accept
 $passwordMigration = $read('database/migrations/20260718120000_add_yfth_acceptance_password_reset_permission.php');
 $fixtureService = $read('app/services/yfth/HqAcceptanceFixtureServices.php');
 $membership = $read('app/services/yfth/PackageMembershipReferralServices.php');
+$membershipController = $read('app/api/controller/v1/yfth/PackageMembershipReferralController.php');
+$apiRoutes = $read('app/api/route/yfth_service.php');
 $membershipAuthority = $read('app/services/yfth/PackageMembershipServices.php');
 $franchiseCustomer = $read('app/services/yfth/FranchiseCustomerServices.php');
 $membershipGrantMigration = $read('database/migrations/20260718130000_allow_headquarters_permanent_membership_grant.php');
@@ -47,6 +49,7 @@ $bindingPhonePage = (string)file_get_contents(dirname($root) . '/template/uni-ap
 $workbenchPage = (string)file_get_contents(dirname($root) . '/template/uni-app/pages/yfth/workbench/index.vue');
 $pages = (string)file_get_contents(dirname($root) . '/template/uni-app/pages.json');
 $nativeUserPage = (string)file_get_contents(dirname($root) . '/template/admin/src/pages/user/list/index.vue');
+$uniApi = (string)file_get_contents(dirname($root) . '/template/uni-app/api/yfth.js');
 
 foreach (['assertHeadquarters', 'assertHeadquarterScope', 'UserStoreRoleServices', 'YfthUserStoreRoleDao', "'grant'", "'revoke'", 'user_store_role_reason_required', 'AuditEventServices'] as $needle) {
     $assert(strpos($service, $needle) !== false, 'role_service_contains:' . $needle);
@@ -109,6 +112,15 @@ $assert(strpos($userPage, 'goYfthReferralCode') !== false, 'permanent_member_ref
 $assert(strpos($userPage, 'isYfthPermanentMember') !== false, 'referral_entry_is_membership_gated');
 foreach (['issueYfthDirectReferralInvite', 'getYfthPackageMembershipMe', 'zb-code', 'invited_count', 'store_name', '/pages/yfth/referral/accept'] as $needle) {
     $assert(strpos($codePage . $membership, $needle) !== false, 'promotion_flow_contains:' . $needle);
+}
+foreach (['directReferrals', 'assertReferral', 'reward_amount_cent', 'pending_amount_cent', 'settled_amount_cent', 'display_name'] as $needle) {
+    $assert(strpos($membership, $needle) !== false, 'direct_referral_summary_service_contains:' . $needle);
+}
+$assert(strpos($membershipController, 'function referrals') !== false, 'direct_referral_summary_controller_exists');
+$assert(strpos($apiRoutes, 'yfth/package_membership/referral') !== false, 'direct_referral_summary_uses_user_token_route');
+$assert(strpos($uniApi, 'getYfthDirectReferrals') !== false, 'direct_referral_summary_uni_api_exists');
+foreach (['我的直推', 'display_name', 'formatMoney', '待处理', '已结算', '不代表平台自动打款或到账'] as $needle) {
+    $assert(strpos($codePage, $needle) !== false, 'direct_referral_summary_page_contains:' . $needle);
 }
 foreach (['yfth_pending_referral_invite', 'toLogin', 'acceptYfthDirectReferralInvite', 'idempotency_key'] as $needle) {
     $assert(strpos($acceptPage, $needle) !== false, 'scan_login_continuation_contains:' . $needle);

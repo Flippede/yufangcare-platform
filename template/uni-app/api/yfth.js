@@ -392,6 +392,10 @@ export function getYfthDirectReferralCandidates(data) {
 	return request.get('yfth/package_membership/candidate', data || {});
 }
 
+export function getYfthDirectReferrals(data) {
+	return request.get('yfth/package_membership/referral', data || {});
+}
+
 export function getYfthStorePackageMembers(data) {
 	return request.get('yfth/store_workbench/package_membership/member', data || {});
 }

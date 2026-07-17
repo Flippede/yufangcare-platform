@@ -35,6 +35,35 @@
 					<view @click="goAttribution"><text>我的归属</text><text>›</text></view>
 					<view @click="goRewards"><text>我的奖励</text><text>›</text></view>
 				</view>
+				<view class="panel direct-panel">
+					<view class="direct-heading">
+						<view>
+							<view class="panel-title">我的直推</view>
+							<view class="direct-subtitle">已邀请 {{ referralsCount }} 人</view>
+						</view>
+						<view class="amount-note">奖励候选 / 线下结算</view>
+					</view>
+					<view v-if="referralsLoading && !referrals.length" class="direct-state">正在读取直推记录...</view>
+					<view v-else-if="referralsError && !referrals.length" class="direct-state direct-error" @click="loadReferrals(true)">{{ referralsError }}，点击重试</view>
+					<view v-else-if="!referrals.length" class="direct-state">暂无直推用户</view>
+					<view v-else class="direct-list">
+						<view v-for="(item, index) in referrals" :key="index" class="direct-item">
+							<image v-if="item.avatar" class="direct-avatar" :src="item.avatar" mode="aspectFill" />
+							<view v-else class="direct-avatar direct-avatar-fallback">{{ displayInitial(item.display_name) }}</view>
+							<view class="direct-user">
+								<view class="direct-name">{{ item.display_name }}</view>
+								<view class="direct-meta">{{ relationStatusText(item.relation_status) }} · {{ formatDate(item.started_at) }}</view>
+							</view>
+							<view class="direct-reward">
+								<view class="reward-total">¥{{ formatMoney(item.reward_amount_cent) }}</view>
+								<view class="reward-detail">待处理 ¥{{ formatMoney(item.pending_amount_cent) }}</view>
+								<view class="reward-detail">已结算 ¥{{ formatMoney(item.settled_amount_cent) }}</view>
+							</view>
+						</view>
+						<button v-if="referrals.length < referralsCount" class="load-more" :loading="referralsLoading" @click="loadReferrals(false)">查看更多</button>
+					</view>
+					<view class="direct-footnote">金额来自现有奖励候选和线下结算台账，不代表平台自动打款或到账。</view>
+				</view>
 				<view class="notice">推广码只建立御方通和一级推荐和永久归属，不使用 CRMEB 旧分销关系。推荐收益为候选记录，不代表自动到账。</view>
 			</block>
 		</block>
@@ -42,12 +71,26 @@
 </template>
 
 <script>
-import { getYfthPackageMembershipMe, issueYfthDirectReferralInvite } from '@/api/yfth.js';
+import { getYfthPackageMembershipMe, getYfthDirectReferrals, issueYfthDirectReferralInvite } from '@/api/yfth.js';
 import zbCode from '@/components/zb-code/zb-code.vue';
 
 export default {
 	components: { zbCode },
-	data() { return { loading: true, error: '', profile: {}, invite: {}, issuing: false, qrImage: '' }; },
+	data() {
+		return {
+			loading: true,
+			error: '',
+			profile: {},
+			invite: {},
+			issuing: false,
+			qrImage: '',
+			referrals: [],
+			referralsCount: 0,
+			referralPage: 1,
+			referralsLoading: false,
+			referralsError: ''
+		};
+	},
 	computed: {
 		isMember() { return Boolean(this.profile.membership && this.profile.membership.is_member); },
 		promotion() { return this.profile.promotion || {}; },
@@ -74,7 +117,7 @@ export default {
 			this.loading = true; this.error = '';
 			getYfthPackageMembershipMe().then((res) => {
 				this.profile = res.data || {};
-				if (this.isMember) return this.issue();
+				if (this.isMember) return Promise.all([this.issue(), this.loadReferrals(true)]);
 			}).catch((err) => { this.error = (err && (err.msg || err.message)) || '推广资格读取失败'; })
 				.finally(() => { this.loading = false; });
 		},
@@ -87,6 +130,34 @@ export default {
 			}).catch((err) => { this.error = (err && (err.msg || err.message)) || '推广码生成失败'; })
 				.finally(() => { this.issuing = false; });
 		},
+		loadReferrals(reset) {
+			if (this.referralsLoading) return Promise.resolve();
+			if (reset) {
+				this.referralPage = 1;
+				this.referrals = [];
+			}
+			this.referralsLoading = true;
+			this.referralsError = '';
+			return getYfthDirectReferrals({ page: this.referralPage, limit: 20 }).then((res) => {
+				const data = res.data || {};
+				const rows = Array.isArray(data.list) ? data.list : [];
+				this.referrals = reset ? rows : this.referrals.concat(rows);
+				this.referralsCount = Number(data.count || 0);
+				if (rows.length) this.referralPage += 1;
+			}).catch((err) => {
+				this.referralsError = (err && (err.msg || err.message)) || '直推记录读取失败';
+			}).finally(() => { this.referralsLoading = false; });
+		},
+		formatMoney(value) { return (Number(value || 0) / 100).toFixed(2); },
+		formatDate(value) {
+			if (!value) return '时间未记录';
+			const date = new Date(Number(value) * 1000);
+			return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+		},
+		relationStatusText(status) {
+			return ({ active: '推荐中', paused: '已暂停', closed: '已转为会员' })[status] || '关系已变更';
+		},
+		displayInitial(name) { return String(name || '用').slice(0, 1); },
 		copyLink() { if (this.inviteLink) uni.setClipboardData({ data: this.inviteLink }); },
 		onQrReady(value) { this.qrImage = String(value || ''); },
 		saveQr() {
@@ -121,5 +192,6 @@ export default {
 .actions { display: flex; gap: 16rpx; margin-top: 24rpx; }.actions button { flex: 1; font-size: 25rpx; }.primary { color: #fff; background: #9b713b; }.share-button { margin-top: 16rpx; color: #7b572c; background: #f7efe2; }
 .stats { display: grid; grid-template-columns: 1.5fr 1fr; }.stats>view { display: flex; flex-direction: column; gap: 10rpx; }.label { color: #8b8276; font-size: 23rpx; }.value { font-size: 34rpx; font-weight: 700; }.value.store { font-size: 28rpx; }
 .links>view { display: flex; justify-content: space-between; padding: 22rpx 0; border-bottom: 1px solid #eee9e1; }.links>view:last-child { border-bottom: 0; }.notice { margin: 20rpx 0; padding: 22rpx; border: 1px solid #eadbc3; border-radius: 10rpx; color: #7b603d; background: #fbf6ed; font-size: 23rpx; line-height: 1.6; }
+.direct-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 20rpx; }.direct-subtitle { margin-top: 8rpx; color: #8b8276; font-size: 23rpx; }.amount-note { flex-shrink: 0; padding: 8rpx 14rpx; border-radius: 6rpx; color: #8b6331; background: #f7efe2; font-size: 20rpx; }.direct-list { margin-top: 16rpx; }.direct-item { display: flex; align-items: center; gap: 18rpx; padding: 22rpx 0; border-bottom: 1px solid #eee9e1; }.direct-item:last-of-type { border-bottom: 0; }.direct-avatar { width: 76rpx; height: 76rpx; flex: 0 0 76rpx; border-radius: 50%; background: #eee9e1; }.direct-avatar-fallback { display: flex; align-items: center; justify-content: center; color: #fff; background: #b78a50; font-size: 30rpx; font-weight: 700; }.direct-user { min-width: 0; flex: 1; }.direct-name { overflow: hidden; color: #332a20; font-size: 27rpx; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }.direct-meta { margin-top: 8rpx; color: #978d80; font-size: 21rpx; }.direct-reward { flex: 0 0 184rpx; text-align: right; }.reward-total { color: #9b713b; font-size: 30rpx; font-weight: 700; }.reward-detail { margin-top: 5rpx; color: #958b7f; font-size: 19rpx; }.direct-state { padding: 42rpx 0 28rpx; text-align: center; color: #978d80; font-size: 24rpx; }.direct-error { color: #a64b42; }.direct-footnote { margin-top: 18rpx; color: #92877a; font-size: 21rpx; line-height: 1.55; }.load-more { margin-top: 20rpx; color: #7b572c; background: #f7efe2; font-size: 24rpx; }
 .state { padding: 180rpx 30rpx; text-align: center; color: #7f776d; }.state button { margin-top: 24rpx; }.error { color: #a64b42; }.empty-panel .primary { width: 100%; margin-top: 24rpx; }
 </style>

@@ -42,6 +42,7 @@ Route::group(function () {
     Route::post('yfth/package_membership/invite', 'v1.yfth.PackageMembershipReferralController/issueInvite')->option(['real_name' => 'YFTH direct referral invite issue']);
     Route::post('yfth/package_membership/invite/accept', 'v1.yfth.PackageMembershipReferralController/acceptInvite')->option(['real_name' => 'YFTH direct referral invite accept']);
     Route::get('yfth/package_membership/candidate', 'v1.yfth.PackageMembershipReferralController/candidates')->option(['real_name' => 'YFTH my reward candidates']);
+    Route::get('yfth/package_membership/referral', 'v1.yfth.PackageMembershipReferralController/referrals')->option(['real_name' => 'YFTH my direct referrals']);
 })->middleware(\app\http\middleware\AllowOriginMiddleware::class)
     ->middleware(\app\api\middleware\StationOpenMiddleware::class)
     ->middleware(\app\api\middleware\AuthTokenMiddleware::class)

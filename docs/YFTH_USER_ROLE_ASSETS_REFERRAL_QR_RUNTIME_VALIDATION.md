@@ -1,5 +1,12 @@
 # YFTH User Role Assets And Referral QR V1 Runtime Validation
 
+## C1 direct-referral reward summary validation - 2026-07-17
+
+- Added a user-token-protected read endpoint for the permanent member's direct referrals. It validates every related Stage 1A referral current before returning display-name, avatar, relationship status, start time, and reward totals.
+- The amount summary reuses existing reward candidates and offline-settlement status: cancelled amounts are excluded, pending plus confirmed amounts remain pending, and settled amounts are reported separately. No CRMEB wallet, balance, points, brokerage, payout, or legacy spread field is read as the reward source.
+- The MySQL Community 8.0.46 isolated real flow proved that C1 sees the referred user's display name and the exact candidate amount, and that a relationship closed by C2 membership remains visible. Recursive DTO checks found no other-user UID, owner UID, reward sequence, or rule-version ID.
+- PHP 7.4 syntax, the role/assets/referral contract, the package-membership contract and real flow, H5 production build, mp-weixin production compile, built-artifact checks, and `git diff --check` passed. No migration, SMS, payment, refund, payout, WeChat upload, or production data mutation was performed by this local validation.
+
 ## Production store QR attribution closure - 2026-07-17
 
 - Root cause of the remaining production failure was login continuation, not the attribution transaction: an external acquisition URL could reach login before the cached CRMEB token was rehydrated, and successful account/WeChat/phone-binding paths did not all restore the pending acquisition route.

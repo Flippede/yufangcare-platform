@@ -83,6 +83,97 @@ class PackageMembershipReferralServices extends YfthFoundationBaseServices
         ];
     }
 
+    public function directReferrals(int $uid, int $page = 1, int $limit = 20): array
+    {
+        $this->membership->assertEffectiveActive($uid);
+        $page = max(1, $page);
+        $limit = max(1, min(50, $limit));
+
+        $count = (int)$this->referralDao->search([])
+            ->where('referrer_uid', $uid)
+            ->count();
+        $relations = $this->referralDao->search([])
+            ->where('referrer_uid', $uid)
+            ->order('started_at desc,id desc')
+            ->page($page, $limit)
+            ->select()
+            ->toArray();
+        if (!$relations) {
+            return compact('count', 'page', 'limit') + ['list' => []];
+        }
+
+        $referredUids = array_values(array_unique(array_map('intval', array_column($relations, 'referred_uid'))));
+        $users = Db::name('user')
+            ->whereIn('uid', $referredUids)
+            ->field('uid,nickname,real_name,avatar,phone')
+            ->select()
+            ->toArray();
+        $usersByUid = [];
+        foreach ($users as $user) {
+            $usersByUid[(int)$user['uid']] = $user;
+        }
+
+        $rewardByUid = [];
+        $rewardRows = Db::name('yfth_direct_referral_reward_candidate')
+            ->where('referrer_uid', $uid)
+            ->whereIn('referred_uid', $referredUids)
+            ->field('referred_uid,status,SUM(reward_amount_cent) AS amount_cent,COUNT(*) AS candidate_count')
+            ->group('referred_uid,status')
+            ->select()
+            ->toArray();
+        foreach ($rewardRows as $reward) {
+            $referredUid = (int)$reward['referred_uid'];
+            $status = (string)$reward['status'];
+            $amount = (int)$reward['amount_cent'];
+            $candidateCount = (int)$reward['candidate_count'];
+            if (!isset($rewardByUid[$referredUid])) {
+                $rewardByUid[$referredUid] = [
+                    'reward_amount_cent' => 0,
+                    'pending_amount_cent' => 0,
+                    'settled_amount_cent' => 0,
+                    'candidate_count' => 0,
+                ];
+            }
+            if ($status === 'cancelled') {
+                continue;
+            }
+            $rewardByUid[$referredUid]['reward_amount_cent'] += $amount;
+            $rewardByUid[$referredUid]['candidate_count'] += $candidateCount;
+            if ($status === 'settled') {
+                $rewardByUid[$referredUid]['settled_amount_cent'] += $amount;
+            } elseif (in_array($status, ['pending', 'confirmed'], true)) {
+                $rewardByUid[$referredUid]['pending_amount_cent'] += $amount;
+            }
+        }
+
+        $list = [];
+        foreach ($relations as $relation) {
+            $this->consistency->assertReferral($relation);
+            $referredUid = (int)$relation['referred_uid'];
+            $user = (array)($usersByUid[$referredUid] ?? []);
+            $reward = (array)($rewardByUid[$referredUid] ?? []);
+            $displayName = trim((string)($user['nickname'] ?? ''));
+            if ($displayName === '') {
+                $displayName = trim((string)($user['real_name'] ?? ''));
+            }
+            if ($displayName === '') {
+                $displayName = $this->maskPhone((string)($user['phone'] ?? '')) ?: '已邀请用户';
+            }
+            $list[] = [
+                'display_name' => $displayName,
+                'avatar' => (string)($user['avatar'] ?? ''),
+                'relation_status' => (string)$relation['status'],
+                'started_at' => (int)$relation['started_at'],
+                'reward_amount_cent' => (int)($reward['reward_amount_cent'] ?? 0),
+                'pending_amount_cent' => (int)($reward['pending_amount_cent'] ?? 0),
+                'settled_amount_cent' => (int)($reward['settled_amount_cent'] ?? 0),
+                'candidate_count' => (int)($reward['candidate_count'] ?? 0),
+            ];
+        }
+
+        return compact('list', 'count', 'page', 'limit');
+    }
+
     public function issueInvite(int $uid, array $data): array
     {
         $requestId = $this->requestId($data);
