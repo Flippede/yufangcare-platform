@@ -1,5 +1,14 @@
 # YFTH User Role Assets And Referral QR V1 Runtime Validation
 
+## Headquarters mall and manager-only procurement production closure - 2026-07-17
+
+- `yfthContext.js` gives franchisee, store manager, store staff, and service mentor an explicit `商城` navigation action to the existing CRMEB headquarters storefront. The in-memory browsing marker allows intentional storefront use without weakening the existing cold-start highest-role redirect.
+- Only `store_manager` receives the purchase tool card. Purchase content is not rendered before the user-token context endpoint verifies that role; non-manager H5 direct access has both `uni.reLaunch` and a location-replacement fallback to the workbench.
+- `yfth_multi_role_shell_contract_check.js`, `yfth_request_fallback_check.js`, and `yfth_supply_chain_contract_check.php` passed; the supply-chain check now has 65 assertions. `git diff --check` passed.
+- H5 production build passed with 357 files / 9,987,670 bytes. mp-weixin production compile passed with 1,266 files / 7,867,264 bytes. The generated purchase chunks contain the pre-render access gate and manager-only rejection; existing compiler warnings remained non-blocking.
+- Real production browser validation used controlled staff, manager, and franchisee accounts. Staff and franchisee each opened `/pages/index/index` from their `商城` footer and rendered the custom headquarters mall; neither exposed the purchase tool, and a direct purchase URL returned to the same operating-role workbench. The manager exposed and opened the purchase center and also opened the headquarters mall.
+- Production backup: `/www/backup/yfth-business-mall-nav-20260717-134058`; retained release: `/www/releases/yfth-business-mall-nav-20260717-134058`. No database, migration, `.env`, Admin asset, product, order, upload, OSS, SMS, WeChat, payment, identity, referral, or reward fact changed. The mp-weixin build was not uploaded to WeChat.
+
 ## Store workbench entry cleanup - 2026-07-17
 
 - Feature commit `2ee6326fef41151224b423fb6da946fa4156a3a0` removes the duplicate `真实业务入口` button strip from the store workbench dashboard.

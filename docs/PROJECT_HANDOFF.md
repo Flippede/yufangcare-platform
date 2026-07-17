@@ -1,6 +1,15 @@
 # 项目交接文档
 
-## Current Fact Snapshot - Store Workbench Entry Cleanup
+## Current Fact Snapshot - Headquarters Mall And Manager-only Procurement Closure
+
+- Production `https://yfth.top` serves the business-navigation closure from preserved branch `codex/yfth-user-role-assets-referral-code-v1`: base navigation commit `d8339e1b199798e967c77e59757979c3001c457d` plus H5 direct-route guard commit `364a5b923869530fd52ca94bff87bbc8b7a3ec07`. Stable `main` and `origin/main` remain `cf58036638a1d53d7a29c6aa41a79ae52a37c4a5` and have not been merged in this closure.
+- Franchisee, store manager, store staff, and service mentor navigation each includes `商城`, which opens the existing CRMEB headquarters storefront at `/pages/index/index`. Explicit mall browsing is session-only: it prevents the storefront from immediately redirecting back to the workbench, while a cold login still defaults to the user's highest server-validated operating identity.
+- Procurement is a store-manager-only surface. Only a manager sees `进入采购库存`; franchisee and staff tool sections omit it. The purchase page remains hidden until the server context returns `store_manager`, and H5 direct navigation by another role is redirected to that role's workbench. Existing supply-chain API capability checks remain authoritative.
+- Real production browser checks passed for three controlled accounts: staff opened the headquarters mall and was redirected from a direct purchase URL; manager opened both the mall and purchase center; franchisee opened the mall, had no purchase tool, and was redirected from a direct purchase URL. No password is recorded in the repository or this document.
+- Focused supply-chain and multi-role contracts passed, as did the existing request-fallback check, H5 production build, mp-weixin production compile, built-artifact guard checks, and `git diff --check`. H5 produced 357 files / 9,987,670 bytes; mp-weixin produced 1,266 files / 7,867,264 bytes. Existing asset-size, skeleton-key, and component-placement notices remained non-blocking.
+- Production H5 backup: `/www/backup/yfth-business-mall-nav-20260717-134058`; retained release: `/www/releases/yfth-business-mall-nav-20260717-134058`. Existing `.env`, database, Admin assets, products, orders, uploads, OSS, SMS, WeChat, payment certificates, identities, and business data were not changed. The mp-weixin artifact was compiled locally but was not uploaded to WeChat.
+
+## Historical Fact Snapshot - Store Workbench Entry Cleanup
 
 - Production `https://yfth.top/pages/yfth/workbench/index` now serves feature commit `2ee6326fef41151224b423fb6da946fa4156a3a0` from preserved branch `codex/yfth-user-role-assets-referral-code-v1`.
 - The former `真实业务入口` button strip was removed. Customer, appointment, writeoff, and order navigation remains in the role-specific footer or existing dashboard metrics; monthly benefit pickup remains available through its existing dashboard metric, so those duplicate buttons are not rendered a second time.
