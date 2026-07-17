@@ -62,6 +62,8 @@ assertContains('pages/yfth/workbench/index.vue', 'resolveDominantYfthContext', '
 assertContains('pages/yfth/workbench/index.vue', "item.action === 'mall'", 'workbench mall entry must opt into headquarters mall browsing');
 assertContains('pages/yfth/workbench/index.vue', "this.context.role_code === 'store_manager'", 'only the store manager may see the purchase entry');
 assertContains('pages/yfth/workbench/purchase/index.vue', "context.role_code !== 'store_manager'", 'direct purchase-page access must reject non-managers');
+assertContains('pages/yfth/workbench/purchase/index.vue', 'v-if="accessGranted"', 'purchase content must stay hidden until the manager context is verified');
+assertContains('pages/yfth/workbench/purchase/index.vue', 'window.location.replace(target)', 'H5 direct access must have a workbench redirect fallback');
 assertNotContains('pages/yfth/workbench/index.vue', 'backCustomer', 'a higher operating identity must not fall back to the customer surface');
 assertNotContains('pages/yfth/workbench/role_switch.vue', 'chooseCustomer', 'role selection must not expose customer fallback to a higher identity');
 assertContains('pages/yfth/workbench/role_switch.vue', 'dominantYfthIdentities', 'role selection must show only the highest role');

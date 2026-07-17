@@ -1,5 +1,5 @@
 <template>
-	<view class="purchase-page">
+	<view v-if="accessGranted" class="purchase-page">
 		<view class="top">
 			<view>
 				<view class="title">采购中心</view>
@@ -62,6 +62,7 @@
 			</view>
 		</block>
 	</view>
+	<view v-else class="access-check">正在校验采购权限...</view>
 </template>
 
 <script>
@@ -77,6 +78,7 @@ import { currentContext, resolveYfthContext } from '@/libs/yfthContext.js';
 export default {
 	data() {
 		return {
+			accessGranted: false,
 			context: {},
 			tab: 'catalog',
 			loading: false,
@@ -93,18 +95,18 @@ export default {
 	},
 	computed: {
 		canWrite() {
-			return ['franchisee', 'store_manager'].indexOf(this.context.role_code) !== -1;
+			return this.context.role_code === 'store_manager';
 		}
 	},
 	onShow() {
 		const cached = currentContext();
 		resolveYfthContext(cached.role_code || 'customer', cached.store_id || 0).then((context) => {
 			if (context.role_code !== 'store_manager') {
-				uni.showToast({ title: '仅店长可进入采购中心', icon: 'none' });
-				uni.reLaunch({ url: '/pages/yfth/workbench/index' });
+				this.redirectToWorkbench();
 				return;
 			}
 			this.context = context;
+			this.accessGranted = true;
 			this.load();
 		}).catch((err) => {
 			uni.showToast({ title: String((err && err.msg) || err), icon: 'none' });
@@ -112,6 +114,19 @@ export default {
 		});
 	},
 	methods: {
+		redirectToWorkbench() {
+			const target = '/pages/yfth/workbench/index';
+			this.accessGranted = false;
+			uni.showToast({ title: '仅店长可进入采购中心', icon: 'none' });
+			uni.reLaunch({ url: target });
+			setTimeout(() => {
+				// #ifdef H5
+				if (typeof window !== 'undefined' && window.location.pathname !== target) {
+					window.location.replace(target);
+				}
+				// #endif
+			}, 300);
+		},
 		contextParams(extra) {
 			return Object.assign({ role_code: this.context.role_code, store_id: this.context.store_id }, extra || {});
 		},
@@ -191,6 +206,7 @@ export default {
 
 <style scoped>
 .purchase-page { min-height: 100vh; background: #f6f0e6; padding: 24rpx; }
+.access-check { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: #f6f0e6; color: #7a604d; font-size: 26rpx; }
 .top { background: #5a3f2e; color: #fff; border-radius: 16rpx; padding: 26rpx; display: flex; justify-content: space-between; align-items: center; }
 .title { font-size: 38rpx; font-weight: 700; }
 .sub { margin-top: 8rpx; color: #f4dfc0; font-size: 24rpx; }
