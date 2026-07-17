@@ -33,6 +33,12 @@ $codePage = (string)file_get_contents(dirname($root) . '/template/uni-app/pages/
 $acceptPage = (string)file_get_contents(dirname($root) . '/template/uni-app/pages/yfth/referral/accept.vue');
 $scanPage = (string)file_get_contents(dirname($root) . '/template/uni-app/pages/yfth/referral/scan.vue');
 $roleSwitchPage = (string)file_get_contents(dirname($root) . '/template/uni-app/pages/yfth/workbench/role_switch.vue');
+$storeAcquisitionService = $read('app/services/yfth/StoreAcquisitionServices.php');
+$storeAcquisitionController = $read('app/api/controller/v1/yfth/StoreAcquisitionController.php');
+$storeAcquisitionMigration = $read('database/migrations/20260718140000_create_yfth_store_acquisition_codes.php');
+$storeAcquisitionCodePage = (string)file_get_contents(dirname($root) . '/template/uni-app/pages/yfth/store_acquisition/code.vue');
+$storeAcquisitionAcceptPage = (string)file_get_contents(dirname($root) . '/template/uni-app/pages/yfth/store_acquisition/accept.vue');
+$workbenchPage = (string)file_get_contents(dirname($root) . '/template/uni-app/pages/yfth/workbench/index.vue');
 $pages = (string)file_get_contents(dirname($root) . '/template/uni-app/pages.json');
 $nativeUserPage = (string)file_get_contents(dirname($root) . '/template/admin/src/pages/user/list/index.vue');
 
@@ -109,6 +115,26 @@ $assert(strpos($franchiseCustomer, 'backfillAuthorityCustomers') !== false, 'exi
 $assert(strpos($userPage, 'goYfthReferralScan') !== false, 'user_center_exposes_referral_scan');
 $assert(strpos($userPage, '当前身份') !== false && strpos($userPage, '进入工作台') !== false, 'user_center_exposes_current_role');
 $assert(strpos($roleSwitchPage, "switchYfthRole('customer', 0)") !== false, 'customer_switch_uses_server_context');
+$assert(strpos($roleSwitchPage, "uni.reLaunch") !== false && strpos($roleSwitchPage, "this.switching") !== false, 'business_role_switch_relaunches_with_busy_guard');
+$assert(strpos($workbenchPage, '我的门店获客码') !== false && strpos($workbenchPage, 'canIssueAcquisitionCode') !== false, 'manager_and_staff_acquisition_code_entry_visible');
+$assert(strpos($storeAcquisitionService, "private const ROLES = ['store_manager', 'store_staff']") !== false, 'acquisition_code_role_boundary');
+$assert(strpos($storeAcquisitionService, 'HqCustomerAttributionServices') !== false && strpos($storeAcquisitionService, 'syncAuthorityCustomerInTransaction') !== false, 'acquisition_uses_authoritative_store_attribution');
+$assert(strpos($storeAcquisitionService, "'store_acquisition'") !== false, 'acquisition_projects_store_customer_source');
+$assert(strpos($storeAcquisitionService, 'HqActiveReferralServices') === false && strpos($storeAcquisitionService, 'user_spread') === false, 'acquisition_does_not_create_referral_or_legacy_spread');
+foreach (['store_acquisition_self_bind_forbidden', 'store_acquisition_customer_already_bound', 'store_acquisition_customer_already_attributed', 'store_acquisition_issuer_role_inactive'] as $guard) {
+    $assert(strpos($storeAcquisitionService, $guard) !== false, 'acquisition_guard:' . $guard);
+}
+foreach (['yfth_store_acquisition_code', 'yfth_store_acquisition_acceptance', 'uniq_yfth_acquisition_customer', 'uniq_yfth_acquisition_active'] as $needle) {
+    $assert(strpos($storeAcquisitionMigration, $needle) !== false, 'acquisition_migration_contains:' . $needle);
+}
+$assert(strpos($storeAcquisitionController, 'acquisition_token') !== false, 'acquisition_controller_accepts_opaque_token_only');
+$assert(strpos($storeAcquisitionCodePage, 'saveQr') !== false && strpos($storeAcquisitionCodePage, '_saveCode') !== false, 'employee_acquisition_qr_can_be_saved');
+$assert(strpos($storeAcquisitionService, 'MiniProgramService::getUrlLink') !== false && strpos($storeAcquisitionCodePage, 'launch_url') !== false, 'employee_qr_prefers_external_wechat_miniprogram_link');
+$assert(strpos($storeAcquisitionCodePage, 'getYfthStoreAcquisitionCode') !== false && strpos($storeAcquisitionCodePage, 'active.code_no === cached.code_no') !== false, 'saved_employee_qr_is_reused_until_rotated_or_expired');
+$assert(strpos($storeAcquisitionAcceptPage, 'yfth_pending_store_acquisition') !== false && strpos($storeAcquisitionAcceptPage, 'toLogin') !== false, 'acquisition_login_continuation_exists');
+$assert(strpos($scanPage, 'acquisition_token') !== false && strpos($scanPage, '/pages/yfth/store_acquisition/accept') !== false, 'scanner_recognizes_store_acquisition_qr');
+$assert(substr_count($pages, '"path": "store_acquisition/code"') === 1, 'store_acquisition_code_route_unique');
+$assert(substr_count($pages, '"path": "store_acquisition/accept"') === 1, 'store_acquisition_accept_route_unique');
 $assert(substr_count($pages, '"path": "referral/code"') === 1, 'referral_code_route_unique');
 $assert(substr_count($pages, '"path": "referral/accept"') === 1, 'referral_accept_route_unique');
 $assert(substr_count($pages, '"path": "referral/scan"') === 1, 'referral_scan_route_unique');

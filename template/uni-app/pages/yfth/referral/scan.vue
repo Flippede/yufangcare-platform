@@ -264,18 +264,24 @@ export default {
 		},
 		submitInput() { this.consume(this.input); },
 		consume(value) {
-			const token = this.extractToken(value);
-			if (!token) return this.toast('不是有效的御方通和推广码或邀请链接');
+			const target = this.extractTarget(value);
+			if (!target.token) return this.toast('不是有效的御方通和推广码、门店码或邀请链接');
 			this.stopCamera();
-			uni.navigateTo({ url: `/pages/yfth/referral/accept?invite_token=${token}` });
+			const url = target.type === 'store_acquisition'
+				? `/pages/yfth/store_acquisition/accept?acquisition_token=${target.token}`
+				: `/pages/yfth/referral/accept?invite_token=${target.token}`;
+			uni.navigateTo({ url });
 		},
-		extractToken(value) {
+		extractTarget(value) {
 			let text = String(value || '').trim();
 			try { text = decodeURIComponent(text); } catch (e) {}
-			if (/^[a-f0-9]{64}$/i.test(text)) return text.toLowerCase();
-			if (!/^https?:\/\//i.test(text) && text.indexOf('/pages/yfth/referral/accept') !== 0) return '';
-			const match = text.match(/[?&]invite_token=([a-f0-9]{64})(?:&|$)/i);
-			return match ? match[1].toLowerCase() : '';
+			if (/^[a-f0-9]{64}$/i.test(text)) return { type: 'referral', token: text.toLowerCase() };
+			const acquisition = /\/pages\/yfth\/store_acquisition\/accept/i.test(text)
+				? text.match(/[?&]acquisition_token=([a-f0-9]{64})(?:&|$)/i) : null;
+			if (acquisition) return { type: 'store_acquisition', token: acquisition[1].toLowerCase() };
+			const referral = /\/pages\/yfth\/referral\/accept/i.test(text)
+				? text.match(/[?&]invite_token=([a-f0-9]{64})(?:&|$)/i) : null;
+			return referral ? { type: 'referral', token: referral[1].toLowerCase() } : { type: '', token: '' };
 		},
 		goBack() {
 			this.stopCamera();

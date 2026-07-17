@@ -18,7 +18,7 @@ import { currentContext, isBusinessRole, loadYfthIdentities, switchYfthRole } fr
 
 export default {
 	data() {
-		return { loading: true, context: {}, identities: [], requestedRole: '' };
+		return { loading: true, switching: false, context: {}, identities: [], requestedRole: '' };
 	},
 	computed: {
 		stores() {
@@ -50,10 +50,19 @@ export default {
 	},
 	methods: {
 		choose(item) {
+			if (this.switching) return;
+			this.switching = true;
+			uni.showLoading({ title: '正在切换', mask: true });
 			switchYfthRole(this.requestedRole || item.role_code, item.store_id).then(() => {
-				uni.redirectTo({ url: '/pages/yfth/workbench/index' });
+				uni.reLaunch({
+					url: '/pages/yfth/workbench/index',
+					fail: () => uni.showToast({ title: '工作台打开失败，请重试', icon: 'none' })
+				});
 			}).catch((err) => {
 				uni.showToast({ title: String((err && err.msg) || err), icon: 'none' });
+			}).finally(() => {
+				this.switching = false;
+				uni.hideLoading();
 			});
 		}
 	}

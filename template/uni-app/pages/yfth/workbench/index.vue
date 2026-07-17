@@ -44,6 +44,7 @@
 							<button v-if="canReadProductQuota" @click="goProductQuota">产品额度</button>
 							<button v-if="canReadPackageMembership" @click="goPackageMembership">套餐会员</button>
 							<button @click="goMonthlyBenefitPickup">权益自提</button>
+							<button v-if="canIssueAcquisitionCode" @click="goAcquisitionCode">我的门店获客码</button>
 						</view>
 					</view>
 				</view>
@@ -275,6 +276,9 @@ export default {
 		},
 		canReadPackageMembership() {
 			return ['franchisee', 'store_manager'].indexOf(this.context.role_code) !== -1;
+		},
+		canIssueAcquisitionCode() {
+			return ['store_manager', 'store_staff'].indexOf(this.context.role_code) !== -1;
 		},
 		canReadCustomerAttribution() {
 			return ['franchisee', 'store_manager'].indexOf(this.context.role_code) !== -1;
@@ -580,6 +584,9 @@ export default {
 		},
 		goMonthlyBenefitPickup() {
 			uni.navigateTo({ url: '/pages/yfth/workbench/monthly_benefit_pickup' });
+		},
+		goAcquisitionCode() {
+			uni.navigateTo({ url: '/pages/yfth/store_acquisition/code' });
 		},
 		goCustomerAttribution() {
 			if (!this.canReadCustomerAttribution) {

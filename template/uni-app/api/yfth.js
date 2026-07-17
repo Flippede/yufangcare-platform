@@ -12,6 +12,23 @@ export function getYfthContext(data) {
 	return request.get('yfth/context', data || {});
 }
 
+export function getYfthStoreAcquisitionCode(data) {
+	return request.get('yfth/store_acquisition/code', data || {});
+}
+
+export function issueYfthStoreAcquisitionCode(data) {
+	const payload = splitYfthContext(data || {});
+	return request.post('yfth/store_acquisition/code' + payload.query, payload.body);
+}
+
+export function resolveYfthStoreAcquisitionCode(token) {
+	return request.get('yfth/store_acquisition/resolve', { acquisition_token: token }, { noAuth: true });
+}
+
+export function acceptYfthStoreAcquisitionCode(data) {
+	return request.post('yfth/store_acquisition/accept', data || {});
+}
+
 export function checkYfthCapability(capability, data) {
 	return request.get('yfth/capability/' + capability, data || {});
 }

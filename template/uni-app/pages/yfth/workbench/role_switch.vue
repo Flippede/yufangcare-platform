@@ -8,7 +8,7 @@
 				<view class="name">顾客</view>
 				<view class="meta">返回御方通和商城端</view>
 			</view>
-			<view v-for="item in businessGroups" :key="item.role_code" class="card" @click="choose(item)">
+			<view v-for="item in businessGroups" :key="item.role_code" :class="['card', switching ? 'disabled' : '']" @click="choose(item)">
 				<view class="name">{{ item.role_name_cn }}</view>
 				<view class="meta">{{ item.store_count ? `可管理 ${item.store_count} 家门店` : '无需门店' }}</view>
 				<view v-if="item.store_count" class="store-list">{{ item.store_names.join('、') }}</view>
@@ -23,7 +23,7 @@ import { clearYfthContext, isBusinessRole, loadYfthIdentities, switchYfthRole } 
 
 export default {
 	data() {
-		return { loading: true, identities: [] };
+		return { loading: true, switching: false, identities: [] };
 	},
 	computed: {
 		businessGroups() {
@@ -58,15 +58,24 @@ export default {
 	},
 	methods: {
 		choose(item) {
+			if (this.switching) return;
 			if (item.store_count > 1) {
 				uni.navigateTo({ url: `/pages/yfth/workbench/store_switch?role_code=${item.role_code}` });
 				return;
 			}
 			const storeId = item.stores && item.stores[0] ? item.stores[0].store_id : 0;
+			this.switching = true;
+			uni.showLoading({ title: '正在切换', mask: true });
 			switchYfthRole(item.role_code, storeId).then(() => {
-				uni.redirectTo({ url: '/pages/yfth/workbench/index' });
+				uni.reLaunch({
+					url: '/pages/yfth/workbench/index',
+					fail: () => uni.showToast({ title: '工作台打开失败，请重试', icon: 'none' })
+				});
 			}).catch((err) => {
 				uni.showToast({ title: String((err && err.msg) || err), icon: 'none' });
+			}).finally(() => {
+				this.switching = false;
+				uni.hideLoading();
 			});
 		},
 		chooseCustomer() {
@@ -90,5 +99,6 @@ export default {
 .name { font-size: 32rpx; font-weight: 700; }
 .meta { color: #8a7a68; margin-top: 10rpx; }
 .store-list { margin-top: 12rpx; color: #9b713b; font-size: 24rpx; line-height: 1.5; }
+.card.disabled { opacity: .62; pointer-events: none; }
 button { margin-top: 20rpx; background: #4b315f; color: #fff; border-radius: 12rpx; }
 </style>

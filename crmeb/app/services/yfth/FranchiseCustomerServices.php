@@ -19,7 +19,7 @@ class FranchiseCustomerServices extends YfthFoundationBaseServices
     private const STORE_ROLES = ['franchisee', 'store_manager', 'store_staff'];
     private const CUSTOMER_STATUSES = ['potential', 'leads', 'registered', 'purchased', 'serving', 'repeat', 'lost'];
     private const TRUSTED_ATTRIBUTION_SOURCES = ['order', 'appointment', 'writeoff'];
-    private const AUTHORITY_PROJECTION_SOURCES = ['direct_referral', 'permanent_membership', 'permanent_attribution'];
+    private const AUTHORITY_PROJECTION_SOURCES = ['direct_referral', 'permanent_membership', 'permanent_attribution', 'store_acquisition'];
     private const FOLLOW_TYPES = ['phone', 'wechat', 'store_visit', 'other'];
 
     public function __construct(YfthCustomerRelationDao $dao)
@@ -563,6 +563,7 @@ class FranchiseCustomerServices extends YfthFoundationBaseServices
             'direct_referral' => '一级推荐归属',
             'permanent_membership' => '永久会员归属',
             'permanent_attribution' => '权威归属同步',
+            'store_acquisition' => '门店员工获客码',
         ];
         return $map[$source] ?? $source;
     }

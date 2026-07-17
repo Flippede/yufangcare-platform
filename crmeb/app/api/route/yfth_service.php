@@ -9,6 +9,7 @@ Route::group(function () {
     Route::get('yfth/service/project/:id/stores', 'v1.yfth.ServiceAppointmentController/serviceStores')->option(['real_name' => 'YFTH service available stores']);
     Route::get('yfth/service/project/:id/dates', 'v1.yfth.ServiceAppointmentController/availableDates')->option(['real_name' => 'YFTH service available dates']);
     Route::get('yfth/service/project/:id/slots', 'v1.yfth.ServiceAppointmentController/daySlots')->option(['real_name' => 'YFTH service available slots']);
+    Route::get('yfth/store_acquisition/resolve', 'v1.yfth.StoreAcquisitionController/resolve')->option(['real_name' => 'YFTH store acquisition code resolve']);
 })->middleware(\app\http\middleware\AllowOriginMiddleware::class)
     ->middleware(\app\api\middleware\StationOpenMiddleware::class)
     ->middleware(\app\api\middleware\AuthTokenMiddleware::class, false)
@@ -45,6 +46,15 @@ Route::group(function () {
     ->middleware(\app\api\middleware\StationOpenMiddleware::class)
     ->middleware(\app\api\middleware\AuthTokenMiddleware::class)
     ->option(['mark' => 'yfth_package_membership_user', 'mark_name' => 'YFTH package membership and referral user API']);
+
+Route::group(function () {
+    Route::get('yfth/store_acquisition/code', 'v1.yfth.StoreAcquisitionController/current')->option(['real_name' => 'YFTH current store acquisition code']);
+    Route::post('yfth/store_acquisition/code', 'v1.yfth.StoreAcquisitionController/issue')->option(['real_name' => 'YFTH store acquisition code issue']);
+    Route::post('yfth/store_acquisition/accept', 'v1.yfth.StoreAcquisitionController/accept')->option(['real_name' => 'YFTH store acquisition accept']);
+})->middleware(\app\http\middleware\AllowOriginMiddleware::class)
+    ->middleware(\app\api\middleware\StationOpenMiddleware::class)
+    ->middleware(\app\api\middleware\AuthTokenMiddleware::class)
+    ->option(['mark' => 'yfth_store_acquisition_user', 'mark_name' => 'YFTH store acquisition user API']);
 
 Route::group(function () {
     Route::get('yfth/store_workbench/overview', 'v1.yfth.StoreWorkbenchController/overview')->option(['real_name' => 'YFTH store workbench overview']);

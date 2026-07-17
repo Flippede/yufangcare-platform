@@ -247,6 +247,18 @@
 					}
 				},
 				{
+					"path": "store_acquisition/code",
+					"style": {
+						"navigationBarTitleText": "我的门店获客码"
+					}
+				},
+				{
+					"path": "store_acquisition/accept",
+					"style": {
+						"navigationBarTitleText": "确认门店归属"
+					}
+				},
+				{
 					"path": "franchise/index",
 					"style": {
 						"navigationBarTitleText": "我的加盟申请"
