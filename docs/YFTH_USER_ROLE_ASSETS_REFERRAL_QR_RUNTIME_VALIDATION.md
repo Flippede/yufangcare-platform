@@ -1,5 +1,14 @@
 # YFTH User Role Assets And Referral QR V1 Runtime Validation
 
+## Store workbench entry cleanup - 2026-07-17
+
+- Feature commit `2ee6326fef41151224b423fb6da946fa4156a3a0` removes the duplicate `真实业务入口` button strip from the store workbench dashboard.
+- Customer, appointment, writeoff, order, and monthly-benefit-pickup workflows keep their existing footer or dashboard-card paths. The remaining purchase, product-quota, package-membership, and personal store-acquisition-code entries use a two-column `经营工具` card layout and preserve their existing role checks and routes.
+- `yfth_store_workbench_adapter_contract_check.php`, `yfth_product_quota_contract_check.php`, `yfth_user_role_assets_referral_contract_check.php`, `yfth_multi_role_shell_contract_check.js`, and `yfth_request_fallback_check.js` passed.
+- Clean H5 and mp-weixin production outputs each contained the new tool section and no legacy entry string. Existing compiler missing-export, bundle-size, skeleton-key, and component-placement notices remained non-blocking.
+- A real production TEST staff login rendered only the staff-authorized tool cards. The purchase card opened `/pages/yfth/workbench/purchase/index`, return navigation succeeded, and no business API, backend permission, identity, database, payment, order, referral, or settlement logic was changed.
+- Production backup: `/www/backup/yfth-workbench-tools-20260717-130552`; retained release: `/www/releases/yfth-workbench-tools-20260717-130552`. The mp-weixin artifact was not uploaded to WeChat.
+
 ## C1 direct-referral reward summary validation - 2026-07-17
 
 - Production feature commit `eca12d760ddbb910af060ef32f7c60ef3d9a8c83` was deployed after backup `/www/backup/yfth-direct-referral-summary-20260717-124757`; release artifacts remain at `/www/releases/yfth-direct-referral-summary-20260717-124757`.

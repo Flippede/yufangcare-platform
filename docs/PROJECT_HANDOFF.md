@@ -1,5 +1,13 @@
 # 项目交接文档
 
+## Current Fact Snapshot - Store Workbench Entry Cleanup
+
+- Production `https://yfth.top/pages/yfth/workbench/index` now serves feature commit `2ee6326fef41151224b423fb6da946fa4156a3a0` from preserved branch `codex/yfth-user-role-assets-referral-code-v1`.
+- The former `真实业务入口` button strip was removed. Customer, appointment, writeoff, and order navigation remains in the role-specific footer or existing dashboard metrics; monthly benefit pickup remains available through its existing dashboard metric, so those duplicate buttons are not rendered a second time.
+- Independent capabilities now appear as consistent two-column `经营工具` cards with explicit entry copy. Purchase inventory is always present for store roles; product quota and package membership retain their franchisee/manager checks; the personal store-acquisition code retains its manager/staff check. Existing routes, user-token context validation, and backend authorization are unchanged.
+- Focused PHP/uni-app contracts, H5 production build, mp-weixin production compile, clean-artifact string checks, `git diff --check`, and a real production staff login passed. The browser rendered the new tool section, found no old entry block, and opened the existing purchase page from its new card.
+- Production H5 backup: `/www/backup/yfth-workbench-tools-20260717-130552`; retained release: `/www/releases/yfth-workbench-tools-20260717-130552`. Existing `.env`, database, Admin assets, products, orders, uploads, OSS, SMS, WeChat, payment certificates, identity facts, and business state were not changed. The mp-weixin artifact was compiled locally but was not uploaded to WeChat.
+
 ## Current Fact Snapshot - C1 Direct Referral Reward Summary
 
 - Production `https://yfth.top/pages/yfth/referral/code` now serves feature commit `eca12d760ddbb910af060ef32f7c60ef3d9a8c83`. A real C1 account-password browser session rendered four direct-referral rows with display names or masked phone, relationship states, total reward, pending amount, and settled amount. The current controlled production fixtures have no reward candidate, so all four amounts truthfully display `0.00`.
