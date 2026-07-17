@@ -1,5 +1,14 @@
 # YFTH User Role Assets And Referral QR V1 Runtime Validation
 
+## Production store QR attribution closure - 2026-07-17
+
+- Root cause of the remaining production failure was login continuation, not the attribution transaction: an external acquisition URL could reach login before the cached CRMEB token was rehydrated, and successful account/WeChat/phone-binding paths did not all restore the pending acquisition route.
+- `resolveLoginBackUrl()` now gives priority only to a syntactically valid 64-hex `yfth_pending_store_acquisition` token. The account, SMS, App/WeChat, phone-binding, and first-profile completion paths use the same resolver. The acceptance page also calls the existing `checkLogin()` before deciding that login is required.
+- Contract, multi-role shell, request fallback, H5 production build, mp-weixin production compile, built-artifact string checks, sensitive-change scan, and `git diff --check` passed. Existing asset-size, skeleton-key, and component-subpackage messages remained non-blocking.
+- A production Chrome run completed `acquisition URL -> account login -> automatic acceptance -> mall homepage`. Relevant HTTP requests, including `POST /api/login`, `GET /api/user`, acquisition resolve, acquisition accept, homepage, navigation, and identities, returned 200; no browser-console error was reported.
+- Read-only production SQL verified one accepted acquisition record, one active authoritative attribution, and one active store-customer relation for the controlled TEST C2, all scoped to TEST B1/store `1`. No payment, SMS, refund, package writeoff, WeChat upload, or production rollback was executed.
+- Production backup: `/www/backup/yfth-store-acquisition-login-20260717-122252`; retained release: `/www/releases/yfth-store-acquisition-login-20260717-122252`; H5 entry: `static/js/index.957a5d2d.js`.
+
 ## Store acquisition binding and HQ user safeguards validation - 2026-07-17
 
 - Root cause of the reported unbound customer: production had issued manager/staff acquisition codes but no acceptance rows. The QR landing page only resolved the code and waited for a second confirmation, while a mini-program URL Link could also target an older published bundle. The backend acceptance transaction itself was not split.

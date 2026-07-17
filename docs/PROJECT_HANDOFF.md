@@ -1,5 +1,13 @@
 # 项目交接文档
 
+## Current Fact Snapshot - Production Store QR Attribution Closure
+
+- Production `https://yfth.top` now serves the store-attribution closure from preserved branch `codex/yfth-user-role-assets-referral-code-v1`: business safeguards commit `0c7781b1b0940b9200aa230cea0eea436f9ab737`, trusted role/store context fix `7cc679afd26a0519a64b5954b0bcee3d8d8d9723`, and login-continuation fix `446385f712317dcb247154385351a241a86cdf54`. Stable `main` remains unchanged and no production server-only source edit was retained.
+- The dedicated manager/staff store QR now resolves against the current H5 route. Cached customer login is restored before redirect; account/password, SMS, WeChat authorization, phone binding, and first-login profile completion all prioritize the validated 64-hex pending acquisition token and resume the acceptance route.
+- A real production browser flow opened a TEST B1 staff acquisition link, authenticated the controlled TEST C2 account, automatically returned to the acquisition route, submitted acceptance, and re-launched the mall homepage. The login, user, resolve, accept, homepage, navigation, and identity requests returned HTTP 200 with no browser-console error.
+- Production read-only database verification found exactly one accepted acquisition row for that controlled C2, one active Stage 1A attribution to store `1`, and one active store-customer relation to store `1`. The customer is therefore visible from the store projection; no package-writeoff route, permanent-member referral, CRMEB legacy spread relation, reward candidate, payment, or SMS was used.
+- Production H5 backup: `/www/backup/yfth-store-acquisition-login-20260717-122252`; retained release: `/www/releases/yfth-store-acquisition-login-20260717-122252`; deployed entry asset: `static/js/index.957a5d2d.js`. Existing `.env`, database configuration, products, orders, uploads, OSS, SMS, WeChat, payment certificates, and Admin assets were preserved. The mp-weixin artifact compiled successfully but was not uploaded to WeChat.
+
 ## Current Fact Snapshot - Store Acquisition Binding And HQ User Safeguards Closure
 
 - Feature branch `codex/yfth-user-role-assets-referral-code-v1` closes the production gap where a manager/staff store QR could be resolved but never accepted: the public QR now always points to the current H5 store-acquisition landing page, the landing page automatically completes acceptance after login, verifies the returned active attribution, shows `门店绑定成功`, and then returns to the mall homepage.
