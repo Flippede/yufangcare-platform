@@ -1,5 +1,15 @@
 # 项目交接文档
 
+## Current Fact Snapshot - Store Role Switching And Employee Acquisition Code Production Closure
+
+- Production `https://yfth.top` now runs feature code commit `1a170e06bd384095bebef533c3706032370aee7a` from preserved branch `codex/yfth-user-role-assets-referral-code-v1`; stable `main` was not merged or changed.
+- Customer-to-manager/staff switching now waits for the trusted server context and re-launches the workbench. A real production browser login switched the TEST staff account from customer to `store_staff`, opened the TEST B1 workbench, and rendered the personal store-acquisition QR page.
+- Managers and staff each receive an independent code scoped by `uid + store_id + role_code`. Acceptance writes Stage 1A customer attribution plus the store CRM projection, records the source employee, and does not create a permanent-member referral, CRMEB legacy spread relation, or reward candidate. Role revocation, store disablement, expiry, or explicit code refresh invalidates the old code.
+- The QR can be saved or shared. It prefers an official WeChat mini-program URL Link and otherwise falls back to the H5 login/acceptance page. Production currently has no configured Routine AppID, so WeChat returned `appid missing`; direct external-WeChat launch into the mini program remains blocked by that external configuration, while the H5 acceptance path is available.
+- Isolated MySQL Community 8.0.46 migration run/targeted rollback/rerun and real flow passed, including store attribution, store-customer visibility, idempotent repeat acceptance, self-bind rejection, non-pristine attribution rejection, revoked-role code invalidation, no active-referral creation, and no CRMEB `spread_uid` write. H5 and mp-weixin production builds passed with existing non-blocking size/component notices.
+- Production migration `20260718140000 CreateYfthStoreAcquisitionCodes` is up. Backup: `/www/backup/yfth-role-switch-store-code-20260717-102649`; retained release artifacts: `/www/releases/yfth-store-acquisition-20260717-102649`. Existing `.env`, products, images, uploads, OSS, SMS, WeChat, payment certificates, orders, and real business data were preserved.
+- Production manager/staff code issue and public resolve were verified. A production customer acceptance was deliberately not executed so the currently pristine TEST C2 remains available for user acceptance; the mutating acceptance proof was completed only in the isolated MySQL database. No payment, SMS, WeChat upload, production rollback, or main merge was performed.
+
 ## Current Fact Snapshot - H5 Referral Album Picker Production Hotfix
 
 - Production `https://yfth.top` now serves referral-album hotfix `c898fc6` from the preserved feature branch; stable `main` was not merged or changed.
