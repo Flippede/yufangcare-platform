@@ -1,5 +1,12 @@
 # YFTH User Role Assets And Referral QR V1 Runtime Validation
 
+## H5 global touch interaction regression closure
+
+- The login captcha shell previously registered document-wide `touchstart` and `touchmove` listeners whenever it mounted, never removed them, and called the misspelled `preventDefalut`. Repeated login visits accumulated listeners and a slightly horizontal mobile gesture could cancel the subsequent click across unrelated customer pages.
+- The shell now initializes only its captcha UUID. Point selection remains scoped to the captcha hitbox and retains mouse, pointer, and mobile-touch coordinate support.
+- The focused login/navigation contract rejects reintroduction of global captcha touch interception. Login/navigation, multi-role shell, and request-fallback checks passed. Clean H5 production and mp-weixin production builds passed; no WeChat upload was performed.
+- Production deployment and final browser interaction results are appended after release. No backend service, database schema, business fact, payment, SMS, or credential changed.
+
 ## Headquarters mall and manager-only procurement production closure - 2026-07-17
 
 - `yfthContext.js` gives franchisee, store manager, store staff, and service mentor an explicit `商城` navigation action to the existing CRMEB headquarters storefront. The in-memory browsing marker allows intentional storefront use without weakening the existing cold-start highest-role redirect.

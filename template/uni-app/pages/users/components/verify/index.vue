@@ -102,33 +102,6 @@
 		},
 		mounted() {
 			this.uuid()
-			// #ifdef H5
-			document.addEventListener("touchmove", (e) => {
-				e.preventDefalut()
-			}, {
-				passive: false
-			});
-
-
-			var startX, startY;
-			document.addEventListener("touchstart", (e) => {
-
-				startX = e.targetTouches[0].pageX;
-				startY = e.targetTouches[0].pageY;
-			});
-
-			document.addEventListener("touchmove", (e) => {
-
-				var moveX = e.targetTouches[0].pageX;
-				var moveY = e.targetTouches[0].pageY;
-
-				if (Math.abs(moveX - startX) > Math.abs(moveY - startY)) {
-					e.preventDefault();
-				}
-			}, {
-				passive: false,
-			});
-			// #endif
 		},
 		methods: {
 			// 生成 uuid
@@ -211,15 +184,6 @@
 		},
 	}
 </script>
-<style lang="scss">
-	/* #ifdef H5 */
-	html {
-		touch-action: none;
-		touch-action: pan-y;
-	}
-
-	/* #endif */
-</style>
 <style>
 	.verifybox {
 		position: relative;

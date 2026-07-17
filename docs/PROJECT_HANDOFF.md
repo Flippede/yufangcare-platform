@@ -1,5 +1,13 @@
 # 项目交接文档
 
+## Current Fact Snapshot - H5 Global Touch Interaction Closure
+
+- Branch `codex/yfth-franchise-opening-partner-hierarchy-v1` removes the legacy captcha wrapper's document-wide H5 `touchstart` / `touchmove` interception and global `html` touch policy. The old listener survived after leaving login, accumulated on repeated visits, cancelled slightly horizontal finger gestures, and contained a misspelled `preventDefalut` call.
+- Captcha point selection keeps its component-scoped pointer listener and `touch-action: manipulation`; account/password login, SMS login, order navigation, service navigation, and the existing CRMEB routes are otherwise unchanged.
+- A focused contract now rejects future document-wide captcha touch listeners, the misspelled call, and global HTML touch rules. Login/navigation, multi-role shell, and request-fallback checks passed; clean H5 production build and mp-weixin production compile passed with existing non-blocking size and component-placement notices.
+- Public home, login, and logo endpoints responded with HTTP 200 and approximately 0.08-0.09 second total times during diagnosis. The observed desktop login completion included token login, user-info refresh, and role routing rather than slow base HTTP delivery.
+- Production deployment and browser/device interaction evidence are recorded after the committed artifact is released. No database, migration, identity, order, payment, product, upload, OSS, SMS, WeChat credential, or payment-certificate change is part of this fix.
+
 ## Current Fact Snapshot - H5 Store Acquisition QR Rendering Fix
 
 - Production `https://yfth.top` now serves QR compatibility commit `60b7892c321e8d8127fc12bfeef5d0e87d026287` from preserved branch `codex/yfth-franchise-opening-partner-hierarchy-v1`. The store-acquisition API, opaque token, store attribution rules, role checks, and database schema were not changed.

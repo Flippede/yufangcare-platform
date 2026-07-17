@@ -14,6 +14,9 @@ function requireText(source, needle, label) {
 }
 
 const login = read('pages/users/login/index.vue');
+const verify = read('pages/users/components/verify/index.vue');
+const annexVerify = read('pages/annex/components/verify/index.vue');
+const annexSettledVerify = read('pages/annex/components/verify/verify.vue');
 const verifyPoint = read('pages/users/components/verify/verifyPoint/verifyPoint.vue');
 const category = read('pages/goods_cate/goods_cate.vue');
 const footer = read('components/pageFooter/index.vue');
@@ -31,6 +34,19 @@ const pages = read('pages.json');
 	['@tap="toggleProtocol"', 'protocol text and control interaction'],
   ['copyRight && copyRight.copyrightContext', 'safe copyright storage access'],
 ].forEach(([needle, label]) => requireText(login, needle, label));
+
+[
+  ['document.addEventListener("touchmove"', 'global touchmove listener'],
+  ['document.addEventListener("touchstart"', 'global touchstart listener'],
+  ['preventDefalut', 'misspelled preventDefault call'],
+  ['html {', 'global html touch-action rule'],
+].forEach(([needle, label]) => {
+  [verify, annexVerify, annexSettledVerify].forEach((source, index) => {
+    if (source.includes(needle)) {
+      throw new Error(`Forbidden ${label} in verify shell ${index + 1}: ${needle}`);
+    }
+  });
+});
 
 [
   ['getH5MousePos(e, rect)', 'H5 pointer coordinate helper'],
