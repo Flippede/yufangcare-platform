@@ -31,18 +31,20 @@
 							<view class="metric-desc">{{ item.desc }}</view>
 						</view>
 					</view>
-					<view class="panel">
-						<view class="panel-title">真实业务入口</view>
-						<view class="quick-actions">
-							<button @click="goCustomers">客户管理</button>
-							<button @click="openPane('appointments')">预约管理</button>
-							<button @click="openPane('writeoff')">服务核销</button>
-							<button @click="openPane('orders')">门店订单</button>
-							<button @click="goPurchase">采购库存</button>
-							<button v-if="canReadProductQuota" @click="goProductQuota">产品额度</button>
-							<button v-if="canReadPackageMembership" @click="goPackageMembership">套餐会员</button>
-							<button @click="goMonthlyBenefitPickup">权益自提</button>
-							<button v-if="canIssueAcquisitionCode" @click="goAcquisitionCode">我的门店获客码</button>
+					<view v-if="businessTools.length" class="business-tools">
+						<view class="business-tools-head">
+							<view class="panel-title">经营工具</view>
+							<view class="business-tools-note">只展示当前身份可用的独立能力</view>
+						</view>
+						<view class="tool-grid">
+							<view v-for="item in businessTools" :key="item.key" class="tool-card" @click="tapBusinessTool(item)">
+								<view class="tool-icon">{{ item.icon }}</view>
+								<view class="tool-copy">
+									<view class="tool-title">{{ item.title }}</view>
+									<view class="tool-desc">{{ item.desc }}</view>
+								</view>
+								<view class="tool-arrow">›</view>
+							</view>
 						</view>
 					</view>
 				</view>
@@ -308,6 +310,21 @@ export default {
 				cards.push({ key: 'customer_attribution', title: '客户归属', value: '只读', desc: '当前门店正式归属客户与推荐状态', pane: 'customer_attribution' });
 			}
 			return cards;
+		},
+		businessTools() {
+			const tools = [
+				{ key: 'purchase', icon: '采', title: '进入采购库存', desc: '采购单、收货与门店库存' }
+			];
+			if (this.canReadProductQuota) {
+				tools.push({ key: 'product_quota', icon: '额', title: '进入产品额度', desc: '查看门店产品额度台账' });
+			}
+			if (this.canReadPackageMembership) {
+				tools.push({ key: 'package_membership', icon: '会', title: '进入套餐会员', desc: '查看本店套餐会员与奖励' });
+			}
+			if (this.canIssueAcquisitionCode) {
+				tools.push({ key: 'acquisition_code', icon: '码', title: '进入我的门店获客码', desc: '出示专属码绑定门店客户' });
+			}
+			return tools;
 		},
 		paneTitle() {
 			const titles = {
@@ -616,6 +633,16 @@ export default {
 		tapDashboard(item) {
 			this.openPane(item.pane || 'dashboard');
 		},
+		tapBusinessTool(item) {
+			const actions = {
+				purchase: this.goPurchase,
+				product_quota: this.goProductQuota,
+				package_membership: this.goPackageMembership,
+				acquisition_code: this.goAcquisitionCode
+			};
+			const action = actions[item && item.key];
+			if (typeof action === 'function') action.call(this);
+		},
 		switchStore(storeId) {
 			switchYfthStore(storeId).then(() => {
 				uni.showToast({ title: '门店已切换', icon: 'success' });
@@ -648,8 +675,18 @@ button { font-size: 26rpx; }
 .metric-title, .panel-title, .strong { font-size: 30rpx; font-weight: 700; color: #2d2434; }
 .metric-desc, .muted { color: #786b73; font-size: 24rpx; margin-top: 8rpx; }
 .panel-head, .row-main, .compact-row { display: flex; align-items: center; justify-content: space-between; gap: 18rpx; }
-.quick-actions, .button-row, .filter-tabs, .search-row, .manual-code { display: flex; gap: 14rpx; margin-top: 18rpx; }
-.quick-actions button, .button-row button, .search-row button, .manual-code button { flex: 1; background: #fff7e9; color: #6f4c2f; border-radius: 10rpx; }
+.business-tools { margin-top: 4rpx; }
+.business-tools-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16rpx; margin: 0 4rpx 16rpx; }
+.business-tools-note { color: #9b8a7d; font-size: 21rpx; text-align: right; }
+.tool-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18rpx; }
+.tool-card { min-height: 150rpx; background: #fff; border: 1rpx solid #eee3d4; border-radius: 16rpx; padding: 22rpx; box-shadow: 0 10rpx 26rpx rgba(70, 45, 30, .06); display: grid; grid-template-columns: 54rpx 1fr 20rpx; align-items: center; gap: 14rpx; }
+.tool-icon { width: 54rpx; height: 54rpx; border-radius: 14rpx; background: #f2e7d4; color: #7a5631; display: flex; align-items: center; justify-content: center; font-size: 25rpx; font-weight: 700; }
+.tool-copy { min-width: 0; }
+.tool-title { color: #2d2434; font-size: 27rpx; font-weight: 700; line-height: 1.35; }
+.tool-desc { color: #88796f; font-size: 22rpx; line-height: 1.45; margin-top: 8rpx; }
+.tool-arrow { color: #a47c4c; font-size: 38rpx; line-height: 1; }
+.button-row, .filter-tabs, .search-row, .manual-code { display: flex; gap: 14rpx; margin-top: 18rpx; }
+.button-row button, .search-row button, .manual-code button { flex: 1; background: #fff7e9; color: #6f4c2f; border-radius: 10rpx; }
 .filter-tabs { overflow-x: auto; }
 .tab { flex: 0 0 auto; padding: 12rpx 20rpx; border-radius: 999rpx; background: #fff7e9; color: #8a725c; font-size: 24rpx; }
 .tab.active { background: #6f4c2f; color: #fff; }

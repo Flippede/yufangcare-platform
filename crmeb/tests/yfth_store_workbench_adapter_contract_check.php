@@ -164,6 +164,11 @@ foreach ([
     'can_writeoff',
     'uni.scanCode',
     ':key="item.item_key"',
+	'经营工具',
+	'businessTools',
+	'tapBusinessTool',
+	'进入采购库存',
+	'进入我的门店获客码',
 ] as $needle) {
     $assert(strpos($workbench, $needle) !== false, 'workbench_contains:' . $needle);
 }
@@ -173,6 +178,12 @@ foreach ([
     '/pages/admin/yfth_writeoff/index',
     '/pages/admin/orderList/index',
     'admin_token',
+	'真实业务入口',
+	'<button @click="goCustomers">客户管理</button>',
+	'<button @click="openPane(\'appointments\')">预约管理</button>',
+	'<button @click="openPane(\'writeoff\')">服务核销</button>',
+	'<button @click="openPane(\'orders\')">门店订单</button>',
+	'<button @click="goMonthlyBenefitPickup">权益自提</button>',
 ] as $needle) {
     $assert(strpos($workbench, $needle) === false, 'workbench_must_not_contain:' . $needle);
 }
