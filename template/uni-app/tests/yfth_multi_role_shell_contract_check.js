@@ -48,6 +48,8 @@ assert(context.includes('YFTH_ROLE_PRIORITY'), 'operating identities must define
 assert(context.includes('franchisee: 400') && context.includes('store_manager: 300') && context.includes('store_staff: 200'), 'franchisee, manager and staff priority order must remain explicit');
 assert(context.includes('dominantYfthIdentities'), 'identity selection must calculate the highest active operating role');
 assert(context.includes('resolveDominantYfthContext'), 'cached lower roles must be replaced by the highest server identity');
+assert((context.match(/action: 'mall'/g) || []).length === 4, 'every operating role must expose the headquarters mall entry');
+assert(context.includes('enterYfthBusinessMall') && context.includes('leaveYfthBusinessMall') && context.includes('isYfthBusinessMallBrowsing'), 'business mall browsing must be explicit and session-scoped');
 
 assertNotContains('pages/yfth/workbench/index.vue', "/pages/admin/yfth_writeoff/index", 'user-token workbench must not link to admin writeoff page');
 assertNotContains('pages/yfth/workbench/index.vue', "/pages/admin/orderList/index", 'user-token workbench must not link to admin order page');
@@ -57,6 +59,9 @@ assertContains('pages/yfth/workbench/index.vue', 'getYfthStoreWorkbenchOrders', 
 assertContains('pages/yfth/workbench/index.vue', 'store_staff', 'workbench must keep store staff as a server-validated store role');
 assertNotContains('pages/yfth/workbench/index.vue', "from '@/api/yfth_admin.js'", 'formal workbench must not import admin-token APIs');
 assertContains('pages/yfth/workbench/index.vue', 'resolveDominantYfthContext', 'workbench must always resolve the highest server identity');
+assertContains('pages/yfth/workbench/index.vue', "item.action === 'mall'", 'workbench mall entry must opt into headquarters mall browsing');
+assertContains('pages/yfth/workbench/index.vue', "this.context.role_code === 'store_manager'", 'only the store manager may see the purchase entry');
+assertContains('pages/yfth/workbench/purchase/index.vue', "context.role_code !== 'store_manager'", 'direct purchase-page access must reject non-managers');
 assertNotContains('pages/yfth/workbench/index.vue', 'backCustomer', 'a higher operating identity must not fall back to the customer surface');
 assertNotContains('pages/yfth/workbench/role_switch.vue', 'chooseCustomer', 'role selection must not expose customer fallback to a higher identity');
 assertContains('pages/yfth/workbench/role_switch.vue', 'dominantYfthIdentities', 'role selection must show only the highest role');
@@ -95,6 +100,7 @@ assertNotContains('components/pageFooter/index.vue', '.catch(() => {\n\t\t\t\t\t
 assertContains('pages/index/index.vue', 'homeComb', 'customer home must keep CRMEB decoration components');
 assertContains('pages/index/index.vue', 'getDiy', 'customer home must keep CRMEB page-decoration loading');
 assertContains('pages/index/index.vue', 'redirectDominantYfthRole', 'customer home must redirect an operating account to its highest workbench');
+assertContains('pages/index/index.vue', 'isYfthBusinessMallBrowsing()', 'an explicit mall entry must not bounce straight back to the workbench');
 assertContains('pages/index/index.vue', 'this.$nextTick(() => this.redirectDominantYfthRole())', 'cold H5 entry must retry dominant routing after mount');
 assertContains('pages/index/index.vue', 'if (newV) {\n\t\t\t\t\tthis.redirectDominantYfthRole();', 'restored login state must trigger dominant routing');
 assertContains('pages/user/index.vue', "uni.reLaunch({ url: '/pages/yfth/workbench/index' })", 'user center must not retain a higher identity on the customer surface');

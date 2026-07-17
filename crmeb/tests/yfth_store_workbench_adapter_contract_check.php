@@ -169,6 +169,9 @@ foreach ([
 	'tapBusinessTool',
 	'进入采购库存',
 	'进入我的门店获客码',
+	'canPurchaseInventory',
+	"this.context.role_code === 'store_manager'",
+	"item.action === 'mall'",
 ] as $needle) {
     $assert(strpos($workbench, $needle) !== false, 'workbench_contains:' . $needle);
 }

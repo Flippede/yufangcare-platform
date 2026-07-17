@@ -231,7 +231,9 @@ import {
 	writeoffYfthStoreWorkbenchByToken
 } from '@/api/yfth.js';
 import {
+	enterYfthBusinessMall,
 	isBusinessRole,
+	leaveYfthBusinessMall,
 	loadYfthIdentities,
 	resolveDominantYfthContext,
 	roleNav,
@@ -275,6 +277,9 @@ export default {
 		canReadPackageMembership() {
 			return ['franchisee', 'store_manager'].indexOf(this.context.role_code) !== -1;
 		},
+		canPurchaseInventory() {
+			return this.context.role_code === 'store_manager';
+		},
 		canIssueAcquisitionCode() {
 			return ['store_manager', 'store_staff'].indexOf(this.context.role_code) !== -1;
 		},
@@ -312,9 +317,10 @@ export default {
 			return cards;
 		},
 		businessTools() {
-			const tools = [
-				{ key: 'purchase', icon: '采', title: '进入采购库存', desc: '采购单、收货与门店库存' }
-			];
+			const tools = [];
+			if (this.canPurchaseInventory) {
+				tools.push({ key: 'purchase', icon: '采', title: '进入采购库存', desc: '采购单、收货与门店库存' });
+			}
 			if (this.canReadProductQuota) {
 				tools.push({ key: 'product_quota', icon: '额', title: '进入产品额度', desc: '查看门店产品额度台账' });
 			}
@@ -347,6 +353,7 @@ export default {
 		this.pane = options.pane || 'dashboard';
 	},
 	onShow() {
+		leaveYfthBusinessMall();
 		this.load();
 	},
 	methods: {
@@ -608,6 +615,7 @@ export default {
 		},
 		tapNav(item) {
 			if (item.url) {
+				if (item.action === 'mall') enterYfthBusinessMall();
 				const fn = item.type === 'switchTab' ? uni.switchTab : uni.navigateTo;
 				fn({ url: item.url });
 				return;
@@ -701,6 +709,6 @@ button { font-size: 26rpx; }
 input { background: #fffaf2; border-radius: 10rpx; padding: 0 20rpx; height: 64rpx; line-height: 64rpx; font-size: 26rpx; flex: 1; }
 .token-input { margin-top: 16rpx; width: auto; }
 .nav { position: fixed; left: 0; right: 0; bottom: 0; height: 106rpx; background: #fffaf4; border-top: 1rpx solid #eadfce; display: flex; z-index: 30; }
-.nav-item { flex: 1; display: flex; align-items: center; justify-content: center; color: #786b73; font-size: 24rpx; }
+.nav-item { min-width: 0; flex: 1; display: flex; align-items: center; justify-content: center; color: #786b73; font-size: 23rpx; white-space: nowrap; }
 .nav-item.active { color: #6f4c2f; font-weight: 700; }
 </style>

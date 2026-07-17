@@ -99,6 +99,11 @@ export default {
 	onShow() {
 		const cached = currentContext();
 		resolveYfthContext(cached.role_code || 'customer', cached.store_id || 0).then((context) => {
+			if (context.role_code !== 'store_manager') {
+				uni.showToast({ title: '仅店长可进入采购中心', icon: 'none' });
+				uni.reLaunch({ url: '/pages/yfth/workbench/index' });
+				return;
+			}
 			this.context = context;
 			this.load();
 		}).catch((err) => {

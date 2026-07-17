@@ -111,6 +111,7 @@ $assert($contains($adminApi, 'yfthSupplyCatalogSave'), 'admin_api_has_catalog_sa
 $assert($contains($adminApi, 'yfthPurchaseOrderShip'), 'admin_api_has_ship');
 $assert($contains($adminPage, 'yfthSupplyCatalogList') && $contains($adminPage, 'yfthPurchaseOrderAudit'), 'admin_page_uses_real_api');
 $assert($contains($purchasePage, 'createYfthPurchaseOrder') && $contains($purchasePage, 'receiveYfthPurchaseOrder'), 'purchase_page_uses_real_api');
+$assert($contains($purchasePage, "context.role_code !== 'store_manager'") && $contains($purchasePage, '仅店长可进入采购中心'), 'purchase_page_rejects_non_manager_roles');
 $assert($contains($inventoryPage, 'getYfthInventory') && $contains($inventoryPage, 'getYfthInventoryLedger'), 'inventory_page_uses_real_api');
 
 if ($failures) {

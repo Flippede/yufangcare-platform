@@ -194,7 +194,7 @@ import Cache from '@/utils/cache';
 import appUpdate from '@/components/update/app-update.vue';
 import yfthCustomHome from './components/yfthCustomHome.vue';
 import { getYfthHomepage } from '@/api/yfth.js';
-import { currentContext, dominantYfthIdentities, loadYfthIdentities, resolveDominantYfthContext } from '@/libs/yfthContext.js';
+import { currentContext, dominantYfthIdentities, isYfthBusinessMallBrowsing, loadYfthIdentities, resolveDominantYfthContext } from '@/libs/yfthContext.js';
 
 export default {
 	computed: {
@@ -438,7 +438,7 @@ export default {
 	},
 	methods: {
 		redirectDominantYfthRole() {
-			if (!this.isLogin || this.dominantRoleRedirecting) return;
+			if (!this.isLogin || this.dominantRoleRedirecting || isYfthBusinessMallBrowsing()) return;
 			this.dominantRoleRedirecting = true;
 			loadYfthIdentities().then((list) => {
 				if (!dominantYfthIdentities(list).length) return null;

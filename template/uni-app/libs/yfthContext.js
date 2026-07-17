@@ -24,6 +24,7 @@ export const YFTH_ROLE_NAVS = {
 		{ title: '门店', pane: 'stores' },
 		{ title: '客户', pane: 'customers' },
 		{ title: '订单', pane: 'orders' },
+		{ title: '商城', url: '/pages/index/index', type: 'switchTab', action: 'mall' },
 		{ title: '我的', pane: 'mine' }
 	],
 	store_manager: [
@@ -31,6 +32,7 @@ export const YFTH_ROLE_NAVS = {
 		{ title: '客户', pane: 'customers' },
 		{ title: '预约', pane: 'appointments' },
 		{ title: '核销', pane: 'writeoff' },
+		{ title: '商城', url: '/pages/index/index', type: 'switchTab', action: 'mall' },
 		{ title: '我的', pane: 'mine' }
 	],
 	store_staff: [
@@ -38,6 +40,7 @@ export const YFTH_ROLE_NAVS = {
 		{ title: '客户', pane: 'customers' },
 		{ title: '核销', pane: 'writeoff' },
 		{ title: '订单', pane: 'orders' },
+		{ title: '商城', url: '/pages/index/index', type: 'switchTab', action: 'mall' },
 		{ title: '我的', pane: 'mine' }
 	],
 	service_mentor: [
@@ -45,6 +48,7 @@ export const YFTH_ROLE_NAVS = {
 		{ title: '线索', pane: 'leads' },
 		{ title: '活动', pane: 'activities' },
 		{ title: '资料', pane: 'materials' },
+		{ title: '商城', url: '/pages/index/index', type: 'switchTab', action: 'mall' },
 		{ title: '我的', pane: 'mine' }
 	]
 };
@@ -52,6 +56,7 @@ export const YFTH_ROLE_NAVS = {
 const CONTEXT_KEY = 'YFTH_CURRENT_CONTEXT';
 const ROLE_KEY = 'YFTH_CURRENT_ROLE';
 const STORE_KEY = 'YFTH_CURRENT_STORE';
+let businessMallBrowsing = false;
 
 export const YFTH_ROLE_PRIORITY = {
 	franchisee: 400,
@@ -99,6 +104,18 @@ export function clearYfthContext() {
 
 export function loadYfthIdentities() {
 	return getYfthIdentities().then((res) => normalizeIdentityRows(res.data || []));
+}
+
+export function enterYfthBusinessMall() {
+	businessMallBrowsing = true;
+}
+
+export function leaveYfthBusinessMall() {
+	businessMallBrowsing = false;
+}
+
+export function isYfthBusinessMallBrowsing() {
+	return businessMallBrowsing;
 }
 
 export function dominantYfthIdentities(identities) {
