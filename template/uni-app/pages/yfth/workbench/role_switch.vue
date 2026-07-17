@@ -1,25 +1,21 @@
 <template>
 	<view class="page">
-		<view class="title">选择身份</view>
-		<view class="desc">身份来自服务端，前端不能伪造角色。</view>
+		<view class="title">当前最高经营身份</view>
+		<view class="desc">系统按加盟商、店长、店员、顾客的顺序进入最高有效身份；多门店时仅切换门店。</view>
 		<view v-if="loading" class="empty">正在读取身份...</view>
 		<view v-else>
-			<view class="card customer" @click="chooseCustomer">
-				<view class="name">顾客</view>
-				<view class="meta">返回御方通和商城端</view>
-			</view>
 			<view v-for="item in businessGroups" :key="item.role_code" :class="['card', switching ? 'disabled' : '']" @click="choose(item)">
 				<view class="name">{{ item.role_name_cn }}</view>
 				<view class="meta">{{ item.store_count ? `可管理 ${item.store_count} 家门店` : '无需门店' }}</view>
 				<view v-if="item.store_count" class="store-list">{{ item.store_names.join('、') }}</view>
 			</view>
-			<view v-if="!businessGroups.length" class="empty">当前账号暂无经营身份，仅可使用顾客端。</view>
+			<view v-if="!businessGroups.length" class="empty">当前账号暂无经营身份，将使用顾客端。</view>
 		</view>
 	</view>
 </template>
 
 <script>
-import { clearYfthContext, isBusinessRole, loadYfthIdentities, switchYfthRole } from '@/libs/yfthContext.js';
+import { dominantYfthIdentities, loadYfthIdentities, resolveDominantYfthContext } from '@/libs/yfthContext.js';
 
 export default {
 	data() {
@@ -28,7 +24,7 @@ export default {
 	computed: {
 		businessGroups() {
 			const groups = {};
-			this.identities.filter((item) => isBusinessRole(item.role_code)).forEach((item) => {
+			dominantYfthIdentities(this.identities).forEach((item) => {
 				if (!groups[item.role_code]) groups[item.role_code] = { role_code: item.role_code, role_name_cn: item.role_name_cn, stores: [] };
 				if (item.store_id && !groups[item.role_code].stores.some((store) => store.store_id === item.store_id)) groups[item.role_code].stores.push(item);
 			});
@@ -45,9 +41,11 @@ export default {
 		this.loading = true;
 		loadYfthIdentities().then((list) => {
 			this.identities = list;
+			if (!dominantYfthIdentities(list).length) {
+				uni.reLaunch({ url: '/pages/index/index' });
+			}
 			this.loading = false;
 		}, (err) => {
-			clearYfthContext();
 			this.identities = [];
 			uni.showToast({ title: String((err && err.msg) || err), icon: 'none' });
 			this.loading = false;
@@ -66,7 +64,7 @@ export default {
 			const storeId = item.stores && item.stores[0] ? item.stores[0].store_id : 0;
 			this.switching = true;
 			uni.showLoading({ title: '正在切换', mask: true });
-			switchYfthRole(item.role_code, storeId).then(() => {
+			resolveDominantYfthContext(this.identities).then(() => {
 				uni.reLaunch({
 					url: '/pages/yfth/workbench/index',
 					fail: () => uni.showToast({ title: '工作台打开失败，请重试', icon: 'none' })
@@ -76,14 +74,6 @@ export default {
 			}).finally(() => {
 				this.switching = false;
 				uni.hideLoading();
-			});
-		},
-		chooseCustomer() {
-			switchYfthRole('customer', 0).then(() => {
-				uni.reLaunch({ url: '/pages/index/index' });
-			}).catch((err) => {
-				clearYfthContext();
-				uni.showToast({ title: String((err && err.msg) || err), icon: 'none' });
 			});
 		}
 	}

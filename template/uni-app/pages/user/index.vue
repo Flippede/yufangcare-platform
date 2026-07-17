@@ -241,7 +241,7 @@ import colors from '@/mixins/color';
 import pageFooter from '@/components/pageFooter/index.vue';
 import { getCustomer } from '@/utils/index.js';
 import editUserModal from '@/components/eidtUserModal/index.vue';
-import { currentContext, isBusinessRole, loadYfthIdentities, roleLabel } from '@/libs/yfthContext.js';
+import { currentContext, dominantYfthIdentities, isBusinessRole, loadYfthIdentities, resolveDominantYfthContext, roleLabel } from '@/libs/yfthContext.js';
 import { getYfthPackageMembershipMe } from '@/api/yfth.js';
 export default {
 	components: {
@@ -504,12 +504,22 @@ export default {
 					return false;
 				}
 				this.yfthIdentities = list;
-				this.yfthCurrentContext = currentContext();
-				this.hasYfthBusinessIdentity = list.some((item) => isBusinessRole(item.role_code));
-				return this.hasYfthBusinessIdentity;
+				const dominantRows = dominantYfthIdentities(list);
+				this.hasYfthBusinessIdentity = dominantRows.some((item) => isBusinessRole(item.role_code));
+				if (!this.hasYfthBusinessIdentity) {
+					this.yfthCurrentContext = currentContext();
+					return false;
+				}
+				return resolveDominantYfthContext(list).then((context) => {
+					this.yfthCurrentContext = context;
+					uni.reLaunch({ url: '/pages/yfth/workbench/index' });
+					return true;
+				});
 			}).catch(() => {
 				if (requestSeq === this.yfthBusinessIdentityRequestSeq) {
-					this.hasYfthBusinessIdentity = false;
+					const cached = currentContext();
+					this.hasYfthBusinessIdentity = Boolean(cached.is_business_role);
+					if (cached.is_business_role) uni.reLaunch({ url: '/pages/yfth/workbench/index' });
 				}
 				return false;
 			});
@@ -754,8 +764,10 @@ export default {
 				toLogin();
 				return;
 			}
-			uni.navigateTo({
-				url: '/pages/yfth/workbench/role_switch'
+			loadYfthIdentities().then((list) => resolveDominantYfthContext(list)).then((context) => {
+				uni.reLaunch({ url: context.is_business_role ? '/pages/yfth/workbench/index' : '/pages/index/index' });
+			}).catch((err) => {
+				uni.showToast({ title: String((err && err.msg) || err || '身份读取失败'), icon: 'none' });
 			});
 		},
 

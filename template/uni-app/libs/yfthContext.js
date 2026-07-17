@@ -53,6 +53,14 @@ const CONTEXT_KEY = 'YFTH_CURRENT_CONTEXT';
 const ROLE_KEY = 'YFTH_CURRENT_ROLE';
 const STORE_KEY = 'YFTH_CURRENT_STORE';
 
+export const YFTH_ROLE_PRIORITY = {
+	franchisee: 400,
+	store_manager: 300,
+	store_staff: 200,
+	service_mentor: 100,
+	customer: 0
+};
+
 export function roleLabel(roleCode) {
 	return YFTH_ROLE_LABELS[roleCode] || roleCode || '顾客';
 }
@@ -91,6 +99,29 @@ export function clearYfthContext() {
 
 export function loadYfthIdentities() {
 	return getYfthIdentities().then((res) => normalizeIdentityRows(res.data || []));
+}
+
+export function dominantYfthIdentities(identities) {
+	const businessRows = normalizeIdentityRows(identities || [])
+		.filter((item) => isBusinessRole(item.role_code));
+	if (!businessRows.length) return [];
+	const highestPriority = businessRows.reduce((highest, item) => {
+		return Math.max(highest, Number(YFTH_ROLE_PRIORITY[item.role_code] || 0));
+	}, 0);
+	return businessRows.filter((item) => Number(YFTH_ROLE_PRIORITY[item.role_code] || 0) === highestPriority);
+}
+
+export function resolveDominantYfthContext(identities) {
+	const resolveFromRows = (rows) => {
+		const dominantRows = dominantYfthIdentities(rows);
+		if (!dominantRows.length) return resolveYfthContext('customer', 0);
+		const cached = currentContext();
+		const selected = dominantRows.find((item) => {
+			return item.role_code === cached.role_code && Number(item.store_id || 0) === Number(cached.store_id || 0);
+		}) || dominantRows.slice().sort((left, right) => Number(left.store_id || 0) - Number(right.store_id || 0))[0];
+		return resolveYfthContext(selected.role_code, selected.store_id || 0);
+	};
+	return identities ? resolveFromRows(identities) : loadYfthIdentities().then(resolveFromRows);
 }
 
 export function resolveYfthContext(roleCode, storeId) {

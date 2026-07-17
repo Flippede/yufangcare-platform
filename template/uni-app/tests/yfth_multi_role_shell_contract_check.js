@@ -44,6 +44,10 @@ assert(context.includes("['franchisee', 'store_manager', 'store_staff', 'service
 assert(context.includes('getYfthContext(data)'), 'role/store context must be verified by the backend');
 assert(context.includes('uid: Number(context.uid || currentUid() || 0)'), 'cached context must carry the current uid');
 assert(context.includes('Number(context.uid) !== Number(uid)'), 'cached context must be rejected after user switch');
+assert(context.includes('YFTH_ROLE_PRIORITY'), 'operating identities must define a stable priority order');
+assert(context.includes('franchisee: 400') && context.includes('store_manager: 300') && context.includes('store_staff: 200'), 'franchisee, manager and staff priority order must remain explicit');
+assert(context.includes('dominantYfthIdentities'), 'identity selection must calculate the highest active operating role');
+assert(context.includes('resolveDominantYfthContext'), 'cached lower roles must be replaced by the highest server identity');
 
 assertNotContains('pages/yfth/workbench/index.vue', "/pages/admin/yfth_writeoff/index", 'user-token workbench must not link to admin writeoff page');
 assertNotContains('pages/yfth/workbench/index.vue', "/pages/admin/orderList/index", 'user-token workbench must not link to admin order page');
@@ -52,7 +56,11 @@ assertContains('pages/yfth/workbench/index.vue', 'precheckYfthStoreWorkbenchWrit
 assertContains('pages/yfth/workbench/index.vue', 'getYfthStoreWorkbenchOrders', 'workbench orders must use the user-token store adapter API');
 assertContains('pages/yfth/workbench/index.vue', 'store_staff', 'workbench must keep store staff as a server-validated store role');
 assertNotContains('pages/yfth/workbench/index.vue', "from '@/api/yfth_admin.js'", 'formal workbench must not import admin-token APIs');
-assertContains('pages/yfth/workbench/index.vue', 'clearYfthContext', 'returning to customer side must clear business context');
+assertContains('pages/yfth/workbench/index.vue', 'resolveDominantYfthContext', 'workbench must always resolve the highest server identity');
+assertNotContains('pages/yfth/workbench/index.vue', 'backCustomer', 'a higher operating identity must not fall back to the customer surface');
+assertNotContains('pages/yfth/workbench/role_switch.vue', 'chooseCustomer', 'role selection must not expose customer fallback to a higher identity');
+assertContains('pages/yfth/workbench/role_switch.vue', 'dominantYfthIdentities', 'role selection must show only the highest role');
+assertContains('pages/yfth/workbench/store_switch.vue', 'dominantYfthIdentities', 'store selection must stay within the highest role');
 assertContains('pages/yfth/workbench/index.vue', '/pages/yfth/workbench/customer/index', 'workbench must link to customer relation page');
 
 assertContains('api/yfth.js', 'yfth/customer/list', 'user API helper must expose customer list');
@@ -86,6 +94,7 @@ assertNotContains('components/pageFooter/index.vue', '.catch(() => {\n\t\t\t\t\t
 
 assertContains('pages/index/index.vue', 'homeComb', 'customer home must keep CRMEB decoration components');
 assertContains('pages/index/index.vue', 'getDiy', 'customer home must keep CRMEB page-decoration loading');
-assertNotContains('pages/index/index.vue', 'yfthContext', 'customer home must not become a business workbench');
+assertContains('pages/index/index.vue', 'redirectDominantYfthRole', 'customer home must redirect an operating account to its highest workbench');
+assertContains('pages/user/index.vue', "uni.reLaunch({ url: '/pages/yfth/workbench/index' })", 'user center must not retain a higher identity on the customer surface');
 
 console.log('YFTH multi-role shell contract check passed.');

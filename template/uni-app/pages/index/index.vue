@@ -194,6 +194,7 @@ import Cache from '@/utils/cache';
 import appUpdate from '@/components/update/app-update.vue';
 import yfthCustomHome from './components/yfthCustomHome.vue';
 import { getYfthHomepage } from '@/api/yfth.js';
+import { currentContext, dominantYfthIdentities, loadYfthIdentities, resolveDominantYfthContext } from '@/libs/yfthContext.js';
 
 export default {
 	computed: {
@@ -333,7 +334,8 @@ export default {
 			configData: Cache.get('BASIC_CONFIG'),
 			customHomepage: { enabled: false },
 			homepageState: 'loading',
-			homepageLoadStarted: false
+			homepageLoadStarted: false,
+			dominantRoleRedirecting: false
 		};
 	},
 	mounted() {
@@ -413,6 +415,7 @@ export default {
 	},
 	onShow() {
 		uni.removeStorageSync('form_type_cart');
+		this.redirectDominantYfthRole();
 		// 优惠券弹窗
 		if (this.isLogin) {
 			this.getCoupon();
@@ -432,6 +435,25 @@ export default {
 		uni.stopPullDownRefresh();
 	},
 	methods: {
+		redirectDominantYfthRole() {
+			if (!this.isLogin || this.dominantRoleRedirecting) return;
+			this.dominantRoleRedirecting = true;
+			loadYfthIdentities().then((list) => {
+				if (!dominantYfthIdentities(list).length) return null;
+				return resolveDominantYfthContext(list);
+			}).then((context) => {
+				if (context && context.is_business_role) {
+					uni.reLaunch({ url: '/pages/yfth/workbench/index' });
+				}
+			}).catch(() => {
+				// A known business account fails closed on the workbench instead of falling back to customer UI.
+				if (currentContext().is_business_role) {
+					uni.reLaunch({ url: '/pages/yfth/workbench/index' });
+				}
+			}).finally(() => {
+				this.dominantRoleRedirecting = false;
+			});
+		},
 		initializeYfthHomepage() {
 			if (this.homepageLoadStarted) return;
 			this.homepageLoadStarted = true;

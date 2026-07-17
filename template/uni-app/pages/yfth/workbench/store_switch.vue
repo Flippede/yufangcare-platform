@@ -14,7 +14,7 @@
 </template>
 
 <script>
-import { currentContext, isBusinessRole, loadYfthIdentities, switchYfthRole } from '@/libs/yfthContext.js';
+import { currentContext, dominantYfthIdentities, loadYfthIdentities, resolveYfthContext } from '@/libs/yfthContext.js';
 
 export default {
 	data() {
@@ -22,7 +22,8 @@ export default {
 	},
 	computed: {
 		stores() {
-			const role = this.requestedRole || this.context.role_code;
+			const dominantRows = dominantYfthIdentities(this.identities);
+			const role = dominantRows[0] ? dominantRows[0].role_code : '';
 			const map = {};
 			this.identities.filter((item) => item.role_code === role && item.store_id).forEach((item) => {
 				map[item.store_id] = item;
@@ -35,13 +36,10 @@ export default {
 	},
 	onShow() {
 		this.context = currentContext();
-		if (!isBusinessRole(this.requestedRole || this.context.role_code)) {
-			uni.reLaunch({ url: '/pages/index/index' });
-			return;
-		}
 		this.loading = true;
 		loadYfthIdentities().then((list) => {
 			this.identities = list;
+			if (!dominantYfthIdentities(list).length) uni.reLaunch({ url: '/pages/index/index' });
 		}).catch((err) => {
 			uni.showToast({ title: String((err && err.msg) || err), icon: 'none' });
 		}).finally(() => {
@@ -53,7 +51,15 @@ export default {
 			if (this.switching) return;
 			this.switching = true;
 			uni.showLoading({ title: '正在切换', mask: true });
-			switchYfthRole(this.requestedRole || item.role_code, item.store_id).then(() => {
+			const dominantRows = dominantYfthIdentities(this.identities);
+			const dominantRole = dominantRows[0] ? dominantRows[0].role_code : '';
+			if (!dominantRole || item.role_code !== dominantRole) {
+				this.switching = false;
+				uni.hideLoading();
+				uni.showToast({ title: '该门店不属于当前最高身份', icon: 'none' });
+				return;
+			}
+			resolveYfthContext(dominantRole, item.store_id).then(() => {
 				uni.reLaunch({
 					url: '/pages/yfth/workbench/index',
 					fail: () => uni.showToast({ title: '工作台打开失败，请重试', icon: 'none' })

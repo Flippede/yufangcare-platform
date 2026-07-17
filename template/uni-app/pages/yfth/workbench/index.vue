@@ -6,7 +6,6 @@
 				<view class="title">{{ context.role_name_cn || '经营身份' }}工作台</view>
 				<view class="sub">{{ context.store_name || '请选择授权门店' }}</view>
 			</view>
-			<button class="light" @click="backCustomer">返回顾客端</button>
 		</view>
 
 		<view v-if="loading" class="empty">正在读取服务端身份上下文...</view>
@@ -15,9 +14,8 @@
 			<button @click="load">重新加载</button>
 		</view>
 		<block v-else>
-			<view class="switch-row">
-				<button @click="goRoleSwitch">切换身份</button>
-				<button v-if="context.requires_store" @click="goStoreSwitch">切换门店</button>
+			<view v-if="context.requires_store && storeIdentities.length > 1" class="switch-row">
+				<button @click="goStoreSwitch">切换门店</button>
 			</view>
 
 			<view class="notice">
@@ -231,11 +229,9 @@ import {
 	writeoffYfthStoreWorkbenchByToken
 } from '@/api/yfth.js';
 import {
-	clearYfthContext,
-	currentContext,
 	isBusinessRole,
 	loadYfthIdentities,
-	resolveYfthContext,
+	resolveDominantYfthContext,
 	roleNav,
 	switchYfthStore
 } from '@/libs/yfthContext.js';
@@ -340,13 +336,10 @@ export default {
 		load() {
 			this.loading = true;
 			this.error = '';
-			const cached = currentContext();
-			const role = cached.role_code || 'customer';
-			const store = cached.store_id || 0;
-			Promise.all([loadYfthIdentities(), resolveYfthContext(role, store)])
-				.then(([identities, context]) => {
+			loadYfthIdentities()
+				.then((identities) => resolveDominantYfthContext(identities).then((context) => ({ identities, context })))
+				.then(({ identities, context }) => {
 					if (!context.is_business_role || !isBusinessRole(context.role_code)) {
-						clearYfthContext();
 						uni.reLaunch({ url: '/pages/index/index' });
 						return;
 					}
@@ -358,7 +351,6 @@ export default {
 					}
 				})
 				.catch((err) => {
-					clearYfthContext();
 					this.error = String((err && err.msg) || err || '身份上下文读取失败');
 					uni.showToast({ title: this.error, icon: 'none' });
 					setTimeout(() => {
@@ -564,9 +556,6 @@ export default {
 			const pad = (n) => (n < 10 ? '0' + n : '' + n);
 			return date.getFullYear() + '-' + pad(date.getMonth() + 1) + '-' + pad(date.getDate()) + ' ' + pad(date.getHours()) + ':' + pad(date.getMinutes());
 		},
-		goRoleSwitch() {
-			uni.navigateTo({ url: '/pages/yfth/workbench/role_switch' });
-		},
 		goStoreSwitch() {
 			uni.navigateTo({ url: '/pages/yfth/workbench/store_switch' });
 		},
@@ -594,10 +583,6 @@ export default {
 				return;
 			}
 			uni.navigateTo({ url: '/pages/yfth/workbench/customer_attribution/index' });
-		},
-		backCustomer() {
-			clearYfthContext();
-			uni.reLaunch({ url: '/pages/index/index' });
 		},
 		activeNav(item) {
 			return (item.pane || 'dashboard') === this.pane && !item.url;
