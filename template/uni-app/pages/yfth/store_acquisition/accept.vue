@@ -27,7 +27,7 @@
 
 <script>
 import { mapGetters } from 'vuex';
-import { toLogin } from '@/libs/login.js';
+import { toLogin, checkLogin } from '@/libs/login.js';
 import { resolveYfthStoreAcquisitionCode, acceptYfthStoreAcquisitionCode } from '@/api/yfth.js';
 const PENDING_KEY = 'yfth_pending_store_acquisition';
 
@@ -46,6 +46,7 @@ export default {
 			this.state = 'loading'; this.error = '';
 			resolveYfthStoreAcquisitionCode(this.token).then((res) => {
 				this.preview = res.data || {};
+				if (!this.isLogin) checkLogin();
 				if (!this.isLogin) { this.state = 'login'; if (!this.redirecting) this.login(); return; }
 				this.state = 'confirm';
 				this.$nextTick(() => this.accept());

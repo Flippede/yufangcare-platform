@@ -103,6 +103,7 @@
 		isWeixin
 	} from "@/utils";
 	import Cache from '@/utils/cache';
+	import { resolveLoginBackUrl } from '@/libs/login.js';
 	export default {
 		mixins: [colors],
 		data() {
@@ -129,7 +130,8 @@
 				colorStatus: uni.getStorageSync('color_status'),
 				mp_is_new: this.$Cache.get('MP_VERSION_ISNEW') || false,
 				configData: Cache.get('BASIC_CONFIG'),
-				bindPhone: false
+				bindPhone: false,
+				postLoginUrl: ''
 			};
 		},
 		components: {
@@ -176,6 +178,10 @@
 			}
 		},
 		methods: {
+			loginBackUrl(backUrl = '') {
+				const resolved = resolveLoginBackUrl(backUrl || '/pages/user/index');
+				return resolved.indexOf('/pages/users/wechat_login/index') === -1 ? resolved : '/pages/index/index';
+			},
 			wechatAuthLogin(d, back_url) {
 				uni.showLoading({
 					title: this.$t(`正在登录中`)
@@ -282,7 +288,8 @@
 				this.$set(this, 'protocol', !this.protocol);
 			},
 			editSuccess() {
-				this.isShow = false
+				this.isShow = false;
+				this.finishLoginNavigation();
 			},
 			phoneLogin() {
 				uni.navigateTo({
@@ -291,7 +298,11 @@
 			},
 			
 			closeEdit() {
-				this.isShow = false
+				this.isShow = false;
+				if (this.postLoginUrl.indexOf('/pages/yfth/store_acquisition/accept') === 0) {
+					this.finishLoginNavigation();
+					return;
+				}
 				this.$util.Tips({
 					title: this.$t(`登录成功`),
 					icon: 'success'
@@ -412,6 +423,7 @@
 			 */
 			getUserInfo(new_user, back_url) {
 				let that = this;
+				this.postLoginUrl = this.loginBackUrl(back_url);
 				getUserInfo().then(res => {
 					uni.hideLoading();
 					that.userInfo = res.data;
@@ -434,7 +446,7 @@
 							icon: 'success'
 						}, {
 							tab: 4,
-							url: back_url || '/pages/user/index'
+							url: this.postLoginUrl
 						});
 						// #endif
 					}
@@ -446,6 +458,10 @@
 						duration: 2000
 					});
 				});
+			},
+			finishLoginNavigation() {
+				const url = this.postLoginUrl || this.loginBackUrl();
+				uni.reLaunch({ url });
 			},
 			privacy(type) {
 				uni.navigateTo({
@@ -493,6 +509,12 @@
 			// 输入手机号后的回调
 			wechatPhone() {
 				this.$Cache.clear('snsapiKey');
+				const pendingUrl = this.loginBackUrl();
+				if (pendingUrl.indexOf('/pages/yfth/store_acquisition/accept') === 0) {
+					this.isUp = false;
+					uni.reLaunch({ url: pendingUrl });
+					return;
+				}
 				if (this.options.back_url) {
 					let url = uni.getStorageSync('snRouter');
 					url = url.indexOf('/pages/index/index') != -1 ? '/' : url;

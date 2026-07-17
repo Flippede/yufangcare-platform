@@ -28,6 +28,20 @@ import {
 } from './../config/cache';
 import Routine from '@/libs/routine';
 
+const LOGIN_BACK_URL = 'login_back_url';
+const YFTH_PENDING_STORE_ACQUISITION = 'yfth_pending_store_acquisition';
+
+export function resolveLoginBackUrl(fallback = '/pages/index/index') {
+	const acquisitionToken = String(uni.getStorageSync(YFTH_PENDING_STORE_ACQUISITION) || '').trim().toLowerCase();
+	if (/^[a-f0-9]{64}$/.test(acquisitionToken)) {
+		Cache.clear(LOGIN_BACK_URL);
+		return `/pages/yfth/store_acquisition/accept?acquisition_token=${acquisitionToken}`;
+	}
+	const backUrl = Cache.get(LOGIN_BACK_URL) || fallback;
+	Cache.clear(LOGIN_BACK_URL);
+	return backUrl;
+}
+
 
 function prePage() {
 	let pages = getCurrentPages();
@@ -68,7 +82,7 @@ function _toLogin(push, pathLogin) {
 	if (!pathLogin)
 		pathLogin = '/pages/users/login/index'
 	if (path !== pathLogin) {
-		Cache.set('login_back_url', path);
+		Cache.set(LOGIN_BACK_URL, path);
 	}
 	// #ifdef H5
 	if (isWeixin() && BASIC_CONFIG.wechat_status) {

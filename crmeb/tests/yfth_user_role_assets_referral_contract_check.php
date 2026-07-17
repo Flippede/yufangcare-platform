@@ -40,6 +40,10 @@ $storeAcquisitionController = $read('app/api/controller/v1/yfth/StoreAcquisition
 $storeAcquisitionMigration = $read('database/migrations/20260718140000_create_yfth_store_acquisition_codes.php');
 $storeAcquisitionCodePage = (string)file_get_contents(dirname($root) . '/template/uni-app/pages/yfth/store_acquisition/code.vue');
 $storeAcquisitionAcceptPage = (string)file_get_contents(dirname($root) . '/template/uni-app/pages/yfth/store_acquisition/accept.vue');
+$loginLibrary = (string)file_get_contents(dirname($root) . '/template/uni-app/libs/login.js');
+$loginPage = (string)file_get_contents(dirname($root) . '/template/uni-app/pages/users/login/index.vue');
+$wechatLoginPage = (string)file_get_contents(dirname($root) . '/template/uni-app/pages/users/wechat_login/index.vue');
+$bindingPhonePage = (string)file_get_contents(dirname($root) . '/template/uni-app/pages/users/binding_phone/index.vue');
 $workbenchPage = (string)file_get_contents(dirname($root) . '/template/uni-app/pages/yfth/workbench/index.vue');
 $pages = (string)file_get_contents(dirname($root) . '/template/uni-app/pages.json');
 $nativeUserPage = (string)file_get_contents(dirname($root) . '/template/admin/src/pages/user/list/index.vue');
@@ -147,6 +151,12 @@ $assert(strpos($storeAcquisitionCodePage, 'resolveYfthContext') !== false, 'empl
 $assert(strpos($workbenchPage, 'store_acquisition/code?role_code=') !== false, 'workbench_passes_verified_context_to_acquisition_page');
 $assert(strpos($storeAcquisitionCodePage, 'getYfthStoreAcquisitionCode') !== false && strpos($storeAcquisitionCodePage, 'active.code_no === cached.code_no') !== false, 'saved_employee_qr_is_reused_until_rotated_or_expired');
 $assert(strpos($storeAcquisitionAcceptPage, 'yfth_pending_store_acquisition') !== false && strpos($storeAcquisitionAcceptPage, 'toLogin') !== false, 'acquisition_login_continuation_exists');
+$assert(strpos($storeAcquisitionAcceptPage, 'checkLogin') !== false, 'acquisition_restores_cached_login_before_redirect');
+$assert(strpos($loginLibrary, 'resolveLoginBackUrl') !== false && strpos($loginLibrary, '/^[a-f0-9]{64}$/') !== false && strpos($loginLibrary, '/pages/yfth/store_acquisition/accept?acquisition_token=') !== false, 'acquisition_login_back_url_is_validated_and_composed');
+foreach ([$loginPage, $wechatLoginPage, $bindingPhonePage] as $loginSurface) {
+    $assert(strpos($loginSurface, 'resolveLoginBackUrl') !== false, 'login_surface_resumes_pending_store_acquisition');
+}
+$assert(strpos($wechatLoginPage, 'finishLoginNavigation') !== false && strpos($bindingPhonePage, 'postLoginUrl') !== false, 'new_wechat_user_resumes_store_acquisition_after_profile');
 $assert(strpos($storeAcquisitionAcceptPage, 'this.$nextTick(() => this.accept())') !== false, 'acquisition_accepts_automatically_after_login');
 $assert(strpos($storeAcquisitionAcceptPage, "uni.reLaunch({ url: '/pages/index/index' })") !== false, 'acquisition_success_returns_to_mall_home');
 $assert(strpos($scanPage, 'acquisition_token') !== false && strpos($scanPage, '/pages/yfth/store_acquisition/accept') !== false, 'scanner_recognizes_store_acquisition_qr');

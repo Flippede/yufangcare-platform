@@ -117,10 +117,10 @@ import attrs, { required, alpha_num, chs_phone } from '@/utils/validate';
 import { getLogo } from '@/api/public';
 // import cookie from "@/utils/store/cookie";
 import { VUE_APP_API_URL } from '@/utils';
+import { resolveLoginBackUrl } from '@/libs/login.js';
 // #ifdef APP-PLUS
 import { wechatAppAuth } from '@/api/api.js';
 // #endif
-const BACK_URL = 'login_back_url';
 import colors from '@/mixins/color.js';
 import Verify from '../components/verify/index.vue';
 export default {
@@ -286,8 +286,7 @@ export default {
 							token: data.token,
 							time: data.expires_time - self.$Cache.time()
 						});
-						let backUrl = self.$Cache.get(BACK_URL) || '/pages/index/index';
-						self.$Cache.clear(BACK_URL);
+						const backUrl = resolveLoginBackUrl();
 						self.$store.commit('SETUID', data.userInfo.uid);
 						uni.reLaunch({
 							url: backUrl
@@ -379,8 +378,7 @@ export default {
 							token: data.token,
 							time: data.expires_time - self.$Cache.time()
 						});
-						let backUrl = self.$Cache.get(BACK_URL) || '/pages/index/index';
-						self.$Cache.clear(BACK_URL);
+						const backUrl = resolveLoginBackUrl();
 						self.$store.commit('SETUID', data.userInfo.uid);
 						uni.reLaunch({
 							url: backUrl
@@ -489,8 +487,7 @@ export default {
 							token: data.token,
 							time: data.expires_time - this.$Cache.time()
 						});
-						let backUrl = that.$Cache.get(BACK_URL) || '/pages/index/index';
-						that.$Cache.clear(BACK_URL);
+						let backUrl = resolveLoginBackUrl();
 						getUserInfo().then((res) => {
 							this.keyLock = true;
 							that.$store.commit('SETUID', res.data.uid);
@@ -640,8 +637,7 @@ export default {
 						token: data.token,
 						time: data.expires_time - this.$Cache.time()
 					});
-					let backUrl = that.$Cache.get(BACK_URL) || '/pages/index/index';
-					that.$Cache.clear(BACK_URL);
+					let backUrl = resolveLoginBackUrl();
 					getUserInfo()
 						.then((res) => {
 							this.keyLock = true;

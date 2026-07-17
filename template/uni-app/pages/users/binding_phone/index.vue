@@ -86,6 +86,7 @@
 	import Routine from '@/libs/routine';
 	import Verify from '../components/verify/index.vue';
 	import Cache from '@/utils/cache';
+	import { resolveLoginBackUrl } from '@/libs/login.js';
 	export default {
 		mixins: [sendVerifyCode, colors],
 		components: {
@@ -108,6 +109,7 @@
 				pageTitle: '绑定手机号',
 				configData: Cache.get('BASIC_CONFIG'),
 				canGetPrivacySetting: false,
+				postLoginUrl: '',
 			}
 		},
 		onLoad(options) {
@@ -251,6 +253,7 @@
 			 */
 			getUserInfo(new_user) {
 				let that = this;
+				this.postLoginUrl = resolveLoginBackUrl(this.backUrl || '/pages/user/index');
 				getUserInfo().then(res => {
 					uni.hideLoading();
 					that.userInfo = res.data;
@@ -274,7 +277,7 @@
 							icon: 'success'
 						}, {
 							tab: 4,
-							url: this.backUrl || 'pages/user/index'
+							url: this.postLoginUrl
 						});
 						// #endif
 
@@ -318,6 +321,10 @@
 			},
 			closeEdit() {
 				this.isShow = false
+				if (this.postLoginUrl.indexOf('/pages/yfth/store_acquisition/accept') === 0) {
+					uni.reLaunch({ url: this.postLoginUrl });
+					return;
+				}
 				this.$util.Tips({
 					title: this.$t(`登录成功`),
 					icon: 'success'
@@ -327,7 +334,8 @@
 				});
 			},
 			editSuccess() {
-				this.isShow = false
+				this.isShow = false;
+				if (this.postLoginUrl) uni.reLaunch({ url: this.postLoginUrl });
 			},
 			back() {
 				uni.navigateBack({
