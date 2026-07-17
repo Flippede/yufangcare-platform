@@ -342,6 +342,7 @@ export default {
 		// H5 direct URL routing does not always invoke the uni-app page onLoad hook.
 		// Keep the initialization one-shot because MP still enters through onLoad.
 		this.initializeYfthHomepage();
+		this.$nextTick(() => this.redirectDominantYfthRole());
 	},
 	onLoad(options) {
 		options = options || {};
@@ -403,6 +404,7 @@ export default {
 				// 优惠券弹窗
 				var newDates = new Date().toLocaleDateString();
 				if (newV) {
+					this.redirectDominantYfthRole();
 					try {
 						var oldDate = uni.getStorageSync('oldDate') || '';
 					} catch {}

@@ -95,6 +95,8 @@ assertNotContains('components/pageFooter/index.vue', '.catch(() => {\n\t\t\t\t\t
 assertContains('pages/index/index.vue', 'homeComb', 'customer home must keep CRMEB decoration components');
 assertContains('pages/index/index.vue', 'getDiy', 'customer home must keep CRMEB page-decoration loading');
 assertContains('pages/index/index.vue', 'redirectDominantYfthRole', 'customer home must redirect an operating account to its highest workbench');
+assertContains('pages/index/index.vue', 'this.$nextTick(() => this.redirectDominantYfthRole())', 'cold H5 entry must retry dominant routing after mount');
+assertContains('pages/index/index.vue', 'if (newV) {\n\t\t\t\t\tthis.redirectDominantYfthRole();', 'restored login state must trigger dominant routing');
 assertContains('pages/user/index.vue', "uni.reLaunch({ url: '/pages/yfth/workbench/index' })", 'user center must not retain a higher identity on the customer surface');
 
 console.log('YFTH multi-role shell contract check passed.');
