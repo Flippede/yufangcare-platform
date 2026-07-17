@@ -114,6 +114,15 @@ $assert($contains($adminPage, '招商合伙人详情') && $contains($adminPage, 
 $assert($contains($adminPage, '晋级申请') && $contains($userPage, '申请晋升下一职级'), 'promotion_surface_present');
 $assert($contains($userPage, '加盟申请二维码') && $contains($userPage, '招商收益候选'), 'partner_workbench_present');
 
+$assert($contains($userPage, ':key="qrRenderKey"')
+    && $contains($userPage, 'queueQrRender')
+    && $contains($userPage, 'this.$refs.partnerQr._makeCode()'),
+    'partner_invite_qr_rerenders_after_async_invite');
+$assert($contains($userPage, 'partner-qr-image')
+    && $contains($userPage, 'qrError')
+    && $contains($userPage, '二维码生成中'),
+    'partner_invite_qr_has_visible_result_and_safe_state');
+
 foreach (['user_brokerage', 'user_bill', 'brokerage_price', 'integral', 'now_money', 'spread_uid', 'store_order'] as $forbidden) {
     $assert(!$contains($service, $forbidden), 'partner_service_does_not_write_crmeb_money_or_order:' . $forbidden);
 }

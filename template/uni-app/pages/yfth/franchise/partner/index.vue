@@ -18,7 +18,12 @@
 			<view class="panel">
 				<view class="panel-head"><view><view class="title">加盟申请二维码</view><view class="hint">仅用于打开申请并记录招商来源，不会直接开店或授予身份</view></view><button @click="createInvite">生成/替换</button></view>
 				<view v-if="invite.invite_path" class="invite-box">
-					<view class="qr-wrap"><zb-code ref="partnerQr" cid="yfth-partner-qr" :val="shareUrl" :size="390" :onval="true" :loadMake="true" foreground="#75512f" @result="onQrReady" /></view>
+					<view class="qr-wrap">
+						<zb-code v-if="shareUrl" :key="qrRenderKey" ref="partnerQr" cid="yfth-partner-qr" :val="shareUrl" :size="390" :show="false" :onval="false" :loadMake="false" foreground="#75512f" @result="onQrReady" />
+						<image v-if="qrImage" class="partner-qr-image" :src="qrImage" mode="aspectFit" />
+						<view v-else-if="qrError" class="qr-state error" @click="queueQrRender">{{ qrError }}，点击重试</view>
+						<view v-else class="qr-state">二维码生成中...</view>
+					</view>
 					<view class="invite-link">{{ shareUrl }}</view>
 					<view class="invite-actions"><button class="light" @click="copyLink">复制申请链接</button><button class="light" @click="saveQr">保存二维码</button></view>
 				</view>
@@ -62,7 +67,7 @@ import zbCode from '@/components/zb-code/zb-code.vue';
 
 export default {
 	components: { zbCode },
-	data() { return { loading: true, error: '', data: {}, team: [], invite: {}, qrImage: '' }; },
+	data() { return { loading: true, error: '', data: {}, team: [], invite: {}, qrImage: '', qrError: '', qrRenderKey: 0, qrRenderTimer: null }; },
 	computed: {
 		profile() { return this.data.profile || {}; }, performance() { return this.data.performance || {}; },
 		applications() { return this.data.my_applications || []; }, rewards() { return this.data.reward_summary || {}; },
@@ -87,14 +92,43 @@ export default {
 			// #endif
 		}
 	},
+	watch: {
+		shareUrl(value, previous) {
+			if (value && value !== previous) this.queueQrRender();
+		}
+	},
 	onLoad() { this.load(); },
+	beforeDestroy() { if (this.qrRenderTimer) clearTimeout(this.qrRenderTimer); },
 	methods: {
 		load() { this.loading = true; this.error = ''; return getYfthPartnerWorkbench().then((res) => { this.data = res.data || {}; return this.loadTeam(); }).catch((err) => { this.error = String((err && err.msg) || err || '招商身份读取失败'); }).finally(() => { this.loading = false; }); },
 		loadTeam() { return getYfthPartnerTeam().then((res) => { this.team = (res.data || {}).tree || []; }); },
 		createInvite() { createYfthPartnerInvite({ request_id: `partner-invite-${Date.now()}` }).then((res) => { this.invite = res.data || {}; uni.showToast({ title: '申请码已生成', icon: 'success' }); }).catch((err) => { uni.showToast({ title: (err && (err.msg || err.message)) || '申请码生成失败', icon: 'none' }); }); },
 		applyPromotion() { uni.showModal({ title: '申请晋升', editable: true, placeholderText: '请说明已达成的晋升条件', success: (modal) => { if (!modal.confirm || !String(modal.content || '').trim()) return; applyYfthPartnerPromotion({ reason: String(modal.content).trim() }).then(() => { uni.showToast({ title: '已提交总部审核', icon: 'success' }); this.load(); }).catch((err) => { uni.showToast({ title: (err && (err.msg || err.message)) || '提交失败', icon: 'none' }); }); } }); },
 		copyLink() { uni.setClipboardData({ data: this.shareUrl }); },
-		onQrReady(value) { this.qrImage = String(value || ''); },
+		queueQrRender() {
+			if (!this.shareUrl) return;
+			if (this.qrRenderTimer) clearTimeout(this.qrRenderTimer);
+			this.qrImage = '';
+			this.qrError = '';
+			this.qrRenderKey += 1;
+			const expectedUrl = this.shareUrl;
+			this.$nextTick(() => {
+				this.qrRenderTimer = setTimeout(() => {
+					this.qrRenderTimer = null;
+					try {
+						if (!this.$refs.partnerQr || this.shareUrl !== expectedUrl) throw new Error('qr_component_not_ready');
+						this.$refs.partnerQr._makeCode();
+					} catch (error) {
+						this.qrError = '二维码生成失败';
+					}
+				}, 0);
+			});
+		},
+		onQrReady(value) {
+			const result = typeof value === 'string' ? value : '';
+			this.qrImage = result;
+			this.qrError = result ? '' : '二维码生成失败';
+		},
 		saveQr() {
 			if (!this.qrImage) return uni.showToast({ title: '二维码尚未生成', icon: 'none' });
 			// #ifdef H5
@@ -115,6 +149,6 @@ export default {
 </script>
 
 <style scoped>
-.page { min-height: 100vh; padding: 24rpx; box-sizing: border-box; background: #f5efe5; color: #2d2434; }.hero { padding: 32rpx; border-radius: 16rpx; background: #8b633b; color: #fff; }.eyebrow { color: #f3dfba; font-size: 22rpx; }.rank { margin-top: 8rpx; font-size: 40rpx; font-weight: 700; }.store { margin-top: 8rpx; color: #fff1d7; font-size: 24rpx; }.metrics { display: grid; grid-template-columns: repeat(3,1fr); margin-top: 18rpx; background: #fff; border-radius: 16rpx; }.metrics>view,.reward-grid>view { padding: 24rpx 8rpx; text-align: center; }.metrics strong,.reward-grid strong { display: block; color: #74502e; font-size: 32rpx; }.metrics span,.reward-grid span { display: block; margin-top: 8rpx; color: #8d8178; font-size: 21rpx; }.panel { margin-top: 18rpx; padding: 24rpx; border-radius: 16rpx; background: #fff; box-shadow: 0 8rpx 24rpx rgba(75,50,30,.05); }.panel-head,.row,.rule-line { display: flex; align-items: center; justify-content: space-between; gap: 14rpx; }.title { font-size: 30rpx; font-weight: 700; }.hint,.inline-empty,.row span,.tree-row span { display: block; margin-top: 8rpx; color: #91847a; font-size: 22rpx; line-height: 1.55; }.panel button { margin: 0; padding: 0 18rpx; height: 58rpx; line-height: 58rpx; border-radius: 10rpx; background: #75512f; color: #fff; font-size: 23rpx; }.panel button.light { background: #f6ecdc; color: #75512f; }.invite-box { margin-top: 20rpx; text-align: center; }.qr-wrap { display: flex; justify-content: center; padding: 12rpx 0; }.invite-actions { display: flex; justify-content: center; gap: 16rpx; }.invite-link { margin: 14rpx 0; padding: 14rpx; border-radius: 10rpx; background: #faf6ef; color: #786a60; font-size: 20rpx; word-break: break-all; }.row,.tree-row { padding-top: 18rpx; padding-bottom: 18rpx; border-bottom: 1rpx solid #f0e8de; }.row b,.tree-row b { font-size: 25rpx; }.row em { color: #a8753e; font-size: 22rpx; font-style: normal; }.rule-line { margin-top: 18rpx; padding: 16rpx; background: #faf6ef; }.rule-json { margin-top: 12rpx; color: #705e51; font-size: 23rpx; line-height: 1.6; }.reward-grid { display: grid; grid-template-columns: repeat(3,1fr); }.empty { margin-top: 20rpx; padding: 40rpx; text-align: center; background: #fff; border-radius: 16rpx; }.error { color: #c44; }
+.page { min-height: 100vh; padding: 24rpx; box-sizing: border-box; background: #f5efe5; color: #2d2434; }.hero { padding: 32rpx; border-radius: 16rpx; background: #8b633b; color: #fff; }.eyebrow { color: #f3dfba; font-size: 22rpx; }.rank { margin-top: 8rpx; font-size: 40rpx; font-weight: 700; }.store { margin-top: 8rpx; color: #fff1d7; font-size: 24rpx; }.metrics { display: grid; grid-template-columns: repeat(3,1fr); margin-top: 18rpx; background: #fff; border-radius: 16rpx; }.metrics>view,.reward-grid>view { padding: 24rpx 8rpx; text-align: center; }.metrics strong,.reward-grid strong { display: block; color: #74502e; font-size: 32rpx; }.metrics span,.reward-grid span { display: block; margin-top: 8rpx; color: #8d8178; font-size: 21rpx; }.panel { margin-top: 18rpx; padding: 24rpx; border-radius: 16rpx; background: #fff; box-shadow: 0 8rpx 24rpx rgba(75,50,30,.05); }.panel-head,.row,.rule-line { display: flex; align-items: center; justify-content: space-between; gap: 14rpx; }.title { font-size: 30rpx; font-weight: 700; }.hint,.inline-empty,.row span,.tree-row span { display: block; margin-top: 8rpx; color: #91847a; font-size: 22rpx; line-height: 1.55; }.panel button { margin: 0; padding: 0 18rpx; height: 58rpx; line-height: 58rpx; border-radius: 10rpx; background: #75512f; color: #fff; font-size: 23rpx; }.panel button.light { background: #f6ecdc; color: #75512f; }.invite-box { margin-top: 20rpx; text-align: center; }.qr-wrap { display: flex; align-items: center; justify-content: center; min-height: 390rpx; padding: 12rpx 0; }.partner-qr-image { display: block; width: 390rpx; height: 390rpx; }.qr-state { display: flex; align-items: center; justify-content: center; width: 390rpx; height: 390rpx; color: #91847a; font-size: 23rpx; background: #faf6ef; }.invite-actions { display: flex; justify-content: center; gap: 16rpx; }.invite-link { margin: 14rpx 0; padding: 14rpx; border-radius: 10rpx; background: #faf6ef; color: #786a60; font-size: 20rpx; word-break: break-all; }.row,.tree-row { padding-top: 18rpx; padding-bottom: 18rpx; border-bottom: 1rpx solid #f0e8de; }.row b,.tree-row b { font-size: 25rpx; }.row em { color: #a8753e; font-size: 22rpx; font-style: normal; }.rule-line { margin-top: 18rpx; padding: 16rpx; background: #faf6ef; }.rule-json { margin-top: 12rpx; color: #705e51; font-size: 23rpx; line-height: 1.6; }.reward-grid { display: grid; grid-template-columns: repeat(3,1fr); }.empty { margin-top: 20rpx; padding: 40rpx; text-align: center; background: #fff; border-radius: 16rpx; }.error { color: #c44; }
 .promotion-status { margin-top: 16rpx; color: #8b633b; font-size: 23rpx; }.panel button.promotion-button { width: 100%; margin-top: 18rpx; }
 </style>
