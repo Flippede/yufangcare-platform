@@ -1,5 +1,13 @@
 # 项目交接文档
 
+## Current Fact Snapshot - Franchise Opening And Five-level Partner Hierarchy V1 Production Closure
+
+- Production `https://yfth.top` now serves functional commit `040db75a5c575ba5c05e5d3c35d154eeeda49419` from preserved branch `codex/yfth-franchise-opening-partner-hierarchy-v1`. Stable `main` / `origin/main` remains `cf58036638a1d53d7a29c6aa41a79ae52a37c4a5`; this release has not been merged to main.
+- Production migration `20260719100000 CreateYfthFranchisePartnerHierarchy` completed on the independent MySQL 8 production database. The result contains 12 new YFTH partner/opening tables, 20 active page/API permissions, published rule `YFTH-PARTNER-V1`, and rank snapshots `40/17/10/8/5` yuan per bottle for county, prefecture, province, regional director, and platform director.
+- The latest Admin and H5 artifacts were released. Real browser checks loaded the branded customer login page and the authenticated headquarters page `/admin/yfth/franchise-partner`; the partner page rendered its dashboard, six management tabs, filters, and empty-list state. Public H5, Admin, and partner routes returned HTTP 200, Redis returned `PONG`, PHP-FPM and two queue processes remained running, and recent project logs contained no fatal/uncaught/SQLSTATE match.
+- Production backup: `/www/backup/yfth-partner-hierarchy-20260717-153425`; retained release: `/www/releases/yfth-partner-hierarchy-20260717-153425`. The full database dump was gzip-tested, and the pre-release Admin/H5/code snapshot, `.env`, checksums, and table counts were retained with restricted permissions.
+- The production `.env` hash remained unchanged. Existing products, users, stores, orders, uploads, OSS, SMS, WeChat, payment certificates, and business data were not replaced. No payment, SMS, refund, automatic payout, production rollback, or WeChat upload was performed. The mp-weixin artifact was compiled and retained but not uploaded.
+
 ## Current Fact Snapshot - Franchise Opening And Five-level Partner Hierarchy V1 Development Closure
 
 - Current feature branch: `codex/yfth-franchise-opening-partner-hierarchy-v1`; development started from deployed identity/referral branch commit `c39dcf873b04c5c390f841789effc0cc260612be`. Stable `main` / `origin/main` remains `cf58036638a1d53d7a29c6aa41a79ae52a37c4a5`; this snapshot does not claim a main merge.

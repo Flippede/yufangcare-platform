@@ -1,5 +1,17 @@
 # YFTH Franchise Partner Hierarchy V1 Runtime Validation
 
+## Production Release - 2026-07-17
+
+- Functional commit: `040db75a5c575ba5c05e5d3c35d154eeeda49419` on preserved branch `codex/yfth-franchise-opening-partner-hierarchy-v1`; no main merge was performed.
+- Production URL: `https://yfth.top`; application root: `/www/wwwroot/CRMEB-master/crmeb`.
+- Backup: `/www/backup/yfth-partner-hierarchy-20260717-153425`; retained release: `/www/releases/yfth-partner-hierarchy-20260717-153425`.
+- The pre-release full database dump passed gzip verification. Code/Admin/H5, `.env`, checksums, and table-count evidence were retained before release.
+- Production migration `20260719100000 CreateYfthFranchisePartnerHierarchy` ran successfully on the independent MySQL 8 production database. Post-release checks found 12 hierarchy/opening tables and 20 active menu/API permissions.
+- Published production rule `YFTH-PARTNER-V1` contains the five expected per-bottle snapshots: county `40.00`, prefecture `17.00`, province `10.00`, regional director `8.00`, and platform director `5.00`.
+- Admin and H5 artifacts were deployed. Browser verification rendered the branded user login and the authenticated headquarters partner-management page. Public H5/Admin/partner routes returned HTTP 200; Redis, PHP-FPM, and two queue processes were healthy; the recent application log scan found no fatal/uncaught/SQLSTATE match.
+- The production `.env` checksum remained unchanged. Existing uploads, OSS, SMS, WeChat, payment certificates, products, users, stores, orders, and other business facts were preserved. No real payment, SMS, refund, payout, rollback, or WeChat upload was executed.
+- The mp-weixin production artifact was built and retained for later platform upload; it was not uploaded in this release.
+
 ## Environment
 
 - Branch start: `c39dcf873b04c5c390f841789effc0cc260612be`.
