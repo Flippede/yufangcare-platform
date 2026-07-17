@@ -1,5 +1,14 @@
 # 项目交接文档
 
+## Current Fact Snapshot - H5 Store Acquisition QR Rendering Fix
+
+- Production `https://yfth.top` now serves QR compatibility commit `60b7892c321e8d8127fc12bfeef5d0e87d026287` from preserved branch `codex/yfth-franchise-opening-partner-hierarchy-v1`. The store-acquisition API, opaque token, store attribution rules, role checks, and database schema were not changed.
+- Root cause was reproduced in the production browser: the shared legacy `zb-code` component called `uni.createCanvasContext` in H5, but the current H5 runtime did not implement that mini-program canvas adapter. The resulting undefined context failed at `setFillStyle`, leaving the QR region blank even though the code API and store data succeeded.
+- H5 now renders the existing QR algorithm through a browser-native off-screen canvas and returns a PNG data URL. Non-H5 builds retain the original uni-app canvas path, so mp-weixin behavior is unchanged.
+- Focused role/assets/referral contract checks passed, including explicit H5-native and mini-program canvas guards. H5 production build and mp-weixin production compile passed; `git diff --check` passed.
+- Real production browser verification passed for both controlled TEST B1 staff and manager accounts. Each page rendered one visible `195 x 195` PNG QR image, the correct store name, and the correct source role. No new `createCanvasContext`, `setFillStyle`, or QR-generation exception occurred after the release.
+- Production H5 backup: `/www/backup/yfth-h5-qr-20260717-164344`; retained release: `/www/releases/yfth-h5-qr-20260717-164344`. The production `.env` SHA-256 remained unchanged. No database migration, payment, SMS, WeChat upload, product, order, upload, OSS, or payment-certificate change was performed.
+
 ## Current Fact Snapshot - Debug User Purge Confirmation Simplification
 
 - Branch `codex/yfth-franchise-opening-partner-hierarchy-v1` simplifies the headquarters debug-user purge dialog to one exact manual confirmation: `确认删除`. The former account re-entry, dynamic `DELETE UID ...` phrase, and eight-character free-text reason are no longer requested.
