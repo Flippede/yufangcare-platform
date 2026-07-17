@@ -318,6 +318,9 @@ export default {
 		},
 		businessTools() {
 			const tools = [];
+			if (this.context.role_code === 'franchisee') {
+				tools.push({ key: 'partner', icon: '招', title: '招商合伙人工作台', desc: '申请二维码、团队、业绩、职级与招商收益' });
+			}
 			if (this.canPurchaseInventory) {
 				tools.push({ key: 'purchase', icon: '采', title: '进入采购库存', desc: '采购单、收货与门店库存' });
 			}
@@ -641,8 +644,9 @@ export default {
 		tapDashboard(item) {
 			this.openPane(item.pane || 'dashboard');
 		},
-		tapBusinessTool(item) {
+			tapBusinessTool(item) {
 			const actions = {
+				partner: this.goPartnerWorkbench,
 				purchase: this.goPurchase,
 				product_quota: this.goProductQuota,
 				package_membership: this.goPackageMembership,
@@ -650,6 +654,9 @@ export default {
 			};
 			const action = actions[item && item.key];
 			if (typeof action === 'function') action.call(this);
+		},
+		goPartnerWorkbench() {
+			uni.navigateTo({ url: '/pages/yfth/franchise/partner/index' });
 		},
 		switchStore(storeId) {
 			switchYfthStore(storeId).then(() => {

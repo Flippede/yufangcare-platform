@@ -135,6 +135,17 @@ Route::group(function () {
     ->option(['mark' => 'yfth_franchise_opening_user', 'mark_name' => 'YFTH franchise opening user-token API']);
 
 Route::group(function () {
+    Route::get('yfth/franchise/partner/workbench', 'v1.yfth.FranchisePartnerController/workbench')->option(['real_name' => 'YFTH招商合伙人工作台']);
+    Route::post('yfth/franchise/partner/invite', 'v1.yfth.FranchisePartnerController/createInvite')->option(['real_name' => 'YFTH加盟申请邀请']);
+    Route::get('yfth/franchise/partner/team', 'v1.yfth.FranchisePartnerController/team')->option(['real_name' => 'YFTH招商团队']);
+    Route::get('yfth/franchise/partner/rewards', 'v1.yfth.FranchisePartnerController/rewards')->option(['real_name' => 'YFTH招商收益']);
+    Route::post('yfth/franchise/partner/promotion/apply', 'v1.yfth.FranchisePartnerController/promotionApply')->option(['real_name' => 'YFTH招商晋级申请']);
+})->middleware(\app\http\middleware\AllowOriginMiddleware::class)
+    ->middleware(\app\api\middleware\StationOpenMiddleware::class)
+    ->middleware(\app\api\middleware\AuthTokenMiddleware::class)
+    ->option(['mark' => 'yfth_franchise_partner_user', 'mark_name' => 'YFTH partner user-token API']);
+
+Route::group(function () {
     Route::post('yfth/referral/code', 'v1.yfth.ReferralRewardController/createCode')->option(['real_name' => 'YFTH referral code create']);
     Route::get('yfth/referral/code', 'v1.yfth.ReferralRewardController/code')->option(['real_name' => 'YFTH my referral code']);
     Route::post('yfth/referral/bind', 'v1.yfth.ReferralRewardController/bind')->option(['real_name' => 'YFTH referral candidate bind']);

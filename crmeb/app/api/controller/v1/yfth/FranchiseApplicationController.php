@@ -17,6 +17,7 @@ class FranchiseApplicationController
             ['intention_area', ''],
             ['budget', 0],
             ['remark', ''],
+            ['partner_invite', ''],
         ]);
         foreach (['uid', 'applicant_uid', 'assigned_uid', 'status', 'store_id'] as $field) {
             if ($request->post($field, null) !== null) {

@@ -3,7 +3,7 @@
 		<view class="header">
 			<view class="eyebrow">合作申请</view>
 			<view class="title">填写加盟意向</view>
-			<view class="sub">本页面仅提交基础申请，不代表已获得加盟商身份。</view>
+			<view class="sub">完成总部审核、财务到账、筹备验收和正式开店后，方可获得县级合伙人身份。</view>
 		</view>
 
 		<view class="form-card">
@@ -49,6 +49,7 @@ export default {
 	data() {
 		return {
 			submitting: false,
+			partnerInvite: '',
 			form: {
 				name: '',
 				phone: '',
@@ -61,6 +62,10 @@ export default {
 		};
 	},
 	computed: mapGetters(['isLogin']),
+	onLoad(options) {
+		this.partnerInvite = String((options && options.partner_invite) || uni.getStorageSync('YFTH_PARTNER_INVITE') || '');
+		if (this.partnerInvite) uni.setStorageSync('YFTH_PARTNER_INVITE', this.partnerInvite);
+	},
 	methods: {
 		submit() {
 			if (!this.isLogin) {
@@ -72,8 +77,10 @@ export default {
 				return;
 			}
 			this.submitting = true;
-			submitYfthFranchiseApplication(this.form).then((res) => {
+			const payload = Object.assign({}, this.form, { partner_invite: this.partnerInvite });
+			submitYfthFranchiseApplication(payload).then((res) => {
 				const id = res.data && res.data.application && res.data.application.id;
+				uni.removeStorageSync('YFTH_PARTNER_INVITE');
 				uni.showToast({ title: '已提交', icon: 'success' });
 				setTimeout(() => {
 					uni.redirectTo({ url: '/pages/yfth/franchise/detail?id=' + id });

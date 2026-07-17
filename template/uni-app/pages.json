@@ -319,6 +319,12 @@
 					}
 				},
 				{
+					"path": "franchise/partner/index",
+					"style": {
+						"navigationBarTitleText": "招商合伙人工作台"
+					}
+				},
+				{
 					"path": "referral/accept",
 					"style": {
 						"navigationBarTitleText": "接受会员邀请"

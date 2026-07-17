@@ -76,6 +76,7 @@ foreach ([
     'userConfirmContract',
     'adminConfirmContract',
     'adminConfirmPayment',
+    'adminCreateAndBindStore',
     'ensurePreparationTasks',
     'userSubmitTask',
     'validateFirstPurchaseTask',
@@ -142,8 +143,10 @@ $assert($contains($service, "(string)(\$row['status'] ?? '') !== 'approved'"), '
 $assert($contains($service, "\$this->validateFirstPurchaseTask(\$row, []);"), 'first_purchase_approved_readonly_revalidated');
 $assert($contains($service, "'franchise_acceptance_application_not_preparing'"), 'acceptance_requires_preparing_application');
 $assert($contains($service, "'franchise_acceptance_payment_not_confirmed'"), 'acceptance_requires_finance_payment');
-$assert($contains($service, "'franchise_acceptance_store_not_bound'"), 'acceptance_pass_requires_bound_store');
-$assert($contains($service, "StoreAccessServices::class)->assertStoreActive(\$storeId)"), 'acceptance_pass_requires_active_store');
+$assert($contains($service, "'franchise_acceptance_store_profile_not_verified'"), 'acceptance_pass_requires_verified_profile');
+$assert($contains($service, "'franchise_store_create_acceptance_not_passed'"), 'formal_store_creation_requires_passed_acceptance');
+$assert($contains($service, "Db::name('yfth_franchise_store_profile')->where('id', \$profileId)->lock(true)->find()"), 'formal_store_creation_locks_profile');
+$assert($contains($service, "StoreAccessServices::class)->assertStoreActive((int)\$profile['system_store_id'])"), 'formal_store_creation_is_idempotent_for_active_store');
 $assert($contains($service, "if (!\$this->allRequiredTasksApprovedStrict"), 'acceptance_and_grant_require_approved_tasks');
 $assert($contains($service, "(string)\$acceptance['status'] !== 'passed'"), 'grant_requires_passed_acceptance');
 $assert($contains($service, "\$storeId <= 0"), 'grant_requires_concrete_store_id');
@@ -159,6 +162,7 @@ foreach ([
     'yfth/franchise_opening/contract',
     'yfth/franchise_opening/payment/<id>/confirm',
     'yfth/franchise_opening/profile/<id>/bind_store',
+    'yfth/franchise_opening/profile/<id>/create_store',
     'yfth/franchise_opening/task/<id>/review',
     'yfth/franchise_opening/acceptance/<id>/review',
     'yfth/franchise_opening/identity_grant',
@@ -184,6 +188,7 @@ foreach ([
     'AdminAuthTokenMiddleware::class',
     'AdminCheckRoleMiddleware::class',
     'FranchiseOpening/identityGrant',
+    'FranchiseOpening/profileCreateStore',
 ] as $needle) {
     $assert($contains($adminRoute, $needle), 'admin_route_contains:' . $needle);
 }

@@ -13,7 +13,11 @@ class HqUserRoleManagementServices
     private const DOMAIN = 'yfth_user_role_management';
     private const MEMBERSHIP_ROLE = 'permanent_member';
     private const ROLE_NAMES = [
-        'franchisee' => '加盟商',
+        'franchisee' => '县级合伙人（兼容门店权限）',
+        'store_manager' => '店长',
+        'store_staff' => '店员',
+    ];
+    private const GRANTABLE_ROLE_NAMES = [
         'store_manager' => '店长',
         'store_staff' => '店员',
     ];
@@ -117,7 +121,7 @@ class HqUserRoleManagementServices
                 'attribution' => (array)($result['attribution'] ?? []),
             ];
         }
-        if (!isset(self::ROLE_NAMES[$roleCode])) {
+        if (!isset(self::GRANTABLE_ROLE_NAMES[$roleCode])) {
             throw new ApiException('user_store_role_code_invalid');
         }
 
@@ -169,7 +173,7 @@ class HqUserRoleManagementServices
         $requestId = $this->requestId($data);
         return Db::transaction(function () use ($roleId, $reason, $requestId, $adminId) {
             $before = $this->roleRow($this->roles->search([])->where('id', $roleId)->lock(true)->find());
-            if (!$before || !isset(self::ROLE_NAMES[(string)($before['role_code'] ?? '')])) {
+            if (!$before || !isset(self::GRANTABLE_ROLE_NAMES[(string)($before['role_code'] ?? '')])) {
                 throw new ApiException('user_store_role_not_found');
             }
             if ((string)$before['status'] !== YfthConstants::STATUS_ACTIVE) {
@@ -214,6 +218,7 @@ class HqUserRoleManagementServices
         $franchiseeStores = array_values(array_filter($roles, function ($role) {
             return (string)$role['role_code'] === 'franchisee' && (string)$role['status'] === YfthConstants::STATUS_ACTIVE;
         }));
+        $partner = Db::name('yfth_partner_profile')->where('uid', $uid)->find() ?: [];
         $attribution = Db::name('yfth_hq_customer_attribution_current')->where('uid', $uid)->find() ?: [];
         $referral = Db::name('yfth_hq_active_referral_current')->where('referred_uid', $uid)->find() ?: [];
         $attributionStore = !empty($attribution['store_id']) ? $this->storeName((int)$attribution['store_id']) : '';
@@ -260,6 +265,20 @@ class HqUserRoleManagementServices
                 'active' => count($franchiseeStores) > 0,
                 'stores' => $franchiseeStores,
             ],
+            'partner_identity' => $partner ? [
+                'active' => (string)$partner['status'] === 'active',
+                'rank_code' => (string)$partner['rank_code'],
+                'rank_name' => [
+                    'county_partner' => '县级合伙人',
+                    'prefecture_partner' => '地级合伙人',
+                    'province_partner' => '省级合伙人',
+                    'regional_director' => '大区总监',
+                    'platform_director' => '平台董事',
+                ][(string)$partner['rank_code']] ?? (string)$partner['rank_code'],
+                'primary_store_id' => (int)$partner['primary_store_id'],
+                'store_name' => !empty($partner['primary_store_id']) ? $this->storeName((int)$partner['primary_store_id']) : '',
+                'status' => (string)$partner['status'],
+            ] : null,
             'audit_events' => $auditEvents,
         ];
     }
@@ -293,7 +312,7 @@ class HqUserRoleManagementServices
             'label' => '永久会员',
             'identity_type' => 'membership',
         ]];
-        foreach (self::ROLE_NAMES as $value => $label) {
+        foreach (self::GRANTABLE_ROLE_NAMES as $value => $label) {
             $result[] = array_merge(compact('value', 'label'), ['identity_type' => 'business_role']);
         }
         return $result;

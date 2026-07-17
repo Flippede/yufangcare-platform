@@ -32,8 +32,10 @@ class FranchiseOpeningServices extends YfthFoundationBaseServices
         ['code' => 'store_address', 'name' => 'Store address', 'required' => 1, 'owner' => 'applicant'],
         ['code' => 'decoration_signboard', 'name' => 'Decoration and signboard', 'required' => 1, 'owner' => 'applicant'],
         ['code' => 'qualification_submit', 'name' => 'Qualification submission', 'required' => 1, 'owner' => 'applicant'],
+        ['code' => 'public_account_material', 'name' => 'Headquarters payment account and public-account materials', 'required' => 1, 'owner' => 'applicant'],
         ['code' => 'payment_route_submit', 'name' => 'Payment merchant materials', 'required' => 1, 'owner' => 'applicant'],
-        ['code' => 'first_purchase', 'name' => 'First purchase proof', 'required' => 1, 'owner' => 'applicant'],
+        // Supply-chain purchase is linked after a formal store exists; it must not make pre-opening acceptance impossible.
+        ['code' => 'first_purchase', 'name' => 'First purchase proof', 'required' => 0, 'owner' => 'applicant'],
         ['code' => 'training_complete', 'name' => 'Training completion', 'required' => 1, 'owner' => 'applicant'],
         ['code' => 'opening_material', 'name' => 'Opening materials', 'required' => 1, 'owner' => 'applicant'],
         ['code' => 'acceptance_apply', 'name' => 'Acceptance application', 'required' => 1, 'owner' => 'applicant'],
@@ -370,6 +372,7 @@ class FranchiseOpeningServices extends YfthFoundationBaseServices
             ]);
             $this->ensureStoreProfile((int)$before['application_id'], (int)$before['contract_id']);
             $this->ensurePreparationTasks((int)$before['application_id']);
+            app()->make(FranchisePartnerServices::class)->freezeRecruitSource((int)$before['application_id'], $adminId);
             $this->advanceApplication((int)$before['application_id'], 'preparing');
             $this->audit('franchise_payment_proof', $id, 'payment_finance_confirm', $before, $after, $adminId, 'headquarter_finance', 0, 'finance_confirm_payment');
             return ['payment' => $this->formatPayment($after, true)];
@@ -444,6 +447,80 @@ class FranchiseOpeningServices extends YfthFoundationBaseServices
             $this->syncAcceptanceStore((int)$before['application_id'], $systemStoreId);
             $this->audit('franchise_store_profile', $profileId, 'profile_bind_store', $before, $after, $adminId, 'headquarter_operator', $systemStoreId, 'admin_bind_existing_store');
             return ['store_profile' => $this->formatProfile($after, true)];
+        });
+    }
+
+    public function adminCreateAndBindStore(int $profileId, array $data, int $adminId, array $adminInfo = []): array
+    {
+        $this->assertHeadquarterAdmin($adminInfo);
+        return Db::transaction(function () use ($profileId, $data, $adminId) {
+            $profileHint = $this->requireProfile($profileId);
+            $applicationId = (int)$profileHint['application_id'];
+            $application = $this->lockApplication($applicationId);
+            $profile = Db::name('yfth_franchise_store_profile')->where('id', $profileId)->lock(true)->find();
+            if (!$profile || (int)$profile['application_id'] !== $applicationId) {
+                throw new ApiException('franchise_store_profile_not_found');
+            }
+            $acceptance = $this->latestAcceptance($applicationId);
+            $contract = $this->latestContract($applicationId);
+            $payment = $this->latestPayment($applicationId);
+            if (!$contract || (string)$contract['status'] !== 'signed') {
+                throw new ApiException('franchise_store_create_contract_not_signed');
+            }
+            if (!$payment || (string)$payment['status'] !== 'finance_confirmed') {
+                throw new ApiException('franchise_store_create_payment_not_confirmed');
+            }
+            if (!$acceptance || (string)$acceptance['status'] !== 'passed') {
+                throw new ApiException('franchise_store_create_acceptance_not_passed');
+            }
+            if (!in_array((string)$profile['status'], ['verified', 'bound'], true)) {
+                throw new ApiException('franchise_store_profile_not_verified');
+            }
+            if ((int)$profile['system_store_id'] > 0) {
+                app()->make(StoreAccessServices::class)->assertStoreActive((int)$profile['system_store_id']);
+                return ['store_profile' => $this->formatProfile($profile, true), 'created' => false];
+            }
+            $phone = preg_replace('/\s+/', '', (string)($application['phone'] ?? ''));
+            if ($phone === '') {
+                throw new ApiException('franchise_store_phone_required');
+            }
+            $conflict = Db::name('system_store')->where('phone', $phone)->where('is_del', 0)->find();
+            if ($conflict) {
+                throw new ApiException('franchise_store_phone_conflict');
+            }
+            $storeId = (int)Db::name('system_store')->insertGetId([
+                'name' => (string)$profile['store_name'],
+                'introduction' => '御方通和正式加盟门店，来源申请 ' . (string)$application['application_no'],
+                'phone' => $phone,
+                'address' => trim(implode(' ', array_filter([
+                    (string)$profile['province'], (string)$profile['city'], (string)$profile['district'],
+                ]))),
+                'detailed_address' => (string)$profile['address'],
+                'image' => trim((string)($data['image'] ?? '')),
+                'oblong_image' => trim((string)($data['oblong_image'] ?? '')),
+                'latitude' => trim((string)($data['latitude'] ?? '')),
+                'longitude' => trim((string)($data['longitude'] ?? '')),
+                'valid_time' => trim((string)($data['valid_time'] ?? '09:00 - 18:00')),
+                'day_time' => trim((string)($data['day_time'] ?? '周一至周日')),
+                'add_time' => time(),
+                'is_show' => 1,
+                'is_del' => 0,
+            ]);
+            if ($storeId <= 0) {
+                throw new ApiException('franchise_store_create_failed');
+            }
+            $after = $profile;
+            $after['system_store_id'] = $storeId;
+            $after['status'] = 'bound';
+            $after['update_time'] = time();
+            app()->make(YfthFranchiseStoreProfileDao::class)->update($profileId, [
+                'system_store_id' => $storeId,
+                'status' => 'bound',
+                'update_time' => $after['update_time'],
+            ]);
+            $this->syncAcceptanceStore($applicationId, $storeId);
+            $this->audit('franchise_store_profile', $profileId, 'formal_store_create', $profile, $after, $adminId, 'headquarter_opening_operator', $storeId, trim((string)($data['reason'] ?? 'formal_opening')));
+            return ['store_profile' => $this->formatProfile($after, true), 'created' => true];
         });
     }
 
@@ -577,15 +654,17 @@ class FranchiseOpeningServices extends YfthFoundationBaseServices
     {
         $this->assertHeadquarterAdmin($adminInfo);
         $applicationId = (int)($data['application_id'] ?? 0);
-        $role = trim((string)($data['role_code'] ?? 'franchisee'));
-        $roles = $role === 'all' ? self::GRANT_ROLES : [$role];
-        foreach ($roles as $currentRole) {
-            if (!in_array($currentRole, self::GRANT_ROLES, true)) {
-                throw new ApiException('franchise_identity_grant_role_invalid');
-            }
+        $role = trim((string)($data['role_code'] ?? 'county_partner'));
+        if (!in_array($role, ['county_partner', 'franchisee', 'store_manager', 'all'], true)) {
+            throw new ApiException('franchise_identity_grant_role_invalid');
         }
+        // Every formal opening creates the compatibility store-owner role. Manager is optional.
+        $roles = in_array($role, ['store_manager', 'all'], true)
+            ? self::GRANT_ROLES
+            : ['franchisee'];
         $result = Db::transaction(function () use ($applicationId, $roles, $adminId, $data) {
             $application = $this->lockApplication($applicationId);
+            $this->ensurePreparationTasks($applicationId);
             $contract = $this->latestContract($applicationId);
             $payment = $this->latestPayment($applicationId);
             $profile = $this->latestProfile($applicationId);
@@ -612,9 +691,25 @@ class FranchiseOpeningServices extends YfthFoundationBaseServices
             foreach ($roles as $currentRole) {
                 $grants[] = $this->activateStoreRoleGrant($application, $acceptance, $storeId, $currentRole, $adminId, trim((string)($data['reason'] ?? '')));
             }
+            $legacyRoleId = 0;
+            foreach ($grants as $grant) {
+                if ((string)($grant['role_code'] ?? '') === 'franchisee') {
+                    $legacyRoleId = (int)($grant['store_role_id'] ?? 0);
+                    break;
+                }
+            }
+            if ($legacyRoleId <= 0) {
+                throw new ApiException('franchise_opening_partner_compatibility_role_missing');
+            }
+            $partner = app()->make(FranchisePartnerServices::class)->finalizeOpeningInTransaction(
+                $application,
+                $storeId,
+                $legacyRoleId,
+                $adminId
+            );
             $this->enableOpeningCapabilities($storeId, $adminId);
             $this->advanceApplication($applicationId, 'opened');
-            return ['grants' => array_map([$this, 'formatGrant'], $grants)];
+            return ['grants' => array_map([$this, 'formatGrant'], $grants), 'partner' => $partner];
         });
         $this->recordReferralFranchiseOpenedEventSafely($applicationId, $adminId);
         return $result;
@@ -831,6 +926,7 @@ class FranchiseOpeningServices extends YfthFoundationBaseServices
 
     private function assertAcceptanceSubmitReady(int $applicationId): array
     {
+        $this->ensurePreparationTasks($applicationId);
         $application = $this->requireApplication($applicationId);
         if ((string)$application['status'] !== 'preparing') {
             throw new ApiException('franchise_acceptance_application_not_preparing');
@@ -862,11 +958,13 @@ class FranchiseOpeningServices extends YfthFoundationBaseServices
     {
         $gate = $this->assertAcceptanceSubmitReady($applicationId);
         $profile = $gate['profile'];
-        $storeId = (int)($profile['system_store_id'] ?? 0);
-        if ($storeId <= 0 || !in_array((string)($profile['status'] ?? ''), ['verified', 'bound'], true)) {
-            throw new ApiException('franchise_acceptance_store_not_bound');
+        if (!in_array((string)($profile['status'] ?? ''), ['verified', 'bound'], true)) {
+            throw new ApiException('franchise_acceptance_store_profile_not_verified');
         }
-        app()->make(StoreAccessServices::class)->assertStoreActive($storeId);
+        $storeId = (int)($profile['system_store_id'] ?? 0);
+        if ($storeId > 0) {
+            app()->make(StoreAccessServices::class)->assertStoreActive($storeId);
+        }
         return $gate;
     }
 

@@ -91,6 +91,15 @@ class FranchiseOpening extends AuthController
         return app('json')->success($services->adminBindStore((int)$id, (int)$data['system_store_id'], (int)$this->adminId, $this->adminInfo ?: []));
     }
 
+    public function profileCreateStore(FranchiseOpeningServices $services, $id)
+    {
+        $this->assertAdminApiAuth('yfth/franchise_opening/profile/<id>/create_store', 'POST');
+        return app('json')->success($services->adminCreateAndBindStore((int)$id, $this->request->postMore([
+            ['image', ''], ['oblong_image', ''], ['latitude', ''], ['longitude', ''],
+            ['valid_time', '09:00 - 18:00'], ['day_time', '周一至周日'], ['reason', ''],
+        ]), (int)$this->adminId, $this->adminInfo ?: []));
+    }
+
     public function taskList(FranchiseOpeningServices $services)
     {
         $this->assertAdminApiAuth('yfth/franchise_opening/task', 'GET');
@@ -138,7 +147,7 @@ class FranchiseOpening extends AuthController
         $this->assertAdminApiAuth('yfth/franchise_opening/identity_grant', 'POST');
         return app('json')->success($services->adminGrantIdentity($this->request->postMore([
             [['application_id', 'd'], 0],
-            ['role_code', 'franchisee'],
+            ['role_code', 'county_partner'],
             ['reason', ''],
         ]), (int)$this->adminId, $this->adminInfo ?: []));
     }

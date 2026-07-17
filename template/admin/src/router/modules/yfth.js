@@ -80,6 +80,15 @@ export default {
       component: () => import('@/pages/yfth/franchiseOpening/index'),
     },
     {
+      path: 'franchise-partner',
+      name: `${pre}franchise_partner`,
+      meta: {
+        auth: ['yfth-franchise-partner-index'],
+        title: '招商合伙人与开店',
+      },
+      component: () => import('@/pages/yfth/franchisePartner/index'),
+    },
+    {
       path: 'referral-reward',
       name: `${pre}referral_reward`,
       meta: {

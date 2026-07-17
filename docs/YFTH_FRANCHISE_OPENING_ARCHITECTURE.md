@@ -1,5 +1,7 @@
 # YFTH Franchise Contract, Preparation And Opening Acceptance V1
 
+> Historical foundation note: this document describes the original opening foundation. The current store-creation, county-partner grant, recruitment hierarchy, performance, and reward behavior is defined by `docs/YFTH_FRANCHISE_PARTNER_HIERARCHY_ARCHITECTURE.md`. In the current extension, headquarters creates or enables the CRMEB store only after acceptance passes, then grants the county-partner compatibility permission and optionally manager; the applicant never creates the store.
+
 ## Scope
 
 This V1 extends Franchise Application V1 from `pending_contract` into an offline opening workflow:

@@ -430,6 +430,26 @@ export function getYfthStoreCustomerAttributionDetail(id, data) {
 	return request.get('yfth/store_workbench/customer_attribution/' + id, data || {});
 }
 
+export function getYfthPartnerWorkbench() {
+	return request.get('yfth/franchise/partner/workbench');
+}
+
+export function createYfthPartnerInvite(data) {
+	return request.post('yfth/franchise/partner/invite', data || {});
+}
+
+export function getYfthPartnerTeam() {
+	return request.get('yfth/franchise/partner/team');
+}
+
+export function getYfthPartnerRewards(data) {
+	return request.get('yfth/franchise/partner/rewards', data || {});
+}
+
+export function applyYfthPartnerPromotion(data) {
+	return request.post('yfth/franchise/partner/promotion/apply', data);
+}
+
 function splitYfthContext(data) {
 	const body = Object.assign({}, data || {});
 	const query = {};

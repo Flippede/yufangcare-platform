@@ -5,7 +5,7 @@ import { getYfthContext, getYfthIdentities } from '@/api/yfth.js';
 export const YFTH_ROLE_LABELS = {
 	customer: '顾客',
 	member_5980: '5980会员',
-	franchisee: '加盟商',
+	franchisee: '招商合伙人',
 	store_manager: '店长',
 	store_staff: '店员',
 	service_mentor: '服务导师'
@@ -189,7 +189,7 @@ function normalizeContext(context) {
 	return Object.assign({}, context, {
 		uid: Number(context.uid || currentUid() || 0),
 		role_code: roleCode,
-		role_name_cn: roleLabel(roleCode),
+		role_name_cn: context.role_name_cn || roleLabel(roleCode),
 		is_business_role: isBusinessRole(roleCode),
 		requires_store: roleRequiresStore(roleCode),
 		store_id: Number(context.store_id || 0)

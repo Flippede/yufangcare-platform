@@ -96,6 +96,7 @@ Route::group('yfth', function () {
         Route::get('profile/:application_id', 'v1.yfth.FranchiseOpening/profileDetail')->option(['real_name' => 'Franchise opening store profile']);
         Route::post('profile/save', 'v1.yfth.FranchiseOpening/profileSave')->option(['real_name' => 'Franchise opening store profile save']);
         Route::post('profile/:id/bind_store', 'v1.yfth.FranchiseOpening/profileBindStore')->option(['real_name' => 'Franchise opening bind store']);
+        Route::post('profile/:id/create_store', 'v1.yfth.FranchiseOpening/profileCreateStore')->option(['real_name' => '总部正式创建加盟门店']);
         Route::get('task', 'v1.yfth.FranchiseOpening/taskList')->option(['real_name' => 'Franchise opening task list']);
         Route::post('task/:id/review', 'v1.yfth.FranchiseOpening/taskReview')->option(['real_name' => 'Franchise opening task review']);
         Route::get('acceptance', 'v1.yfth.FranchiseOpening/acceptanceList')->option(['real_name' => 'Franchise opening acceptance list']);
@@ -103,6 +104,26 @@ Route::group('yfth', function () {
         Route::post('acceptance/:id/review', 'v1.yfth.FranchiseOpening/acceptanceReview')->option(['real_name' => 'Franchise opening acceptance review']);
         Route::post('identity_grant', 'v1.yfth.FranchiseOpening/identityGrant')->option(['real_name' => 'Franchise opening identity grant']);
     })->option(['parent' => 'yfth', 'cate_name' => 'Franchise Opening']);
+    Route::group('franchise_partner', function () {
+        Route::get('dashboard', 'v1.yfth.FranchisePartner/dashboard')->option(['real_name' => '招商合伙人工作台']);
+        Route::get('rule', 'v1.yfth.FranchisePartner/ruleList')->option(['real_name' => '招商职级规则列表']);
+        Route::post('rule', 'v1.yfth.FranchisePartner/ruleSave')->option(['real_name' => '招商职级规则保存']);
+        Route::post('rule/:id/publish', 'v1.yfth.FranchisePartner/rulePublish')->option(['real_name' => '招商职级规则发布']);
+        Route::get('partner', 'v1.yfth.FranchisePartner/partnerList')->option(['real_name' => '招商合伙人列表']);
+        Route::get('partner/:uid', 'v1.yfth.FranchisePartner/partnerDetail')->option(['real_name' => '招商合伙人详情']);
+        Route::post('partner/:uid/rank', 'v1.yfth.FranchisePartner/rankChange')->option(['real_name' => '招商合伙人职级调整']);
+        Route::post('partner/:uid/parent', 'v1.yfth.FranchisePartner/parentChange')->option(['real_name' => '招商上下级调整']);
+        Route::post('source/:application_id/correct', 'v1.yfth.FranchisePartner/sourceCorrect')->option(['real_name' => '加盟申请招商来源纠错']);
+        Route::get('performance', 'v1.yfth.FranchisePartner/performanceList')->option(['real_name' => '招商开店业绩']);
+        Route::get('reward', 'v1.yfth.FranchisePartner/rewardList')->option(['real_name' => '招商收益候选']);
+        Route::post('reward/:id/confirm', 'v1.yfth.FranchisePartner/rewardConfirm')->option(['real_name' => '招商收益确认']);
+        Route::post('reward/:id/cancel', 'v1.yfth.FranchisePartner/rewardCancel')->option(['real_name' => '招商收益取消']);
+        Route::post('reward/:id/settle', 'v1.yfth.FranchisePartner/rewardSettle')->option(['real_name' => '招商收益线下结算']);
+        Route::get('warning', 'v1.yfth.FranchisePartner/warningList')->option(['real_name' => '招商保级预警']);
+        Route::get('promotion', 'v1.yfth.FranchisePartner/promotionList')->option(['real_name' => '招商晋级申请']);
+        Route::post('promotion/:id/review', 'v1.yfth.FranchisePartner/promotionReview')->option(['real_name' => '招商晋级审批']);
+        Route::post('opening/complete', 'v1.yfth.FranchisePartner/openingComplete')->option(['real_name' => '总部正式开店']);
+    })->option(['parent' => 'yfth', 'cate_name' => '招商合伙人与开店']);
     Route::group('supply_chain', function () {
         Route::get('catalog', 'v1.yfth.SupplyChain/catalogList')->option(['real_name' => 'Supply catalog list']);
         Route::post('catalog/save', 'v1.yfth.SupplyChain/catalogSave')->option(['real_name' => 'Supply catalog save']);

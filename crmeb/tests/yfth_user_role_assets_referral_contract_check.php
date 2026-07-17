@@ -102,7 +102,9 @@ $assert(strpos($nativeUserPage, "name: 'yfth_user_role'") !== false, 'native_use
 $assert(strpos($nativeUserPage, "path: '/yfth/user-role'") === false, 'native_user_list_does_not_escape_admin_route_base');
 $assert(strpos($adminPage, '生成或补齐完整测试门店与账号') !== false, 'admin_page_exposes_fixture_action');
 $assert(strpos($adminPage, 'yfthUserRoleGrant') !== false && strpos($adminPage, 'yfthUserRoleRevoke') !== false, 'admin_page_uses_real_role_api');
-$assert(strpos($adminPage, '授权会员') !== false && strpos($adminPage, '加盟商身份独立存在') !== false, 'admin_page_separates_membership_and_franchisee_identity');
+$assert(strpos($adminPage, '永久会员与招商合伙人是两套独立资格') !== false
+    && strpos($adminPage, '县级合伙人只可通过正式开店或受控历史迁移产生') !== false,
+    'admin_page_separates_membership_and_partner_identity');
 $assert(strpos($adminPage, '操作原因') !== false, 'admin_page_requires_reason');
 
 foreach (['now_money', 'integral', 'couponCount', '商城资产与御方通和推荐奖励独立核算'] as $needle) {

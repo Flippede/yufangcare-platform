@@ -50,22 +50,27 @@ try {
     $assert($first['password_exposed'] === false, 'password_not_exposed_by_api');
     $storeId = (int)$first['store']['id'];
     $uids = array_column($first['accounts'], 'uid', 'fixture_role');
+    $fixtureRoleUids = [(int)$uids['franchisee'], (int)$uids['manager'], (int)$uids['staff']];
     $memberUid = (int)$uids['member'];
     $customerUid = (int)$uids['customer'];
     $assert($storeId > 0 && (int)Db::name('system_store')->where('id', $storeId)->where('is_show', 1)->count() === 1, 'test_store_active');
-    $assert((int)Db::name('user')->where('mark', '[YFTH-ACCEPTANCE-TEST-V1]')->where('status', 1)->count() === 5, 'five_test_users_active');
-    $assert((int)Db::name('yfth_user_store_role')->where('store_id', $storeId)->where('status', 'active')->count() === 3, 'three_store_roles_active');
+    $assert((int)Db::name('user')->where('mark', '[YFTH-ACCEPTANCE-TEST-V1]')->where('status', 1)->count() === 9, 'nine_test_users_active');
+    $assert((int)Db::name('yfth_user_store_role')->where('store_id', $storeId)->whereIn('uid', $fixtureRoleUids)->where('status', 'active')->count() === 3, 'three_store_roles_active');
     $assert((int)Db::name('yfth_permanent_membership')->where('uid', $memberUid)->where('store_id', $storeId)->where('status', 'active')->count() === 1, 'c1_permanent_membership_active');
     $assert((int)Db::name('yfth_permanent_membership')->where('uid', $customerUid)->where('status', 'active')->count() === 0, 'c2_starts_non_member');
     $assert((int)Db::name('yfth_direct_referral_rule_version')->where('status', 'published')->where('package_ratio_first_bps', 1500)->where('package_ratio_second_bps', 2500)->where('package_ratio_third_bps', 6000)->count() === 1, 'reward_rule_ready');
-    foreach (['yfth_stg_b1_franchisee', 'yfth_stg_b1_manager', 'yfth_stg_b1_staff', 'yfth_stg_c1_member', 'yfth_stg_c2_customer'] as $account) {
+    foreach ([
+        'yfth_stg_b1_franchisee', 'yfth_stg_b1_manager', 'yfth_stg_b1_staff',
+        'yfth_stg_c1_member', 'yfth_stg_c2_customer', 'yfth_stg_partner_prefecture',
+        'yfth_stg_partner_province', 'yfth_stg_partner_regional', 'yfth_stg_partner_platform',
+    ] as $account) {
         $assert((int)Db::name('user')->where('account', $account)->where('status', 1)->count() === 1, 'staging_account_ready:' . $account);
     }
 
     $passwordReset = $service->resetPasswords([
         'reason' => 'isolated password reset', 'request_id' => 'fixture-password-reset-' . getmypid(),
     ], 1, $hq);
-    $assert(count($passwordReset['temporary_passwords_once'] ?? []) === 5, 'password_reset_returns_once_to_authorized_admin');
+    $assert(count($passwordReset['temporary_passwords_once'] ?? []) === 9, 'password_reset_returns_once_to_authorized_admin');
     $assert(strpos((string)file_get_contents($credentialFile), 'CUSTOMER_PASSWORD=') !== false, 'password_reset_updates_private_file');
     $login = app()->make(LoginServices::class);
     foreach ($passwordReset['temporary_passwords_once'] as $credential) {
@@ -78,14 +83,14 @@ try {
     $countsBeforeReplay = [
         'store' => (int)Db::name('system_store')->where('name', 'TEST 隔离测试 B1 门店')->count(),
         'users' => (int)Db::name('user')->where('mark', '[YFTH-ACCEPTANCE-TEST-V1]')->count(),
-        'roles' => (int)Db::name('yfth_user_store_role')->where('store_id', $storeId)->count(),
+        'roles' => (int)Db::name('yfth_user_store_role')->where('store_id', $storeId)->whereIn('uid', $fixtureRoleUids)->count(),
         'membership' => (int)Db::name('yfth_permanent_membership')->where('uid', $memberUid)->count(),
     ];
     $service->generate(['reason' => 'isolated acceptance replay', 'request_id' => 'fixture-real-flow-2'], 1, $hq);
     $countsAfterReplay = [
         'store' => (int)Db::name('system_store')->where('name', 'TEST 隔离测试 B1 门店')->count(),
         'users' => (int)Db::name('user')->where('mark', '[YFTH-ACCEPTANCE-TEST-V1]')->count(),
-        'roles' => (int)Db::name('yfth_user_store_role')->where('store_id', $storeId)->count(),
+        'roles' => (int)Db::name('yfth_user_store_role')->where('store_id', $storeId)->whereIn('uid', $fixtureRoleUids)->count(),
         'membership' => (int)Db::name('yfth_permanent_membership')->where('uid', $memberUid)->count(),
     ];
     $assert($countsBeforeReplay === $countsAfterReplay, 'fixture_generation_is_idempotent');
@@ -107,8 +112,8 @@ try {
     $reset = $service->reset(['reason' => 'isolated acceptance reset', 'request_id' => 'fixture-reset'], 1, $hq);
     $assert($reset['status'] === 'disabled', 'fixture_reset_status');
     $assert((int)Db::name('system_store')->where('id', $storeId)->where('is_show', 0)->count() === 1, 'reset_disables_test_store');
-    $assert((int)Db::name('user')->whereIn('uid', array_values($uids))->where('mark', '[YFTH-ACCEPTANCE-TEST-V1]')->where('status', 0)->count() === 5, 'reset_disables_only_current_test_users');
-    $assert((int)Db::name('yfth_user_store_role')->where('store_id', $storeId)->where('status', 'active')->count() === 0, 'reset_revokes_test_roles');
+    $assert((int)Db::name('user')->whereIn('uid', array_values($uids))->where('mark', '[YFTH-ACCEPTANCE-TEST-V1]')->where('status', 0)->count() === 9, 'reset_disables_only_current_test_users');
+    $assert((int)Db::name('yfth_user_store_role')->where('store_id', $storeId)->whereIn('uid', $fixtureRoleUids)->where('status', 'active')->count() === 0, 'reset_revokes_test_roles');
     $assert((int)Db::name('yfth_hq_active_referral_current')->where('referred_uid', $customerUid)->where('status', 'active')->count() === 0, 'reset_closes_test_referral');
     $assert((int)Db::name('yfth_hq_customer_attribution_current')->where('uid', $customerUid)->where('status', 'active')->count() === 0, 'reset_closes_test_attribution');
     $assert((int)Db::name('yfth_customer_relation')->where('uid', $customerUid)->where('status', 'active')->count() === 0, 'reset_disables_test_customer_projection');

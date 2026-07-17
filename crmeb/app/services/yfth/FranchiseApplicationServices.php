@@ -41,6 +41,8 @@ class FranchiseApplicationServices extends YfthFoundationBaseServices
         if ($uid <= 0) {
             throw new ApiException('user_not_login');
         }
+        $partnerInvite = trim((string)($data['partner_invite'] ?? ''));
+        unset($data['partner_invite']);
         $payload = $this->normalizeSubmitPayload($data);
         $now = time();
         $payload = array_merge($payload, [
@@ -53,11 +55,23 @@ class FranchiseApplicationServices extends YfthFoundationBaseServices
             'update_time' => $now,
         ]);
 
-        return Db::transaction(function () use ($payload, $uid) {
+        return Db::transaction(function () use ($payload, $uid, $partnerInvite) {
             $row = $this->dao->save($payload);
             $application = is_array($row) ? $row : $row->toArray();
+            $source = app()->make(FranchisePartnerServices::class)->captureRecruitSource(
+                (int)$application['id'],
+                $uid,
+                $partnerInvite
+            );
             $this->audit('franchise_application', (int)$application['id'], 'submit', [], $application, $uid, 'customer', 0, 'miniapp_submit');
-            return ['application' => $this->formatApplication($application, false)];
+            return [
+                'application' => $this->formatApplication($application, false),
+                'recruit_source' => [
+                    'source_type' => (string)($source['source_type'] ?? ''),
+                    'direct_partner_uid' => (int)($source['direct_partner_uid'] ?? 0),
+                    'status' => (string)($source['status'] ?? ''),
+                ],
+            ];
         });
     }
 
@@ -109,6 +123,7 @@ class FranchiseApplicationServices extends YfthFoundationBaseServices
         return [
             'application' => $this->formatApplication($application, false, [], $adminMap),
             'follow_records' => $this->followRecords((int)$application['id'], false),
+            'recruit_source' => $this->safeRecruitSource((int)$application['id'], false),
         ];
     }
 
@@ -170,6 +185,7 @@ class FranchiseApplicationServices extends YfthFoundationBaseServices
             'application' => $this->formatApplication($application, true, $this->userMap([(int)$application['applicant_uid']]), $this->adminMap([(int)$application['assigned_uid']])),
             'follow_records' => $this->followRecords((int)$application['id'], true),
             'audit_events' => $this->auditEvents((int)$application['id']),
+            'recruit_source' => $this->safeRecruitSource((int)$application['id'], true),
         ];
     }
 
@@ -311,6 +327,26 @@ class FranchiseApplicationServices extends YfthFoundationBaseServices
             throw new ApiException('franchise_application_budget_invalid');
         }
         $payload['budget'] = sprintf('%.2f', $budget);
+        return $payload;
+    }
+
+    private function safeRecruitSource(int $applicationId, bool $admin): array
+    {
+        $source = Db::name('yfth_franchise_recruit_source')->where('application_id', $applicationId)->find() ?: [];
+        if (!$source) {
+            return [];
+        }
+        $payload = [
+            'source_type' => (string)($source['source_type'] ?? ''),
+            'status' => (string)($source['status'] ?? ''),
+            'frozen_time' => (int)($source['frozen_time'] ?? 0),
+        ];
+        if ($admin) {
+            $payload['direct_partner_uid'] = (int)($source['direct_partner_uid'] ?? 0);
+            $decoded = json_decode((string)($source['chain_snapshot'] ?? ''), true);
+            $payload['chain_snapshot'] = is_array($decoded) ? $decoded : [];
+            $payload['correction_reason'] = (string)($source['correction_reason'] ?? '');
+        }
         return $payload;
     }
 

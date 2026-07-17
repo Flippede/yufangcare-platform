@@ -1094,3 +1094,75 @@ export function yfthHqAuthorityReferralDetail(id) {
 export function yfthHqAuthorityReferralEvents(id) {
   return request({ url: `yfth/hq_authority/referral/${id}/events`, method: 'get' });
 }
+
+export function yfthFranchiseOpeningProfileCreateStore(id, data) {
+  return request({
+    url: `yfth/franchise_opening/profile/${id}/create_store`,
+    method: 'post',
+    data,
+  });
+}
+
+export function yfthPartnerDashboard() {
+  return request({ url: 'yfth/franchise_partner/dashboard', method: 'get' });
+}
+
+export function yfthPartnerRules() {
+  return request({ url: 'yfth/franchise_partner/rule', method: 'get' });
+}
+
+export function yfthPartnerRuleSave(data) {
+  return request({ url: 'yfth/franchise_partner/rule', method: 'post', data });
+}
+
+export function yfthPartnerRulePublish(id, data) {
+  return request({ url: `yfth/franchise_partner/rule/${id}/publish`, method: 'post', data });
+}
+
+export function yfthPartnerList(params) {
+  return request({ url: 'yfth/franchise_partner/partner', method: 'get', params });
+}
+
+export function yfthPartnerDetail(uid) {
+  return request({ url: `yfth/franchise_partner/partner/${uid}`, method: 'get' });
+}
+
+export function yfthPartnerRankChange(uid, data) {
+  return request({ url: `yfth/franchise_partner/partner/${uid}/rank`, method: 'post', data });
+}
+
+export function yfthPartnerParentChange(uid, data) {
+  return request({ url: `yfth/franchise_partner/partner/${uid}/parent`, method: 'post', data });
+}
+
+export function yfthPartnerSourceCorrect(applicationId, data) {
+  return request({ url: `yfth/franchise_partner/source/${applicationId}/correct`, method: 'post', data });
+}
+
+export function yfthPartnerPerformances(params) {
+  return request({ url: 'yfth/franchise_partner/performance', method: 'get', params });
+}
+
+export function yfthPartnerRewards(params) {
+  return request({ url: 'yfth/franchise_partner/reward', method: 'get', params });
+}
+
+export function yfthPartnerRewardAction(id, action, data) {
+  return request({ url: `yfth/franchise_partner/reward/${id}/${action}`, method: 'post', data });
+}
+
+export function yfthPartnerWarnings(params) {
+  return request({ url: 'yfth/franchise_partner/warning', method: 'get', params });
+}
+
+export function yfthPartnerPromotions(params) {
+  return request({ url: 'yfth/franchise_partner/promotion', method: 'get', params });
+}
+
+export function yfthPartnerPromotionReview(id, data) {
+  return request({ url: `yfth/franchise_partner/promotion/${id}/review`, method: 'post', data });
+}
+
+export function yfthPartnerOpeningComplete(data) {
+  return request({ url: 'yfth/franchise_partner/opening/complete', method: 'post', data });
+}
