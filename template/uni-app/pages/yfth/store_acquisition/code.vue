@@ -24,7 +24,7 @@
 
 <script>
 import zbCode from '@/components/zb-code/zb-code.vue';
-import { currentContext } from '@/libs/yfthContext.js';
+import { loadYfthIdentities, resolveDominantYfthContext, resolveYfthContext } from '@/libs/yfthContext.js';
 import { getYfthStoreAcquisitionCode, issueYfthStoreAcquisitionCode } from '@/api/yfth.js';
 
 export default {
@@ -45,15 +45,28 @@ export default {
 			// #endif
 		}
 	},
-	onLoad() {
-		this.context = currentContext();
-		if (['store_manager', 'store_staff'].indexOf(this.context.role_code) === -1 || !this.context.store_id) {
-			this.loading = false; this.error = '请先切换到店长或店员身份'; return;
-		}
-		this.restoreOrIssue();
+	onLoad(options) {
+		this.resolveTrustedContext(options || {});
 	},
 	onShareAppMessage() { return { title: `邀请你绑定${this.code.store_name || '御方通和门店'}`, path: this.code.launch_path || this.codeLink }; },
 	methods: {
+		resolveTrustedContext(options) {
+			const roleCode = String(options.role_code || '');
+			const storeId = Number(options.store_id || 0);
+			const resolve = ['store_manager', 'store_staff'].indexOf(roleCode) !== -1 && storeId > 0
+				? resolveYfthContext(roleCode, storeId)
+				: loadYfthIdentities().then((identities) => resolveDominantYfthContext(identities));
+			resolve.then((context) => {
+				if (['store_manager', 'store_staff'].indexOf(context.role_code) === -1 || !context.store_id) {
+					throw new Error('请先切换到店长或店员身份');
+				}
+				this.context = context;
+				this.restoreOrIssue();
+			}).catch((err) => {
+				this.loading = false;
+				this.error = (err && (err.msg || err.message)) || '门店身份核验失败';
+			});
+		},
 		storageKey() {
 			return `YFTH_STORE_ACQUISITION_CODE_${this.context.uid || 0}_${this.context.store_id}_${this.context.role_code}`;
 		},

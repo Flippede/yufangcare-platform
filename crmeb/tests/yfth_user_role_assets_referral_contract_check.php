@@ -143,6 +143,8 @@ $assert(strpos($storeAcquisitionController, 'acquisition_token') !== false, 'acq
 $assert(strpos($storeAcquisitionCodePage, 'saveQr') !== false && strpos($storeAcquisitionCodePage, '_saveCode') !== false, 'employee_acquisition_qr_can_be_saved');
 $assert(strpos($storeAcquisitionService, 'MiniProgramService::getUrlLink') !== false && strpos($storeAcquisitionService, 'h5_launch_url') !== false, 'employee_qr_exposes_dedicated_h5_fallback');
 $assert(strpos($storeAcquisitionCodePage, 'this.code.h5_launch_url') !== false, 'employee_qr_uses_current_site_acquisition_route');
+$assert(strpos($storeAcquisitionCodePage, 'resolveYfthContext') !== false, 'employee_acquisition_page_revalidates_role_and_store');
+$assert(strpos($workbenchPage, 'store_acquisition/code?role_code=') !== false, 'workbench_passes_verified_context_to_acquisition_page');
 $assert(strpos($storeAcquisitionCodePage, 'getYfthStoreAcquisitionCode') !== false && strpos($storeAcquisitionCodePage, 'active.code_no === cached.code_no') !== false, 'saved_employee_qr_is_reused_until_rotated_or_expired');
 $assert(strpos($storeAcquisitionAcceptPage, 'yfth_pending_store_acquisition') !== false && strpos($storeAcquisitionAcceptPage, 'toLogin') !== false, 'acquisition_login_continuation_exists');
 $assert(strpos($storeAcquisitionAcceptPage, 'this.$nextTick(() => this.accept())') !== false, 'acquisition_accepts_automatically_after_login');

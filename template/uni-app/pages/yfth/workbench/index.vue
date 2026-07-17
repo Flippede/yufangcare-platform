@@ -575,7 +575,9 @@ export default {
 			uni.navigateTo({ url: '/pages/yfth/workbench/monthly_benefit_pickup' });
 		},
 		goAcquisitionCode() {
-			uni.navigateTo({ url: '/pages/yfth/store_acquisition/code' });
+			const role = encodeURIComponent(this.context.role_code || '');
+			const storeId = Number(this.context.store_id || 0);
+			uni.navigateTo({ url: `/pages/yfth/store_acquisition/code?role_code=${role}&store_id=${storeId}` });
 		},
 		goCustomerAttribution() {
 			if (!this.canReadCustomerAttribution) {
