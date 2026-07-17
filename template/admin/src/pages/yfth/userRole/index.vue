@@ -107,7 +107,7 @@
           </el-select>
           <div v-if="!partnerOptionsLoading && !partnerParentOptions.length" class="form-tip danger">当前没有可用的{{ partnerParentRankName }}，请先授予上一级身份。</div>
         </el-form-item>
-        <el-form-item v-else-if="partnerGrantForm.rank_code" label="直属上级"><el-tag type="success">平台董事由总部直接设置，无需上级</el-tag></el-form-item>
+        <el-form-item v-else-if="partnerGrantForm.rank_code === 'platform_director'" label="直属上级"><el-tag type="success">平台董事由总部直接设置，无需上级</el-tag></el-form-item>
         <el-form-item label="操作原因"><el-input v-model.trim="partnerGrantForm.reason" type="textarea" :rows="3" maxlength="255" show-word-limit /></el-form-item>
       </el-form>
       <span slot="footer"><el-button @click="partnerGrantVisible = false">取消</el-button><el-button type="warning" :loading="saving" @click="grantPartner">确认授予</el-button></span>
