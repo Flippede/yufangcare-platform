@@ -18,8 +18,8 @@ use think\facade\Db;
 class SupplyChainServices extends YfthFoundationBaseServices
 {
     private const DOMAIN = 'yfth_supply_chain';
-    private const STORE_READ_ROLES = ['franchisee', 'store_manager', 'store_staff'];
-    private const STORE_WRITE_ROLES = ['franchisee', 'store_manager'];
+    private const STORE_READ_ROLES = ['franchisee', 'store_manager', 'store_staff', 'county_partner', 'prefecture_partner', 'province_partner', 'regional_director', 'platform_director'];
+    private const STORE_WRITE_ROLES = ['franchisee', 'store_manager', 'county_partner', 'prefecture_partner', 'province_partner', 'regional_director', 'platform_director'];
     private const CATALOG_STATUSES = ['active', 'disabled'];
     private const ORDER_STATUSES = ['submitted', 'approved', 'rejected', 'shipped', 'stocked', 'cancelled'];
 
@@ -266,6 +266,9 @@ class SupplyChainServices extends YfthFoundationBaseServices
                 'audit_reason' => $after['audit_reason'],
                 'update_time' => $now,
             ]);
+            if ($action === 'reject') {
+                app()->make(ProductQuotaPurchaseServices::class)->release($id, 'purchase_rejected');
+            }
             $this->audit('purchase_order', $id, $action, $before, $after, $adminId, 'headquarter_admin', (int)$before['store_id'], $after['audit_reason']);
             return $this->purchaseOrderDetail($id, 0);
         });
@@ -449,7 +452,7 @@ class SupplyChainServices extends YfthFoundationBaseServices
         }
         $amount = $this->centsToDecimal($amountCents);
 
-        return Db::transaction(function () use ($scope, $items, $now, $amount, $quantityTotal, $data) {
+        return Db::transaction(function () use ($scope, $items, $now, $amount, $amountCents, $quantityTotal, $data) {
             $orderDao = app()->make(YfthPurchaseOrderDao::class);
             $order = $orderDao->save([
                 'purchase_no' => $this->makeNo('PO'),
@@ -473,6 +476,11 @@ class SupplyChainServices extends YfthFoundationBaseServices
                     'create_time' => $now,
                 ]));
             }
+            app()->make(ProductQuotaPurchaseServices::class)->reserve(
+                (int)$order['id'], (int)$scope['store_id'], $amountCents,
+                max(0, (int)($data['quota_amount_cent'] ?? 0)),
+                trim((string)($data['idempotency_key'] ?? '')) . ':quota'
+            );
             $detail = $this->purchaseOrderDetail((int)$order['id'], (int)$scope['store_id']);
             $this->audit('purchase_order', (int)$order['id'], 'submit', [], $detail['order'], (int)$scope['operator_uid'], (string)$scope['role_code'], (int)$scope['store_id'], '');
             return $detail;
@@ -531,6 +539,7 @@ class SupplyChainServices extends YfthFoundationBaseServices
                 'receive_time' => $now,
                 'update_time' => $now,
             ]);
+            app()->make(ProductQuotaPurchaseServices::class)->useForStockIn($orderId);
             $after = array_merge($order, ['status' => 'stocked', 'receive_time' => $now, 'update_time' => $now]);
             $this->audit('purchase_receipt', (int)$receipt['id'], 'stock_in', [], $receipt, (int)$scope['operator_uid'], (string)$scope['role_code'], (int)$scope['store_id'], '');
             $this->audit('purchase_order', $orderId, 'stocked', $order, $after, (int)$scope['operator_uid'], (string)$scope['role_code'], (int)$scope['store_id'], '');
@@ -580,11 +589,13 @@ class SupplyChainServices extends YfthFoundationBaseServices
             ->order('id desc')
             ->select()
             ->toArray();
+        $quotaPayment = Db::name('yfth_product_quota_reservation')->where('purchase_order_id', $id)->find() ?: [];
         return [
             'order' => $this->formatPurchaseOrder($order, true),
             'items' => array_map([$this, 'formatPurchaseItem'], $items),
             'shipments' => array_map([$this, 'formatShipment'], $shipments),
             'receipts' => $receipts,
+            'quota_payment' => $quotaPayment,
         ];
     }
 
