@@ -157,11 +157,6 @@ class Common extends AuthController
             'status',
             ['submitted', 'contacting', 'communicating', 'inspecting']
         );
-        $unassignedFranchiseApplications = $this->safeCount('yfth_franchise_application', [
-            'status' => 'submitted',
-            'assigned_uid' => 0,
-        ]);
-
         $cards = [
             $this->workbenchCard('business_subjects', '经营主体', $this->safeCount('yfth_business_subject', ['status' => 'active']), '已启用主体'),
             $this->workbenchCard('service_stores', '服务门店', $this->safeCount('system_store', ['is_del' => 0, 'is_show' => 1]), '正常展示门店'),
@@ -189,9 +184,9 @@ class Common extends AuthController
                 'auth' => ['yfth-service-appointment-index'],
             ],
             [
-                'title' => '待分配加盟申请',
-                'count' => $unassignedFranchiseApplications,
-                'path' => '/yfth/franchise-application?status=submitted',
+                'title' => '待确认加盟申请',
+                'count' => $pendingFranchiseApplications,
+                'path' => '/yfth/franchise-application',
                 'auth' => ['yfth-franchise-application-index'],
             ],
         ];
@@ -206,7 +201,7 @@ class Common extends AuthController
             $this->quickLink('业务基础域', '/yfth/foundation', ['yfth-foundation-index'], '身份、主体与资质'),
             $this->quickLink('套餐与权益', '/yfth/package-benefit', ['yfth-package-benefit-index'], '5980套餐和权益计划'),
             $this->quickLink('服务预约与核销', '/yfth/service-appointment', ['yfth-service-appointment-index'], '预约、签到与核销'),
-            $this->quickLink('总部加盟申请', '/yfth/franchise-application', ['yfth-franchise-application-index'], '申请分配、跟进与状态推进'),
+            $this->quickLink('总部加盟申请', '/yfth/franchise-application', ['yfth-franchise-application-index'], '确认合伙人线下跟进结果'),
             $this->quickLink('招商合伙人与开店', '/yfth/franchise-partner', ['yfth-franchise-partner-index'], '合伙人、团队与开店管理'),
         ];
 
