@@ -329,7 +329,7 @@ class SimulatedPackagePurchaseServices extends PackageBenefitBaseServices
 
     private function assertEnabled(): void
     {
-        if (!filter_var(config('yfth.acceptance_fixture_enabled', false), FILTER_VALIDATE_BOOLEAN)) {
+        if (!filter_var(config('yfth.simulated_package_purchase_enabled', false), FILTER_VALIDATE_BOOLEAN)) {
             throw new ApiException('simulated_package_purchase_disabled');
         }
     }

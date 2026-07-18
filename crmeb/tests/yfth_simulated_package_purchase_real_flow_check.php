@@ -35,6 +35,7 @@ try {
     @unlink($credentialFile);
     Config::set([
         'acceptance_fixture_enabled' => true,
+        'simulated_package_purchase_enabled' => true,
         'acceptance_account_file' => $credentialFile,
     ], 'yfth');
     $fixtureService = app()->make(HqAcceptanceFixtureServices::class);

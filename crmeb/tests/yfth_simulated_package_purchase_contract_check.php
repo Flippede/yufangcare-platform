@@ -31,7 +31,7 @@ $detail = $read('template/uni-app/pages/yfth/package/detail.vue');
 $payment = $read('template/uni-app/pages/yfth/package/payment_confirm.vue');
 
 foreach ([
-    'acceptance_fixture_enabled',
+    'simulated_package_purchase_enabled',
     "YFTH-TEST-PACKAGE-V1",
     "[YFTH-ACCEPTANCE-TEST-V1]",
     "SIMULATION_PRICE = '0.10'",

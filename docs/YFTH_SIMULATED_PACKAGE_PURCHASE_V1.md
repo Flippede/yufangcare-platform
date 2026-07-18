@@ -7,7 +7,7 @@ This capability gives acceptance users a complete package activation path withou
 ## Entry And Eligibility
 
 - Only the marked `YFTH-TEST-PACKAGE-V1` template is accepted.
-- The existing acceptance-fixture feature switch must be enabled.
+- The dedicated `YFTH_SIMULATED_PACKAGE_PURCHASE_ENABLED` switch must be enabled. The acceptance-fixture generation/reset switch remains independent and can stay disabled.
 - The current published rule must contain the acceptance marker, grant permanent membership, and have a price of `0.10` yuan.
 - The customer must be logged in, have a bound phone, be a non-member, and have an authoritative active upstream merchant.
 - The authoritative merchant is resolved by the server from current YFTH attribution or membership facts. A client-supplied store cannot override it.
