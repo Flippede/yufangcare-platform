@@ -1182,3 +1182,19 @@ export function yfthPartnerPromotionReview(id, data) {
 export function yfthPartnerOpeningComplete(data) {
   return request({ url: 'yfth/franchise_partner/opening/complete', method: 'post', data });
 }
+
+export function yfthRewardEventList(params) {
+  return request({ url: 'yfth/reward_governance/event', method: 'get', params });
+}
+
+export function yfthRewardEventRetry(data) {
+  return request({ url: 'yfth/reward_governance/retry', method: 'post', data });
+}
+
+export function yfthOpeningQuotaAwards(params) {
+  return request({ url: 'yfth/reward_governance/opening_quota', method: 'get', params });
+}
+
+export function yfthPartnerMigrationIssues(params) {
+  return request({ url: 'yfth/reward_governance/migration_issue', method: 'get', params });
+}

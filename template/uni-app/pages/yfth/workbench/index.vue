@@ -269,21 +269,24 @@ export default {
 		};
 	},
 	computed: {
+		isPartnerRole() {
+			return ['county_partner', 'prefecture_partner', 'province_partner', 'regional_director', 'platform_director'].indexOf(this.context.role_code) !== -1;
+		},
 		navItems() {
 			if (!this.context || !isBusinessRole(this.context.role_code)) return [];
 			return roleNav(this.context.role_code);
 		},
 		storeRoleReady() {
-			return ['franchisee', 'store_manager', 'store_staff'].indexOf(this.context.role_code) !== -1 && Number(this.context.store_id) > 0;
+			return (['franchisee', 'store_manager', 'store_staff'].indexOf(this.context.role_code) !== -1 || this.isPartnerRole) && Number(this.context.store_id) > 0;
 		},
 		canReadProductQuota() {
-			return ['franchisee', 'store_manager'].indexOf(this.context.role_code) !== -1;
+			return ['franchisee', 'store_manager'].indexOf(this.context.role_code) !== -1 || this.isPartnerRole;
 		},
 		canReadPackageMembership() {
 			return ['franchisee', 'store_manager'].indexOf(this.context.role_code) !== -1;
 		},
 		canPurchaseInventory() {
-			return this.context.role_code === 'store_manager';
+			return this.context.role_code === 'store_manager' || this.isPartnerRole;
 		},
 		canIssueAcquisitionCode() {
 			return ['store_manager', 'store_staff'].indexOf(this.context.role_code) !== -1;
@@ -323,7 +326,7 @@ export default {
 		},
 		businessTools() {
 			const tools = [];
-			if (this.context.role_code === 'franchisee') {
+			if (this.context.role_code === 'franchisee' || this.isPartnerRole) {
 				tools.push({ key: 'partner', icon: '招', title: '招商合伙人工作台', desc: '申请二维码、团队、业绩、职级与招商收益' });
 			}
 			if (this.canPurchaseInventory) {

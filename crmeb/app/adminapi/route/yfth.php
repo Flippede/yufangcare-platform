@@ -124,7 +124,14 @@ Route::group('yfth', function () {
         Route::get('promotion', 'v1.yfth.FranchisePartner/promotionList')->option(['real_name' => '招商晋级申请']);
         Route::post('promotion/:id/review', 'v1.yfth.FranchisePartner/promotionReview')->option(['real_name' => '招商晋级审批']);
         Route::post('opening/complete', 'v1.yfth.FranchisePartner/openingComplete')->option(['real_name' => '总部正式开店']);
+        Route::post('opening/:application_id/cancel', 'v1.yfth.FranchisePartner/openingCancel')->option(['real_name' => '取消正式开店并冲正额度']);
     })->option(['parent' => 'yfth', 'cate_name' => '招商合伙人与开店']);
+    Route::group('reward_governance', function () {
+        Route::get('event', 'v1.yfth.RewardGovernance/eventList')->option(['real_name' => 'Unified reward event queue']);
+        Route::post('retry', 'v1.yfth.RewardGovernance/retry')->option(['real_name' => 'Retry failed reward events']);
+        Route::get('opening_quota', 'v1.yfth.RewardGovernance/openingQuota')->option(['real_name' => 'Direct partner opening quota awards']);
+        Route::get('migration_issue', 'v1.yfth.RewardGovernance/migrationIssues')->option(['real_name' => 'Legacy partner migration issues']);
+    })->option(['parent' => 'yfth', 'cate_name' => 'Unified Reward Governance']);
     Route::group('supply_chain', function () {
         Route::get('catalog', 'v1.yfth.SupplyChain/catalogList')->option(['real_name' => 'Supply catalog list']);
         Route::post('catalog/save', 'v1.yfth.SupplyChain/catalogSave')->option(['real_name' => 'Supply catalog save']);
