@@ -1,5 +1,14 @@
 # 项目交接文档
 
+## Current Fact Snapshot - Business Order Navigation Transition Stability
+
+- Clicking a workbench pane such as `订单` from the business mall or unified user center no longer flashes the four-item customer footer before the operating workbench appears.
+- Root cause: the newly mounted workbench initially used an empty context and rendered the customer navigation fallback before the server identity refresh completed. The workbench now uses the previously server-validated cached business context for first-frame presentation only; authorization is still refreshed from the server immediately. When no valid business context exists, navigation stays hidden instead of rendering customer tabs.
+- Functional commit `b00eba95` changes only the workbench presentation state and focused contract guards. No order, identity, permission, API, migration, database, payment, membership, referral, or settlement behavior changed.
+- The YFTH role/assets/referral contract, multi-role shell contract, login/navigation contract, request-fallback check, `git diff --check`, H5 production build, and mp-weixin production compile passed. Authenticated production browser verification with a real store-staff test account confirmed that clicking `订单` enters the store-order pane while retaining all six operating navigation items.
+- Production `https://yfth.top` serves the reviewed H5 artifact. Replaced H5 files are backed up at `/www/backup/yfth-order-nav-stability-20260718-161255`; the retained release is `/www/releases/yfth-order-nav-stability-b00eba95-20260718-161255`. No production database, `.env`, uploads, Admin assets, OSS, SMS, WeChat, payment configuration, certificate, or business data was changed. The mp-weixin artifact was compiled but not uploaded to the WeChat platform.
+- Final `main` and `origin/main` should be read from real Git after this documentation closure commit and push.
+
 ## Current Fact Snapshot - Fixed Customer And Business Role Navigation
 
 - Customer navigation is fixed to four peer items: `首页 / 分类 / 购物车 / 我的`.
