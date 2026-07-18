@@ -1,5 +1,12 @@
 <template>
   <div class="yfth-franchise-application">
+    <div class="page-heading">
+      <div>
+        <h1>总部加盟申请</h1>
+        <p>查看用户提交的加盟意向，分配招商负责人并记录后续跟进。</p>
+      </div>
+      <el-tag type="warning" effect="plain">总部招商</el-tag>
+    </div>
     <el-card shadow="never" class="ivu-mt" :body-style="{ padding: '16px' }">
       <div class="toolbar">
         <el-input v-model="filters.keyword" clearable placeholder="申请号/姓名/电话/城市" class="w220" />
@@ -205,6 +212,7 @@ export default {
     },
   },
   created() {
+    this.filters.status = this.$route.query.status || '';
     this.load(true);
   },
   methods: {
@@ -292,6 +300,26 @@ export default {
 </script>
 
 <style scoped>
+.page-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 18px 20px;
+  background: #fff;
+  border: 1px solid #e8ecf1;
+  border-radius: 6px;
+}
+.page-heading h1 {
+  margin: 0;
+  font-size: 20px;
+  line-height: 28px;
+}
+.page-heading p {
+  margin: 6px 0 0;
+  color: #667085;
+  font-size: 13px;
+  line-height: 20px;
+}
 .toolbar {
   display: flex;
   align-items: center;

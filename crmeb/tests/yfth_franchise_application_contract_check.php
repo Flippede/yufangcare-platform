@@ -260,6 +260,9 @@ foreach ([
 $adminRouteJs = (string)file_get_contents($projectRoot . DIRECTORY_SEPARATOR . 'template/admin/src/router/modules/yfth.js');
 $assert(strpos($adminRouteJs, 'franchise-application') !== false, 'admin_router_contains_franchise_application');
 $assert(strpos($adminRouteJs, 'yfth-franchise-application-index') !== false, 'admin_router_contains_auth');
+$adminPage = (string)file_get_contents($projectRoot . DIRECTORY_SEPARATOR . 'template/admin/src/pages/yfth/franchiseApplication/index.vue');
+$assert(strpos($adminPage, '总部加盟申请') !== false, 'admin_page_has_discoverable_title');
+$assert(strpos($adminPage, "this.filters.status = this.\$route.query.status || ''") !== false, 'admin_page_accepts_workbench_status_filter');
 
 $uniApi = (string)file_get_contents($projectRoot . DIRECTORY_SEPARATOR . 'template/uni-app/api/yfth.js');
 foreach ([

@@ -38,6 +38,9 @@ try {
     $assertContains($controller, 'safePaidOrderMetrics($todayStart, $todayEnd)', 'workbench_uses_shared_paid_order_metrics');
     $assertContains($controller, "workbenchCard('today_orders', '今日支付订单'", 'workbench_card_title_paid_orders');
     $assertContains($controller, "workbenchCard('today_paid_amount', '今日成交金额'", 'workbench_card_title_paid_amount');
+    $assertContains($controller, "workbenchCard('pending_franchise_applications', '待处理加盟申请'", 'workbench_counts_pending_franchise_applications');
+    $assertContains($controller, "'title' => '待分配加盟申请'", 'workbench_exposes_unassigned_franchise_todo');
+    $assertContains($controller, "quickLink('总部加盟申请', '/yfth/franchise-application'", 'workbench_exposes_franchise_application_link');
     $assertContains($controller, "->whereBetween('pay_time', [\$start, \$end])", 'paid_order_metrics_use_pay_time_range');
     foreach (["'paid' => 1", "'refund_status' => 0", "'pid' => 0", "'is_del' => 0"] as $needle) {
         $assertContains($controller, $needle, 'paid_order_filter_contains:' . $needle);

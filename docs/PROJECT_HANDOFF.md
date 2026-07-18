@@ -1,5 +1,11 @@
 # 项目交接文档
 
+## Current Fact Snapshot - Headquarters Franchise Application Discoverability Fix
+
+- A submitted production franchise application was confirmed to exist, while the headquarters home workbench exposed only appointment and write-off todos and long-lived Admin sessions retained an older persisted menu tree. The application data, list API, permissions, route, and existing processing page were intact.
+- The headquarters workbench now counts active franchise applications, exposes a `待分配加盟申请` todo, and adds direct entries for `总部加盟申请` and `招商合伙人与开店`. Opening the workbench also refreshes the real server menu tree so newly deployed YFTH menus become visible without requiring a new administrator login.
+- The existing franchise-application page is reused and now has a clear headquarters title and accepts the workbench status filter. No second application model, placeholder record, new status transition, or application data rewrite was introduced.
+
 ## Current Fact Snapshot - Final Consolidated Main Production Release
 
 - Current branch: `main`. The complete feature line from `codex/yfth-franchise-opening-partner-hierarchy-v1` was merged with `git merge --ff-only`; the reviewed functional closure commit is `14c4501dbba21e2e7835bde6dc7deb969c7663b2`, and the refreshed Admin production assets commit is `76139010784a0b76ee7cfd9d72d5da58b9506b5f`. The feature branch is preserved. Final `main` and `origin/main` should be read from real Git after this documentation closure commit and push.

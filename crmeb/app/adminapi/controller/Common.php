@@ -152,6 +152,15 @@ class Common extends AuthController
         $todayEnd = $todayStart + 86399;
         $todayYmd = (int)date('Ymd');
         $todayPaidOrders = $this->safePaidOrderMetrics($todayStart, $todayEnd);
+        $pendingFranchiseApplications = $this->safeCountIn(
+            'yfth_franchise_application',
+            'status',
+            ['submitted', 'contacting', 'communicating', 'inspecting', 'pending_contract']
+        );
+        $unassignedFranchiseApplications = $this->safeCount('yfth_franchise_application', [
+            'status' => 'submitted',
+            'assigned_uid' => 0,
+        ]);
 
         $cards = [
             $this->workbenchCard('business_subjects', '经营主体', $this->safeCount('yfth_business_subject', ['status' => 'active']), '已启用主体'),
@@ -163,6 +172,7 @@ class Common extends AuthController
             $this->workbenchCard('today_writeoffs', '今日核销', $this->safeCountRange('yfth_service_writeoff_record', 'writeoff_time', $todayStart, $todayEnd, ['status' => 'succeeded']), '已完成履约'),
             $this->workbenchCard('today_orders', '今日支付订单', $todayPaidOrders['count'], '已支付未退款主订单'),
             $this->workbenchCard('today_paid_amount', '今日成交金额', $todayPaidOrders['amount'], '单位：元，按支付时间'),
+            $this->workbenchCard('pending_franchise_applications', '待处理加盟申请', $pendingFranchiseApplications, '总部招商跟进队列'),
         ];
 
         $todos = [
@@ -178,6 +188,12 @@ class Common extends AuthController
                 'path' => '/' . Config::get('app.admin_prefix', 'admin') . '/yfth/service-appointment?tab=appointments&status=checked_in',
                 'auth' => ['yfth-service-appointment-index'],
             ],
+            [
+                'title' => '待分配加盟申请',
+                'count' => $unassignedFranchiseApplications,
+                'path' => '/yfth/franchise-application?status=submitted',
+                'auth' => ['yfth-franchise-application-index'],
+            ],
         ];
 
         $quickLinks = [
@@ -190,6 +206,8 @@ class Common extends AuthController
             $this->quickLink('业务基础域', '/yfth/foundation', ['yfth-foundation-index'], '身份、主体与资质'),
             $this->quickLink('套餐与权益', '/yfth/package-benefit', ['yfth-package-benefit-index'], '5980套餐和权益计划'),
             $this->quickLink('服务预约与核销', '/yfth/service-appointment', ['yfth-service-appointment-index'], '预约、签到与核销'),
+            $this->quickLink('总部加盟申请', '/yfth/franchise-application', ['yfth-franchise-application-index'], '申请分配、跟进与状态推进'),
+            $this->quickLink('招商合伙人与开店', '/yfth/franchise-partner', ['yfth-franchise-partner-index'], '合伙人、团队与开店管理'),
         ];
 
         return app('json')->success([

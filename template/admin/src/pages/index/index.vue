@@ -39,7 +39,7 @@
         <section class="panel">
           <div class="panel-title">
             <h2>运营待办</h2>
-            <span>来自预约和核销真实状态</span>
+            <span>来自预约、核销和加盟申请真实状态</span>
           </div>
           <el-empty v-if="visibleTodos.length === 0" description="暂无待处理事项" :image-size="96" />
           <div v-else class="todo-list">
@@ -92,9 +92,20 @@ export default {
     },
   },
   mounted() {
+    this.refreshMenus();
     this.getWorkbench();
   },
   methods: {
+    refreshMenus() {
+      this.$store
+        .dispatch('menus/getMenusNavList')
+        .then((res) => {
+          const menus = (res.data && res.data.menus) || [];
+          this.$store.dispatch('routesList/setRoutesList', menus);
+          this.bus.$emit('routesListChange');
+        })
+        .catch(() => {});
+    },
     getWorkbench() {
       this.loading = true;
       yfthWorkbenchApi()
