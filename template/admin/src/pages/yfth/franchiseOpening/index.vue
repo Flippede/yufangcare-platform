@@ -1,12 +1,26 @@
 <template>
   <div class="yfth-franchise-opening">
+    <div class="page-heading">
+      <div>
+        <h1>加盟筹备与开店验收</h1>
+        <p>合同、财务、筹备、验收和正式身份授予必须依次完成；正式授权后会同步合伙人档案及下属门店。</p>
+      </div>
+      <el-tag type="success" effect="plain">总部开店流程</el-tag>
+    </div>
     <el-card shadow="never" :body-style="{ padding: '16px' }">
+      <el-alert
+        title="这里只展示已经创建合同或进入筹备的申请。新申请请先在“总部加盟申请”中逐步推进到待签约，再点击“创建合同”。"
+        type="info"
+        :closable="false"
+        show-icon
+        class="workflow-alert"
+      />
       <el-tabs v-model="activeTab" @tab-click="load">
         <el-tab-pane label="加盟合同" name="contracts">
           <div class="toolbar">
             <el-input v-model="contractFilters.application_id" clearable placeholder="申请 ID" class="w160" />
             <el-select v-model="contractFilters.status" clearable placeholder="合同状态" class="w180">
-              <el-option v-for="item in contractStatuses" :key="item" :label="item" :value="item" />
+              <el-option v-for="item in contractStatuses" :key="item.value" :label="item.label" :value="item.value" />
             </el-select>
             <el-button type="primary" icon="el-icon-search" @click="load">查询</el-button>
             <el-button icon="el-icon-plus" @click="createVisible = true">新建合同</el-button>
@@ -46,22 +60,22 @@
 
         <el-tab-pane label="筹备资料" name="tasks">
           <div class="toolbar">
-            <el-input v-model="taskFilters.application_id" clearable placeholder="Application ID" class="w160" />
-            <el-select v-model="taskFilters.status" clearable placeholder="Status" class="w180">
-              <el-option v-for="item in taskStatuses" :key="item" :label="item" :value="item" />
+            <el-input v-model="taskFilters.application_id" clearable placeholder="申请 ID" class="w160" />
+            <el-select v-model="taskFilters.status" clearable placeholder="筹备状态" class="w180">
+              <el-option v-for="item in taskStatuses" :key="item.value" :label="item.label" :value="item.value" />
             </el-select>
-            <el-button type="primary" icon="el-icon-search" @click="load">Search</el-button>
+            <el-button type="primary" icon="el-icon-search" @click="load">查询</el-button>
           </div>
           <el-table v-loading="loading" :data="tasks" border>
-            <el-table-column prop="task_name" label="Task" min-width="180" />
-            <el-table-column prop="application_id" label="Application" width="110" />
-            <el-table-column prop="status_text" label="Status" width="130" />
-            <el-table-column prop="purchase_order_id" label="Purchase Order" width="130" />
-            <el-table-column prop="reject_reason" label="Reject reason" min-width="160" />
-            <el-table-column label="Actions" width="190">
+            <el-table-column prop="task_name" label="筹备任务" min-width="180" />
+            <el-table-column prop="application_id" label="申请 ID" width="110" />
+            <el-table-column prop="status_text" label="状态" width="130" />
+            <el-table-column prop="purchase_order_id" label="首批采购单" width="130" />
+            <el-table-column prop="reject_reason" label="驳回原因" min-width="160" />
+            <el-table-column label="操作" width="190">
               <template slot-scope="scope">
-                <el-button type="text" @click="reviewTask(scope.row, 'approve')">Approve</el-button>
-                <el-button type="text" @click="reviewTask(scope.row, 'reject')">Reject</el-button>
+                <el-button type="text" @click="reviewTask(scope.row, 'approve')">通过</el-button>
+                <el-button type="text" @click="reviewTask(scope.row, 'reject')">驳回</el-button>
               </template>
             </el-table-column>
           </el-table>
@@ -70,15 +84,15 @@
         <el-tab-pane label="开店验收" name="acceptance">
           <el-table v-loading="loading" :data="acceptances" border>
             <el-table-column prop="id" label="ID" width="80" />
-            <el-table-column prop="application_id" label="Application" width="110" />
-            <el-table-column prop="system_store_id" label="Store" width="100" />
-            <el-table-column prop="status_text" label="Status" width="150" />
-            <el-table-column prop="reject_reason" label="Reject reason" min-width="160" />
-            <el-table-column label="Actions" width="260">
+            <el-table-column prop="application_id" label="申请 ID" width="110" />
+            <el-table-column prop="system_store_id" label="门店 ID" width="100" />
+            <el-table-column prop="status_text" label="状态" width="150" />
+            <el-table-column prop="reject_reason" label="驳回原因" min-width="160" />
+            <el-table-column label="操作" width="260">
               <template slot-scope="scope">
-                <el-button type="text" @click="reviewAcceptance(scope.row, 'reviewing')">Reviewing</el-button>
-                <el-button type="text" @click="reviewAcceptance(scope.row, 'pass')">Pass</el-button>
-                <el-button type="text" @click="reviewAcceptance(scope.row, 'reject')">Reject</el-button>
+                <el-button type="text" @click="reviewAcceptance(scope.row, 'reviewing')">开始验收</el-button>
+                <el-button type="text" @click="reviewAcceptance(scope.row, 'pass')">验收通过</el-button>
+                <el-button type="text" @click="reviewAcceptance(scope.row, 'reject')">验收驳回</el-button>
               </template>
             </el-table-column>
           </el-table>
@@ -107,10 +121,10 @@
     <el-drawer title="加盟开店详情" :visible.sync="detailVisible" size="48%">
       <div class="drawer-body">
         <el-descriptions v-if="detail.application" :column="2" border>
-          <el-descriptions-item label="Application">{{ detail.application.application_no }}</el-descriptions-item>
-          <el-descriptions-item label="Status">{{ detail.application.status_text }}</el-descriptions-item>
-          <el-descriptions-item label="Applicant">{{ detail.application.name }}</el-descriptions-item>
-          <el-descriptions-item label="Phone">{{ detail.application.phone_masked }}</el-descriptions-item>
+          <el-descriptions-item label="加盟申请">{{ detail.application.application_no }}</el-descriptions-item>
+          <el-descriptions-item label="申请状态">{{ detail.application.status_text }}</el-descriptions-item>
+          <el-descriptions-item label="申请人">{{ detail.application.name }}</el-descriptions-item>
+          <el-descriptions-item label="联系电话">{{ detail.application.phone_masked }}</el-descriptions-item>
         </el-descriptions>
         <h4>正式门店档案</h4>
         <el-form label-width="120px">
@@ -125,9 +139,9 @@
           <el-button type="warning" @click="createFormalStore">验收通过后创建正式门店</el-button>
         </el-form>
         <h4>正式开店授权</h4>
-        <el-alert title="正式开店固定授予县级合伙人；可按总部设置同时兼任店长。历史 franchisee 仅作为兼容门店权限保留。" type="info" :closable="false" show-icon />
-        <el-button type="success" @click="grantIdentity('county_partner')">开通县级合伙人</el-button>
-        <el-button type="success" @click="grantIdentity('all')">开通县级合伙人并兼任店长</el-button>
+        <el-alert title="验收通过并绑定正式门店后，才可授予加盟商身份。授权会同步创建县级合伙人档案、下属门店和开店业绩；可选择是否兼任店长。" type="info" :closable="false" show-icon />
+        <el-button type="success" @click="grantIdentity('county_partner')">授予加盟商身份</el-button>
+        <el-button type="success" @click="grantIdentity('all')">授予加盟商并兼任店长</el-button>
       </div>
     </el-drawer>
   </div>
@@ -164,8 +178,19 @@ export default {
       acceptances: [],
       contractFilters: { status: '', application_id: '' },
       taskFilters: { status: '', application_id: '' },
-      contractStatuses: ['pending_user_confirm', 'user_confirmed', 'hq_confirmed', 'signed'],
-      taskStatuses: ['pending', 'in_progress', 'submitted', 'approved', 'rejected'],
+      contractStatuses: [
+        { label: '待申请人确认', value: 'pending_user_confirm' },
+        { label: '申请人已确认', value: 'user_confirmed' },
+        { label: '总部已确认', value: 'hq_confirmed' },
+        { label: '已签署', value: 'signed' },
+      ],
+      taskStatuses: [
+        { label: '待开始', value: 'pending' },
+        { label: '进行中', value: 'in_progress' },
+        { label: '已提交', value: 'submitted' },
+        { label: '已通过', value: 'approved' },
+        { label: '已驳回', value: 'rejected' },
+      ],
       createVisible: false,
       createForm: { application_id: '', amount_snapshot: '0.00', attachment_ids: '' },
       detailVisible: false,
@@ -174,6 +199,9 @@ export default {
     };
   },
   created() {
+    if (this.$route.query.application_id) {
+      this.contractFilters.application_id = String(this.$route.query.application_id);
+    }
     this.load();
   },
   methods: {
@@ -197,45 +225,45 @@ export default {
         attachment_ids: this.createForm.attachment_ids,
       }).then(() => {
         this.createVisible = false;
-        this.$message.success('Saved');
+        this.$message.success('加盟合同已创建');
         this.load();
       });
     },
     confirmContract(row, action) {
       yfthFranchiseOpeningContractConfirm(row.id, { action }).then(() => {
-        this.$message.success('Done');
+        this.$message.success(action === 'sign' ? '合同已确认签署' : '总部已确认合同');
         this.load();
       });
     },
     confirmPayment(row) {
       yfthFranchiseOpeningPaymentConfirm(row.id).then(() => {
-        this.$message.success('Confirmed');
+        this.$message.success('财务到账已确认');
         this.load();
       });
     },
     rejectPayment(row) {
-      this.$prompt('Reject reason', 'Reject payment').then(({ value }) => {
+      this.$prompt('请输入驳回原因', '驳回付款凭证').then(({ value }) => {
         return yfthFranchiseOpeningPaymentReject(row.id, { reason: value || '' });
       }).then(() => {
-        this.$message.success('Rejected');
+        this.$message.success('付款凭证已驳回');
         this.load();
       });
     },
     reviewTask(row, action) {
       const request = action === 'reject'
-        ? this.$prompt('Reject reason', 'Reject task').then(({ value }) => yfthFranchiseOpeningTaskReview(row.id, { action, reject_reason: value || '' }))
+        ? this.$prompt('请输入驳回原因', '驳回筹备任务').then(({ value }) => yfthFranchiseOpeningTaskReview(row.id, { action, reject_reason: value || '' }))
         : yfthFranchiseOpeningTaskReview(row.id, { action });
       request.then(() => {
-        this.$message.success('Done');
+        this.$message.success(action === 'approve' ? '筹备任务已通过' : '筹备任务已驳回');
         this.load();
       });
     },
     reviewAcceptance(row, action) {
       const request = action === 'reject'
-        ? this.$prompt('Reject reason', 'Reject acceptance').then(({ value }) => yfthFranchiseOpeningAcceptanceReview(row.id, { action, reject_reason: value || '' }))
+        ? this.$prompt('请输入驳回原因', '驳回开店验收').then(({ value }) => yfthFranchiseOpeningAcceptanceReview(row.id, { action, reject_reason: value || '' }))
         : yfthFranchiseOpeningAcceptanceReview(row.id, { action });
       request.then(() => {
-        this.$message.success('Done');
+        this.$message.success(action === 'pass' ? '开店验收已通过' : action === 'reviewing' ? '已开始验收' : '开店验收已驳回');
         this.load();
       });
     },
@@ -274,8 +302,9 @@ export default {
         application_id: this.detail.application.id,
         role_code: roleCode,
         reason: 'final_opening_confirmation',
-      }).then(() => {
-        this.$message.success('正式开店身份已授予');
+      }).then((res) => {
+        const partner = res.data && res.data.partner;
+        this.$message.success(partner ? '加盟商身份已授予，并已同步合伙人档案和下属门店' : '加盟商身份已授予');
       });
     },
   },
@@ -283,6 +312,10 @@ export default {
 </script>
 
 <style scoped>
+.page-heading { display: flex; justify-content: space-between; align-items: flex-start; padding: 18px 20px; margin-bottom: 14px; background: #fff; border: 1px solid #e8ecf1; border-radius: 6px; }
+.page-heading h1 { margin: 0; font-size: 20px; line-height: 28px; }
+.page-heading p { margin: 6px 0 0; color: #667085; font-size: 13px; line-height: 20px; }
+.workflow-alert { margin-bottom: 16px; }
 .toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 14px; }
 .w160 { width: 160px; }
 .w180 { width: 180px; }

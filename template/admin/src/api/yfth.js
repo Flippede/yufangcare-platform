@@ -542,6 +542,14 @@ export function yfthFranchiseApplicationStatus(id, data) {
   });
 }
 
+export function yfthFranchiseApplicationReview(id, data) {
+  return request({
+    url: `yfth/franchise_application/application/${id}/review`,
+    method: 'post',
+    data,
+  });
+}
+
 export function yfthFranchiseApplicationFollow(id, data) {
   return request({
     url: `yfth/franchise_application/application/${id}/follow`,

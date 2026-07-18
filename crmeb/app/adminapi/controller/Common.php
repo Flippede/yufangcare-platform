@@ -155,7 +155,7 @@ class Common extends AuthController
         $pendingFranchiseApplications = $this->safeCountIn(
             'yfth_franchise_application',
             'status',
-            ['submitted', 'contacting', 'communicating', 'inspecting', 'pending_contract']
+            ['submitted', 'contacting', 'communicating', 'inspecting']
         );
         $unassignedFranchiseApplications = $this->safeCount('yfth_franchise_application', [
             'status' => 'submitted',
@@ -172,7 +172,7 @@ class Common extends AuthController
             $this->workbenchCard('today_writeoffs', '今日核销', $this->safeCountRange('yfth_service_writeoff_record', 'writeoff_time', $todayStart, $todayEnd, ['status' => 'succeeded']), '已完成履约'),
             $this->workbenchCard('today_orders', '今日支付订单', $todayPaidOrders['count'], '已支付未退款主订单'),
             $this->workbenchCard('today_paid_amount', '今日成交金额', $todayPaidOrders['amount'], '单位：元，按支付时间'),
-            $this->workbenchCard('pending_franchise_applications', '待处理加盟申请', $pendingFranchiseApplications, '总部招商跟进队列'),
+            $this->workbenchCard('pending_franchise_applications', '待确认加盟申请', $pendingFranchiseApplications, '总部仅确认线下跟进结果'),
         ];
 
         $todos = [

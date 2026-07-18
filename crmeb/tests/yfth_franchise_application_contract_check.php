@@ -45,6 +45,7 @@ $methodBlock = function (string $source, string $methodName): string {
 foreach ([
     'database/migrations/20260708110000_create_yfth_franchise_application_tables.php',
     'database/migrations/20260708113000_add_yfth_franchise_follow_visibility.php',
+    'database/migrations/20260719130000_simplify_franchise_review_and_localize_admin.php',
     'app/model/yfth/YfthFranchiseApplication.php',
     'app/model/yfth/YfthFranchiseFollowRecord.php',
     'app/dao/yfth/YfthFranchiseApplicationDao.php',
@@ -61,6 +62,7 @@ foreach ([
 
 $migration = $read('database/migrations/20260708110000_create_yfth_franchise_application_tables.php');
 $visibilityMigration = $read('database/migrations/20260708113000_add_yfth_franchise_follow_visibility.php');
+$reviewMigration = $read('database/migrations/20260719130000_simplify_franchise_review_and_localize_admin.php');
 foreach ([
     'yfth_franchise_application',
     'yfth_franchise_follow_record',
@@ -87,6 +89,16 @@ foreach ([
     'removeColumn(\'visible_type\')',
 ] as $needle) {
     $assert(strpos($visibilityMigration, $needle) !== false, 'visibility_migration_contains:' . $needle);
+}
+foreach ([
+    'SimplifyFranchiseReviewAndLocalizeAdmin',
+    'yfth-franchise-application-review',
+    'yfth/franchise_application/application/<id>/review',
+    '总部加盟申请',
+    '套餐会员与一级推荐',
+    '供应链与门店库存',
+] as $needle) {
+    $assert(strpos($reviewMigration, $needle) !== false, 'review_migration_contains:' . $needle);
 }
 
 $service = $read('app/services/yfth/FranchiseApplicationServices.php');
@@ -123,6 +135,11 @@ foreach ([
     'object_type\', \'franchise_application\'',
     'object_type\', \'franchise_follow_record\'',
     'add_time',
+    'public function review(',
+    'offline_review_approved',
+    'offline_review_rejected',
+    "['approve', 'reject']",
+    "? 'pending_contract' : 'terminated'",
 ] as $needle) {
     $assert(strpos($service, $needle) !== false, 'service_contains:' . $needle);
 }
@@ -222,10 +239,12 @@ foreach ([
     "assertAdminApiAuth('yfth/franchise_application/application/<id>/assign', 'POST')",
     "assertAdminApiAuth('yfth/franchise_application/application/<id>/status', 'POST')",
     "assertAdminApiAuth('yfth/franchise_application/application/<id>/follow', 'POST')",
+    "assertAdminApiAuth('yfth/franchise_application/application/<id>/review', 'POST')",
     'SystemRoleServices',
     'assignOwner',
     'changeStatus',
     'addFollow',
+    'services->review',
     'visible_type',
 ] as $needle) {
     $assert(strpos($adminController, $needle) !== false, 'admin_controller_contains:' . $needle);
@@ -239,6 +258,7 @@ foreach ([
     'FranchiseApplication/assign',
     'FranchiseApplication/status',
     'FranchiseApplication/follow',
+    'FranchiseApplication/review',
     'AdminAuthTokenMiddleware',
     'AdminCheckRoleMiddleware',
 ] as $needle) {
@@ -252,6 +272,7 @@ foreach ([
     'yfthFranchiseApplicationAssign',
     'yfthFranchiseApplicationStatus',
     'yfthFranchiseApplicationFollow',
+    'yfthFranchiseApplicationReview',
     'yfth/franchise_application/application',
 ] as $needle) {
     $assert(strpos($adminApi, $needle) !== false, 'admin_api_contains:' . $needle);
@@ -263,6 +284,22 @@ $assert(strpos($adminRouteJs, 'yfth-franchise-application-index') !== false, 'ad
 $adminPage = (string)file_get_contents($projectRoot . DIRECTORY_SEPARATOR . 'template/admin/src/pages/yfth/franchiseApplication/index.vue');
 $assert(strpos($adminPage, '总部加盟申请') !== false, 'admin_page_has_discoverable_title');
 $assert(strpos($adminPage, "this.filters.status = this.\$route.query.status || ''") !== false, 'admin_page_accepts_workbench_status_filter');
+foreach ([
+    '同意加盟',
+    '驳回申请',
+    '授予合伙人身份',
+    "path: '/yfth/user-role'",
+    'yfthFranchiseApplicationReview',
+] as $needle) {
+    $assert(strpos($adminPage, $needle) !== false, 'admin_page_review_contains:' . $needle);
+}
+foreach ([
+    '推进状态',
+    '创建加盟合同',
+    '新增沟通记录',
+] as $needle) {
+    $assert(strpos($adminPage, $needle) === false, 'admin_page_review_not_contains:' . $needle);
+}
 
 $uniApi = (string)file_get_contents($projectRoot . DIRECTORY_SEPARATOR . 'template/uni-app/api/yfth.js');
 foreach ([
@@ -333,15 +370,7 @@ foreach ([
     $assert(strpos($userDetail, $needle) === false, 'user_detail_not_contains:' . $needle);
 }
 
-$adminPage = (string)file_get_contents($projectRoot . DIRECTORY_SEPARATOR . 'template/admin/src/pages/yfth/franchiseApplication/index.vue');
-foreach ([
-    'visible_type',
-    '用户可见',
-    '总部内部',
-    'scope.row.add_time',
-] as $needle) {
-    $assert(strpos($adminPage, $needle) !== false, 'admin_page_contains:' . $needle);
-}
+$assert(strpos($adminPage, 'scope.row.add_time') !== false, 'admin_page_contains_audit_time');
 
 if ($failures) {
     echo "YFTH franchise application contract check failed:\n";

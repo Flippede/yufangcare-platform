@@ -45,6 +45,22 @@ class FranchiseApplication extends AuthController
         return app('json')->success($services->changeStatus((int)$id, (string)$data['status'], (string)$data['reason'], (int)$this->adminId, $this->adminInfo ?: []));
     }
 
+    public function review(FranchiseApplicationServices $services, $id)
+    {
+        $this->assertAdminApiAuth('yfth/franchise_application/application/<id>/review', 'POST');
+        $data = $this->request->postMore([
+            ['action', 'approve'],
+            ['reason', ''],
+        ]);
+        return app('json')->success($services->review(
+            (int)$id,
+            (string)$data['action'],
+            (string)$data['reason'],
+            (int)$this->adminId,
+            $this->adminInfo ?: []
+        ));
+    }
+
     public function follow(FranchiseApplicationServices $services, $id)
     {
         $this->assertAdminApiAuth('yfth/franchise_application/application/<id>/follow', 'POST');

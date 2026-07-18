@@ -251,6 +251,59 @@ class FranchiseApplicationServices extends YfthFoundationBaseServices
         });
     }
 
+    /**
+     * Headquarters only records the final offline review result. Partner follow-up,
+     * negotiation and contracting remain offline business facts.
+     */
+    public function review(int $id, string $action, string $reason, int $adminId, array $adminInfo = []): array
+    {
+        $this->assertHeadquarterAdmin($adminInfo);
+        $action = trim($action);
+        if (!in_array($action, ['approve', 'reject'], true)) {
+            throw new ApiException('franchise_application_review_action_invalid');
+        }
+        $reason = trim($reason);
+        if ($reason === '') {
+            throw new ApiException('franchise_application_review_reason_required');
+        }
+
+        return Db::transaction(function () use ($id, $action, $reason, $adminId) {
+            $before = Db::name('yfth_franchise_application')->where('id', $id)->lock(true)->find();
+            if (!$before) {
+                throw new ApiException('franchise_application_not_found');
+            }
+            $current = (string)$before['status'];
+            if (in_array($current, ['signed', 'preparing', 'opened'], true)) {
+                throw new ApiException('franchise_application_review_status_invalid');
+            }
+            $targetStatus = $action === 'approve' ? 'pending_contract' : 'terminated';
+            if ($current === $targetStatus) {
+                return ['application' => $this->formatApplication($before, true, $this->userMap([(int)$before['applicant_uid']]), $this->adminMap([(int)$before['assigned_uid']]))];
+            }
+            if ($current === 'terminated') {
+                throw new ApiException('franchise_application_review_status_invalid');
+            }
+
+            $after = $before;
+            $after['status'] = $targetStatus;
+            $after['update_time'] = time();
+            $this->dao->update($id, ['status' => $targetStatus, 'update_time' => $after['update_time']]);
+            $this->audit(
+                'franchise_application',
+                $id,
+                $action === 'approve' ? 'offline_review_approved' : 'offline_review_rejected',
+                $before,
+                $after,
+                $adminId,
+                'headquarter_admin',
+                0,
+                $reason
+            );
+
+            return ['application' => $this->formatApplication($after, true, $this->userMap([(int)$after['applicant_uid']]), $this->adminMap([(int)$after['assigned_uid']]))];
+        });
+    }
+
     public function addFollow(int $id, array $data, int $adminId, array $adminInfo = []): array
     {
         $this->assertHeadquarterAdmin($adminInfo);
@@ -637,11 +690,11 @@ class FranchiseApplicationServices extends YfthFoundationBaseServices
             'contacting' => '联系中',
             'communicating' => '沟通中',
             'inspecting' => '考察中',
-            'pending_contract' => '待进入合同阶段',
+            'pending_contract' => '总部已同意',
             'signed' => '已签约',
             'preparing' => '筹备中',
             'opened' => '已开业',
-            'terminated' => '已终止',
+            'terminated' => '已驳回',
         ];
         return $map[$status] ?? $status;
     }
@@ -670,15 +723,13 @@ class FranchiseApplicationServices extends YfthFoundationBaseServices
 
     private function nextStep(string $status, int $assignedUid): string
     {
-        if ($assignedUid <= 0) {
-            return '等待总部招商顾问分配';
-        }
         $map = [
-            'submitted' => '总部招商顾问将与您联系',
-            'contacting' => '保持电话或微信沟通',
-            'communicating' => '确认合作意向和基础条件',
-            'inspecting' => '推进门店考察和资料核对',
-            'pending_contract' => '等待进入合同与付款流程',
+            'submitted' => '等待总部确认',
+            'contacting' => '等待总部确认',
+            'communicating' => '等待总部确认',
+            'inspecting' => '等待总部确认',
+            'pending_contract' => '总部已确认同意，后续由招商合伙人线下跟进',
+            'terminated' => '总部审核未通过',
         ];
         return $map[$status] ?? '等待总部更新进度';
     }

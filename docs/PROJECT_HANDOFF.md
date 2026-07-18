@@ -1,5 +1,14 @@
 # 项目交接文档
 
+## Current Fact Snapshot - Simplified Headquarters Franchise Review
+
+- The production operating rule is now explicit: recruiting partners perform communication, inspection, negotiation and contracting offline; headquarters records only the final approval or rejection result. The headquarters application page therefore exposes `同意加盟` and `驳回申请` instead of forcing administrators through five online follow-up states.
+- A dedicated headquarters-only review API accepts `approve` or `reject`, requires a reason, locks the application row, writes the existing unified audit trail, and maps the result to the compatible persisted states `pending_contract` (displayed as `总部已同意`) or `terminated` (displayed as `已驳回`). Existing historical applications in contact/communication/inspection states can be reviewed directly without fabricating intermediate records.
+- After approval, the page exposes `授予合伙人身份` and opens the existing `用户经营身份` page for that applicant. The existing five-level partner service remains authoritative for rank and adjacent-parent validation; customer, permanent-member, store-role and partner facts are not overwritten by the review action.
+- The legacy online contract/preparation/acceptance implementation remains available for historical data compatibility but is hidden from the current headquarters menu and is no longer presented as the required operating path. No contract, payment, store, partner profile or identity is automatically fabricated by approval.
+- Visible YFTH Admin navigation and affected lists were localized: `总部加盟申请`, `套餐会员与一级推荐`, `推荐奖励台账`, `供应链与门店库存`, and all visible supply-chain and legacy-opening table controls are Chinese. Forward migration `20260719130000_simplify_franchise_review_and_localize_admin.php` adds the review permission, updates menu labels and hides the legacy opening page.
+- Focused verification passed with PHP 7.4.33: changed PHP syntax, 186-assertion franchise-application contract, 135-assertion legacy-opening contract, 65-assertion supply-chain contract, isolated MySQL 8.0.46 migration run/targeted rollback/rerun, Admin production build, and `git diff --check`. This snapshot does not claim a production deployment until the release and browser verification are completed.
+
 ## Current Fact Snapshot - Headquarters Franchise Application Discoverability Fix
 
 - A submitted production franchise application was confirmed to exist, while the headquarters home workbench exposed only appointment and write-off todos and long-lived Admin sessions retained an older persisted menu tree. The application data, list API, permissions, route, and existing processing page were intact.

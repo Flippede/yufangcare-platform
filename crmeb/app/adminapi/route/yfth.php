@@ -83,6 +83,7 @@ Route::group('yfth', function () {
         Route::get('application/:id', 'v1.yfth.FranchiseApplication/applicationDetail')->option(['real_name' => '加盟申请详情']);
         Route::post('application/:id/assign', 'v1.yfth.FranchiseApplication/assign')->option(['real_name' => '加盟申请分配负责人']);
         Route::post('application/:id/status', 'v1.yfth.FranchiseApplication/status')->option(['real_name' => '加盟申请状态推进']);
+        Route::post('application/:id/review', 'v1.yfth.FranchiseApplication/review')->option(['real_name' => '加盟申请总部审核']);
         Route::post('application/:id/follow', 'v1.yfth.FranchiseApplication/follow')->option(['real_name' => '加盟申请沟通记录']);
     })->option(['parent' => 'yfth', 'cate_name' => '加盟管理']);
     Route::group('franchise_opening', function () {
