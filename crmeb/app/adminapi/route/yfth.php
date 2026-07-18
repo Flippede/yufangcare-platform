@@ -125,6 +125,15 @@ Route::group('yfth', function () {
         Route::post('promotion/:id/review', 'v1.yfth.FranchisePartner/promotionReview')->option(['real_name' => '招商晋级审批']);
         Route::post('opening/complete', 'v1.yfth.FranchisePartner/openingComplete')->option(['real_name' => '总部正式开店']);
     })->option(['parent' => 'yfth', 'cate_name' => '招商合伙人与开店']);
+    Route::group('permanent_membership', function () {
+        Route::get('enrollment', 'v1.yfth.PermanentMembership/index')->option(['real_name' => 'Permanent membership enrollment list']);
+        Route::get('enrollment/:id', 'v1.yfth.PermanentMembership/detail')->option(['real_name' => 'Permanent membership enrollment detail']);
+        Route::get('member', 'v1.yfth.PermanentMembership/members')->option(['real_name' => 'Permanent membership list']);
+        Route::post('enrollment', 'v1.yfth.PermanentMembership/create')->option(['real_name' => 'Permanent membership enrollment create']);
+        Route::post('enrollment/:id/bind', 'v1.yfth.PermanentMembership/bind')->option(['real_name' => 'Permanent membership customer bind']);
+        Route::post('enrollment/:id/payment', 'v1.yfth.PermanentMembership/payment')->option(['real_name' => 'Permanent membership offline payment confirm']);
+        Route::post('enrollment/:id/confirmation_code', 'v1.yfth.PermanentMembership/confirmationCode')->option(['real_name' => 'Permanent membership confirmation code']);
+    })->option(['parent' => 'yfth', 'cate_name' => 'Permanent Membership']);
     Route::group('supply_chain', function () {
         Route::get('catalog', 'v1.yfth.SupplyChain/catalogList')->option(['real_name' => 'Supply catalog list']);
         Route::post('catalog/save', 'v1.yfth.SupplyChain/catalogSave')->option(['real_name' => 'Supply catalog save']);

@@ -134,6 +134,12 @@ export default {
       component: () => import('@/pages/yfth/packageMembershipReferral/index'),
     },
     {
+      path: 'permanent-membership',
+      name: `${pre}permanent_membership`,
+      meta: { auth: ['yfth-permanent-membership-index'], title: '永久会员办理' },
+      component: () => import('@/pages/yfth/permanentMembership/index'),
+    },
+    {
       path: 'user-role',
       name: `${pre}user_role`,
       meta: {

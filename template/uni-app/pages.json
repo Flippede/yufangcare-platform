@@ -241,6 +241,18 @@
 					}
 				},
 				{
+					"path": "permanent_membership/index",
+					"style": {
+						"navigationBarTitleText": "永久会员"
+					}
+				},
+				{
+					"path": "workbench/permanent_membership/index",
+					"style": {
+						"navigationBarTitleText": "永久会员办理"
+					}
+				},
+				{
 					"path": "workbench/customer_attribution/index",
 					"style": {
 						"navigationBarTitleText": "客户归属"

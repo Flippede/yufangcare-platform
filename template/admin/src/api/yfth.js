@@ -1182,3 +1182,11 @@ export function yfthPartnerPromotionReview(id, data) {
 export function yfthPartnerOpeningComplete(data) {
   return request({ url: 'yfth/franchise_partner/opening/complete', method: 'post', data });
 }
+
+export function yfthPermanentMembershipEnrollments(params) { return request({ url: 'yfth/permanent_membership/enrollment', method: 'get', params }); }
+export function yfthPermanentMembershipEnrollment(id) { return request({ url: `yfth/permanent_membership/enrollment/${id}`, method: 'get' }); }
+export function yfthPermanentMembershipMembers(params) { return request({ url: 'yfth/permanent_membership/member', method: 'get', params }); }
+export function yfthPermanentMembershipCreate(data) { return request({ url: 'yfth/permanent_membership/enrollment', method: 'post', data }); }
+export function yfthPermanentMembershipBind(id, data) { return request({ url: `yfth/permanent_membership/enrollment/${id}/bind`, method: 'post', data }); }
+export function yfthPermanentMembershipPayment(id, data) { return request({ url: `yfth/permanent_membership/enrollment/${id}/payment`, method: 'post', data }); }
+export function yfthPermanentMembershipConfirmationCode(id) { return request({ url: `yfth/permanent_membership/enrollment/${id}/confirmation_code`, method: 'post' }); }
