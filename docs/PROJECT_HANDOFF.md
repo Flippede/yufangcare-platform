@@ -7,6 +7,7 @@
 - This is an intentional navigation exception only. Normal login and application entry still resolve the server-validated dominant operating identity and open its workbench by default; no manual role-switching authority or client-side role fabrication was restored.
 - The exception is transient and cleared when the customer center is hidden, preventing redirect loops while preserving the highest-identity default on the next normal entry.
 - Focused verification passed: the YFTH role/assets/referral contract, request fallback check, H5 production build, mp-weixin production compile, and `git diff --check`. Production deployment facts are recorded after the reviewed artifact is released.
+- Production `https://yfth.top` now serves functional commit `53cec697`. The H5 release is retained at `/www/releases/yfth-workbench-user-center-53cec697-20260718-144700`, and the replaced H5 entry/assets are retained at `/www/backup/yfth-workbench-user-center-20260718-144700`. Public browser verification confirmed the customer center, order center, service entries, four-item navigation, entry JS/CSS, and related APIs load successfully; no database, environment, upload, OSS, SMS, WeChat, payment, or business-data change was made.
 
 ## Current Fact Snapshot - Franchise Approval Direct Store Manager Grant
 
