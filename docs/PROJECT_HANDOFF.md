@@ -5,6 +5,8 @@
 - A submitted production franchise application was confirmed to exist, while the headquarters home workbench exposed only appointment and write-off todos and long-lived Admin sessions retained an older persisted menu tree. The application data, list API, permissions, route, and existing processing page were intact.
 - The headquarters workbench now counts active franchise applications, exposes a `待分配加盟申请` todo, and adds direct entries for `总部加盟申请` and `招商合伙人与开店`. Opening the workbench also refreshes the real server menu tree so newly deployed YFTH menus become visible without requiring a new administrator login.
 - The existing franchise-application page is reused and now has a clear headquarters title and accepts the workbench status filter. No second application model, placeholder record, new status transition, or application data rewrite was introduced.
+- Production `https://yfth.top/admin/` was updated from commit `4065eac6643c7b1478c193f201bbdaf57af128f2`. The replaced controller and complete Admin assets are backed up at `/www/backup/yfth-franchise-admin-entry-20260718-112004`; the deployable release is retained at `/www/releases/yfth-franchise-admin-entry-20260718-112004`.
+- Authenticated production verification confirmed the workbench count and todo are both `1`, the refreshed `御方通和 -> 加盟管理` menu is visible, and application `FA202607181032090000047999` is listed with assign, advance, and communication actions. All observed Admin assets and the application-list API returned HTTP 200 with no browser console errors.
 
 ## Current Fact Snapshot - Final Consolidated Main Production Release
 
