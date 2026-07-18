@@ -1,5 +1,15 @@
 # 项目交接文档
 
+## Current Fact Snapshot - Fixed Customer And Business Role Navigation
+
+- Customer navigation is fixed to four peer items: `首页 / 分类 / 购物车 / 我的`.
+- Every operating identity keeps a stable six-item role navigation. Franchisee uses `工作台 / 门店 / 客户 / 订单 / 商城 / 我的`; store manager uses `工作台 / 客户 / 预约 / 核销 / 商城 / 我的`; store staff uses `工作台 / 客户 / 核销 / 订单 / 商城 / 我的`; service mentor uses `工作台 / 线索 / 活动 / 资料 / 商城 / 我的`.
+- `商城` and `我的` are parallel business surfaces. Entering either surface preserves the server-validated current operating role and its fixed navigation; it no longer replaces the role footer with the customer four-tab footer. Returning to a workbench pane clears both transient surface states.
+- Functional commit `9a6cddc3` changed only the shared footer, role-navigation context, workbench navigation state, and focused contract tests. No role, store, permission, API, migration, database, order, payment, refund, membership, referral, or settlement behavior changed.
+- Focused contracts, request fallback, `git diff --check`, H5 production build, and mp-weixin production compile passed. Chrome production verification confirmed the customer four-tab footer and a real store-staff session retaining six role items across workbench, mall, and user center; `商城` and `我的` selected states and return-to-workbench behavior were correct.
+- Production `https://yfth.top` serves the reviewed H5 artifact. Replaced H5 files are backed up at `/www/backup/yfth-business-user-center-nav-20260718-153900`; the retained release is `/www/releases/yfth-business-user-center-nav-9a6cddc3-20260718-153900`. No production database, `.env`, uploads, OSS, SMS, WeChat, payment configuration, certificate, or business data was changed. The mp-weixin artifact was compiled but not uploaded to the WeChat platform.
+- Final `main` and `origin/main` should be read from real Git after this documentation closure commit and push.
+
 ## Current Fact Snapshot - Business Mall Parallel Navigation Closure
 
 - The headquarters mall remains the single CRMEB customer mall and product/order/payment path, but business users now keep their server-resolved operating navigation while browsing it. `商城` is rendered as a selected peer item instead of replacing the workbench navigation with the ordinary customer four-tab footer.
