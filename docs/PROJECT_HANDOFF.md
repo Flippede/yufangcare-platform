@@ -1,6 +1,18 @@
 # 项目交接文档
 
-## Current Fact Snapshot - Formal User Account Closure V1 Development Closure
+## Current Fact Snapshot - Final Consolidated Main Production Release
+
+- Current branch: `main`. The complete feature line from `codex/yfth-franchise-opening-partner-hierarchy-v1` was merged with `git merge --ff-only`; the reviewed functional closure commit is `14c4501dbba21e2e7835bde6dc7deb969c7663b2`, and the refreshed Admin production assets commit is `76139010784a0b76ee7cfd9d72d5da58b9506b5f`. The feature branch is preserved. Final `main` and `origin/main` should be read from real Git after this documentation closure commit and push.
+- Production `https://yfth.top` runs the consolidated business and static release represented by `76139010784a0b76ee7cfd9d72d5da58b9506b5f`. The release is retained at `/www/releases/yfth-main-7613901-20260718-100634`; the pre-release code/static/environment/database backup is retained at `/www/backup/yfth-main-7613901-20260718-100634`.
+- The release includes the custom customer homepage, four-item navigation, product categories, customer login/captcha fixes, productized user center, operating identities and switching, store-acquisition and member referral QR flows, franchise opening and five-level partner hierarchy, headquarters user/identity controls, store workbenches, supply chain, membership/referral rewards, offline settlement records, and formal user account closure. Existing products, categories, page decoration, users, stores, orders, uploads, OSS, SMS, WeChat/payment configuration, and certificates were preserved.
+- Forward migration `20260719120000 FormalizeYfthUserAccountClosure` is `up` on the independent MySQL 8 production database. Formal account closure replaces the old debug purge and is enabled with `USER_ACCOUNT_CLOSURE_ENABLED=true`; no production user was deleted during deployment or verification.
+- Latest Admin assets were synchronized to `crmeb/public/admin`; latest H5 assets were synchronized to the production public directories. Admin production build, H5 production build, and mp-weixin production compile passed. The mp-weixin artifact was not uploaded to the WeChat platform.
+- Production verification passed for the custom homepage, formal account-closure page, authenticated headquarters user-role page and its API, public H5/Admin assets, Redis, Nginx, PHP-FPM, MySQL 8, Queue, Timer, and Workerman. The formal account-closure contract and related PHP syntax passed on the deployed release. No real payment, refund, SMS, WeChat authorization, or destructive account action was executed.
+- The production `.env`, uploads, OSS/SMS/WeChat/payment configuration, and private certificates were not replaced. No production rollback, MySQL 5.7 deletion, unrelated service restart, or WeChat upload was performed.
+
+The development snapshot below is historical and is superseded by the consolidated production closure above.
+
+## Historical Fact Snapshot - Formal User Account Closure V1 Development Closure
 
 - Current branch: `codex/yfth-franchise-opening-partner-hierarchy-v1`; development started at `cc927a6d33187d7b39e994009110181ec8cfd7ff`. Stable `main` / `origin/main` remains `cf58036638a1d53d7a29c6aa41a79ae52a37c4a5`; this change has not been merged or deployed.
 - The former headquarters-only debug purge has been replaced by one formal account-closure domain shared by customer self-service and headquarters-assisted closure. Customer self-service is available from the existing account-cancellation page; headquarters uses `御方通和 / 用户经营身份 / 账号销户`, with headquarters scope, dedicated API permissions, a mandatory reason, and the exact phrase `确认注销`.
