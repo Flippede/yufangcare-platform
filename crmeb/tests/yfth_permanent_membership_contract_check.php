@@ -45,7 +45,7 @@ try {
     $assert(strpos($attribution, 'assignFirstInTransaction') !== false && strpos($referral, 'closeForMembershipInTransaction') !== false, 'stage1a_exposes_controlled_transaction_methods');
     $assert(strpos($service, '$query = $query->where') !== false, 'stage2_filters_retain_thinkorm_query_objects');
     $assert(strpos($service, 'membershipLockContext') !== false
-        && strpos($service, 'lockCurrents($lockContext[\'uids\'])') !== false
+        && (strpos($service, 'lockCurrents($lockContext[\'uids\'])') !== false || strpos($service, "(array)\$lockContext['locked_currents']") !== false)
         && strpos($service, 'assignFirstWithLockedCurrentsInTransaction') !== false
         && strpos($service, 'closeForMembershipWithLockedCurrentsInTransaction') !== false,
         'activation_prelocks_complete_numeric_uid_set');

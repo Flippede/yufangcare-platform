@@ -149,8 +149,18 @@ class HqActiveReferralServices extends YfthFoundationBaseServices
             'relation_id' => (int)($snapshot['id'] ?? 0),
             'referrer_uid' => $referrerUid,
             'referred_uid' => $referredUid,
+            'uids' => array_keys($lockedCurrents),
             'locked_currents' => $lockedCurrents,
         ];
+    }
+
+    /** Compatibility wrapper that preserves the current pre-locked serialization gate. */
+    public function closeForMembershipInTransaction(int $referredUid, int $storeId, HqAuthorityMutation $mutation): array
+    {
+        $lockContext = $this->membershipLockContext($referredUid);
+        return $this->closeForMembershipWithLockedCurrentsInTransaction(
+            $referredUid, $storeId, $mutation, $lockContext, (array)$lockContext['locked_currents']
+        );
     }
 
     public function closeForMembershipWithLockedCurrentsInTransaction(

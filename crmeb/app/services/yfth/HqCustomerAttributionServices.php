@@ -124,6 +124,14 @@ class HqCustomerAttributionServices extends YfthFoundationBaseServices
         return $result;
     }
 
+    /** Compatibility wrapper for membership activation callers already inside a transaction. */
+    public function assignFirstInTransaction(int $uid, int $storeId, HqAuthorityMutation $mutation, string $sourceKey = ''): array
+    {
+        return $this->assignFirstWithLockedCurrentsInTransaction(
+            $uid, $storeId, $mutation, $this->lockCurrents([$uid]), $sourceKey
+        );
+    }
+
     public function assignFirstWithLockedCurrentsInTransaction(
         int $uid,
         int $storeId,
