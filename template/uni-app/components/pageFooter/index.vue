@@ -1,6 +1,23 @@
 <template>
 	<!-- 底部导航 -->
-	<view v-if="showTabBar">
+	<view v-if="businessMode">
+		<view class="fixed-lb w-full pb-safe z-999 business-footer-fixed">
+			<view class="business-footer">
+				<view
+					v-for="(item, index) in businessNavs"
+					:key="index"
+					class="business-footer-item"
+					:class="{ active: item.action === 'mall' }"
+					@click="goBusinessRouter(item)"
+				>
+					{{ item.title }}
+				</view>
+			</view>
+		</view>
+		<view class="business-footer-space"></view>
+		<view class="safe-area-inset-bottom"></view>
+	</view>
+	<view v-else-if="showTabBar">
 		<view class="fixed-lb w-full pb-safe z-999" :class="{ 'centered-h5-footer': centeredH5 }" :style="[bgColor]">
 			<view class="page-footer-wrapper">
 				<view
@@ -36,6 +53,14 @@ import { mapState, mapGetters } from 'vuex';
 import { getNavigation } from '@/api/public.js';
 // import {getCartCounts} from '@/api/order.js';
 import BaseBadge from '@/components/BaseBadge/index.vue';
+import {
+	currentContext,
+	enterYfthBusinessUserCenter,
+	isBusinessRole,
+	isYfthBusinessMallBrowsing,
+	leaveYfthBusinessMall,
+	roleNav
+} from '@/libs/yfthContext.js';
 export default {
 	name: 'pageFooter',
 	components: { BaseBadge },
@@ -117,12 +142,18 @@ export default {
 		}
 	},
 	created() {
+		this.setupBusinessNavigation();
 		let routes = getCurrentPages(); //获取当前打开过的页面路由数组
 		let curRoute = routes[routes.length - 1].route; //获取当前页面路由
 		this.activeRouter = '/' + curRoute;
 	},
 	mounted() {
-		this.navigationInfo();
+		if (this.businessMode) {
+			uni.hideTabBar();
+			this.$emit('newDataStatus', true, 3);
+		} else {
+			this.navigationInfo();
+		}
 		// if (this.isLogin) {
 		// 	this.getCartNum()
 		// }
@@ -132,10 +163,38 @@ export default {
 			newData: {},
 			activeRouter: '',
 			showTabBar: false,
-			footerHeight: 0
+			footerHeight: 0,
+			businessMode: false,
+			businessNavs: []
 		};
 	},
 	methods: {
+		setupBusinessNavigation() {
+			if (!isYfthBusinessMallBrowsing()) return;
+			const context = currentContext();
+			if (!context || !isBusinessRole(context.role_code)) {
+				leaveYfthBusinessMall();
+				return;
+			}
+			this.businessMode = true;
+			this.businessNavs = roleNav(context.role_code);
+		},
+		goBusinessRouter(item) {
+			if (!item || item.action === 'mall') return;
+			leaveYfthBusinessMall();
+			if (item.action === 'user_center') {
+				enterYfthBusinessUserCenter();
+				uni.switchTab({ url: '/pages/user/index' });
+				return;
+			}
+			if (item.pane) {
+				uni.reLaunch({ url: `/pages/yfth/workbench/index?pane=${encodeURIComponent(item.pane)}` });
+				return;
+			}
+			if (!item.url) return;
+			const fn = item.type === 'switchTab' ? uni.switchTab : uni.navigateTo;
+			fn({ url: item.url });
+		},
 		hasValidNavigation(data) {
 			return !!(data && data.effectConfig && Array.isArray(data.menuList) && data.menuList.length && data.menuList.every((item) => item && item.name && item.link));
 		},
@@ -226,8 +285,46 @@ export default {
 	position: relative;
 }
 
+.business-footer-fixed {
+	background: #fffaf4;
+	border-top: 1rpx solid #eadfce;
+}
+
+.business-footer {
+	display: flex;
+	height: 106rpx;
+}
+
+.business-footer-item {
+	min-width: 0;
+	flex: 1;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	color: #786b73;
+	font-size: 23rpx;
+	white-space: nowrap;
+}
+
+.business-footer-item.active {
+	color: #6f4c2f;
+	font-weight: 700;
+}
+
+.business-footer-space {
+	height: 106rpx;
+}
+
 /* #ifdef H5 */
 @media screen and (min-width: 768px) {
+	.business-footer-fixed {
+		left: 50%;
+		right: auto;
+		width: 540px !important;
+		max-width: 100%;
+		transform: translateX(-50%);
+	}
+
 	.fixed-lb.centered-h5-footer {
 		left: 50%;
 		right: auto;

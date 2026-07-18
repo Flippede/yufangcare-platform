@@ -55,6 +55,8 @@ $wechatLoginPage = (string)file_get_contents(dirname($root) . '/template/uni-app
 $bindingPhonePage = (string)file_get_contents(dirname($root) . '/template/uni-app/pages/users/binding_phone/index.vue');
 $workbenchPage = (string)file_get_contents(dirname($root) . '/template/uni-app/pages/yfth/workbench/index.vue');
 $contextLibrary = (string)file_get_contents(dirname($root) . '/template/uni-app/libs/yfthContext.js');
+$pageFooter = (string)file_get_contents(dirname($root) . '/template/uni-app/components/pageFooter/index.vue');
+$customHomepage = (string)file_get_contents(dirname($root) . '/template/uni-app/pages/index/components/yfthCustomHome.vue');
 $pages = (string)file_get_contents(dirname($root) . '/template/uni-app/pages.json');
 $nativeUserPage = (string)file_get_contents(dirname($root) . '/template/admin/src/pages/user/list/index.vue');
 $uniApi = (string)file_get_contents(dirname($root) . '/template/uni-app/api/yfth.js');
@@ -184,6 +186,17 @@ $assert(strpos($userPage, 'const keepUserCenter = isYfthBusinessUserCenterBrowsi
     'user_center_skips_dominant_role_redirect_only_for_intentional_navigation');
 $assert(strpos($userPage, 'onHide()') !== false && strpos($userPage, 'leaveYfthBusinessUserCenter()') !== false,
     'user_center_clears_transient_navigation_state');
+$assert(strpos($pageFooter, 'isYfthBusinessMallBrowsing') !== false
+    && strpos($pageFooter, 'this.businessNavs = roleNav(context.role_code)') !== false,
+    'mall_footer_uses_current_business_role_navigation');
+$assert(strpos($pageFooter, "item.action === 'mall'") !== false
+    && strpos($pageFooter, "business-footer-item") !== false,
+    'mall_is_parallel_active_business_navigation_item');
+$assert(strpos($pageFooter, '/pages/yfth/workbench/index?pane=') !== false
+    && strpos($pageFooter, 'leaveYfthBusinessMall()') !== false,
+    'business_mall_footer_returns_to_workbench_panes');
+$assert(strpos($customHomepage, '<pageFooter :configData="footerConfigData"') !== false,
+    'custom_home_always_mounts_business_aware_footer');
 $assert(strpos($storeAcquisitionService, "private const ROLES = ['store_manager', 'store_staff']") !== false, 'acquisition_code_role_boundary');
 $assert(strpos($storeAcquisitionService, 'HqCustomerAttributionServices') !== false && strpos($storeAcquisitionService, 'syncAuthorityCustomerInTransaction') !== false, 'acquisition_uses_authoritative_store_attribution');
 $assert(strpos($storeAcquisitionService, "'store_acquisition'") !== false, 'acquisition_projects_store_customer_source');

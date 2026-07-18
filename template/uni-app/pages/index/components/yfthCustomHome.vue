@@ -36,7 +36,7 @@
       </view>
     </view>
     <view class="yfth-home__footer-space"></view>
-    <pageFooter v-if="footerConfigData && Object.keys(footerConfigData).length" :configData="footerConfigData" @newDataStatus="onFooter" />
+    <pageFooter :configData="footerConfigData" @newDataStatus="onFooter" />
   </view>
 </template>
 
