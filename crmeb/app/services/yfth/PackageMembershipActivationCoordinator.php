@@ -7,18 +7,15 @@ class PackageMembershipActivationCoordinator
     private $membership;
     private $attribution;
     private $referral;
-    private $reward;
 
     public function __construct(
         PackageMembershipServices $membership,
         HqCustomerAttributionServices $attribution,
-        HqActiveReferralServices $referral,
-        DirectReferralRewardServices $reward
+        HqActiveReferralServices $referral
     ) {
         $this->membership = $membership;
         $this->attribution = $attribution;
         $this->referral = $referral;
-        $this->reward = $reward;
     }
 
     public function activateInTransaction(array $purchase, array $snapshot, int $instanceId): array
@@ -44,7 +41,12 @@ class PackageMembershipActivationCoordinator
             $closed = $this->referral->closeForMembershipWithLockedCurrentsInTransaction($uid, $storeId, $mutation, $lockContext, $lockedCurrents);
             $relation = (array)$closed['before'];
             $amountCent = $this->moneyToCents($snapshot['order_pay_price'] ?? '0.00');
-            $candidate = $this->reward->createPackageCandidateInTransaction($relation, $instanceId, $amountCent);
+            $candidate = app()->make(UnifiedRewardOrchestratorServices::class)->enqueue(
+                'package_activated',
+                'package_instance',
+                (string)$instanceId,
+                ['relation' => $relation, 'instance_id' => $instanceId, 'amount_cent' => $amountCent]
+            );
         }
 
         $membership = $this->membership->grantFromPackageInTransaction(
@@ -61,8 +63,8 @@ class PackageMembershipActivationCoordinator
             'membership_id' => (int)$membership['member']['id'],
             'attribution_changed' => (bool)$attribution['changed'],
             'relation_closed' => !empty($relation),
-            'reward_candidate_created' => (bool)($candidate['created'] ?? false),
-            'reward_candidate_id' => (int)($candidate['candidate']['id'] ?? 0),
+            'reward_event_created' => (bool)($candidate['created'] ?? false),
+            'reward_event_id' => (int)($candidate['event']['id'] ?? 0),
         ];
     }
 

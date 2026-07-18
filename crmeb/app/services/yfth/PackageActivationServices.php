@@ -90,7 +90,18 @@ class PackageActivationServices extends PackageBenefitBaseServices
                 $result['manual_retry'] = true;
                 $result['manual_request_id'] = (string)$manual['request_id'];
             }
-            $this->recordReferralPackageActivatedEventSafely((int)($result['purchase_id'] ?? $purchaseRow['id']));
+            $rewardEventId = (int)($result['permanent_membership']['reward_event_id'] ?? 0);
+            if ($rewardEventId > 0) {
+                try {
+                    app()->make(UnifiedRewardOrchestratorServices::class)->process($rewardEventId, 'package-activation');
+                } catch (\Throwable $rewardError) {
+                    // Durable event remains failed and retryable; package activation is not rolled back.
+                    $this->recordPackageAudit('package_purchase', (string)$purchaseRow['id'], 'reward_event_deferred', [], [
+                        'reward_event_id' => $rewardEventId,
+                        'error' => substr($rewardError->getMessage(), 0, 255),
+                    ], 0, 'system', 0, 'reward_event_deferred');
+                }
+            }
             return $result;
         } catch (\Throwable $e) {
             $idempotency->fail((int)$begin['record']['id'], $e->getMessage());
@@ -107,29 +118,6 @@ class PackageActivationServices extends PackageBenefitBaseServices
             }
             $purchaseDao->update((int)$purchaseRow['id'], $update);
             throw $e;
-        }
-    }
-
-    private function recordReferralPackageActivatedEventSafely(int $purchaseId): void
-    {
-        if ($purchaseId <= 0) {
-            return;
-        }
-        /** @var YfthPackagePurchaseSnapshotDao $snapshotDao */
-        $snapshotDao = app()->make(YfthPackagePurchaseSnapshotDao::class);
-        $snapshot = $snapshotDao->getOne(['purchase_id' => $purchaseId]);
-        if ($snapshot && app()->make(PackageMembershipGrantPolicy::class)
-                ->forSnapshot($snapshot)['grants_permanent_membership']) {
-            return;
-        }
-        try {
-            app()->make(ReferralRewardServices::class)->recordPackageActivatedEvent($purchaseId, 'package_activated:package_purchase:' . $purchaseId);
-        } catch (\Throwable $e) {
-            $this->recordPackageAudit('package_purchase', (string)$purchaseId, 'referral_reward_event_failed', [], [
-                'event_type' => 'package_activated',
-                'purchase_id' => $purchaseId,
-                'error' => substr($e->getMessage(), 0, 255),
-            ], 0, 'system', 0, 'referral_reward_event_failed');
         }
     }
 

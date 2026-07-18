@@ -25,6 +25,7 @@ use app\services\user\UserServices;
 use crmeb\exceptions\ApiException;
 use crmeb\utils\Str;
 use think\facade\Log;
+use think\facade\Db;
 
 /**
  * 订单收货
@@ -370,6 +371,11 @@ class StoreOrderTakeServices extends BaseServices
         if (!$orderInfo || !$userInfo) {
             return true;
         }
+        // YFTH package and store-attributed orders are governed exclusively by the
+        // append-only YFTH reward domain; never credit CRMEB brokerage for them.
+        if ($this->isYfthUnifiedRewardOrder((array)$orderInfo)) {
+            return true;
+        }
         //商城分销功能是否开启 0关闭1开启
         if (!sys_config('brokerage_func_status')) return true;
 
@@ -475,6 +481,9 @@ class StoreOrderTakeServices extends BaseServices
      */
     public function backOrderBrokerageTwo($orderInfo, $userInfo, $isSelfbrokerage = 0, $frozenTime = 0)
     {
+        if ($this->isYfthUnifiedRewardOrder((array)$orderInfo)) {
+            return true;
+        }
         //绑定失效
         if (isset($orderInfo['spread_two_uid']) && $orderInfo['spread_two_uid'] == -1) {
             return true;
@@ -527,6 +536,18 @@ class StoreOrderTakeServices extends BaseServices
         //给上级发送获得佣金的模板消息
         $this->sendBackOrderBrokerage($orderInfo, $spread_two_uid, $brokeragePrice);
         return $res1 && $res2;
+    }
+
+    private function isYfthUnifiedRewardOrder(array $orderInfo): bool
+    {
+        $orderId = (int)($orderInfo['id'] ?? 0);
+        if ($orderId > 0 && Db::name('yfth_package_purchase')->where('order_id', $orderId)->count() > 0) {
+            return true;
+        }
+        $uid = (int)($orderInfo['uid'] ?? 0);
+        $storeId = (int)($orderInfo['store_id'] ?? 0);
+        return $uid > 0 && $storeId > 0 && Db::name('yfth_hq_customer_attribution_current')
+            ->where(['uid' => $uid, 'store_id' => $storeId, 'status' => 'active'])->count() > 0;
     }
 
     /**
