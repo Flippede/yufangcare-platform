@@ -1,5 +1,15 @@
 # 项目交接文档
 
+## Current Fact Snapshot - User Account Closure V2 Repair
+
+- Development branch: `codex/yfth-account-closure-v2-repair`; base main/origin main: `af90043e862519b59d778ab7b1a04f2535586a77`. Final main and origin/main must be read from real Git after the controlled fast-forward merge, documentation closure and push.
+- Production's former V1 closure entry was disabled before development with `USER_ACCOUNT_CLOSURE_ENABLED=false`; the pre-change environment backup is `/www/backup/yfth-account-closure-v2-disable-20260718-165018/.env.before`. No production user or production business data was changed during development.
+- V2 replaces the V1 `information_schema` UID-column scan with explicit business-domain delete/anonymize matrices. Account/profile/session data and current membership, attribution, referral, invitation and store-role projections are removed; transactions, payments, refunds, fulfilment, rewards, franchise/opening, partner performance, audit, idempotency and authority facts are retained only as de-identified history under a random closure subject number.
+- Both self-service and headquarters-assisted closure use the same locked transaction and business blockers. Self-service additionally requires password or existing SMS verification, agreement acceptance and the exact phrase `确认注销`; headquarters requires headquarters scope, dedicated permissions, a reason of at least four characters and the same blockers.
+- Closure immediately invalidates indexed Redis tokens and all known sessions/caches. The authentication layer also rejects the disabled old user row, so Redis failure does not leave an old token usable. The same phone, account, openid and unionid can bind a fresh UID; the new account never inherits the old account's orders, membership, attribution, referral, rewards or operating roles.
+- Isolated MySQL Community 8.0.46 verification passed for migration run/targeted rollback/rerun and the focused V2 real flow: active-business blockers, role/relation closure, anonymous retained history, strict audit rollback, immediate token invalidation, fresh registration, no historical inheritance and idempotent repeat. PHP 7.4 syntax, the V2 and related identity contracts, Admin production build, H5 production build and mp-weixin production compile passed.
+- Production migration/deployment and the final re-enabling of `USER_ACCOUNT_CLOSURE_ENABLED=true` must occur only after main is merged, complete code/database/static backups exist, the forward migration succeeds and the dedicated production TEST-account verification passes. No real user may be deleted for deployment verification.
+
 ## Current Fact Snapshot - Business Order Navigation Transition Stability
 
 - Clicking a workbench pane such as `订单` from the business mall or unified user center no longer flashes the four-item customer footer before the operating workbench appears.

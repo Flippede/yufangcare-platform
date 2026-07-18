@@ -77,15 +77,15 @@ foreach (['yfth-user-role-membership-grant', 'yfth-user-debug-purge-preflight', 
 foreach (['yfth-user-account-closure-preflight', 'yfth-user-account-closure-execute', '/closure/preflight', '/closure'] as $needle) {
     $assert(strpos($closureMigration, $needle) !== false, 'closure_permission_migration_contains:' . $needle);
 }
-foreach (['user_account_closure_enabled', 'discoverReferences', 'confirmation_phrase', 'blocking_references', 'publicProjection', 'yfth_user_account_closure'] as $needle) {
+foreach (['user_account_closure_enabled', 'PERSONAL_DELETE_REFERENCES', 'RETAINED_HISTORY', 'confirmation_phrase', 'businessBlockers', 'publicProjection', 'yfth_user_account_closure'] as $needle) {
     $assert(strpos($closureService, $needle) !== false, 'account_closure_guard_contains:' . $needle);
 }
 $assert(strpos($closureService, "private const CONFIRMATION_PHRASE = '确认注销'") !== false, 'account_closure_uses_exact_confirmation');
 $assert(strpos($closureService, "'yfth_customer_relation' => ['uid']") !== false, 'account_closure_removes_store_customer_projection');
 $assert(strpos($closureService, "'yfth_permanent_membership' => ['uid']") !== false, 'account_closure_removes_membership_projection');
 $assert(strpos($closureService, "'yfth_user_store_role' => ['uid']") !== false, 'account_closure_removes_store_roles');
-$assert(strpos($closureService, "'store_order' =>") === false, 'account_closure_never_allowlists_store_orders');
-$assert(strpos($closureService, "if (\$result['user.uid'] !== 1 || \$this->discoverReferences(\$uid))") !== false, 'account_closure_rolls_back_on_any_uid_residual');
+$assert(strpos($closureService, "'store_order' => ['domain' => 'mall_order'") !== false, 'account_closure_anonymizes_order_history');
+$assert(strpos($closureService, 'information_schema.COLUMNS') === false && strpos($closureService, 'discoverReferences') === false, 'account_closure_has_no_schema_wide_scanner');
 $assert(strpos($closureService, "'blocking_references' => \$preflight['blocking_references']") === false, 'user_preflight_does_not_expose_internal_table_names');
 $assert(!is_file($root . '/app/services/yfth/HqUserDebugPurgeServices.php'), 'legacy_debug_purge_service_removed');
 $assert(strpos($adminPage, 'closure-danger-header') !== false && strpos($adminPage, 'el-icon-warning') !== false, 'account_closure_displays_red_warning_icon');
@@ -94,7 +94,7 @@ $assert(strpos($adminPage, 'closureForm.reason') !== false && strpos($adminPage,
 $assert(strpos($controller . $route . $adminApi, 'closure/preflight') !== false, 'headquarters_closure_api_wired');
 $assert(strpos($userController . $userRoutes . $userApi, 'user_cancel/preflight') !== false, 'self_closure_preflight_wired');
 $assert(strpos($userRoutes, "Route::post('user_cancel'") !== false && strpos($userRoutes, "Route::get('user_cancel',") === false, 'self_closure_is_confirmed_post_not_legacy_get');
-$assert(strpos($cancellationPage, '账号正式销户') !== false && strpos($cancellationPage, '确认注销') !== false, 'self_closure_page_exposes_formal_confirmation');
+$assert(strpos($cancellationPage, '账号注销协议') !== false && strpos($cancellationPage, '确认注销') !== false, 'self_closure_page_exposes_formal_confirmation');
 foreach (['franchisee', 'store_manager', 'store_staff'] as $roleCode) {
     $assert(strpos($service, "'{$roleCode}'") !== false, 'supported_store_role:' . $roleCode);
 }

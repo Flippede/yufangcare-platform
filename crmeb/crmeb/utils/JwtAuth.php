@@ -15,7 +15,9 @@ namespace crmeb\utils;
 use crmeb\exceptions\AdminException;
 use crmeb\services\CacheService;
 use Firebase\JWT\JWT;
+use think\facade\Cache;
 use think\facade\Env;
+use think\facade\Log;
 
 /**
  * Jwt
@@ -96,6 +98,16 @@ class JwtAuth
         $res = CacheService::set(md5($tokenInfo['token']), ['uid' => $id, 'type' => $type, 'token' => $tokenInfo['token'], 'exp' => $exp], (int)$exp, $type);
         if (!$res) {
             throw new AdminException(100023);
+        }
+        if ($type === 'api') {
+            try {
+                $key = 'yfth:user_tokens:' . (int)$id;
+                $handler = Cache::store('redis')->handler();
+                $handler->sAdd($key, md5($tokenInfo['token']));
+                $handler->expire($key, (int)$exp);
+            } catch (\Throwable $e) {
+                Log::error(['msg' => 'yfth_user_token_index_failed', 'uid' => (int)$id, 'error' => $e->getMessage()]);
+            }
         }
         return $tokenInfo;
     }

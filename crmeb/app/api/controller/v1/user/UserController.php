@@ -206,8 +206,17 @@ class UserController
     {
         $data = $request->postMore([
             ['confirmation', ''],
+            ['agreement', false],
+            ['verification_type', ''],
+            ['password', ''],
+            ['sms_phone', ''],
+            ['sms_code', ''],
         ]);
-        return app('json')->success(410135, $services->closeForUser((int)$request->uid(), $data));
+        $token = (string)($request->header('Authori-zation') ?: $request->header('Authorization'));
+        if (stripos($token, 'Bearer ') === 0) {
+            $token = trim(substr($token, 7));
+        }
+        return app('json')->success(410135, $services->closeForUser((int)$request->uid(), $data, $token));
     }
 
     /**

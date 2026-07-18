@@ -116,16 +116,22 @@
     <el-dialog title="总部代办用户销户" :visible.sync="closureVisible" width="680px" :close-on-click-modal="false">
       <div class="closure-danger-header">
         <i class="el-icon-warning" aria-hidden="true" />
-        <span>重要：销户成功后无法恢复。系统会删除账号、身份、归属、推荐及门店客户关系；存在不可逆账务事实时必须拒绝。</span>
+        <span>重要：销户成功后无法恢复。重新注册是全新 UID；必要交易和财务记录只按随机销户主体匿名保留，不能重新挂回用户。</span>
       </div>
       <div v-if="closurePreflight" class="closure-summary">
         <p><b>目标：</b>{{ closurePreflight.nickname || '-' }} / {{ closurePreflight.account }} / UID {{ closurePreflight.uid }}</p>
-        <p><b>预检：</b><el-tag :type="closurePreflight.can_close ? 'success' : 'danger'">{{ closurePreflight.can_close ? '可以完整销户' : '已拒绝销户' }}</el-tag> {{ closurePreflight.safety_note }}</p>
-        <el-table :data="closurePreflight.blocking_references || []" border size="mini" empty-text="无阻塞引用">
-          <el-table-column prop="table" label="阻塞表" min-width="220" />
-          <el-table-column prop="column" label="字段" width="150" />
+        <p><b>预检：</b><el-tag :type="closurePreflight.can_close ? 'success' : 'danger'">{{ closurePreflight.can_close ? '业务门禁已通过' : '当前不能销户' }}</el-tag> {{ closurePreflight.safety_note }}</p>
+        <el-table :data="closurePreflight.blockers || []" border size="mini" empty-text="无业务阻塞项">
+          <el-table-column prop="label" label="必须先处理的事项" min-width="420" />
           <el-table-column prop="count" label="行数" width="80" />
         </el-table>
+        <el-alert v-if="closurePreflight.forfeitures && closurePreflight.forfeitures.length" class="closure-forfeit" title="以下无现金价值权益将在销户时放弃" type="warning" :closable="false">
+          <div v-for="item in closurePreflight.forfeitures" :key="item.code">{{ item.label }}：{{ item.amount }}</div>
+        </el-alert>
+        <div class="closure-policy">
+          <p><b>删除：</b>登录身份与会话、个人资料与微信绑定、地址收藏购物车、当前会员/归属/推荐与可撤销角色。</p>
+          <p><b>匿名保留：</b>订单支付退款、套餐履约、奖励结算、加盟开店及审计事件。</p>
+        </div>
         <el-form v-if="closurePreflight.can_close" label-width="110px" class="closure-form">
           <el-form-item label="代办原因">
             <el-input v-model.trim="closureForm.reason" type="textarea" :rows="3" maxlength="255" show-word-limit placeholder="请填写总部代办销户原因" />
@@ -315,7 +321,7 @@ export default {
       if (String(this.closureForm.reason || '').trim().length < 4) return this.$message.warning('请填写不少于4个字的代办原因');
       this.closureSaving = true;
       yfthUserAccountClosure(this.closurePreflight.uid, this.closureForm).then(() => {
-        this.$message.success('用户账号及可删除关联数据已完成销户');
+        this.$message.success('账号已注销，必要业务历史已完成不可逆匿名化');
         this.closureVisible = false;
         this.detailVisible = false;
         return this.load(true);
@@ -373,4 +379,7 @@ export default {
 .closure-danger-header .el-icon-warning { flex: 0 0 auto; font-size: 26px; }
 .closure-danger-header span { color: #c45656; font-weight: 600; line-height: 1.5; }
 .closure-confirm-tip { margin-top: 6px; color: #f56c6c; line-height: 1.5; }
+.closure-forfeit { margin-top: 14px; }
+.closure-policy { margin-top: 14px; padding: 10px 14px; color: #606266; background: #f7f8fa; }
+.closure-policy p { margin: 6px 0; }
 </style>

@@ -1,5 +1,7 @@
 # YFTH Formal User Account Closure V1
 
+> Historical document. This V1 schema-wide UID scan and hard-delete/block model has been superseded by [YFTH User Account Closure V2](./YFTH_USER_ACCOUNT_CLOSURE_V2.md). It must not be used as the current production behavior or implementation guide.
+
 ## Purpose
 
 This module replaces the temporary headquarters debug purge with a formal account-closure workflow. It provides one deletion service for:
