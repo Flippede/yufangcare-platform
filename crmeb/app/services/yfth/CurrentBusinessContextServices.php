@@ -4,6 +4,7 @@ namespace app\services\yfth;
 
 use app\Request;
 use crmeb\exceptions\ApiException;
+use think\facade\Db;
 
 class CurrentBusinessContextServices
 {
@@ -29,6 +30,23 @@ class CurrentBusinessContextServices
                 'permission_scope' => $this->decodeScope($storeRole['permission_scope'] ?? ''),
                 'business_context_source' => 'server_store_role',
             ], $this->storeBusinessSummary((int)$storeRole['store_id']));
+        }
+
+        if (in_array($roleCode, YfthConstants::partnerRoles(), true)) {
+            $profile = Db::name('yfth_partner_profile')->where([
+                'uid' => $uid, 'rank_code' => $roleCode, 'status' => 'active', 'qualification_status' => 'effective',
+            ])->find();
+            if (!$profile) throw new ApiException('partner_context_not_effective');
+            $binding = Db::name('yfth_partner_store_binding')->where([
+                'partner_uid' => $uid, 'store_id' => $storeId, 'status' => 'active',
+            ])->find();
+            if (!$binding) throw new ApiException('partner_store_binding_not_found');
+            $store = app()->make(StoreAccessServices::class)->assertStoreActive($storeId);
+            return array_merge($this->baseContext($uid, $roleCode), $store, [
+                'store_role_id' => 0, 'identity_id' => (int)$profile['id'],
+                'permission_scope' => ['source' => 'partner_store_binding', 'binding_id' => (int)$binding['id']],
+                'business_context_source' => 'server_partner_store_binding',
+            ], $this->storeBusinessSummary($storeId));
         }
 
         /** @var UserIdentityServices $identityServices */

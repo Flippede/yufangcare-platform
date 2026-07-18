@@ -63,6 +63,25 @@ class UserIdentityServices extends YfthFoundationBaseServices
             ];
         }
 
+        $partner = Db::name('yfth_partner_profile')->where([
+            'uid' => $uid, 'status' => 'active', 'qualification_status' => 'effective',
+        ])->find();
+        if ($partner) {
+            $bindings = Db::name('yfth_partner_store_binding')->where([
+                'partner_uid' => $uid, 'status' => 'active',
+            ])->order('id asc')->select()->toArray();
+            foreach ($bindings as $binding) {
+                $roles[] = [
+                    'identity_id' => (int)$partner['id'], 'store_role_id' => 0,
+                    'role_code' => (string)$partner['rank_code'],
+                    'role_name' => YfthConstants::roles()[(string)$partner['rank_code']] ?? (string)$partner['rank_code'],
+                    'store_id' => (int)$binding['store_id'], 'status' => 'active',
+                    'source_type' => 'partner_store_binding',
+                    'permission_scope' => ['binding_id' => (int)$binding['id']],
+                ];
+            }
+        }
+
         $roles = array_values($this->uniqueIdentityRows($roles));
         $storeIds = array_values(array_unique(array_filter(array_map(function ($row) {
             return (int)($row['store_id'] ?? 0);

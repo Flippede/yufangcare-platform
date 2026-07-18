@@ -300,6 +300,9 @@ class FranchisePartnerServices extends YfthFoundationBaseServices
                 'source_id' => $adminId,
                 'legacy_franchisee_role_id' => (int)($before['legacy_franchisee_role_id'] ?? 0),
                 'status' => 'active',
+                'qualification_status' => 'effective',
+                'valid_from' => $now,
+                'valid_to' => 0,
                 'start_time' => $now,
                 'end_time' => 0,
                 'active_key' => 'partner:' . $uid,
@@ -848,7 +851,7 @@ class FranchisePartnerServices extends YfthFoundationBaseServices
             if ((int)$profile['primary_store_id'] !== $storeId && (int)$profile['source_id'] === $applicationId) {
                 throw new ApiException('partner_opening_store_conflict');
             }
-            if ((int)$profile['legacy_franchisee_role_id'] <= 0) {
+            if ($legacyRoleId > 0 && (int)$profile['legacy_franchisee_role_id'] <= 0) {
                 Db::name('yfth_partner_profile')->where('id', (int)$profile['id'])->update([
                     'legacy_franchisee_role_id' => $legacyRoleId,
                     'update_time' => time(),
@@ -861,6 +864,7 @@ class FranchisePartnerServices extends YfthFoundationBaseServices
                 'uid' => $uid, 'rank_code' => 'county_partner', 'primary_store_id' => $storeId,
                 'source_type' => 'franchise_opening', 'source_id' => $applicationId,
                 'legacy_franchisee_role_id' => $legacyRoleId, 'status' => 'active',
+                'qualification_status' => 'effective', 'valid_from' => $now, 'valid_to' => 0,
                 'start_time' => $now, 'end_time' => 0, 'active_key' => 'partner:' . $uid,
                 'create_time' => $now, 'update_time' => $now,
             ];
@@ -878,6 +882,7 @@ class FranchisePartnerServices extends YfthFoundationBaseServices
                 'operator_uid' => $adminId, 'create_time' => $now,
             ]);
         }
+        $binding = $this->ensurePartnerStoreBinding($uid, $storeId, $applicationId, $adminId);
         $parentUid = (int)($source['direct_partner_uid'] ?? 0);
         if ($parentUid > 0) {
             $this->profile($parentUid, true);
@@ -896,8 +901,23 @@ class FranchisePartnerServices extends YfthFoundationBaseServices
             }
         }
         $performance = $this->ensurePerformanceAndRewards($application, $storeId, $source, $adminId);
+        $payment = Db::name('yfth_franchise_payment_proof')->where('application_id', $applicationId)
+            ->where('status', 'finance_confirmed')->order('id desc')->find() ?: [];
+        $feeCent = $this->amountToCents((string)($payment['amount_snapshot'] ?? $performance['order_amount'] ?? '0.00'));
+        $event = app()->make(UnifiedRewardOrchestratorServices::class)->enqueue(
+            'partner_store_opened', 'franchise_application', (string)$applicationId,
+            [
+                'application_id' => $applicationId, 'performance_id' => (int)$performance['id'],
+                'store_id' => $storeId, 'applicant_uid' => $uid,
+                'direct_partner_uid' => (int)($source['direct_partner_uid'] ?? 0),
+                'fee_amount_cent' => $feeCent, 'payment_proof_id' => (int)($payment['id'] ?? 0),
+            ]
+        );
         $this->recordAudit('partner_profile', (int)$profile['id'], 'opening_county_partner_grant', [], $profile, $adminId, $storeId, 'formal_franchise_opening');
-        return ['partner' => $this->partnerDto($profile), 'performance' => $performance];
+        return [
+            'partner' => $this->partnerDto($profile), 'store_binding' => $binding,
+            'performance' => $performance, 'reward_event_id' => (int)$event['event']['id'],
+        ];
     }
 
     private function ensurePerformanceAndRewards(array $application, int $storeId, array $source, int $adminId): array
@@ -921,40 +941,95 @@ class FranchisePartnerServices extends YfthFoundationBaseServices
             'chain_snapshot' => $this->json($chain), 'status' => 'valid', 'opened_time' => $now,
             'invalid_reason' => '', 'create_time' => $now, 'update_time' => $now,
         ]);
-        $rankRules = [];
-        foreach ($this->rankRules((int)$rule['id']) as $rankRule) {
-            $rankRules[(string)$rankRule['rank_code']] = $rankRule;
-        }
-        $usedRanks = [];
-        foreach ($chain as $position => $snapshot) {
-            $beneficiaryUid = (int)($snapshot['uid'] ?? 0);
-            $current = $beneficiaryUid > 0 ? Db::name('yfth_partner_profile')->where(['uid' => $beneficiaryUid, 'status' => 'active'])->find() : null;
-            if (!$current) {
-                continue;
-            }
-            // The finance-confirmed recruiting chain is immutable. Current state is used only
-            // to prove that the beneficiary still exists and is active at opening time.
-            $rankCode = (string)($snapshot['rank_code'] ?? '');
-            if (isset($usedRanks[$rankCode]) || !isset($rankRules[$rankCode])) {
-                continue;
-            }
-            $usedRanks[$rankCode] = true;
-            $rankRule = $rankRules[$rankCode];
-            $amount = bcmul((string)$rule['bottle_count'], (string)$rankRule['reward_per_bottle'], 2);
-            Db::name('yfth_partner_reward_candidate')->insert([
-                'candidate_no' => 'YFPRC' . date('YmdHis') . str_pad((string)$performanceId, 7, '0', STR_PAD_LEFT) . (int)$rankRule['rank_level'],
-                'performance_id' => $performanceId, 'application_id' => $applicationId, 'store_id' => $storeId,
-                'beneficiary_uid' => $beneficiaryUid, 'rank_code' => $rankCode,
-                'rank_name_snapshot' => (string)$rankRule['rank_name'], 'chain_position' => $position + 1,
-                'rule_version_id' => (int)$rule['id'], 'bottle_count' => (int)$rule['bottle_count'],
-                'reward_per_bottle' => $rankRule['reward_per_bottle'], 'amount' => $amount,
-                'status' => 'pending', 'operator_uid' => 0, 'operator_time' => 0, 'remark' => '',
-                'create_time' => $now, 'update_time' => $now,
-            ]);
-        }
+        // V1 deliberately creates no hierarchy cash candidate. The durable reward event
+        // grants product quota only to source.direct_partner_uid for its first three stores.
         $performance = Db::name('yfth_partner_opening_performance')->where('id', $performanceId)->find() ?: [];
         $this->recordAudit('partner_opening_performance', $performanceId, 'opening_performance_create', [], $performance, $adminId, $storeId, 'formal_franchise_opening');
         return $performance;
+    }
+
+    public function adminCancelOpening(int $applicationId, string $reason, int $adminId, array $adminInfo): array
+    {
+        $this->assertHeadquarters($adminInfo);
+        $reason = trim($reason);
+        if ($reason === '') throw new ApiException('partner_opening_cancel_reason_required');
+        $result = Db::transaction(function () use ($applicationId, $reason, $adminId) {
+            $performance = Db::name('yfth_partner_opening_performance')->where('application_id', $applicationId)->lock(true)->find();
+            if (!$performance) throw new ApiException('partner_opening_performance_not_found');
+            if ((string)$performance['status'] === 'invalid') return ['performance' => $performance, 'event_id' => 0, 'idempotent' => true];
+            $now = time();
+            Db::name('yfth_partner_opening_performance')->where('id', (int)$performance['id'])->update([
+                'status' => 'invalid', 'invalid_reason' => $reason, 'update_time' => $now,
+            ]);
+            $profile = Db::name('yfth_partner_profile')->where([
+                'uid' => (int)$performance['applicant_uid'], 'source_type' => 'franchise_opening', 'source_id' => $applicationId,
+            ])->lock(true)->find();
+            if ($profile) {
+                Db::name('yfth_partner_profile')->where('id', (int)$profile['id'])->update([
+                    'status' => 'exited', 'qualification_status' => 'invalid', 'valid_to' => $now,
+                    'end_time' => $now, 'active_key' => null, 'update_time' => $now,
+                ]);
+                Db::name('yfth_partner_relation')->where('active_key', 'partner:' . (int)$profile['uid'])->update([
+                    'status' => 'closed', 'end_time' => $now, 'active_key' => null, 'reason' => $reason, 'update_time' => $now,
+                ]);
+                $binding = Db::name('yfth_partner_store_binding')->where(['partner_uid' => (int)$profile['uid'], 'store_id' => (int)$performance['store_id'], 'status' => 'active'])->lock(true)->find();
+                if ($binding) {
+                    Db::name('yfth_partner_store_binding')->where('id', (int)$binding['id'])->update([
+                        'status' => 'terminated', 'valid_to' => $now, 'active_store_key' => null,
+                        'operator_uid' => $adminId, 'reason' => $reason, 'update_time' => $now,
+                    ]);
+                    Db::name('yfth_partner_store_binding_event')->insert([
+                        'binding_id' => (int)$binding['id'], 'partner_uid' => (int)$binding['partner_uid'],
+                        'store_id' => (int)$binding['store_id'], 'event_type' => 'terminated',
+                        'source_type' => 'opening_cancellation', 'source_id' => $applicationId,
+                        'snapshot_json' => $this->json($binding), 'operator_uid' => $adminId,
+                        'reason' => $reason, 'event_key' => 'opening_cancel:' . $applicationId, 'create_time' => $now,
+                    ]);
+                }
+            }
+            $event = app()->make(UnifiedRewardOrchestratorServices::class)->enqueue(
+                'partner_opening_cancelled', 'franchise_application', (string)$applicationId,
+                ['application_id' => $applicationId, 'performance_id' => (int)$performance['id'], 'reason' => $reason]
+            );
+            $this->recordAudit('partner_opening_performance', (int)$performance['id'], 'opening_cancel', $performance, array_merge($performance, ['status' => 'invalid']), $adminId, (int)$performance['store_id'], $reason);
+            return ['performance' => array_merge($performance, ['status' => 'invalid']), 'event_id' => (int)$event['event']['id'], 'idempotent' => false];
+        });
+        if ((int)$result['event_id'] > 0) {
+            try { app()->make(UnifiedRewardOrchestratorServices::class)->process((int)$result['event_id'], 'opening-cancel'); } catch (\Throwable $e) {}
+        }
+        return $result;
+    }
+
+    private function ensurePartnerStoreBinding(int $partnerUid, int $storeId, int $applicationId, int $adminId): array
+    {
+        $activeKey = 'store:' . $storeId;
+        $existing = Db::name('yfth_partner_store_binding')->where('active_store_key', $activeKey)->lock(true)->find();
+        if ($existing) {
+            if ((int)$existing['partner_uid'] !== $partnerUid) throw new ApiException('partner_store_already_owned');
+            return $existing;
+        }
+        $now = time();
+        $row = [
+            'partner_uid' => $partnerUid, 'store_id' => $storeId, 'source_type' => 'franchise_opening',
+            'source_id' => $applicationId, 'status' => 'active', 'valid_from' => $now, 'valid_to' => 0,
+            'active_store_key' => $activeKey, 'operator_uid' => $adminId,
+            'reason' => 'formal_franchise_opening', 'create_time' => $now, 'update_time' => $now,
+        ];
+        $row['id'] = (int)Db::name('yfth_partner_store_binding')->insertGetId($row);
+        Db::name('yfth_partner_store_binding_event')->insert([
+            'binding_id' => (int)$row['id'], 'partner_uid' => $partnerUid, 'store_id' => $storeId,
+            'event_type' => 'bound', 'source_type' => 'franchise_opening', 'source_id' => $applicationId,
+            'snapshot_json' => $this->json($row), 'operator_uid' => $adminId,
+            'reason' => 'formal_franchise_opening', 'event_key' => 'opening:' . $applicationId,
+            'create_time' => $now,
+        ]);
+        return $row;
+    }
+
+    private function amountToCents(string $amount): int
+    {
+        if (!preg_match('/^(\d+)(?:\.(\d{1,2}))?$/', trim($amount), $matches)) return 0;
+        return (int)$matches[1] * 100 + (int)str_pad($matches[2] ?? '', 2, '0');
     }
 
     private function partnerDetail(array $profile): array
@@ -965,8 +1040,12 @@ class FranchisePartnerServices extends YfthFoundationBaseServices
         $children = Db::name('yfth_partner_relation')->alias('r')->leftJoin('yfth_partner_profile p', 'p.uid=r.partner_uid')
             ->leftJoin('user u', 'u.uid=r.partner_uid')->where(['r.parent_uid' => $uid, 'r.status' => 'active'])
             ->field('r.partner_uid,p.rank_code,p.status,u.nickname,u.account')->select()->toArray();
-        $storeRoles = Db::name('yfth_user_store_role')->alias('r')->leftJoin('system_store s', 's.id=r.store_id')
-            ->where(['r.uid' => $uid, 'r.status' => 'active'])->field('r.store_id,r.role_code,s.name AS store_name')->select()->toArray();
+        $storeBindings = Db::name('yfth_partner_store_binding')->alias('b')->leftJoin('system_store s', 's.id=b.store_id')
+            ->where(['b.partner_uid' => $uid, 'b.status' => 'active'])
+            ->field('b.id,b.store_id,b.source_type,b.source_id,b.valid_from,s.name AS store_name')->select()->toArray();
+        $managerRoles = Db::name('yfth_user_store_role')->alias('r')->leftJoin('system_store s', 's.id=r.store_id')
+            ->where(['r.uid' => $uid, 'r.status' => 'active', 'r.role_code' => 'store_manager'])
+            ->field('r.store_id,r.role_code,s.name AS store_name')->select()->toArray();
         $personal = (int)Db::name('yfth_partner_opening_performance')->where(['direct_partner_uid' => $uid, 'status' => 'valid'])->count();
         $teamUids = $this->descendantUids($uid);
         $team = $personal;
@@ -977,7 +1056,8 @@ class FranchisePartnerServices extends YfthFoundationBaseServices
             'profile' => $this->partnerDto($profile),
             'parent' => $parent,
             'direct_children' => $children,
-            'store_roles' => $storeRoles,
+            'store_bindings' => $storeBindings,
+            'manager_roles' => $managerRoles,
             'performance' => ['personal_openings' => $personal, 'team_openings' => $team, 'team_size' => count($teamUids)],
             'promotion_rule' => $this->currentRankRule((string)$profile['rank_code']),
             'rank_events' => Db::name('yfth_partner_rank_event')->where('partner_uid', $uid)->order('id desc')->select()->toArray(),
@@ -1118,6 +1198,9 @@ class FranchisePartnerServices extends YfthFoundationBaseServices
             'rank_code' => (string)($row['rank_code'] ?? ''), 'rank_name' => $rank['name'], 'rank_level' => $rank['level'],
             'primary_store_id' => (int)($row['primary_store_id'] ?? 0), 'store_name' => (string)($row['store_name'] ?? ''),
             'status' => (string)($row['status'] ?? ''), 'start_time' => (int)($row['start_time'] ?? 0),
+            'qualification_status' => (string)($row['qualification_status'] ?? ((string)($row['status'] ?? '') === 'active' ? 'effective' : 'invalid')),
+            'valid_from' => (int)($row['valid_from'] ?? $row['start_time'] ?? 0),
+            'valid_to' => (int)($row['valid_to'] ?? 0),
             'source_type' => (string)($row['source_type'] ?? ''), 'source_id' => (int)($row['source_id'] ?? 0),
             'legacy_compatible' => (int)($row['legacy_franchisee_role_id'] ?? 0) > 0,
         ];
