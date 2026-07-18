@@ -181,6 +181,12 @@ foreach (['enterYfthBusinessUserCenter', 'leaveYfthBusinessUserCenter', 'isYfthB
 $assert(strpos($workbenchPage, "item.action === 'user_center'") !== false
     && strpos($workbenchPage, 'enterYfthBusinessUserCenter()') !== false,
     'workbench_marks_intentional_user_center_navigation');
+$assert(strpos($workbenchPage, 'const cachedContext = currentContext()') !== false
+    && strpos($workbenchPage, "context: cachedContext && isBusinessRole(cachedContext.role_code) ? cachedContext : {}") !== false,
+    'workbench_reuses_cached_verified_role_for_stable_first_frame_navigation');
+$assert(strpos($workbenchPage, '<view v-if="navItems.length" class="nav">') !== false
+    && strpos($workbenchPage, "if (!this.context || !isBusinessRole(this.context.role_code)) return [];") !== false,
+    'workbench_never_flashes_customer_navigation_before_server_role_refresh');
 $assert(strpos($userPage, 'const keepUserCenter = isYfthBusinessUserCenterBrowsing()') !== false
     && strpos($userPage, 'cached.is_business_role && !keepUserCenter') !== false,
     'user_center_skips_dominant_role_redirect_only_for_intentional_navigation');

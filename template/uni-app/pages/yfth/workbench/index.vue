@@ -202,7 +202,7 @@
 			</view>
 		</block>
 
-		<view class="nav">
+		<view v-if="navItems.length" class="nav">
 			<view
 				v-for="item in navItems"
 				:key="item.title"
@@ -231,6 +231,7 @@ import {
 	writeoffYfthStoreWorkbenchByToken
 } from '@/api/yfth.js';
 import {
+	currentContext,
 	enterYfthBusinessMall,
 	enterYfthBusinessUserCenter,
 	isBusinessRole,
@@ -244,11 +245,12 @@ import {
 
 export default {
 	data() {
+		const cachedContext = currentContext();
 		return {
 			loading: true,
 			error: '',
 			pane: 'dashboard',
-			context: {},
+			context: cachedContext && isBusinessRole(cachedContext.role_code) ? cachedContext : {},
 			identities: [],
 			overview: {},
 			appointments: [],
@@ -268,7 +270,8 @@ export default {
 	},
 	computed: {
 		navItems() {
-			return roleNav(this.context.role_code || 'customer');
+			if (!this.context || !isBusinessRole(this.context.role_code)) return [];
+			return roleNav(this.context.role_code);
 		},
 		storeRoleReady() {
 			return ['franchisee', 'store_manager', 'store_staff'].indexOf(this.context.role_code) !== -1 && Number(this.context.store_id) > 0;

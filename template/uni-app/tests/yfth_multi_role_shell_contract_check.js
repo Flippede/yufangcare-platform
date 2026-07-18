@@ -62,6 +62,9 @@ assertContains('pages/yfth/workbench/index.vue', 'store_staff', 'workbench must 
 assertNotContains('pages/yfth/workbench/index.vue', "from '@/api/yfth_admin.js'", 'formal workbench must not import admin-token APIs');
 assertContains('pages/yfth/workbench/index.vue', 'resolveDominantYfthContext', 'workbench must always resolve the highest server identity');
 assertContains('pages/yfth/workbench/index.vue', "item.action === 'mall'", 'workbench mall entry must opt into headquarters mall browsing');
+assertContains('pages/yfth/workbench/index.vue', 'const cachedContext = currentContext()', 'workbench must keep the cached operating navigation stable during server refresh');
+assertContains('pages/yfth/workbench/index.vue', 'v-if="navItems.length" class="nav"', 'workbench must hide navigation instead of flashing customer tabs without an operating context');
+assertContains('pages/yfth/workbench/index.vue', 'if (!this.context || !isBusinessRole(this.context.role_code)) return [];', 'workbench navigation must never fall back to customer tabs during route transitions');
 assertContains('pages/yfth/workbench/index.vue', "this.context.role_code === 'store_manager'", 'only the store manager may see the purchase entry');
 assertContains('pages/yfth/workbench/purchase/index.vue', "context.role_code !== 'store_manager'", 'direct purchase-page access must reject non-managers');
 assertContains('pages/yfth/workbench/purchase/index.vue', 'v-if="accessGranted"', 'purchase content must stay hidden until the manager context is verified');
