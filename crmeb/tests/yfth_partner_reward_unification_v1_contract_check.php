@@ -36,6 +36,8 @@ $assert($has($opening, "['county_partner', 'store_manager', 'all']") && !$has($o
 $assert($has($partner, 'ensurePartnerStoreBinding') && $has($partner, 'qualification_status'), 'partner_qualification_and_store_binding');
 $assert($has($partner, 'V1 deliberately creates no hierarchy cash candidate'), 'no_multilevel_opening_cash_reward');
 $assert($has($orchestrator, '$ratios = [1 => 2000, 2 => 3000, 3 => 5000]'), 'opening_quota_20_30_50');
+$assert($has($orchestrator, "\$status = \$ratio > 0 ? 'pending' : 'ineligible'") && $has($orchestrator, 'confirmOpeningQuota'), 'opening_quota_requires_hq_confirmation');
+$assert($has($orchestrator, 'consistencyIssues') && $has($orchestrator, 'event_result_missing'), 'reward_consistency_scan');
 $assert($has($orchestrator, "'ineligible'") && $has($orchestrator, 'direct_partner_uid'), 'fourth_opening_has_no_reward');
 $assert($has($orchestrator, 'retryDue') && $has($orchestrator, "'failed'"), 'durable_retry_queue');
 $assert($has($payListener, 'UnifiedRewardOrchestratorServices') && $has($refundListener, 'UnifiedRewardOrchestratorServices'), 'mall_hooks_use_unified_orchestrator');

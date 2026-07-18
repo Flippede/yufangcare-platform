@@ -1195,6 +1195,14 @@ export function yfthOpeningQuotaAwards(params) {
   return request({ url: 'yfth/reward_governance/opening_quota', method: 'get', params });
 }
 
+export function yfthOpeningQuotaConfirm(id) {
+  return request({ url: `yfth/reward_governance/opening_quota/${id}/confirm`, method: 'post' });
+}
+
+export function yfthRewardConsistency(params) {
+  return request({ url: 'yfth/reward_governance/consistency', method: 'get', params });
+}
+
 export function yfthPartnerMigrationIssues(params) {
   return request({ url: 'yfth/reward_governance/migration_issue', method: 'get', params });
 }

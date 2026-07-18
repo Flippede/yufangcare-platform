@@ -63,8 +63,16 @@ try {
     $assert(count($awards) === 4, 'four_openings_recorded_once');
     $assert(array_column($awards, 'ratio_bps') === [2000, 3000, 5000, 0], 'opening_ratios_20_30_50_zero');
     $assert(array_column($awards, 'quota_amount_cent') === [1782000, 2673000, 4455000, 0], 'opening_quota_amounts_exact');
+    $awardStatuses = array_column($awards, 'status');
+    $assert($awardStatuses === ['pending', 'pending', 'pending', 'ineligible'] || $awardStatuses === ['granted', 'granted', 'granted', 'ineligible'], 'opening_quota_waits_for_or_replays_headquarters_confirmation');
     $assert((string)$awards[3]['status'] === 'ineligible', 'fourth_opening_no_reward');
     $assert((int)Db::name('yfth_reward_event')->whereIn('id', $eventIds)->where('status', 'succeeded')->count() === 4, 'durable_events_succeeded');
+    foreach (array_slice($awards, 0, 3) as $award) {
+        $orchestrator->confirmOpeningQuota((int)$award['id'], 900001);
+        $orchestrator->confirmOpeningQuota((int)$award['id'], 900001);
+    }
+    $assert((int)Db::name('yfth_partner_opening_quota_award')->whereIn('id', array_column(array_slice($awards, 0, 3), 'id'))->where('status', 'granted')->count() === 3, 'headquarters_confirmation_is_idempotent');
+    $assert((int)$orchestrator->consistencyIssues(100)['count'] === 0, 'reward_event_result_consistency');
 
     $account = Db::name('yfth_product_quota_account')->where('active_key', 'store:' . $storeId . ':return_goods')->find();
     $before = (int)$account['available_cent'];

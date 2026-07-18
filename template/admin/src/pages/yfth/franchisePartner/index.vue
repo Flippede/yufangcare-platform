@@ -114,6 +114,7 @@
             <el-table-column label="比例" width="90"><template slot-scope="{ row }">{{ row.ratio_bps / 100 }}%</template></el-table-column>
             <el-table-column label="商品额度" width="120"><template slot-scope="{ row }">{{ moneyCent(row.quota_amount_cent) }}</template></el-table-column>
             <el-table-column prop="status" label="状态" width="100" />
+            <el-table-column label="操作" width="100"><template slot-scope="{ row }"><el-button v-if="row.status === 'pending'" type="text" @click="confirmOpeningQuota(row)">确认额度</el-button></template></el-table-column>
           </el-table>
         </el-tab-pane>
 
@@ -121,6 +122,7 @@
           <div class="toolbar">
             <el-select v-model="eventQuery.status" clearable placeholder="事件状态" @change="loadRewardEvents"><el-option v-for="s in ['pending','processing','failed','succeeded','ignored']" :key="s" :label="s" :value="s" /></el-select>
             <el-button type="primary" @click="retryRewardEvents">重试待处理/失败事件</el-button>
+            <el-button @click="scanRewardConsistency">一致性检查</el-button>
           </div>
           <el-table v-loading="loading" :data="rewardEvents" border size="small">
             <el-table-column prop="event_no" label="事件编号" min-width="190" />
@@ -173,7 +175,8 @@ import {
   yfthPartnerPerformances, yfthPartnerRankChange, yfthPartnerRewardAction, yfthPartnerRewards,
   yfthPartnerRules, yfthPartnerRulePublish, yfthPartnerRuleSave, yfthPartnerWarnings,
   yfthPartnerPromotions, yfthPartnerPromotionReview,
-  yfthRewardEventList, yfthRewardEventRetry, yfthOpeningQuotaAwards, yfthPartnerMigrationIssues,
+  yfthRewardEventList, yfthRewardEventRetry, yfthOpeningQuotaAwards, yfthOpeningQuotaConfirm,
+  yfthRewardConsistency, yfthPartnerMigrationIssues,
 } from '@/api/yfth';
 
 export default {
@@ -201,8 +204,10 @@ export default {
     loadWarnings() { this.loading = true; return yfthPartnerWarnings({ page: 1, limit: 100 }).then((res) => { this.warnings = (res.data || {}).list || []; }).finally(() => { this.loading = false; }); },
     loadPromotions() { this.loading = true; return yfthPartnerPromotions({ page: 1, limit: 100 }).then((res) => { this.promotions = (res.data || {}).list || []; }).finally(() => { this.loading = false; }); },
     loadOpeningQuotas() { this.loading = true; return yfthOpeningQuotaAwards({ page: 1, limit: 100 }).then((res) => { this.openingQuotas = (res.data || {}).list || []; }).finally(() => { this.loading = false; }); },
+    confirmOpeningQuota(row) { return this.$confirm('确认后商品额度将进入绑定门店的可用额度，是否继续？', '确认开店商品额度').then(() => yfthOpeningQuotaConfirm(row.id)).then(() => { this.$message.success('商品额度已确认并入账'); this.loadOpeningQuotas(); }); },
     loadRewardEvents() { this.loading = true; return yfthRewardEventList(this.eventQuery).then((res) => { this.rewardEvents = (res.data || {}).list || []; }).finally(() => { this.loading = false; }); },
     retryRewardEvents() { return yfthRewardEventRetry({ limit: 100 }).then((res) => { const d = res.data || {}; this.$message.success(`处理 ${d.selected || 0} 条，成功 ${d.succeeded || 0} 条`); return this.loadRewardEvents(); }); },
+    scanRewardConsistency() { return yfthRewardConsistency({ limit: 100 }).then((res) => { const d = res.data || {}; if (Number(d.count || 0) > 0) this.$message.warning(`发现 ${d.count} 条奖励一致性异常，请按返回明细处理`); else this.$message.success('未发现奖励事件与结果缺失'); }); },
     loadMigrationIssues() { this.loading = true; return yfthPartnerMigrationIssues({ page: 1, limit: 100 }).then((res) => { this.migrationIssues = (res.data || {}).list || []; }).finally(() => { this.loading = false; }); },
     moneyCent(value) { return `¥${(Number(value || 0) / 100).toFixed(2)}`; },
     reviewPromotion(row, action) { this.$prompt('请输入总部审核原因', action === 'approve' ? '通过晋级申请' : '驳回晋级申请').then(({ value }) => yfthPartnerPromotionReview(row.id, { action, reason: value })).then(() => { this.$message.success('晋级申请已处理'); this.loadPromotions(); this.loadPartners(); this.loadDashboard(); }); },

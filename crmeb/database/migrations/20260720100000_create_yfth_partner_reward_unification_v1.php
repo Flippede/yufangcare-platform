@@ -274,6 +274,8 @@ class CreateYfthPartnerRewardUnificationV1 extends Migrator
             ['Unified reward event list', 'yfth/reward_governance/event', 'GET', 'yfth-reward-governance-event-list'],
             ['Retry unified reward events', 'yfth/reward_governance/retry', 'POST', 'yfth-reward-governance-retry'],
             ['Opening quota awards', 'yfth/reward_governance/opening_quota', 'GET', 'yfth-reward-governance-opening-quota'],
+            ['Confirm opening quota award', 'yfth/reward_governance/opening_quota/<id>/confirm', 'POST', 'yfth-reward-governance-opening-quota-confirm'],
+            ['Unified reward consistency scan', 'yfth/reward_governance/consistency', 'GET', 'yfth-reward-governance-consistency'],
             ['Legacy migration issues', 'yfth/reward_governance/migration_issue', 'GET', 'yfth-reward-governance-migration-issue'],
             ['Cancel formal opening', 'yfth/franchise_partner/opening/<application_id>/cancel', 'POST', 'yfth-franchise-partner-opening-cancel'],
         ];

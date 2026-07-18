@@ -1630,8 +1630,8 @@ The store-acquisition facts below remain historical and stable. Its debug-purge 
 - 正式迁移：`20260720100000_create_yfth_partner_reward_unification_v1.php`。新增合伙人店铺归属现状/事件、统一奖励 outbox、追加式奖励调整/冲正、前三店开店商品额度、采购额度预占、历史迁移异常，并扩展合伙人资格有效期。
 - 正式开店不再新增 `franchisee`，县级招商合伙人必授、店长可选；旧多层职级现金候选的新写循环已关闭，开店只奖励直属合伙人前三店商品额度 20%/30%/50%。
 - 套餐激活/失效、商城支付/退款、正式开店/取消已收口到 `UnifiedRewardOrchestratorServices`。业务唯一键防重，失败事件可退避重试与后台补偿。
-- 商品额度采购支持预占、入库核销、拒绝释放、售后退回和退回冲正；采购页面支持商品额度与在线金额混合展示。
+- 开店奖励先形成待确认额度，由总部确认后才记入绑定门店的可用额度；重复确认幂等。商品额度采购支持预占、入库核销、拒绝释放、售后退回和退回冲正；采购页面支持商品额度与在线金额混合展示。
 - 五级招商合伙人无需兼任店长即可通过有效店铺归属获得 C 端门店上下文，查看商品额度并提交采购；店长权限保持独立可选。
 - CRMEB 分销入口增加 YFTH 订单隔离守卫；统一奖励服务不写 `now_money`、积分、CRMEB 佣金或用户账单。
-- 验证：PHP 7.4.33 lint；MySQL 8.0.46 严格模式迁移 up/down/up/duplicate up；106 + 104 + 31 项契约测试；15 项开店/额度真实服务流；39 项 C2 商城支付与 C1/店铺收益真实流。详见 `docs/YFTH_PARTNER_REWARD_UNIFICATION_V1.md`。
+- 验证：PHP 7.4.33 lint；MySQL 8.0.46 严格模式迁移 up/down/up/duplicate up；106 + 104 + 33 项契约测试；18 项开店/额度真实服务流；39 项 C2 商城支付与 C1/店铺收益真实流。详见 `docs/YFTH_PARTNER_REWARD_UNIFICATION_V1.md`。
 - 未执行：生产数据库写入、部署、主分支合并。生产发布必须另行审批。

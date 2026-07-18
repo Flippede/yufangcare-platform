@@ -130,6 +130,8 @@ Route::group('yfth', function () {
         Route::get('event', 'v1.yfth.RewardGovernance/eventList')->option(['real_name' => 'Unified reward event queue']);
         Route::post('retry', 'v1.yfth.RewardGovernance/retry')->option(['real_name' => 'Retry failed reward events']);
         Route::get('opening_quota', 'v1.yfth.RewardGovernance/openingQuota')->option(['real_name' => 'Direct partner opening quota awards']);
+        Route::post('opening_quota/:id/confirm', 'v1.yfth.RewardGovernance/confirmOpeningQuota')->option(['real_name' => 'Confirm direct partner opening quota']);
+        Route::get('consistency', 'v1.yfth.RewardGovernance/consistency')->option(['real_name' => 'Unified reward consistency scan']);
         Route::get('migration_issue', 'v1.yfth.RewardGovernance/migrationIssues')->option(['real_name' => 'Legacy partner migration issues']);
     })->option(['parent' => 'yfth', 'cate_name' => 'Unified Reward Governance']);
     Route::group('supply_chain', function () {

@@ -150,6 +150,57 @@ class UnifiedRewardOrchestratorServices extends YfthFoundationBaseServices
         return ['list' => $query->page($page, $limit)->order('id desc')->select()->toArray(), 'count' => $count];
     }
 
+    public function confirmOpeningQuota(int $awardId, int $operatorUid): array
+    {
+        return Db::transaction(function () use ($awardId, $operatorUid) {
+            $award = Db::name('yfth_partner_opening_quota_award')->where('id', $awardId)->lock(true)->find();
+            if (!$award) throw new ApiException('opening_quota_award_not_found');
+            if ((string)$award['status'] === 'granted') return $award;
+            if ((string)$award['status'] !== 'pending') throw new ApiException('opening_quota_award_not_confirmable');
+            $amount = (int)$award['quota_amount_cent'];
+            if ($amount <= 0) throw new ApiException('opening_quota_award_amount_invalid');
+            [$accountId, $ledgerId] = $this->postQuota(
+                (int)$award['store_id'], $amount, 'partner_opening_reward', $awardId, 'opening_quota:' . $awardId
+            );
+            Db::name('yfth_partner_opening_quota_award')->where('id', $awardId)->update([
+                'quota_account_id' => $accountId, 'quota_ledger_id' => $ledgerId,
+                'status' => 'granted', 'update_time' => time(),
+            ]);
+            $award['quota_account_id'] = $accountId;
+            $award['quota_ledger_id'] = $ledgerId;
+            $award['status'] = 'granted';
+            $award['confirmed_by'] = $operatorUid;
+            return $award;
+        });
+    }
+
+    public function consistencyIssues(int $limit = 100): array
+    {
+        $limit = max(1, min(500, $limit));
+        $issues = [];
+        $events = Db::name('yfth_reward_event')->where('status', 'succeeded')
+            ->where('result_id', '>', 0)->order('id desc')->limit($limit * 2)->select()->toArray();
+        $tables = ['direct_reward_candidate' => 'yfth_direct_referral_reward_candidate', 'opening_quota_award' => 'yfth_partner_opening_quota_award'];
+        foreach ($events as $event) {
+            $table = $tables[(string)$event['result_type']] ?? '';
+            if ($table && !Db::name($table)->where('id', (int)$event['result_id'])->find()) {
+                $issues[] = ['issue_type' => 'event_result_missing', 'event_id' => (int)$event['id'], 'source_id' => (string)$event['source_id'], 'detail' => (string)$event['result_type']];
+            }
+            if (count($issues) >= $limit) break;
+        }
+        if (count($issues) < $limit) {
+            $awards = Db::name('yfth_partner_opening_quota_award')->order('id desc')->limit($limit)->select()->toArray();
+            foreach ($awards as $award) {
+                $key = hash('sha256', 'partner_store_opened|franchise_application|' . (int)$award['application_id']);
+                if (!Db::name('yfth_reward_event')->where('canonical_key', $key)->find()) {
+                    $issues[] = ['issue_type' => 'opening_event_missing', 'event_id' => 0, 'source_id' => (string)$award['application_id'], 'detail' => 'opening_quota_award:' . (int)$award['id']];
+                }
+                if (count($issues) >= $limit) break;
+            }
+        }
+        return ['list' => $issues, 'count' => count($issues), 'checked_at' => time()];
+    }
+
     private function dispatch(array $event): array
     {
         $payload = json_decode((string)($event['payload_snapshot'] ?? ''), true) ?: [];
@@ -190,7 +241,7 @@ class UnifiedRewardOrchestratorServices extends YfthFoundationBaseServices
             $feeCent = max(0, (int)($payload['fee_amount_cent'] ?? 0));
             $quotaCent = $ratio > 0 ? intdiv($feeCent * $ratio, 10000) : 0;
             $storeId = (int)$profile['primary_store_id'];
-            $status = $ratio > 0 ? 'granted' : 'ineligible';
+            $status = $ratio > 0 ? 'pending' : 'ineligible';
             $now = time();
             $award = [
                 'award_no' => $this->makeNo('YFOQA'), 'application_id' => $applicationId,
@@ -202,10 +253,6 @@ class UnifiedRewardOrchestratorServices extends YfthFoundationBaseServices
                 'create_time' => $now, 'update_time' => $now,
             ];
             $awardId = (int)Db::name('yfth_partner_opening_quota_award')->insertGetId($award);
-            if ($quotaCent > 0) {
-                [$accountId, $ledgerId] = $this->postQuota($storeId, $quotaCent, 'partner_opening_reward', $awardId, 'opening_quota:' . $awardId);
-                Db::name('yfth_partner_opening_quota_award')->where('id', $awardId)->update(['quota_account_id' => $accountId, 'quota_ledger_id' => $ledgerId]);
-            }
             return ['result_type' => 'opening_quota_award', 'result_id' => $awardId];
         });
     }
@@ -228,6 +275,8 @@ class UnifiedRewardOrchestratorServices extends YfthFoundationBaseServices
     private function postQuota(int $storeId, int $delta, string $sourceType, int $sourceId, string $key): array
     {
         if ($storeId <= 0 || $delta === 0) throw new ApiException('product_quota_post_invalid');
+        $posted = Db::name('yfth_product_quota_ledger')->where('idempotency_key', $key)->find();
+        if ($posted) return [(int)$posted['account_id'], (int)$posted['id']];
         $account = Db::name('yfth_product_quota_account')->where('active_key', 'store:' . $storeId . ':return_goods')->lock(true)->find();
         $now = time();
         if (!$account) {

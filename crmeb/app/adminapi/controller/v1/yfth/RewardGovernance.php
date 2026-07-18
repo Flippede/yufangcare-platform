@@ -36,6 +36,18 @@ class RewardGovernance extends AuthController
         return app('json')->success(compact('list', 'count'));
     }
 
+    public function confirmOpeningQuota(int $id, UnifiedRewardOrchestratorServices $services)
+    {
+        $this->auth('yfth/reward_governance/opening_quota/<id>/confirm', 'POST');
+        return app('json')->success($services->confirmOpeningQuota($id, (int)$this->adminId));
+    }
+
+    public function consistency(UnifiedRewardOrchestratorServices $services)
+    {
+        $this->auth('yfth/reward_governance/consistency', 'GET');
+        return app('json')->success($services->consistencyIssues((int)$this->request->get('limit', 100)));
+    }
+
     public function migrationIssues()
     {
         $this->auth('yfth/reward_governance/migration_issue', 'GET');
