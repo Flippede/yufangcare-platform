@@ -46,7 +46,7 @@ foreach ([
     'database/migrations/20260708110000_create_yfth_franchise_application_tables.php',
     'database/migrations/20260708113000_add_yfth_franchise_follow_visibility.php',
     'database/migrations/20260719130000_simplify_franchise_review_and_localize_admin.php',
-    'database/migrations/20260718150000_add_franchise_application_approved_store.php',
+    'database/migrations/20260719140000_add_franchise_application_approved_store.php',
     'app/model/yfth/YfthFranchiseApplication.php',
     'app/model/yfth/YfthFranchiseFollowRecord.php',
     'app/dao/yfth/YfthFranchiseApplicationDao.php',
@@ -64,7 +64,7 @@ foreach ([
 $migration = $read('database/migrations/20260708110000_create_yfth_franchise_application_tables.php');
 $visibilityMigration = $read('database/migrations/20260708113000_add_yfth_franchise_follow_visibility.php');
 $reviewMigration = $read('database/migrations/20260719130000_simplify_franchise_review_and_localize_admin.php');
-$approvedStoreMigration = $read('database/migrations/20260718150000_add_franchise_application_approved_store.php');
+$approvedStoreMigration = $read('database/migrations/20260719140000_add_franchise_application_approved_store.php');
 foreach ([
     'yfth_franchise_application',
     'yfth_franchise_follow_record',
