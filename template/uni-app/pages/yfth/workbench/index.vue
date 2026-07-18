@@ -232,6 +232,7 @@ import {
 } from '@/api/yfth.js';
 import {
 	enterYfthBusinessMall,
+	enterYfthBusinessUserCenter,
 	isBusinessRole,
 	leaveYfthBusinessMall,
 	loadYfthIdentities,
@@ -619,6 +620,7 @@ export default {
 		tapNav(item) {
 			if (item.url) {
 				if (item.action === 'mall') enterYfthBusinessMall();
+				if (item.action === 'user_center') enterYfthBusinessUserCenter();
 				const fn = item.type === 'switchTab' ? uni.switchTab : uni.navigateTo;
 				fn({ url: item.url });
 				return;

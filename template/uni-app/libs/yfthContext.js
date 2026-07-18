@@ -25,7 +25,7 @@ export const YFTH_ROLE_NAVS = {
 		{ title: '客户', pane: 'customers' },
 		{ title: '订单', pane: 'orders' },
 		{ title: '商城', url: '/pages/index/index', type: 'switchTab', action: 'mall' },
-		{ title: '我的', pane: 'mine' }
+		{ title: '我的', url: '/pages/user/index', type: 'switchTab', action: 'user_center' }
 	],
 	store_manager: [
 		{ title: '工作台', pane: 'dashboard' },
@@ -33,7 +33,7 @@ export const YFTH_ROLE_NAVS = {
 		{ title: '预约', pane: 'appointments' },
 		{ title: '核销', pane: 'writeoff' },
 		{ title: '商城', url: '/pages/index/index', type: 'switchTab', action: 'mall' },
-		{ title: '我的', pane: 'mine' }
+		{ title: '我的', url: '/pages/user/index', type: 'switchTab', action: 'user_center' }
 	],
 	store_staff: [
 		{ title: '工作台', pane: 'dashboard' },
@@ -41,7 +41,7 @@ export const YFTH_ROLE_NAVS = {
 		{ title: '核销', pane: 'writeoff' },
 		{ title: '订单', pane: 'orders' },
 		{ title: '商城', url: '/pages/index/index', type: 'switchTab', action: 'mall' },
-		{ title: '我的', pane: 'mine' }
+		{ title: '我的', url: '/pages/user/index', type: 'switchTab', action: 'user_center' }
 	],
 	service_mentor: [
 		{ title: '工作台', pane: 'dashboard' },
@@ -49,7 +49,7 @@ export const YFTH_ROLE_NAVS = {
 		{ title: '活动', pane: 'activities' },
 		{ title: '资料', pane: 'materials' },
 		{ title: '商城', url: '/pages/index/index', type: 'switchTab', action: 'mall' },
-		{ title: '我的', pane: 'mine' }
+		{ title: '我的', url: '/pages/user/index', type: 'switchTab', action: 'user_center' }
 	]
 };
 
@@ -57,6 +57,7 @@ const CONTEXT_KEY = 'YFTH_CURRENT_CONTEXT';
 const ROLE_KEY = 'YFTH_CURRENT_ROLE';
 const STORE_KEY = 'YFTH_CURRENT_STORE';
 let businessMallBrowsing = false;
+let businessUserCenterBrowsing = false;
 
 export const YFTH_ROLE_PRIORITY = {
 	franchisee: 400,
@@ -116,6 +117,18 @@ export function leaveYfthBusinessMall() {
 
 export function isYfthBusinessMallBrowsing() {
 	return businessMallBrowsing;
+}
+
+export function enterYfthBusinessUserCenter() {
+	businessUserCenterBrowsing = true;
+}
+
+export function leaveYfthBusinessUserCenter() {
+	businessUserCenterBrowsing = false;
+}
+
+export function isYfthBusinessUserCenterBrowsing() {
+	return businessUserCenterBrowsing;
 }
 
 export function dominantYfthIdentities(identities) {

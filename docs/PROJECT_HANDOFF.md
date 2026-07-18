@@ -1,5 +1,13 @@
 # 项目交接文档
 
+## Current Fact Snapshot - Unified Customer Center From Business Workbenches
+
+- The `我的` item in franchisee, store-manager, store-staff, service-mentor, and partner workbenches now opens the existing unified customer center at `/pages/user/index` instead of rendering the former generic workbench `mine` placeholder.
+- The unified customer center keeps the real customer account surface shown to ordinary customers, including profile/settings, logout, order center, service entries, mall assets, membership status, and the four-item customer navigation.
+- This is an intentional navigation exception only. Normal login and application entry still resolve the server-validated dominant operating identity and open its workbench by default; no manual role-switching authority or client-side role fabrication was restored.
+- The exception is transient and cleared when the customer center is hidden, preventing redirect loops while preserving the highest-identity default on the next normal entry.
+- Focused verification passed: the YFTH role/assets/referral contract, request fallback check, H5 production build, mp-weixin production compile, and `git diff --check`. Production deployment facts are recorded after the reviewed artifact is released.
+
 ## Current Fact Snapshot - Franchise Approval Direct Store Manager Grant
 
 - Headquarters franchise approval now creates a new active CRMEB store or binds an explicitly selected active store, records it in `yfth_franchise_application.approved_store_id`, and grants the applicant an active `store_manager` role for that store in the same database transaction.

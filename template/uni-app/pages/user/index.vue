@@ -238,7 +238,7 @@ import colors from '@/mixins/color';
 import pageFooter from '@/components/pageFooter/index.vue';
 import { getCustomer } from '@/utils/index.js';
 import editUserModal from '@/components/eidtUserModal/index.vue';
-import { currentContext, dominantYfthIdentities, isBusinessRole, loadYfthIdentities, resolveDominantYfthContext, roleLabel } from '@/libs/yfthContext.js';
+import { currentContext, dominantYfthIdentities, isBusinessRole, isYfthBusinessUserCenterBrowsing, leaveYfthBusinessUserCenter, loadYfthIdentities, resolveDominantYfthContext, roleLabel } from '@/libs/yfthContext.js';
 import { getYfthPackageMembershipMe } from '@/api/yfth.js';
 export default {
 	components: {
@@ -441,6 +441,9 @@ export default {
 	onPullDownRefresh() {
 		this.onLoadFun();
 	},
+	onHide() {
+		leaveYfthBusinessUserCenter();
+	},
 	methods: {
 		getWechatuserinfo() {
 			//#ifdef H5
@@ -485,6 +488,7 @@ export default {
 			this.yfthBusinessIdentityRequestSeq += 1;
 		},
 		loadYfthBusinessEntry() {
+			const keepUserCenter = isYfthBusinessUserCenterBrowsing();
 			const requestSeq = this.yfthBusinessIdentityRequestSeq + 1;
 			this.yfthBusinessIdentityRequestSeq = requestSeq;
 			this.hasYfthBusinessIdentity = false;
@@ -509,14 +513,14 @@ export default {
 				}
 				return resolveDominantYfthContext(list).then((context) => {
 					this.yfthCurrentContext = context;
-					uni.reLaunch({ url: '/pages/yfth/workbench/index' });
+					if (!keepUserCenter) uni.reLaunch({ url: '/pages/yfth/workbench/index' });
 					return true;
 				});
 			}).catch(() => {
 				if (requestSeq === this.yfthBusinessIdentityRequestSeq) {
 					const cached = currentContext();
 					this.hasYfthBusinessIdentity = Boolean(cached.is_business_role);
-					if (cached.is_business_role) uni.reLaunch({ url: '/pages/yfth/workbench/index' });
+					if (cached.is_business_role && !keepUserCenter) uni.reLaunch({ url: '/pages/yfth/workbench/index' });
 				}
 				return false;
 			});

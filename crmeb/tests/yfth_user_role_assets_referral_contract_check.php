@@ -54,6 +54,7 @@ $loginPage = (string)file_get_contents(dirname($root) . '/template/uni-app/pages
 $wechatLoginPage = (string)file_get_contents(dirname($root) . '/template/uni-app/pages/users/wechat_login/index.vue');
 $bindingPhonePage = (string)file_get_contents(dirname($root) . '/template/uni-app/pages/users/binding_phone/index.vue');
 $workbenchPage = (string)file_get_contents(dirname($root) . '/template/uni-app/pages/yfth/workbench/index.vue');
+$contextLibrary = (string)file_get_contents(dirname($root) . '/template/uni-app/libs/yfthContext.js');
 $pages = (string)file_get_contents(dirname($root) . '/template/uni-app/pages.json');
 $nativeUserPage = (string)file_get_contents(dirname($root) . '/template/admin/src/pages/user/list/index.vue');
 $uniApi = (string)file_get_contents(dirname($root) . '/template/uni-app/api/yfth.js');
@@ -166,10 +167,23 @@ $assert(strpos($codePage, 'saveQr') !== false && strpos($codePage, '_saveCode') 
 $assert(strpos($membership, 'syncAuthorityCustomerInTransaction') !== false, 'invite_accept_projects_authority_to_store_customer_view');
 $assert(strpos($franchiseCustomer, 'backfillAuthorityCustomers') !== false, 'existing_authority_has_controlled_customer_projection_repair');
 $assert(strpos($userPage, 'goYfthReferralScan') !== false, 'user_center_exposes_referral_scan');
-$assert(strpos($userPage, '当前身份') !== false && strpos($userPage, '进入工作台') !== false, 'user_center_exposes_current_role');
+$assert(strpos($userPage, 'yfthCurrentIdentityText') !== false && strpos($userPage, 'goYfthWorkbench') !== false, 'user_center_exposes_current_role');
 $assert(strpos($roleSwitchPage, 'resolveDominantYfthContext') !== false, 'role_switch_uses_server_resolved_dominant_context');
 $assert(strpos($roleSwitchPage, "uni.reLaunch") !== false && strpos($roleSwitchPage, "this.switching") !== false, 'business_role_switch_relaunches_with_busy_guard');
 $assert(strpos($workbenchPage, '我的门店获客码') !== false && strpos($workbenchPage, 'canIssueAcquisitionCode') !== false, 'manager_and_staff_acquisition_code_entry_visible');
+$assert(strpos($contextLibrary, "url: '/pages/user/index', type: 'switchTab', action: 'user_center'") !== false, 'business_navigation_opens_unified_user_center');
+$assert(strpos($contextLibrary, "pane: 'mine'") === false, 'business_navigation_removes_workbench_mine_placeholder');
+foreach (['enterYfthBusinessUserCenter', 'leaveYfthBusinessUserCenter', 'isYfthBusinessUserCenterBrowsing'] as $helper) {
+    $assert(strpos($contextLibrary, $helper) !== false, 'business_user_center_context_contains:' . $helper);
+}
+$assert(strpos($workbenchPage, "item.action === 'user_center'") !== false
+    && strpos($workbenchPage, 'enterYfthBusinessUserCenter()') !== false,
+    'workbench_marks_intentional_user_center_navigation');
+$assert(strpos($userPage, 'const keepUserCenter = isYfthBusinessUserCenterBrowsing()') !== false
+    && strpos($userPage, 'cached.is_business_role && !keepUserCenter') !== false,
+    'user_center_skips_dominant_role_redirect_only_for_intentional_navigation');
+$assert(strpos($userPage, 'onHide()') !== false && strpos($userPage, 'leaveYfthBusinessUserCenter()') !== false,
+    'user_center_clears_transient_navigation_state');
 $assert(strpos($storeAcquisitionService, "private const ROLES = ['store_manager', 'store_staff']") !== false, 'acquisition_code_role_boundary');
 $assert(strpos($storeAcquisitionService, 'HqCustomerAttributionServices') !== false && strpos($storeAcquisitionService, 'syncAuthorityCustomerInTransaction') !== false, 'acquisition_uses_authoritative_store_attribution');
 $assert(strpos($storeAcquisitionService, "'store_acquisition'") !== false, 'acquisition_projects_store_customer_source');
