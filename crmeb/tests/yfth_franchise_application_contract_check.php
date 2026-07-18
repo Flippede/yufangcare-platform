@@ -46,6 +46,7 @@ foreach ([
     'database/migrations/20260708110000_create_yfth_franchise_application_tables.php',
     'database/migrations/20260708113000_add_yfth_franchise_follow_visibility.php',
     'database/migrations/20260719130000_simplify_franchise_review_and_localize_admin.php',
+    'database/migrations/20260718150000_add_franchise_application_approved_store.php',
     'app/model/yfth/YfthFranchiseApplication.php',
     'app/model/yfth/YfthFranchiseFollowRecord.php',
     'app/dao/yfth/YfthFranchiseApplicationDao.php',
@@ -63,6 +64,7 @@ foreach ([
 $migration = $read('database/migrations/20260708110000_create_yfth_franchise_application_tables.php');
 $visibilityMigration = $read('database/migrations/20260708113000_add_yfth_franchise_follow_visibility.php');
 $reviewMigration = $read('database/migrations/20260719130000_simplify_franchise_review_and_localize_admin.php');
+$approvedStoreMigration = $read('database/migrations/20260718150000_add_franchise_application_approved_store.php');
 foreach ([
     'yfth_franchise_application',
     'yfth_franchise_follow_record',
@@ -99,6 +101,12 @@ foreach ([
     '供应链与门店库存',
 ] as $needle) {
     $assert(strpos($reviewMigration, $needle) !== false, 'review_migration_contains:' . $needle);
+}
+foreach ([
+    'approved_store_id',
+    'idx_yfth_franchise_app_store',
+] as $needle) {
+    $assert(strpos($approvedStoreMigration, $needle) !== false, 'approved_store_migration_contains:' . $needle);
 }
 
 $service = $read('app/services/yfth/FranchiseApplicationServices.php');
@@ -140,6 +148,11 @@ foreach ([
     'offline_review_rejected',
     "['approve', 'reject']",
     "? 'pending_contract' : 'terminated'",
+    '$action === \'reject\' && $current === \'pending_contract\'',
+    'approved_store_id',
+    'createApprovedStore',
+    'grantApprovedStoreManager',
+    "'role_code' => 'store_manager'",
 ] as $needle) {
     $assert(strpos($service, $needle) !== false, 'service_contains:' . $needle);
 }
@@ -185,7 +198,6 @@ foreach ([
     'createStore',
     'grantFranchisee',
     'franchisee_identity',
-    'store_manager',
     'store_staff',
     'service_mentor',
     'admin_token',
@@ -245,9 +257,28 @@ foreach ([
     'changeStatus',
     'addFollow',
     'services->review',
+    "['store_name', '']",
+    "[['store_id', 'd'], 0]",
     'visible_type',
 ] as $needle) {
     $assert(strpos($adminController, $needle) !== false, 'admin_controller_contains:' . $needle);
+}
+
+$reviewMethod = $methodBlock($service, 'review');
+foreach ([
+    'createApprovedStore',
+    'grantApprovedStoreManager',
+    "'approved_store_id'",
+] as $needle) {
+    $assert(strpos($reviewMethod, $needle) !== false, 'review_grants_store_manager:' . $needle);
+}
+$grantManagerMethod = $methodBlock($service, 'grantApprovedStoreManager');
+foreach ([
+    "'store_manager'",
+    'UserStoreRoleServices::class',
+    'grant_store_manager_on_franchise_approval',
+] as $needle) {
+    $assert(strpos($grantManagerMethod, $needle) !== false, 'manager_grant_method_contains:' . $needle);
 }
 
 $adminRoute = $read('app/adminapi/route/yfth.php');
@@ -287,9 +318,13 @@ $assert(strpos($adminPage, "this.filters.status = this.\$route.query.status || '
 foreach ([
     '同意加盟',
     '驳回申请',
-    '授予合伙人身份',
-    "path: '/yfth/user-role'",
     'yfthFranchiseApplicationReview',
+    '补齐门店与店长',
+    'store_mode',
+    'store_name',
+    'store_id',
+    'merchantStoreApi',
+    'approved_store_id',
 ] as $needle) {
     $assert(strpos($adminPage, $needle) !== false, 'admin_page_review_contains:' . $needle);
 }

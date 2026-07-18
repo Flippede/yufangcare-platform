@@ -51,11 +51,15 @@ class FranchiseApplication extends AuthController
         $data = $this->request->postMore([
             ['action', 'approve'],
             ['reason', ''],
+            [['store_id', 'd'], 0],
+            ['store_name', ''],
         ]);
         return app('json')->success($services->review(
             (int)$id,
             (string)$data['action'],
             (string)$data['reason'],
+            (int)$data['store_id'],
+            (string)$data['store_name'],
             (int)$this->adminId,
             $this->adminInfo ?: []
         ));

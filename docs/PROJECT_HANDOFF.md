@@ -1,5 +1,12 @@
 # 项目交接文档
 
+## Current Fact Snapshot - Franchise Approval Direct Store Manager Grant
+
+- Headquarters franchise approval now creates a new active CRMEB store or binds an explicitly selected active store, records it in `yfth_franchise_application.approved_store_id`, and grants the applicant an active `store_manager` role for that store in the same database transaction.
+- Previously approved `pending_contract` applications without a bound store can use the controlled `补齐门店与店长` action. Repeated approval is idempotent for the bound store and active manager role; an approved application cannot subsequently be rejected through the review API.
+- Customer H5 no longer exposes manual operating-role switching. The existing server-validated dominant identity rule remains authoritative, so a store manager opens the manager workbench by default while permanent membership remains a status rather than a switchable operating role.
+- Focused verification passed: changed PHP 7.4 syntax, 200-assertion franchise-application contract, Admin production build, H5 production build, mp-weixin production compile, and `git diff --check`. Production migration and deployment status must be read from the latest deployment record below.
+
 ## Current Fact Snapshot - Simplified Headquarters Franchise Review
 
 - The production operating rule is now explicit: recruiting partners perform communication, inspection, negotiation and contracting offline; headquarters records only the final approval or rejection result. The headquarters application page therefore exposes `同意加盟` and `驳回申请` instead of forcing administrators through five online follow-up states.

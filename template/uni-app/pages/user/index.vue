@@ -76,10 +76,7 @@
 								<text class="identity-eyebrow">当前身份</text>
 								<text class="identity-name">{{ yfthCurrentIdentityText }}</text>
 							</view>
-							<view class="identity-actions">
-								<text @click.stop="goYfthWorkbench">切换身份</text>
-								<text v-if="yfthCurrentContext.is_business_role" @click.stop="goYfthCurrentWorkbench">进入工作台</text>
-							</view>
+							<view v-if="yfthCurrentContext.is_business_role" class="identity-actions" @click.stop="goYfthCurrentWorkbench">进入{{ yfthCurrentIdentityText }}工作台</view>
 						</view>
 					</view>
 					<view class="mall-assets" v-if="isLogin">

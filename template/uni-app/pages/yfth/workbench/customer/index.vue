@@ -92,8 +92,8 @@ export default {
 	onShow() {
 		this.context = currentContext();
 		if (!this.context.role_code || !this.context.store_id) {
-			uni.showToast({ title: '请先选择经营身份和门店', icon: 'none' });
-			uni.navigateTo({ url: '/pages/yfth/workbench/role_switch' });
+			uni.showToast({ title: '正在读取当前经营身份', icon: 'none' });
+			uni.reLaunch({ url: '/pages/yfth/workbench/index' });
 			return;
 		}
 		this.load(true);

@@ -2,6 +2,7 @@
 
 namespace app\services\yfth;
 
+use app\dao\system\store\SystemStoreDao;
 use app\dao\system\admin\SystemAdminDao;
 use app\dao\user\UserDao;
 use app\dao\yfth\YfthAuditEventDao;
@@ -95,7 +96,7 @@ class FranchiseApplicationServices extends YfthFoundationBaseServices
 
         $count = (int)$buildQuery()->count();
         $rows = $buildQuery()
-            ->field('id,application_no,applicant_uid,name,phone,city,region,intention_area,budget,source,status,assigned_uid,remark,create_time,update_time')
+            ->field('id,application_no,applicant_uid,name,phone,city,region,intention_area,budget,source,status,assigned_uid,approved_store_id,remark,create_time,update_time')
             ->page($page, $limit)
             ->order('id desc')
             ->select()
@@ -162,7 +163,7 @@ class FranchiseApplicationServices extends YfthFoundationBaseServices
 
         $count = (int)$buildQuery()->count();
         $rows = $buildQuery()
-            ->field('id,application_no,applicant_uid,name,phone,city,region,intention_area,budget,source,status,assigned_uid,remark,create_time,update_time')
+            ->field('id,application_no,applicant_uid,name,phone,city,region,intention_area,budget,source,status,assigned_uid,approved_store_id,remark,create_time,update_time')
             ->page($page, $limit)
             ->order('id desc')
             ->select()
@@ -255,7 +256,7 @@ class FranchiseApplicationServices extends YfthFoundationBaseServices
      * Headquarters only records the final offline review result. Partner follow-up,
      * negotiation and contracting remain offline business facts.
      */
-    public function review(int $id, string $action, string $reason, int $adminId, array $adminInfo = []): array
+    public function review(int $id, string $action, string $reason, int $storeId, string $storeName, int $adminId, array $adminInfo = []): array
     {
         $this->assertHeadquarterAdmin($adminInfo);
         $action = trim($action);
@@ -266,8 +267,11 @@ class FranchiseApplicationServices extends YfthFoundationBaseServices
         if ($reason === '') {
             throw new ApiException('franchise_application_review_reason_required');
         }
+        if ($action === 'approve' && $storeId <= 0 && trim($storeName) === '') {
+            throw new ApiException('franchise_application_store_name_required');
+        }
 
-        return Db::transaction(function () use ($id, $action, $reason, $adminId) {
+        return Db::transaction(function () use ($id, $action, $reason, $storeId, $storeName, $adminId) {
             $before = Db::name('yfth_franchise_application')->where('id', $id)->lock(true)->find();
             if (!$before) {
                 throw new ApiException('franchise_application_not_found');
@@ -277,17 +281,29 @@ class FranchiseApplicationServices extends YfthFoundationBaseServices
                 throw new ApiException('franchise_application_review_status_invalid');
             }
             $targetStatus = $action === 'approve' ? 'pending_contract' : 'terminated';
-            if ($current === $targetStatus) {
-                return ['application' => $this->formatApplication($before, true, $this->userMap([(int)$before['applicant_uid']]), $this->adminMap([(int)$before['assigned_uid']]))];
-            }
             if ($current === 'terminated') {
+                throw new ApiException('franchise_application_review_status_invalid');
+            }
+            if ($action === 'reject' && $current === 'pending_contract') {
                 throw new ApiException('franchise_application_review_status_invalid');
             }
 
             $after = $before;
             $after['status'] = $targetStatus;
             $after['update_time'] = time();
-            $this->dao->update($id, ['status' => $targetStatus, 'update_time' => $after['update_time']]);
+            $update = ['status' => $targetStatus, 'update_time' => $after['update_time']];
+            if ($action === 'approve') {
+                $approvedStoreId = (int)($before['approved_store_id'] ?? 0);
+                if ($approvedStoreId <= 0) {
+                    $approvedStoreId = $storeId > 0
+                        ? $this->assertApprovedStore($storeId)
+                        : $this->createApprovedStore($before, $storeName);
+                }
+                $after['approved_store_id'] = $approvedStoreId;
+                $update['approved_store_id'] = $approvedStoreId;
+                $this->grantApprovedStoreManager((int)$before['applicant_uid'], $approvedStoreId, $adminId, $reason);
+            }
+            $this->dao->update($id, $update);
             $this->audit(
                 'franchise_application',
                 $id,
@@ -296,12 +312,81 @@ class FranchiseApplicationServices extends YfthFoundationBaseServices
                 $after,
                 $adminId,
                 'headquarter_admin',
-                0,
+                (int)($after['approved_store_id'] ?? 0),
                 $reason
             );
 
-            return ['application' => $this->formatApplication($after, true, $this->userMap([(int)$after['applicant_uid']]), $this->adminMap([(int)$after['assigned_uid']]))];
+            return [
+                'application' => $this->formatApplication($after, true, $this->userMap([(int)$after['applicant_uid']]), $this->adminMap([(int)$after['assigned_uid']])),
+                'store_manager_granted' => $action === 'approve',
+            ];
         });
+    }
+
+    private function assertApprovedStore(int $storeId): int
+    {
+        app()->make(StoreAccessServices::class)->assertStoreActive($storeId);
+        return $storeId;
+    }
+
+    private function createApprovedStore(array $application, string $storeName): int
+    {
+        $name = trim($storeName);
+        if ($name === '') {
+            throw new ApiException('franchise_application_store_name_required');
+        }
+        $addressParts = array_values(array_filter([
+            trim((string)($application['city'] ?? '')),
+            trim((string)($application['region'] ?? '')),
+        ]));
+        $saved = app()->make(SystemStoreDao::class)->save([
+            'name' => mb_substr($name, 0, 100),
+            'introduction' => '总部加盟申请审核通过后创建，申请号：' . (string)$application['application_no'],
+            'image' => '',
+            'oblong_image' => '',
+            'phone' => (string)($application['phone'] ?? ''),
+            'address' => implode(',', $addressParts),
+            'detailed_address' => (string)($application['intention_area'] ?? ''),
+            'latitude' => '0',
+            'longitude' => '0',
+            'valid_time' => '',
+            'day_time' => '09:00 - 18:00',
+            'add_time' => time(),
+            'is_show' => 1,
+            'is_del' => 0,
+        ]);
+        $row = is_array($saved) ? $saved : $saved->toArray();
+        $storeId = (int)($row['id'] ?? 0);
+        if ($storeId <= 0) {
+            throw new ApiException('franchise_application_store_create_failed');
+        }
+        return $this->assertApprovedStore($storeId);
+    }
+
+    private function grantApprovedStoreManager(int $uid, int $storeId, int $adminId, string $reason): void
+    {
+        $existing = Db::name('yfth_user_store_role')
+            ->where('uid', $uid)
+            ->where('store_id', $storeId)
+            ->where('role_code', 'store_manager')
+            ->where('status', YfthConstants::STATUS_ACTIVE)
+            ->lock(true)
+            ->find();
+        if ($existing) {
+            return;
+        }
+        $saved = app()->make(UserStoreRoleServices::class)->saveRole([
+            'uid' => $uid,
+            'store_id' => $storeId,
+            'role_code' => 'store_manager',
+            'status' => YfthConstants::STATUS_ACTIVE,
+            'permission_scope' => [],
+            'start_time' => time(),
+            'end_time' => 0,
+            'creator_uid' => $adminId,
+        ]);
+        $role = is_array($saved) ? $saved : $saved->toArray();
+        $this->audit('user_store_role', (int)$role['id'], 'grant_store_manager_on_franchise_approval', [], $role, $adminId, 'headquarter_admin', $storeId, $reason);
     }
 
     public function addFollow(int $id, array $data, int $adminId, array $adminInfo = []): array
@@ -498,6 +583,7 @@ class FranchiseApplicationServices extends YfthFoundationBaseServices
             $payload['applicant_nickname'] = (string)($applicant['nickname'] ?? '');
             $payload['phone'] = (string)($row['phone'] ?? '');
             $payload['assigned_uid'] = $assignedUid;
+            $payload['approved_store_id'] = (int)($row['approved_store_id'] ?? 0);
             $payload['remark'] = (string)($row['remark'] ?? '');
             $payload['create_time'] = (int)($row['create_time'] ?? 0);
             $payload['update_time'] = (int)($row['update_time'] ?? 0);

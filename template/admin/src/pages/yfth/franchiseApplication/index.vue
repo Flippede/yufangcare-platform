@@ -39,7 +39,8 @@
               <el-button type="text" icon="el-icon-check" class="approve-button" @click="openReview(scope.row, 'approve')">同意加盟</el-button>
               <el-button type="text" icon="el-icon-close" class="reject-button" @click="openReview(scope.row, 'reject')">驳回申请</el-button>
             </template>
-            <el-button v-else-if="scope.row.status === 'pending_contract'" type="text" icon="el-icon-user" @click="manageIdentity(scope.row)">授予合伙人身份</el-button>
+            <el-button v-else-if="scope.row.status === 'pending_contract' && !scope.row.approved_store_id" type="text" icon="el-icon-s-shop" @click="openReview(scope.row, 'approve')">补齐门店与店长</el-button>
+            <el-tag v-else-if="scope.row.status === 'pending_contract'" size="mini" type="success">店长已生效</el-tag>
           </template>
         </el-table-column>
       </el-table>
@@ -72,9 +73,14 @@
     </el-drawer>
 
     <el-dialog :title="reviewForm.action === 'approve' ? '同意加盟' : '驳回申请'" :visible.sync="reviewVisible" width="460px">
-      <el-alert :title="reviewForm.action === 'approve' ? '确认后申请人即可在“用户经营身份”中被授予相应合伙人职级。' : '驳回后该申请不会进入后续授权。'" :type="reviewForm.action === 'approve' ? 'success' : 'warning'" :closable="false" show-icon class="review-alert" />
+      <el-alert :title="reviewForm.action === 'approve' ? '确认后系统将创建或绑定正式门店，并立即把申请人设为该门店店长。' : '驳回后该申请不会进入后续授权。'" :type="reviewForm.action === 'approve' ? 'success' : 'warning'" :closable="false" show-icon class="review-alert" />
       <el-form label-width="90px">
         <el-form-item label="申请人"><el-input :value="currentRow.name + ' / UID ' + currentRow.applicant_uid" disabled /></el-form-item>
+        <template v-if="reviewForm.action === 'approve'">
+          <el-form-item label="门店方式"><el-radio-group v-model="reviewForm.store_mode"><el-radio label="new">创建新门店</el-radio><el-radio label="existing">绑定已有门店</el-radio></el-radio-group></el-form-item>
+          <el-form-item v-if="reviewForm.store_mode === 'new'" label="门店名称"><el-input v-model.trim="reviewForm.store_name" maxlength="100" placeholder="请输入审核通过后创建的正式门店名称" /></el-form-item>
+          <el-form-item v-else label="选择门店"><el-select v-model="reviewForm.store_id" filterable placeholder="请选择启用中的正式门店" style="width:100%"><el-option v-for="store in stores" :key="store.id" :label="store.name" :value="store.id" /></el-select></el-form-item>
+        </template>
         <el-form-item label="确认原因"><el-input v-model.trim="reviewForm.reason" type="textarea" :rows="3" maxlength="255" show-word-limit placeholder="请记录与招商合伙人的线下确认结果" /></el-form-item>
       </el-form>
       <span slot="footer"><el-button @click="reviewVisible = false">取消</el-button><el-button :type="reviewForm.action === 'approve' ? 'success' : 'danger'" :loading="reviewSaving" @click="submitReview">确认</el-button></span>
@@ -84,6 +90,7 @@
 
 <script>
 import { yfthFranchiseApplicationDetail, yfthFranchiseApplicationList, yfthFranchiseApplicationReview } from '@/api/yfth';
+import { merchantStoreApi } from '@/api/setting';
 
 export default {
   name: 'YfthFranchiseApplication',
@@ -92,7 +99,7 @@ export default {
       loading: false, reviewSaving: false,
       filters: { keyword: '', status: '', applicant_uid: '', assigned_uid: '', city: '', page: 1, limit: 20 },
       list: [], count: 0, detailVisible: false, detail: {}, reviewVisible: false, currentRow: {},
-      reviewForm: { action: 'approve', reason: '' },
+      reviewForm: { action: 'approve', reason: '', store_mode: 'new', store_id: '', store_name: '' }, stores: [],
       statusOptions: [
         { label: '待总部确认', value: 'submitted' },
         { label: '总部已同意', value: 'pending_contract' },
@@ -101,7 +108,7 @@ export default {
       ],
     };
   },
-  created() { this.filters.status = this.$route.query.status || ''; this.load(true); },
+  created() { this.filters.status = this.$route.query.status || ''; this.loadStores(); this.load(true); },
   methods: {
     load(reset) {
       if (reset) this.filters.page = 1;
@@ -113,17 +120,28 @@ export default {
     },
     reset() { this.filters = { keyword: '', status: '', applicant_uid: '', assigned_uid: '', city: '', page: 1, limit: 20 }; this.load(true); },
     openDetail(row) { yfthFranchiseApplicationDetail(row.id).then((res) => { this.detail = res.data || {}; this.detailVisible = true; }); },
-    openReview(row, action) { this.currentRow = row; this.reviewForm = { action, reason: '' }; this.reviewVisible = true; },
+    openReview(row, action) {
+      this.currentRow = row;
+      const location = [row.city, row.region].filter(Boolean).join('');
+      this.reviewForm = { action, reason: '', store_mode: 'new', store_id: '', store_name: `${location}${row.name || ''}加盟店` };
+      this.reviewVisible = true;
+    },
     submitReview() {
       if (!this.reviewForm.reason) return this.$message.warning('请填写确认原因');
+      if (this.reviewForm.action === 'approve' && this.reviewForm.store_mode === 'new' && !this.reviewForm.store_name) return this.$message.warning('请填写门店名称');
+      if (this.reviewForm.action === 'approve' && this.reviewForm.store_mode === 'existing' && !this.reviewForm.store_id) return this.$message.warning('请选择门店');
       this.reviewSaving = true;
-      yfthFranchiseApplicationReview(this.currentRow.id, this.reviewForm).then(() => {
+      const payload = Object.assign({}, this.reviewForm, {
+        store_id: this.reviewForm.store_mode === 'existing' ? this.reviewForm.store_id : 0,
+        store_name: this.reviewForm.store_mode === 'new' ? this.reviewForm.store_name : '',
+      });
+      yfthFranchiseApplicationReview(this.currentRow.id, payload).then(() => {
         this.reviewVisible = false;
-        this.$message.success(this.reviewForm.action === 'approve' ? '总部已同意该加盟申请' : '申请已驳回');
+        this.$message.success(this.reviewForm.action === 'approve' ? '加盟已同意，申请人已成为门店店长' : '申请已驳回');
         this.load(false);
       }).finally(() => { this.reviewSaving = false; });
     },
-    manageIdentity(row) { this.$router.push({ path: '/yfth/user-role', query: { uid: row.applicant_uid } }); },
+    loadStores() { merchantStoreApi({ type: 0, page: 1, limit: 100 }).then((res) => { this.stores = (res.data && res.data.list) || []; }); },
     isReviewable(row) { return ['submitted', 'contacting', 'communicating', 'inspecting'].includes(row.status); },
     reviewStatusText(status) {
       if (['submitted', 'contacting', 'communicating', 'inspecting'].includes(status)) return '待总部确认';
