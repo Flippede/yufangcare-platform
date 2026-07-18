@@ -25,6 +25,7 @@
 			<view class="btn-wrapper">
 				<!-- #ifdef H5 -->
 				<button hover-class="none" @click="wechatLogin" class="bg-theme btn1">{{$t(`微信登录`)}}</button>
+				<button hover-class="none" @click="accountLogin" class="account-switch">切换账号</button>
 				<!-- #endif -->
 				<!-- #ifdef MP -->
 				<template v-if="configData.wechat_auth_switch">
@@ -34,8 +35,10 @@
 						{{$t(`授权登录`)}}
 					</button>
 				</template>
-				<button v-if="configData.phone_auth_switch" hover-class="none" @click="phoneLogin"
-					class="btn2">{{$t(`手机号登录`)}}</button>
+				<button hover-class="none" @click="accountLogin" class="account-switch">切换账号</button>
+				<!-- #endif -->
+				<view class="account-login-hint">支持手机号验证码和账号密码登录</view>
+				<!-- #ifdef MP -->
 				<view class="cancel-login" @click="onReject">取消登录</view>
 				<!-- #endif -->
 			</view>
@@ -291,10 +294,10 @@
 				this.isShow = false;
 				this.finishLoginNavigation();
 			},
-			phoneLogin() {
-				uni.navigateTo({
-					url: `/pages/users/binding_phone/index?authKey=${this.authKey}&pageType=0`
-				})
+			accountLogin() {
+				uni.redirectTo({
+					url: '/pages/users/login/index'
+				});
 			},
 			
 			closeEdit() {
@@ -628,6 +631,28 @@
 					border: 1px solid #E4E4E4;
 					margin-bottom: 30rpx;
 				}
+			}
+			.account-switch {
+				width: 100%;
+				height: 86rpx;
+				margin: 0 0 18rpx;
+				border: 1rpx solid #c69a5c;
+				border-radius: 120rpx;
+				background: rgba(255, 250, 241, 0.92);
+				color: #8a5d25;
+				font-size: 30rpx;
+				font-weight: 500;
+				line-height: 84rpx;
+			}
+			.account-switch::after {
+				border: 0;
+			}
+			.account-login-hint {
+				margin-bottom: 28rpx;
+				color: #9b8b78;
+				font-size: 24rpx;
+				line-height: 34rpx;
+				text-align: center;
 			}
 			.cancel-login{
 				color: #999;

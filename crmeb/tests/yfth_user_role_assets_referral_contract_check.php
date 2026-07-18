@@ -253,6 +253,7 @@ foreach ([$loginPage, $wechatLoginPage, $bindingPhonePage] as $loginSurface) {
     $assert(strpos($loginSurface, 'resolveLoginBackUrl') !== false, 'login_surface_resumes_pending_store_acquisition');
 }
 $assert(strpos($wechatLoginPage, 'finishLoginNavigation') !== false && strpos($bindingPhonePage, 'postLoginUrl') !== false, 'new_wechat_user_resumes_store_acquisition_after_profile');
+$assert(strpos($wechatLoginPage, '切换账号') !== false && strpos($wechatLoginPage, "url: '/pages/users/login/index'") !== false, 'wechat_login_exposes_phone_and_account_switch');
 $assert(strpos($storeAcquisitionAcceptPage, 'this.$nextTick(() => this.accept())') !== false, 'acquisition_accepts_automatically_after_login');
 $assert(strpos($storeAcquisitionAcceptPage, "uni.reLaunch({ url: '/pages/index/index' })") !== false, 'acquisition_success_returns_to_mall_home');
 $assert(strpos($scanPage, 'acquisition_token') !== false && strpos($scanPage, '/pages/yfth/store_acquisition/accept') !== false, 'scanner_recognizes_store_acquisition_qr');

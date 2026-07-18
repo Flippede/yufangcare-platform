@@ -14,6 +14,7 @@ function requireText(source, needle, label) {
 }
 
 const login = read('pages/users/login/index.vue');
+const wechatLogin = read('pages/users/wechat_login/index.vue');
 const verify = read('pages/users/components/verify/index.vue');
 const annexVerify = read('pages/annex/components/verify/index.vue');
 const annexSettledVerify = read('pages/annex/components/verify/verify.vue');
@@ -34,6 +35,13 @@ const pages = read('pages.json');
 	['@tap="toggleProtocol"', 'protocol text and control interaction'],
   ['copyRight && copyRight.copyrightContext', 'safe copyright storage access'],
 ].forEach(([needle, label]) => requireText(login, needle, label));
+
+[
+	['切换账号', 'visible account switch below WeChat login'],
+	['@click="accountLogin"', 'account switch interaction'],
+	["url: '/pages/users/login/index'", 'shared phone and account login destination'],
+	['支持手机号验证码和账号密码登录', 'login method explanation'],
+].forEach(([needle, label]) => requireText(wechatLogin, needle, label));
 
 [
   ['document.addEventListener("touchmove"', 'global touchmove listener'],
