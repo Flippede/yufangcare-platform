@@ -45,6 +45,7 @@ class DirectReferralRewardSettlementServices extends YfthFoundationBaseServices
                 throw new ApiException('reward_candidate_confirm_forbidden');
             }
             $after = $this->transition($candidate, 'confirmed');
+            $this->appendUnifiedLedger($candidate, 'confirm', (int)$candidate['reward_amount_cent'], 'store', (string)$context['store_id'], $data, (int)$context['uid']);
             $this->audit($candidate, $after, 'confirm', (int)$context['uid'], (string)$context['role_code'], (int)$context['store_id'], trim((string)($data['remark'] ?? '')), trim((string)($data['request_id'] ?? '')));
             return $this->result($after);
         });
@@ -104,6 +105,7 @@ class DirectReferralRewardSettlementServices extends YfthFoundationBaseServices
                 throw $e;
             }
             $after = $this->transition($candidate, 'settled');
+            $this->appendUnifiedLedger($candidate, 'settle', (int)$candidate['reward_amount_cent'], 'offline_settlement', (string)$ledger['id'], $data, (int)$context['uid']);
             $this->audit($candidate, $after, 'settle', (int)$context['uid'], (string)$context['role_code'], (int)$context['store_id'], $remark, trim((string)($data['request_id'] ?? '')));
             return $this->result($after, $ledger);
         });
@@ -137,6 +139,15 @@ class DirectReferralRewardSettlementServices extends YfthFoundationBaseServices
                 throw new ApiException('reward_candidate_settled_immutable');
             }
             $after = $this->transition($candidate, $to);
+            $this->appendUnifiedLedger(
+                $candidate,
+                $action === 'cancel' ? 'cancel' : 'correction',
+                $action === 'cancel' ? -(int)$candidate['reward_amount_cent'] : 0,
+                'headquarters_operation',
+                (string)$adminId,
+                $data,
+                $adminId
+            );
             $this->audit($candidate, $after, $action, $adminId, 'admin', (int)$candidate['store_id'], $reason, trim((string)($data['request_id'] ?? '')));
             return $this->result($after);
         });
@@ -185,6 +196,22 @@ class DirectReferralRewardSettlementServices extends YfthFoundationBaseServices
         $update = ['status' => $status, 'update_time' => time()];
         $this->candidateDao->update((int)$candidate['id'], $update);
         return array_merge($candidate, $update);
+    }
+
+    private function appendUnifiedLedger(array $candidate, string $action, int $amountCent, string $sourceType, string $sourceId, array $snapshot, int $operatorUid): void
+    {
+        $requestId = trim((string)($snapshot['request_id'] ?? ''));
+        $key = hash('sha256', implode('|', [$candidate['id'], $action, $sourceType, $sourceId, $requestId]));
+        if (Db::name('yfth_reward_adjustment_ledger')->where('canonical_key', $key)->count() > 0) return;
+        Db::name('yfth_reward_adjustment_ledger')->insert([
+            'ledger_no' => $this->makeNo('YFRA'), 'candidate_id' => (int)$candidate['id'],
+            'candidate_type' => (string)$candidate['candidate_type'], 'action_type' => $action,
+            'amount_cent' => $amountCent, 'reversal_of_ledger_id' => 0,
+            'source_type' => $sourceType, 'source_id' => $sourceId, 'canonical_key' => $key,
+            'snapshot_json' => json_encode($snapshot, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+            'operator_uid' => $operatorUid, 'reason' => trim((string)($snapshot['reason'] ?? $snapshot['remark'] ?? $action)),
+            'create_time' => time(),
+        ]);
     }
 
     private function audit(array $before, array $after, string $action, int $operatorUid, string $roleCode, int $storeId, string $reason, string $requestId): void

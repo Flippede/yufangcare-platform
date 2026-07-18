@@ -40,7 +40,8 @@ assert(userPage.includes('yfthBusinessIdentityRequestSeq'), 'user center must gu
 assert(userPage.includes('requestUid') && userPage.includes('currentUid'), 'user center must prevent stale identity requests from writing after user switch');
 
 const context = read('libs/yfthContext.js');
-assert(context.includes("['franchisee', 'store_manager', 'store_staff', 'service_mentor']"), 'business role whitelist changed unexpectedly');
+assert(context.includes("const PARTNER_ROLES = ['county_partner', 'prefecture_partner', 'province_partner', 'regional_director', 'platform_director']"), 'all five partner ranks must be operating roles');
+assert(context.includes("['franchisee', 'store_manager', 'store_staff', 'service_mentor'].concat(PARTNER_ROLES)"), 'business role whitelist must include legacy and partner roles');
 assert(context.includes('getYfthContext(data)'), 'role/store context must be verified by the backend');
 assert(context.includes('uid: Number(context.uid || currentUid() || 0)'), 'cached context must carry the current uid');
 assert(context.includes('Number(context.uid) !== Number(uid)'), 'cached context must be rejected after user switch');
@@ -48,8 +49,7 @@ assert(context.includes('YFTH_ROLE_PRIORITY'), 'operating identities must define
 assert(context.includes('franchisee: 400') && context.includes('store_manager: 300') && context.includes('store_staff: 200'), 'franchisee, manager and staff priority order must remain explicit');
 assert(context.includes('dominantYfthIdentities'), 'identity selection must calculate the highest active operating role');
 assert(context.includes('resolveDominantYfthContext'), 'cached lower roles must be replaced by the highest server identity');
-assert((context.match(/action: 'mall'/g) || []).length === 4, 'every operating role must expose the headquarters mall entry');
-assert((context.match(/action: 'user_center'/g) || []).length === 4, 'every operating role must expose the parallel user-center entry');
+assert(context.includes('PARTNER_ROLES.forEach((role) => { YFTH_ROLE_NAVS[role] = YFTH_ROLE_NAVS.franchisee; })'), 'partner roles must inherit the headquarters mall and user-center entries');
 assert(context.includes('enterYfthBusinessMall') && context.includes('leaveYfthBusinessMall') && context.includes('isYfthBusinessMallBrowsing'), 'business mall browsing must be explicit and session-scoped');
 assert(context.includes("title: '分类', url: '/pages/goods_cate/goods_cate'") && context.includes("title: '购物车', url: '/pages/order_addcart/order_addcart'"), 'customer navigation must remain the fixed four-tab contract');
 
@@ -65,8 +65,8 @@ assertContains('pages/yfth/workbench/index.vue', "item.action === 'mall'", 'work
 assertContains('pages/yfth/workbench/index.vue', 'const cachedContext = currentContext()', 'workbench must keep the cached operating navigation stable during server refresh');
 assertContains('pages/yfth/workbench/index.vue', 'v-if="navItems.length" class="nav"', 'workbench must hide navigation instead of flashing customer tabs without an operating context');
 assertContains('pages/yfth/workbench/index.vue', 'if (!this.context || !isBusinessRole(this.context.role_code)) return [];', 'workbench navigation must never fall back to customer tabs during route transitions');
-assertContains('pages/yfth/workbench/index.vue', "this.context.role_code === 'store_manager'", 'only the store manager may see the purchase entry');
-assertContains('pages/yfth/workbench/purchase/index.vue', "context.role_code !== 'store_manager'", 'direct purchase-page access must reject non-managers');
+assertContains('pages/yfth/workbench/index.vue', "this.context.role_code === 'store_manager' || this.isPartnerRole", 'store managers and bound partners may see the purchase entry');
+assertContains('pages/yfth/workbench/purchase/index.vue', "this.context.role_code === 'store_manager' || this.isPartnerRole", 'direct purchase-page access must accept a server-validated bound partner');
 assertContains('pages/yfth/workbench/purchase/index.vue', 'v-if="accessGranted"', 'purchase content must stay hidden until the manager context is verified');
 assertContains('pages/yfth/workbench/purchase/index.vue', 'window.location.replace(target)', 'H5 direct access must have a workbench redirect fallback');
 assertNotContains('pages/yfth/workbench/index.vue', 'backCustomer', 'a higher operating identity must not fall back to the customer surface');

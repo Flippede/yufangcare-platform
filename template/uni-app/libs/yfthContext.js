@@ -8,8 +8,16 @@ export const YFTH_ROLE_LABELS = {
 	franchisee: '招商合伙人',
 	store_manager: '店长',
 	store_staff: '店员',
-	service_mentor: '服务导师'
+	service_mentor: '服务导师',
+	county_partner: '县级招商合伙人',
+	prefecture_partner: '地市级招商合伙人',
+	province_partner: '省级招商合伙人',
+	regional_director: '区域董事',
+	platform_director: '平台董事'
 };
+
+const PARTNER_ROLES = ['county_partner', 'prefecture_partner', 'province_partner', 'regional_director', 'platform_director'];
+PARTNER_ROLES.forEach((role) => { YFTH_ROLE_NAVS[role] = YFTH_ROLE_NAVS.franchisee; });
 
 export const YFTH_ROLE_NAVS = {
 	customer: [
@@ -60,6 +68,11 @@ let businessUserCenterBrowsing = false;
 
 export const YFTH_ROLE_PRIORITY = {
 	franchisee: 400,
+	county_partner: 450,
+	prefecture_partner: 460,
+	province_partner: 470,
+	regional_director: 480,
+	platform_director: 490,
 	store_manager: 300,
 	store_staff: 200,
 	service_mentor: 100,
@@ -75,11 +88,11 @@ export function roleNav(roleCode) {
 }
 
 export function isBusinessRole(roleCode) {
-	return ['franchisee', 'store_manager', 'store_staff', 'service_mentor'].indexOf(roleCode) !== -1;
+	return ['franchisee', 'store_manager', 'store_staff', 'service_mentor'].concat(PARTNER_ROLES).indexOf(roleCode) !== -1;
 }
 
 export function roleRequiresStore(roleCode) {
-	return ['franchisee', 'store_manager', 'store_staff'].indexOf(roleCode) !== -1;
+	return ['franchisee', 'store_manager', 'store_staff'].concat(PARTNER_ROLES).indexOf(roleCode) !== -1;
 }
 
 export function currentContext() {

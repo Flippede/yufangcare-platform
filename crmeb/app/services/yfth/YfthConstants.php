@@ -24,6 +24,11 @@ class YfthConstants
             'service_mentor' => 'Service mentor',
             'supplier' => 'Supplier',
             'headquarter_operator' => 'Headquarter operator',
+            'county_partner' => '县级招商合伙人',
+            'prefecture_partner' => '地市级招商合伙人',
+            'province_partner' => '省级招商合伙人',
+            'regional_director' => '区域董事',
+            'platform_director' => '平台董事',
         ];
     }
 
@@ -35,6 +40,11 @@ class YfthConstants
     public static function globalRoles(): array
     {
         return array_values(array_diff(array_keys(self::roles()), self::storeRoles()));
+    }
+
+    public static function partnerRoles(): array
+    {
+        return ['county_partner', 'prefecture_partner', 'province_partner', 'regional_director', 'platform_director'];
     }
 
     public static function subjectTypes(): array

@@ -8,6 +8,7 @@ use app\dao\yfth\YfthBenefitPlanDao;
 use app\dao\yfth\YfthPackageInstanceDao;
 use app\dao\yfth\YfthPackagePurchaseDao;
 use crmeb\exceptions\AdminException;
+use think\facade\Db;
 
 class PackageLifecycleServices extends PackageBenefitBaseServices
 {
@@ -141,7 +142,13 @@ class PackageLifecycleServices extends PackageBenefitBaseServices
             return;
         }
         try {
-            app()->make(ReferralRewardServices::class)->recordPackageNegativeEvent($purchaseId, $eventType, $eventType . ':package_purchase:' . $purchaseId);
+            $purchase = Db::name('yfth_package_purchase')->where('id', $purchaseId)->find();
+            $instanceId = (int)($purchase['instance_id'] ?? 0);
+            if ($instanceId <= 0) return;
+            app()->make(UnifiedRewardOrchestratorServices::class)->enqueue(
+                'package_invalidated', 'package_instance', (string)$instanceId,
+                ['purchase_id' => $purchaseId, 'instance_id' => $instanceId, 'reason_event' => $eventType]
+            );
         } catch (\Throwable $e) {
             $this->recordPackageAudit('package_purchase', (string)$purchaseId, 'referral_reward_event_failed', [], [
                 'event_type' => $eventType,

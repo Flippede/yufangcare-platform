@@ -142,6 +142,13 @@ class FranchisePartner extends AuthController
         ]), (int)$this->adminId, $this->adminInfo ?: []));
     }
 
+    public function openingCancel(FranchisePartnerServices $services, $application_id)
+    {
+        $this->auth('yfth/franchise_partner/opening/<application_id>/cancel', 'POST');
+        $data = $this->request->postMore([['reason', '']]);
+        return app('json')->success($services->adminCancelOpening((int)$application_id, (string)$data['reason'], (int)$this->adminId, $this->adminInfo ?: []));
+    }
+
     private function auth(string $rule, string $method): void
     {
         app()->make(SystemRoleServices::class)->assertApiAuthForAdmin($this->adminInfo ?: [], $rule, $method);

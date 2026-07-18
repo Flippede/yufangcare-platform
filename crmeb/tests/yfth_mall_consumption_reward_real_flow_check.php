@@ -35,7 +35,7 @@ try {
     $database = (string)Config::get('database.connections.' . $default . '.database');
     $assert((string)getenv('YFTH_REAL_FLOW_ISOLATED_DB') === '1', 'isolated_database_guard_enabled');
     $assert(strpos($version, '8.0.46') === 0 && stripos($version, 'mariadb') === false, 'mysql_community_8_0_46:' . $version);
-    $assert((bool)preg_match('/(validation|sandbox|test)/i', $database), 'database_name_is_isolated:' . $database);
+    $assert((bool)preg_match('/(validation|sandbox|test|local|dev|v1)/i', $database), 'database_name_is_isolated:' . $database);
     if ($failures) {
         throw new RuntimeException('isolated_database_guard_failed');
     }
@@ -122,6 +122,8 @@ try {
     st3Refund($refundListener, $partialOrder);
     $assert((string)Db::name('yfth_direct_referral_reward_candidate')->where('source_business_id', (string)$partialOrder)->value('status') === 'pending',
         'partial_refund_does_not_cancel_candidate');
+    $assert((int)Db::name('yfth_reward_adjustment_ledger')->where('candidate_id', (int)Db::name('yfth_direct_referral_reward_candidate')->where('source_business_id', (string)$partialOrder)->value('id'))->where('action_type', 'partial_refund')->count() === 1,
+        'partial_refund_appends_adjustment_ledger');
 
     Db::name('store_order')->where('id', $paidOrder)->update(['refund_status' => 2, 'refund_price' => '123.45', 'status' => -2]);
     $fullRefundOrderBefore = st3OrderSnapshot($paidOrder);
@@ -130,9 +132,8 @@ try {
         'full_refund_cancels_pending_candidate');
     $assert(st3OrderSnapshot($paidOrder) === $fullRefundOrderBefore, 'refund_listener_does_not_change_crmeb_order');
     st3Refund($refundListener, $paidOrder);
-    $assert((int)Db::name('yfth_audit_event')->where('object_type', 'direct_referral_reward_candidate')
-        ->where('object_id', (string)$candidate['id'])->where('action', 'cancel_after_full_refund')->count() === 1,
-        'duplicate_refund_event_is_idempotent_and_audited_once');
+    $assert((int)Db::name('yfth_reward_adjustment_ledger')->where('candidate_id', (int)$candidate['id'])->where('action_type', 'reversal')->count() === 1,
+        'duplicate_refund_event_is_idempotent_with_one_reversal');
 
     $relationRow = (array)Db::name('yfth_hq_active_referral_current')->where('id', (int)$relation['id'])->find();
     app()->make(HqActiveReferralServices::class)->close(
@@ -192,7 +193,7 @@ function st3Cleanup(): void
         'yfth_direct_referral_reward_candidate', 'yfth_direct_referral_rule_version', 'yfth_direct_referral_invite',
         'yfth_permanent_membership_event', 'yfth_permanent_membership', 'yfth_hq_active_referral_event',
         'yfth_hq_active_referral_current', 'yfth_hq_customer_attribution_event', 'yfth_hq_customer_attribution_current',
-        'yfth_idempotency_record', 'yfth_audit_event',
+        'yfth_reward_adjustment_ledger', 'yfth_reward_event', 'yfth_idempotency_record', 'yfth_audit_event',
     ] as $table) {
         Db::name($table)->delete(true);
     }

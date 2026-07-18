@@ -7,6 +7,12 @@
 				<view class="muted">状态：{{ detail.order.status_text || detail.order.status }}</view>
 				<view class="muted">金额：¥{{ detail.order.amount_snapshot }} / 数量：{{ detail.order.quantity_total }}</view>
 			</view>
+			<view v-if="detail.quota_payment" class="card">
+				<view class="section-title">支付构成</view>
+				<view class="muted">商品额度：¥{{ money(detail.quota_payment.quota_amount_cent) }}</view>
+				<view class="muted">在线支付：¥{{ money(detail.quota_payment.online_amount_cent) }}</view>
+				<view class="muted">额度状态：{{ detail.quota_payment.status || '-' }}</view>
+			</view>
 			<view class="card">
 				<view class="section-title">商品明细</view>
 				<view v-for="item in detail.items" :key="item.id" class="line">
@@ -41,6 +47,7 @@ export default {
 		this.load();
 	},
 	methods: {
+		money(value) { return (Number(value || 0) / 100).toFixed(2); },
 		load() {
 			this.loading = true;
 			getYfthPurchaseOrderDetail(this.id, { role_code: this.context.role_code, store_id: this.context.store_id }).then((res) => {

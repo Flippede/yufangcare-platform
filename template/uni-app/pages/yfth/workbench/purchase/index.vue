@@ -27,6 +27,7 @@
 					</view>
 					<view v-if="canWrite" class="buy-row">
 						<input v-model="quantities[item.id]" type="number" placeholder="数量" />
+						<input v-model="quotaAmounts[item.id]" type="digit" :placeholder="'商品额度（元，可用 ¥' + quotaAvailable + '）'" />
 						<button @click="submitPurchase(item)">提交采购</button>
 					</view>
 					<view v-else class="muted">店员仅可查看采购目录，不能创建采购单。</view>
@@ -71,7 +72,8 @@ import {
 	getYfthPurchaseOrders,
 	getYfthSupplyCatalog,
 	getYfthSupplyInTransit,
-	receiveYfthPurchaseOrder
+	receiveYfthPurchaseOrder,
+	getYfthProductQuotaSummary
 } from '@/api/yfth.js';
 import { currentContext, resolveYfthContext } from '@/libs/yfthContext.js';
 
@@ -86,6 +88,8 @@ export default {
 			orders: [],
 			inTransit: [],
 			quantities: {},
+			quotaAmounts: {},
+			quotaAvailableCent: 0,
 			tabs: [
 				{ label: '采购商品', value: 'catalog' },
 				{ label: '我的采购单', value: 'orders' },
@@ -94,14 +98,20 @@ export default {
 		};
 	},
 	computed: {
+		isPartnerRole() {
+			return ['county_partner', 'prefecture_partner', 'province_partner', 'regional_director', 'platform_director'].includes(this.context.role_code);
+		},
+		quotaAvailable() {
+			return (Number(this.quotaAvailableCent || 0) / 100).toFixed(2);
+		},
 		canWrite() {
-			return this.context.role_code === 'store_manager';
+			return this.context.role_code === 'store_manager' || this.isPartnerRole;
 		}
 	},
 	onShow() {
 		const cached = currentContext();
 		resolveYfthContext(cached.role_code || 'customer', cached.store_id || 0).then((context) => {
-			if (context.role_code !== 'store_manager') {
+			if (context.role_code !== 'store_manager' && !['county_partner', 'prefecture_partner', 'province_partner', 'regional_director', 'platform_director'].includes(context.role_code)) {
 				this.redirectToWorkbench();
 				return;
 			}
@@ -117,7 +127,7 @@ export default {
 		redirectToWorkbench() {
 			const target = '/pages/yfth/workbench/index';
 			this.accessGranted = false;
-			uni.showToast({ title: '仅店长可进入采购中心', icon: 'none' });
+			uni.showToast({ title: '仅店长或店铺归属合伙人可进入采购中心', icon: 'none' });
 			uni.reLaunch({ url: target });
 			setTimeout(() => {
 				// #ifdef H5
@@ -149,6 +159,9 @@ export default {
 			}).finally(() => {
 				this.loading = false;
 			});
+			getYfthProductQuotaSummary(this.contextParams()).then((res) => {
+				this.quotaAvailableCent = Number((res.data && res.data.available_cent) || 0);
+			}).catch(() => {});
 		},
 		firstSku(item) {
 			return (item.skus && item.skus[0]) || {};
@@ -162,6 +175,7 @@ export default {
 			}
 			const payload = this.contextParams({
 				idempotency_key: 'yfth_purchase_' + item.id + '_' + Date.now(),
+				quota_amount_cent: Math.max(0, Math.round(Number(this.quotaAmounts[item.id] || 0) * 100)),
 				items: [{ product_id: item.product_id, sku_unique: sku.sku_unique, quantity: qty }]
 			});
 			createYfthPurchaseOrder(payload).then((res) => {

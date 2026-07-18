@@ -1190,3 +1190,10 @@ export function yfthPermanentMembershipCreate(data) { return request({ url: 'yft
 export function yfthPermanentMembershipBind(id, data) { return request({ url: `yfth/permanent_membership/enrollment/${id}/bind`, method: 'post', data }); }
 export function yfthPermanentMembershipPayment(id, data) { return request({ url: `yfth/permanent_membership/enrollment/${id}/payment`, method: 'post', data }); }
 export function yfthPermanentMembershipConfirmationCode(id) { return request({ url: `yfth/permanent_membership/enrollment/${id}/confirmation_code`, method: 'post' }); }
+
+export function yfthRewardEventList(params) { return request({ url: 'yfth/reward_governance/event', method: 'get', params }); }
+export function yfthRewardEventRetry(data) { return request({ url: 'yfth/reward_governance/retry', method: 'post', data }); }
+export function yfthOpeningQuotaAwards(params) { return request({ url: 'yfth/reward_governance/opening_quota', method: 'get', params }); }
+export function yfthOpeningQuotaConfirm(id) { return request({ url: `yfth/reward_governance/opening_quota/${id}/confirm`, method: 'post' }); }
+export function yfthRewardConsistency(params) { return request({ url: 'yfth/reward_governance/consistency', method: 'get', params }); }
+export function yfthPartnerMigrationIssues(params) { return request({ url: 'yfth/reward_governance/migration_issue', method: 'get', params }); }

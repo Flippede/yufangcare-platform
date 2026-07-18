@@ -24,7 +24,6 @@ class FranchiseOpeningServices extends YfthFoundationBaseServices
     private const PROFILE_STATUSES = ['draft', 'submitted', 'verified', 'bound'];
     private const TASK_STATUSES = ['pending', 'in_progress', 'submitted', 'approved', 'rejected'];
     private const ACCEPTANCE_STATUSES = ['draft', 'submitted', 'reviewing', 'passed', 'rejected', 'recheck_required'];
-    private const GRANT_ROLES = ['franchisee', 'store_manager'];
     private const OPENING_CAPABILITIES = ['store_purchase', 'retail_sale', 'package_sale', 'reservation_service', 'order_writeoff'];
 
     private const TASK_TEMPLATES = [
@@ -655,13 +654,12 @@ class FranchiseOpeningServices extends YfthFoundationBaseServices
         $this->assertHeadquarterAdmin($adminInfo);
         $applicationId = (int)($data['application_id'] ?? 0);
         $role = trim((string)($data['role_code'] ?? 'county_partner'));
-        if (!in_array($role, ['county_partner', 'franchisee', 'store_manager', 'all'], true)) {
+        if (!in_array($role, ['county_partner', 'store_manager', 'all'], true)) {
             throw new ApiException('franchise_identity_grant_role_invalid');
         }
-        // Every formal opening creates the compatibility store-owner role. Manager is optional.
-        $roles = in_array($role, ['store_manager', 'all'], true)
-            ? self::GRANT_ROLES
-            : ['franchisee'];
+        // Partner ownership is mandatory and independent from the optional manager permission.
+        $grantManager = in_array($role, ['store_manager', 'all'], true);
+        $roles = $grantManager ? ['store_manager'] : [];
         $result = Db::transaction(function () use ($applicationId, $roles, $adminId, $data) {
             $application = $this->lockApplication($applicationId);
             $this->ensurePreparationTasks($applicationId);
@@ -687,48 +685,53 @@ class FranchiseOpeningServices extends YfthFoundationBaseServices
             }
             app()->make(StoreAccessServices::class)->assertStoreActive($storeId);
 
-            $grants = [];
+            $grants = [$this->activatePartnerIdentityGrant($application, $acceptance, $storeId, $adminId, trim((string)($data['reason'] ?? '')))];
             foreach ($roles as $currentRole) {
                 $grants[] = $this->activateStoreRoleGrant($application, $acceptance, $storeId, $currentRole, $adminId, trim((string)($data['reason'] ?? '')));
-            }
-            $legacyRoleId = 0;
-            foreach ($grants as $grant) {
-                if ((string)($grant['role_code'] ?? '') === 'franchisee') {
-                    $legacyRoleId = (int)($grant['store_role_id'] ?? 0);
-                    break;
-                }
-            }
-            if ($legacyRoleId <= 0) {
-                throw new ApiException('franchise_opening_partner_compatibility_role_missing');
             }
             $partner = app()->make(FranchisePartnerServices::class)->finalizeOpeningInTransaction(
                 $application,
                 $storeId,
-                $legacyRoleId,
+                0,
                 $adminId
             );
             $this->enableOpeningCapabilities($storeId, $adminId);
             $this->advanceApplication($applicationId, 'opened');
             return ['grants' => array_map([$this, 'formatGrant'], $grants), 'partner' => $partner];
         });
-        $this->recordReferralFranchiseOpenedEventSafely($applicationId, $adminId);
+        $eventId = (int)($result['partner']['reward_event_id'] ?? 0);
+        if ($eventId > 0) {
+            try {
+                app()->make(UnifiedRewardOrchestratorServices::class)->process($eventId, 'franchise-opening');
+            } catch (\Throwable $e) {
+                $this->audit('franchise_application', $applicationId, 'reward_event_deferred', [], [
+                    'reward_event_id' => $eventId, 'error' => substr($e->getMessage(), 0, 255),
+                ], $adminId, 'headquarter_operator', 0, 'reward_event_deferred');
+            }
+        }
         return $result;
     }
 
-    private function recordReferralFranchiseOpenedEventSafely(int $applicationId, int $adminId): void
+    private function activatePartnerIdentityGrant(array $application, array $acceptance, int $storeId, int $adminId, string $reason): array
     {
-        if ($applicationId <= 0) {
-            return;
-        }
-        try {
-            app()->make(ReferralRewardServices::class)->recordFranchiseOpenedEvent($applicationId, 'franchise_opened:franchise_application:' . $applicationId);
-        } catch (\Throwable $e) {
-            $this->audit('franchise_application', $applicationId, 'referral_reward_event_failed', [], [
-                'event_type' => 'franchise_opened',
-                'application_id' => $applicationId,
-                'error' => substr($e->getMessage(), 0, 255),
-            ], $adminId, 'headquarter_operator', 0, 'referral_reward_event_failed');
-        }
+        $uid = (int)$application['applicant_uid'];
+        $grantDao = app()->make(YfthFranchiseIdentityGrantDao::class);
+        $activeKey = $uid . ':' . $storeId . ':county_partner';
+        $existing = $this->rowArray($grantDao->getOne(['active_key' => $activeKey]));
+        if ($existing && (string)$existing['status'] === 'active') return $existing;
+        $now = time();
+        $row = [
+            'application_id' => (int)$application['id'], 'target_uid' => $uid,
+            'store_id' => $storeId, 'acceptance_id' => (int)$acceptance['id'],
+            'role_code' => 'county_partner', 'store_role_id' => 0, 'status' => 'active',
+            'grant_time' => $now, 'revoke_time' => 0, 'grant_uid' => $adminId, 'revoke_uid' => 0,
+            'reason' => $reason ?: 'formal_franchise_opening', 'active_key' => $activeKey,
+            'create_time' => $now, 'update_time' => $now,
+        ];
+        $saved = $grantDao->save($row);
+        $row['id'] = (int)$saved->id;
+        $this->audit('franchise_identity_grant', (int)$row['id'], 'partner_grant', [], $row, $adminId, 'headquarter_operator', $storeId, $row['reason']);
+        return $row;
     }
 
     private function activateStoreRoleGrant(array $application, array $acceptance, int $storeId, string $roleCode, int $adminId, string $reason): array

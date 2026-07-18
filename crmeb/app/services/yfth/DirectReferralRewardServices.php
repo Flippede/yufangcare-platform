@@ -163,6 +163,38 @@ class DirectReferralRewardServices extends YfthFoundationBaseServices
         ]);
     }
 
+    public function createPackageCandidateFromEvent(array $payload): array
+    {
+        $relation = (array)($payload['relation'] ?? []);
+        $instanceId = (int)($payload['instance_id'] ?? 0);
+        $amountCent = (int)($payload['amount_cent'] ?? 0);
+        if ($instanceId <= 0 || $amountCent <= 0 || (int)($relation['id'] ?? 0) <= 0) {
+            throw new ApiException('package_reward_event_snapshot_invalid');
+        }
+        return Db::transaction(function () use ($relation, $instanceId, $amountCent) {
+            return $this->createPackageCandidateInTransaction($relation, $instanceId, $amountCent);
+        });
+    }
+
+    public function reversePackageCandidateFromEvent(array $payload): array
+    {
+        $instanceId = (int)($payload['instance_id'] ?? 0);
+        if ($instanceId <= 0) throw new ApiException('package_reward_reversal_snapshot_invalid');
+        return Db::transaction(function () use ($instanceId, $payload) {
+            $candidate = $this->row($this->dao->search([])
+                ->where('source_unique_key', hash('sha256', 'package_activation|package_instance|' . $instanceId))
+                ->lock(true)->find());
+            if (!$candidate) return ['reason' => 'package_reward_candidate_not_found'];
+            $amount = (int)$candidate['reward_amount_cent'];
+            $this->appendAdjustment($candidate, 'reversal', -$amount, 'package_instance', (string)$instanceId, $payload, 'package_invalidated');
+            if (in_array((string)$candidate['status'], ['pending', 'confirmed'], true)) {
+                $this->dao->update((int)$candidate['id'], ['status' => 'cancelled', 'update_time' => time()]);
+                $candidate['status'] = 'cancelled';
+            }
+            return ['candidate' => $candidate, 'changed' => true];
+        });
+    }
+
     public function recordMallOrderPaid(int $orderId): array
     {
         return Db::transaction(function () use ($orderId) {
@@ -299,6 +331,41 @@ class DirectReferralRewardServices extends YfthFoundationBaseServices
         });
     }
 
+    /** Applies cumulative partial/full refunds without deleting or rewriting history. */
+    public function adjustMallOrderCandidateAfterRefund(int $orderId, array $payload = []): array
+    {
+        return Db::transaction(function () use ($orderId, $payload) {
+            $order = $this->row(Db::name('store_order')->where('id', $orderId)->lock(true)->find());
+            if (!$order || (int)($order['pid'] ?? 0) !== 0) return ['reason' => 'mall_consumption_refund_main_order_not_found'];
+            $candidate = $this->row($this->dao->search([])->where('source_unique_key', $this->mallOrderSourceKey($orderId))->lock(true)->find());
+            if (!$candidate) return ['reason' => 'mall_consumption_candidate_not_found'];
+            $paidCent = $this->moneyToCents($order['pay_price'] ?? '0.00');
+            $refundedCent = min($paidCent, max(
+                $this->moneyToCents($order['refund_price'] ?? '0.00'),
+                (int)($payload['refunded_amount_cent'] ?? 0)
+            ));
+            if ($paidCent <= 0 || $refundedCent <= 0) return ['candidate' => $candidate, 'changed' => false, 'reason' => 'refund_amount_not_posted'];
+            $originalReward = (int)$candidate['reward_amount_cent'];
+            $targetReward = intdiv(($paidCent - $refundedCent) * (int)$candidate['ratio_bps'], 10000);
+            $alreadyAdjusted = abs((int)Db::name('yfth_reward_adjustment_ledger')
+                ->where('candidate_id', (int)$candidate['id'])->whereIn('action_type', ['partial_refund', 'reversal'])
+                ->sum('amount_cent'));
+            $requiredAdjustment = max(0, $originalReward - $targetReward);
+            $delta = $requiredAdjustment - $alreadyAdjusted;
+            if ($delta <= 0) return ['candidate' => $candidate, 'changed' => false, 'idempotent_replay' => true];
+            $action = $refundedCent >= $paidCent ? 'reversal' : 'partial_refund';
+            $this->appendAdjustment($candidate, $action, -$delta, 'store_order', (string)$orderId, [
+                'paid_cent' => $paidCent, 'refunded_cent' => $refundedCent,
+                'effective_reward_cent' => $targetReward, 'event_payload' => $payload,
+            ], 'mall_order_refund');
+            if ($refundedCent >= $paidCent && in_array((string)$candidate['status'], ['pending', 'confirmed'], true)) {
+                $this->dao->update((int)$candidate['id'], ['status' => 'cancelled', 'update_time' => time()]);
+                $candidate['status'] = 'cancelled';
+            }
+            return ['candidate' => $candidate, 'changed' => true, 'adjustment_cent' => $delta];
+        });
+    }
+
     public function candidateList(array $where): array
     {
         return $this->pageList($this->cleanWhere([
@@ -362,6 +429,33 @@ class DirectReferralRewardServices extends YfthFoundationBaseServices
         }
         $this->audit->recordSafely(self::DOMAIN, 'direct_referral_reward_candidate', (string)$row['id'], 'create', [], $this->adminCandidateDto($row), 0, 'system', (int)$row['store_id']);
         return ['candidate' => $row, 'created' => true];
+    }
+
+    private function appendAdjustment(array $candidate, string $action, int $amountCent, string $sourceType, string $sourceId, array $snapshot, string $reason): array
+    {
+        $canonical = hash('sha256', implode('|', [
+            $candidate['id'], $action, $sourceType, $sourceId,
+            (string)($snapshot['refunded_cent'] ?? 'full'),
+        ]));
+        $existing = Db::name('yfth_reward_adjustment_ledger')->where('canonical_key', $canonical)->find();
+        if ($existing) return $existing;
+        $row = [
+            'ledger_no' => $this->makeNo('YFRA'),
+            'candidate_id' => (int)$candidate['id'],
+            'candidate_type' => (string)$candidate['candidate_type'],
+            'action_type' => $action,
+            'amount_cent' => $amountCent,
+            'reversal_of_ledger_id' => 0,
+            'source_type' => $sourceType,
+            'source_id' => $sourceId,
+            'canonical_key' => $canonical,
+            'snapshot_json' => json_encode($snapshot, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+            'operator_uid' => 0,
+            'reason' => $reason,
+            'create_time' => time(),
+        ];
+        $row['id'] = (int)Db::name('yfth_reward_adjustment_ledger')->insertGetId($row);
+        return $row;
     }
 
     private function activeRule(bool $lock, bool $required = true): array

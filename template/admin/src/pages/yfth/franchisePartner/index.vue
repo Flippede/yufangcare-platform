@@ -103,6 +103,46 @@
             <el-table-column label="操作" width="150"><template slot-scope="{ row }"><template v-if="row.status === 'pending'"><el-button type="text" @click="reviewPromotion(row, 'approve')">通过</el-button><el-button type="text" class="danger" @click="reviewPromotion(row, 'reject')">驳回</el-button></template></template></el-table-column>
           </el-table>
         </el-tab-pane>
+        <el-tab-pane label="开店商品额度" name="openingQuota">
+          <el-alert title="仅直属招商合伙人的前 3 家有效门店获得商品额度：20% / 30% / 50%；第 4 家起不奖励。" type="info" :closable="false" />
+          <el-table v-loading="loading" :data="openingQuotas" border size="small" class="governance-table">
+            <el-table-column prop="application_id" label="申请 ID" width="100" />
+            <el-table-column prop="partner_uid" label="直属合伙人 UID" width="130" />
+            <el-table-column prop="nickname" label="合伙人" min-width="130" />
+            <el-table-column prop="store_name" label="额度归属店铺" min-width="160" />
+            <el-table-column prop="sequence_no" label="有效开店序号" width="110" />
+            <el-table-column label="比例" width="90"><template slot-scope="{ row }">{{ row.ratio_bps / 100 }}%</template></el-table-column>
+            <el-table-column label="商品额度" width="120"><template slot-scope="{ row }">{{ moneyCent(row.quota_amount_cent) }}</template></el-table-column>
+            <el-table-column prop="status" label="状态" width="100" />
+            <el-table-column label="操作" width="100"><template slot-scope="{ row }"><el-button v-if="row.status === 'pending'" type="text" @click="confirmOpeningQuota(row)">确认额度</el-button></template></el-table-column>
+          </el-table>
+        </el-tab-pane>
+
+        <el-tab-pane label="奖励事件治理" name="rewardEvents">
+          <div class="toolbar">
+            <el-select v-model="eventQuery.status" clearable placeholder="事件状态" @change="loadRewardEvents"><el-option v-for="s in ['pending','processing','failed','succeeded','ignored']" :key="s" :label="s" :value="s" /></el-select>
+            <el-button type="primary" @click="retryRewardEvents">重试待处理/失败事件</el-button>
+            <el-button @click="scanRewardConsistency">一致性检查</el-button>
+          </div>
+          <el-table v-loading="loading" :data="rewardEvents" border size="small">
+            <el-table-column prop="event_no" label="事件编号" min-width="190" />
+            <el-table-column prop="event_type" label="事件类型" width="170" />
+            <el-table-column label="业务来源" min-width="170"><template slot-scope="{ row }">{{ row.source_type }} #{{ row.source_id }}</template></el-table-column>
+            <el-table-column prop="status" label="状态" width="100" />
+            <el-table-column prop="retry_count" label="重试次数" width="90" />
+            <el-table-column prop="last_error" label="最近错误" min-width="260" show-overflow-tooltip />
+          </el-table>
+        </el-tab-pane>
+
+        <el-tab-pane label="历史迁移异常" name="migrationIssues">
+          <el-table v-loading="loading" :data="migrationIssues" border size="small">
+            <el-table-column prop="issue_type" label="异常类型" width="180" />
+            <el-table-column prop="uid" label="UID" width="90" />
+            <el-table-column prop="store_id" label="店铺 ID" width="100" />
+            <el-table-column prop="status" label="状态" width="90" />
+            <el-table-column prop="resolution" label="处理说明" min-width="220" />
+          </el-table>
+        </el-tab-pane>
       </el-tabs>
     </el-card>
 
@@ -114,6 +154,10 @@
         <div><span>个人有效开店</span><b>{{ detail.performance.personal_openings }}</b></div><div><span>团队有效开店</span><b>{{ detail.performance.team_openings }}</b></div>
       </div>
       <h4>直属成员</h4><el-table :data="detail ? detail.direct_children : []" border size="mini"><el-table-column prop="partner_uid" label="UID" width="90" /><el-table-column prop="nickname" label="姓名" /><el-table-column prop="rank_code" label="职级" /></el-table>
+      <h4>合伙人归属店铺（与店长权限独立）</h4>
+      <el-table :data="detail ? detail.store_bindings : []" border size="mini"><el-table-column prop="store_id" label="店铺 ID" width="100" /><el-table-column prop="store_name" label="店铺" /><el-table-column prop="source_type" label="归属来源" width="160" /></el-table>
+      <h4>可选店长权限</h4>
+      <el-table :data="detail ? detail.manager_roles : []" border size="mini"><el-table-column prop="store_id" label="店铺 ID" width="100" /><el-table-column prop="store_name" label="店铺" /><el-table-column prop="role_code" label="权限" width="130" /></el-table>
     </el-dialog>
 
     <el-dialog title="创建职级规则草稿" :visible.sync="ruleVisible" width="680px">
@@ -131,6 +175,8 @@ import {
   yfthPartnerPerformances, yfthPartnerRankChange, yfthPartnerRewardAction, yfthPartnerRewards,
   yfthPartnerRules, yfthPartnerRulePublish, yfthPartnerRuleSave, yfthPartnerWarnings,
   yfthPartnerPromotions, yfthPartnerPromotionReview,
+  yfthRewardEventList, yfthRewardEventRetry, yfthOpeningQuotaAwards, yfthOpeningQuotaConfirm,
+  yfthRewardConsistency, yfthPartnerMigrationIssues,
 } from '@/api/yfth';
 
 export default {
@@ -139,7 +185,8 @@ export default {
       tab: 'partners', loading: false, dashboard: {}, rankOptions: [], partners: [], partnerTotal: 0,
       partnerQuery: { keyword: '', rank_code: '', status: '', page: 1, limit: 20 },
       performances: [], rewards: [], rewardTotal: 0, rewardQuery: { status: '', page: 1, limit: 20 },
-      rules: [], warnings: [], promotions: [], detail: null, detailVisible: false, ruleVisible: false,
+      rules: [], warnings: [], promotions: [], openingQuotas: [], rewardEvents: [], migrationIssues: [],
+      eventQuery: { status: '', page: 1, limit: 100 }, detail: null, detailVisible: false, ruleVisible: false,
       ruleForm: { order_amount: '89100.00', bottle_count: 440, platform_dividend_bps: 100, rank_rules: {}, reason: '' },
     };
   },
@@ -149,13 +196,20 @@ export default {
   created() { this.loadDashboard(); this.loadPartners(); },
   methods: {
     loadDashboard() { return yfthPartnerDashboard().then((res) => { this.dashboard = res.data || {}; this.rankOptions = this.dashboard.rank_options || []; }); },
-    loadTab() { ({ partners: this.loadPartners, performance: this.loadPerformances, rewards: this.loadRewards, rules: this.loadRules, warnings: this.loadWarnings, promotions: this.loadPromotions }[this.tab] || (() => {})).call(this); },
+    loadTab() { ({ partners: this.loadPartners, performance: this.loadPerformances, rewards: this.loadRewards, rules: this.loadRules, warnings: this.loadWarnings, promotions: this.loadPromotions, openingQuota: this.loadOpeningQuotas, rewardEvents: this.loadRewardEvents, migrationIssues: this.loadMigrationIssues }[this.tab] || (() => {})).call(this); },
     loadPartners(reset) { if (reset === true) this.partnerQuery.page = 1; this.loading = true; return yfthPartnerList(this.partnerQuery).then((res) => { const d = res.data || {}; this.partners = d.list || []; this.partnerTotal = Number(d.count || 0); if (d.rank_options) this.rankOptions = d.rank_options; }).finally(() => { this.loading = false; }); },
     loadPerformances() { this.loading = true; return yfthPartnerPerformances({ page: 1, limit: 100 }).then((res) => { this.performances = (res.data || {}).list || []; }).finally(() => { this.loading = false; }); },
     loadRewards(reset) { if (reset === true) this.rewardQuery.page = 1; this.loading = true; return yfthPartnerRewards(this.rewardQuery).then((res) => { const d = res.data || {}; this.rewards = d.list || []; this.rewardTotal = Number(d.count || 0); }).finally(() => { this.loading = false; }); },
     loadRules() { this.loading = true; return yfthPartnerRules().then((res) => { const d = res.data || {}; this.rules = d.list || []; this.rankOptions = d.rank_options || this.rankOptions; }).finally(() => { this.loading = false; }); },
     loadWarnings() { this.loading = true; return yfthPartnerWarnings({ page: 1, limit: 100 }).then((res) => { this.warnings = (res.data || {}).list || []; }).finally(() => { this.loading = false; }); },
     loadPromotions() { this.loading = true; return yfthPartnerPromotions({ page: 1, limit: 100 }).then((res) => { this.promotions = (res.data || {}).list || []; }).finally(() => { this.loading = false; }); },
+    loadOpeningQuotas() { this.loading = true; return yfthOpeningQuotaAwards({ page: 1, limit: 100 }).then((res) => { this.openingQuotas = (res.data || {}).list || []; }).finally(() => { this.loading = false; }); },
+    confirmOpeningQuota(row) { return this.$confirm('确认后商品额度将进入绑定门店的可用额度，是否继续？', '确认开店商品额度').then(() => yfthOpeningQuotaConfirm(row.id)).then(() => { this.$message.success('商品额度已确认并入账'); this.loadOpeningQuotas(); }); },
+    loadRewardEvents() { this.loading = true; return yfthRewardEventList(this.eventQuery).then((res) => { this.rewardEvents = (res.data || {}).list || []; }).finally(() => { this.loading = false; }); },
+    retryRewardEvents() { return yfthRewardEventRetry({ limit: 100 }).then((res) => { const d = res.data || {}; this.$message.success(`处理 ${d.selected || 0} 条，成功 ${d.succeeded || 0} 条`); return this.loadRewardEvents(); }); },
+    scanRewardConsistency() { return yfthRewardConsistency({ limit: 100 }).then((res) => { const d = res.data || {}; if (Number(d.count || 0) > 0) this.$message.warning(`发现 ${d.count} 条奖励一致性异常，请按返回明细处理`); else this.$message.success('未发现奖励事件与结果缺失'); }); },
+    loadMigrationIssues() { this.loading = true; return yfthPartnerMigrationIssues({ page: 1, limit: 100 }).then((res) => { this.migrationIssues = (res.data || {}).list || []; }).finally(() => { this.loading = false; }); },
+    moneyCent(value) { return `¥${(Number(value || 0) / 100).toFixed(2)}`; },
     reviewPromotion(row, action) { this.$prompt('请输入总部审核原因', action === 'approve' ? '通过晋级申请' : '驳回晋级申请').then(({ value }) => yfthPartnerPromotionReview(row.id, { action, reason: value })).then(() => { this.$message.success('晋级申请已处理'); this.loadPromotions(); this.loadPartners(); this.loadDashboard(); }); },
     showPartner(row) { yfthPartnerDetail(row.uid).then((res) => { this.detail = res.data || null; this.detailVisible = true; }); },
     changeRank(row) { this.openRankDialog(row); },
@@ -176,6 +230,7 @@ export default {
 
 <style scoped>
 .partner-page { padding: 16px; }
+.governance-table { margin-top: 14px; }
 .summary-grid { display: grid; grid-template-columns: repeat(7, minmax(120px, 1fr)); gap: 10px; margin-bottom: 14px; }
 .summary-item { min-height: 76px; padding: 14px; border: 1px solid #e8ded0; border-radius: 6px; background: #fff; }
 .summary-item span { display: block; color: #8b765f; font-size: 12px; }.summary-item strong { display: block; margin-top: 8px; color: #5f4228; font-size: 24px; }
