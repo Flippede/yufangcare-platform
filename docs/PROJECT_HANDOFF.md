@@ -1,5 +1,12 @@
 # 项目交接文档
 
+## Current Fact Snapshot - Business Mall Parallel Navigation Closure
+
+- The headquarters mall remains the single CRMEB customer mall and product/order/payment path, but business users now keep their server-resolved operating navigation while browsing it. `商城` is rendered as a selected peer item instead of replacing the workbench navigation with the ordinary customer four-tab footer.
+- Workbench pane items return to the same role workbench and requested pane; `我的` continues to open the unified customer center. Leaving the mall clears the transient browsing state, so ordinary customers and later normal entries retain their existing navigation and dominant-role behavior.
+- The shared footer reads the current verified YFTH context and role navigation; no second mall, product catalog, order flow, role switch, permission, API, migration, or business-data write was introduced.
+- Focused contract and request-fallback checks, H5 production build, mp-weixin production compile, built-artifact inspection, and `git diff --check` passed. Production `https://yfth.top` serves functional commit `622b65f1`; backup `/www/backup/yfth-business-mall-nav-20260718-150117`, retained release `/www/releases/yfth-business-mall-nav-622b65f1-20260718-150117`.
+
 ## Current Fact Snapshot - Unified Customer Center From Business Workbenches
 
 - The `我的` item in franchisee, store-manager, store-staff, service-mentor, and partner workbenches now opens the existing unified customer center at `/pages/user/index` instead of rendering the former generic workbench `mine` placeholder.
