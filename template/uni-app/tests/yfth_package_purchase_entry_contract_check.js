@@ -29,9 +29,14 @@ assertContains(list, '(res.data && res.data.list) || []', 'package_list_uses_rea
 assertContains(list, "url: '/pages/yfth/package/detail?id=' + item.id", 'package_list_uses_dynamic_detail_id');
 assertContains(detail, "url: '/pages/yfth/package/store_select?id=' + this.id", 'detail_opens_store_selection');
 assertContains(stores, "url: '/pages/yfth/package/agreement_confirm?id=' + this.id + '&store_id=' + store.store_id", 'store_selection_opens_agreement');
-assertContains(agreement, "url: '/pages/yfth/package/payment_confirm?id=' + this.id + '&store_id=' + this.storeId + '&accepted=1'", 'agreement_opens_payment_confirmation');
+assertContains(agreement, "url: '/pages/yfth/package/payment_confirm?id=' + this.id + '&store_id=' + this.storeId", 'agreement_opens_payment_confirmation');
 assertContains(payment, 'createYfthPackageIntent', 'payment_uses_existing_intent');
 assertContains(payment, 'createYfthPackageOrder', 'payment_uses_existing_crmeb_order');
+assertContains(detail, 'getYfthPackageSimulationContext', 'simulation_detail_loads_authoritative_store');
+assertContains(detail, '上级商家', 'simulation_detail_displays_authoritative_store');
+assertContains(payment, 'simulateYfthPackagePurchase', 'simulation_payment_uses_controlled_endpoint');
+assertContains(payment, '确认0.1元模拟购买', 'simulation_purchase_action_is_visible');
+assertContains(payment, 'v-if="!simulation"', 'simulation_does_not_mount_real_payment_component');
 assertContains(api, "request.get('yfth/package/list'", 'public_package_list_api_exists');
 
 if (failures.length) {

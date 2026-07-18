@@ -8,6 +8,7 @@ use app\services\yfth\BenefitPlanServices;
 use app\services\yfth\PackageInstanceServices;
 use app\services\yfth\PackagePurchaseServices;
 use app\services\yfth\PackageTemplateServices;
+use app\services\yfth\SimulatedPackagePurchaseServices;
 
 class PackageBenefitController
 {
@@ -79,6 +80,20 @@ class PackageBenefitController
     public function purchaseStatus(Request $request, PackagePurchaseServices $services, $purchaseNo)
     {
         return app('json')->success($services->purchaseStatus((int)$request->uid(), (string)$purchaseNo));
+    }
+
+    public function simulationContext(Request $request, SimulatedPackagePurchaseServices $services, $id)
+    {
+        return app('json')->success($services->context((int)$request->uid(), (int)$id));
+    }
+
+    public function simulatePurchase(Request $request, SimulatedPackagePurchaseServices $services)
+    {
+        return app('json')->success($services->simulate((int)$request->uid(), $request->postMore([
+            [['template_id', 'd'], 0],
+            [['agreement_accepted', 'd'], 0],
+            ['request_id', ''],
+        ])));
     }
 
     public function myPackages(Request $request, PackageInstanceServices $services)

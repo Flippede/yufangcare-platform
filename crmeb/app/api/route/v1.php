@@ -123,6 +123,8 @@ Route::group(function () {
         Route::post('yfth/package/intent', 'v1.yfth.PackageBenefitController/createIntent')->option(['real_name' => '御方通和套餐购买意图']);
         Route::post('yfth/package/order', 'v1.yfth.PackageBenefitController/createOrderFromIntent')->option(['real_name' => '御方通和套餐真实订单创建']);
         Route::post('yfth/package/purchase', 'v1.yfth.PackageBenefitController/createPurchase')->option(['real_name' => '御方通和套餐购买绑定']);
+        Route::get('yfth/package/simulation_context/:id', 'v1.yfth.PackageBenefitController/simulationContext')->option(['real_name' => '御方通和模拟套餐购买上下文']);
+        Route::post('yfth/package/simulate', 'v1.yfth.PackageBenefitController/simulatePurchase')->option(['real_name' => '御方通和0.1元模拟套餐购买']);
         Route::get('yfth/package/purchase/:purchaseNo', 'v1.yfth.PackageBenefitController/purchaseStatus')->option(['real_name' => '御方通和套餐购买状态']);
         Route::get('yfth/package/my', 'v1.yfth.PackageBenefitController/myPackages')->option(['real_name' => '御方通和我的套餐']);
         Route::get('yfth/package/my/:id', 'v1.yfth.PackageBenefitController/myPackageDetail')->option(['real_name' => '御方通和我的套餐详情']);

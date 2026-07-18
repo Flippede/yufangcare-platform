@@ -1,5 +1,14 @@
 # 项目交接文档
 
+## Current Fact Snapshot - Controlled 0.1 Yuan Simulated Package Purchase V1
+
+- A controlled simulation path is available only for the marked `YFTH-TEST-PACKAGE-V1` acceptance package while the existing acceptance-fixture switch is enabled. The package price is `0.10` yuan, but the flow does not create a CRMEB `store_order`, invoke WeChat payment, send SMS, or perform a real deduction.
+- A non-member must already have an authoritative active YFTH store attribution. The detail, agreement and confirmation pages display that server-resolved upstream merchant directly and do not accept a client-selected store. An unbound user, an existing permanent member, a disabled test switch, or a non-test package fails closed.
+- A successful simulation writes the existing package purchase/agreement/snapshot/instance facts, invokes the existing membership activation coordinator, grants permanent membership, closes the active C1-to-C2 referral according to the existing Stage 2 rule, and produces the existing package reward facts. Repeated submissions for the same user and test package return the original result and cannot create a second instance.
+- Migration `20260719160000_enable_yfth_simulated_package_purchase.php` gives real CRMEB orders a nullable unique instance key so multiple controlled `order_id=0` simulations are possible without weakening real-order uniqueness. It also publishes an immutable `0.10` acceptance rule when the marked test template already exists; it creates no production package when the fixture is absent.
+- PHP 7.4 syntax, focused PHP/uni-app contracts, existing fixture real flow, isolated MySQL Community 8.0.46 migration run/targeted rollback/rerun/duplicate run, the dedicated simulated-purchase real flow, H5 production build, mp-weixin production compile and `git diff --check` passed. No Admin source changed, no real payment/SMS/WeChat upload occurred, and no production database was used during development validation.
+- Production deployment status and final Git commit must be read from the latest deployment record after controlled backup, forward migration, release and TEST-account verification.
+
 ## Current Fact Snapshot - Final User Account Closure V2 Production Closure
 
 - Final functional commit: `ce6c60e6fda2ef678074b2600bf313dab8b5ddfb`; development branch: `codex/yfth-account-closure-v2-repair`. The branch was fast-forward merged into `main`, pushed to `origin/main`, and remains preserved locally and remotely.
