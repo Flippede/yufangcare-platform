@@ -47,6 +47,8 @@ foreach ([
     'real_product_lookup' => "Db::name('store_product')",
     'real_package_lookup' => "Db::name('yfth_package_template')",
     'no_hardcoded_product_id' => "product_ids' => []",
+    'homepage_featured_product' => "'featured_product' => \$this->featuredProduct()",
+    'purchasable_product_stock' => "->where('stock', '>', 0)",
 ] as $name => $needle) {
     if (strpos($service, $needle) === false) {
         fwrite(STDERR, "missing_service_contract:$name\n");
@@ -75,6 +77,12 @@ foreach (["Route::group('yfth'", "Route::group('homepage'", 'v1.yfth.Homepage/co
 foreach (['/pages/yfth/package/list', '/pages/goods_details/index', '/pages/goods/goods_list/index'] as $needle) {
     if (strpos($uniHome, $needle) === false) {
         fwrite(STDERR, "missing_customer_navigation:$needle\n");
+        exit(1);
+    }
+}
+foreach (['config.featured_product', '商城商品', '真实购买', '支持微信支付 / 余额支付', '立即购买'] as $needle) {
+    if (strpos($uniHome, $needle) === false) {
+        fwrite(STDERR, "missing_real_product_surface:$needle\n");
         exit(1);
     }
 }

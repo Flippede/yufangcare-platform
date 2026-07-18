@@ -16,6 +16,25 @@
       </view>
     </view>
 
+    <view v-if="featuredProduct.id" class="yfth-home__featured" @tap="openFeaturedProduct">
+      <view class="yfth-home__featured-header">
+        <text class="yfth-home__featured-title">商城商品</text>
+        <text class="yfth-home__featured-label">真实购买</text>
+      </view>
+      <view class="yfth-home__featured-body">
+        <image v-if="featuredProduct.image" :src="featuredProduct.image" class="yfth-home__featured-image" mode="aspectFill" />
+        <view v-else class="yfth-home__featured-placeholder">御</view>
+        <view class="yfth-home__featured-info">
+          <text class="yfth-home__featured-name">{{ featuredProduct.store_name }}</text>
+          <text class="yfth-home__featured-payment">支持微信支付 / 余额支付</text>
+          <view class="yfth-home__featured-bottom">
+            <text class="yfth-home__featured-price">¥{{ featuredProduct.price }}</text>
+            <text class="yfth-home__featured-action">立即购买</text>
+          </view>
+        </view>
+      </view>
+    </view>
+
     <view class="yfth-home__sections">
       <view v-for="(section, index) in config.sections" :key="index" class="yfth-home__section" @tap="go(section.target)">
         <view class="yfth-home__section-title">
@@ -50,6 +69,11 @@ export default {
     config: { type: Object, required: true },
     footerConfigData: { type: Object, default: () => ({}) },
   },
+  computed: {
+    featuredProduct() {
+      return this.config.featured_product || {};
+    },
+  },
   methods: {
     shortcutMark(title) {
       return (title || '御').slice(0, 1);
@@ -59,6 +83,9 @@ export default {
     },
     openSearch() {
       uni.navigateTo({ url: '/pages/goods/goods_list/index' });
+    },
+    openFeaturedProduct() {
+      this.go({ type: 'product', id: this.featuredProduct.id });
     },
     openItem(section, item) {
       if (this.isPackage(section)) {
@@ -95,6 +122,20 @@ export default {
 .yfth-home__shortcut-icon { display: flex; align-items: center; justify-content: center; border: 3rpx solid #a9743d; color: #a9743d; font-size: 28rpx; font-weight: 600; }
 .yfth-home__shortcut-icon.active { background: #d6a15e; border-color: #d6a15e; color: #fff; }
 .yfth-home__shortcut-title { display: block; color: #493629; font-size: 22rpx; line-height: 1.32; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.yfth-home__featured { margin: 0 22rpx 28rpx; padding: 24rpx; border: 2rpx solid #ecd8b2; border-radius: 24rpx; background: #fff; box-shadow: 0 12rpx 30rpx rgba(120, 76, 31, .08); }
+.yfth-home__featured-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20rpx; }
+.yfth-home__featured-title { color: #2f2118; font-size: 32rpx; font-weight: 600; }
+.yfth-home__featured-label { padding: 7rpx 16rpx; border-radius: 18rpx; background: #fff2dd; color: #a76f34; font-size: 21rpx; }
+.yfth-home__featured-body { display: flex; min-width: 0; }
+.yfth-home__featured-image, .yfth-home__featured-placeholder { width: 190rpx; height: 190rpx; border-radius: 18rpx; flex: 0 0 190rpx; background: #f5ead8; }
+.yfth-home__featured-image { display: block; }
+.yfth-home__featured-placeholder { display: flex; align-items: center; justify-content: center; color: #b98751; font-size: 58rpx; font-weight: 600; }
+.yfth-home__featured-info { min-width: 0; flex: 1; margin-left: 24rpx; display: flex; flex-direction: column; }
+.yfth-home__featured-name { color: #2f2118; font-size: 29rpx; font-weight: 600; line-height: 1.45; display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.yfth-home__featured-payment { margin-top: 12rpx; color: #92795d; font-size: 22rpx; }
+.yfth-home__featured-bottom { margin-top: auto; display: flex; align-items: center; justify-content: space-between; }
+.yfth-home__featured-price { color: #c85d3a; font-size: 34rpx; font-weight: 600; }
+.yfth-home__featured-action { padding: 13rpx 24rpx; border-radius: 28rpx; background: #d6a15e; color: #fff; font-size: 23rpx; }
 .yfth-home__sections { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 22rpx; padding: 0 22rpx 30rpx; }
 .yfth-home__section { min-height: 286rpx; border: 2rpx solid #ecd8b2; border-radius: 24rpx; background: #fffdf6; overflow: hidden; padding: 24rpx 20rpx 18rpx; box-sizing: border-box; }
 .yfth-home__section-title { display: flex; align-items: center; justify-content: space-between; font-size: 30rpx; font-weight: 600; line-height: 1.25; color: #2f2118; margin-bottom: 18rpx; }

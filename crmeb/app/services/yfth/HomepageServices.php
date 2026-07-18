@@ -41,6 +41,7 @@ class HomepageServices
             'enabled' => (bool)$config['enabled'],
             'version' => $config['version'],
             'header' => $config['header'],
+            'featured_product' => $this->featuredProduct(),
             'quick_entries' => array_values(array_filter($config['quick_entries'], static function ($entry) {
                 return !empty($entry['visible']);
             })),
@@ -266,6 +267,28 @@ class HomepageServices
         }
         unset($item);
         return $items;
+    }
+
+    /**
+     * The custom homepage replaces CRMEB's standard homepage product list, so
+     * always expose one real, purchasable product independently of category
+     * configuration. The customer still enters CRMEB's native product detail,
+     * order, and payment flow.
+     */
+    private function featuredProduct(): array
+    {
+        $item = Db::name('store_product')
+            ->where('is_show', 1)
+            ->where('is_del', 0)
+            ->where('stock', '>', 0)
+            ->field('id,store_name,image,price,ot_price,stock,cate_id')
+            ->order('sort desc,id desc')
+            ->find();
+        if (!$item) {
+            return [];
+        }
+        $item['image'] = $this->fileUrl($item['image'] ?? '');
+        return $item;
     }
 
     private function packages(int $packageId, int $limit): array
