@@ -23,6 +23,7 @@ $contains = static function (string $text, string $needle): bool {
 
 $migration = $read('database/migrations/20260719100000_create_yfth_franchise_partner_hierarchy.php');
 $grantMigration = $read('database/migrations/20260719110000_add_yfth_partner_manual_grant_permissions.php');
+$unificationMigration = $read('database/migrations/20260720100000_create_yfth_partner_reward_unification_v1.php');
 $service = $read('app/services/yfth/FranchisePartnerServices.php');
 $opening = $read('app/services/yfth/FranchiseOpeningServices.php');
 $fixture = $read('app/services/yfth/HqAcceptanceFixtureServices.php');
@@ -78,13 +79,14 @@ foreach ([
 ] as $needle) {
     $assert($contains($service, $needle), 'partner_service:' . $needle);
 }
-$assert($contains($service, "(string)(\$snapshot['rank_code'] ?? '')"), 'reward_uses_frozen_rank_snapshot');
-$assert($contains($service, "where(['uid' => \$beneficiaryUid, 'status' => 'active'])"), 'reward_requires_real_active_partner');
+$assert($contains($service, 'V1 deliberately creates no hierarchy cash candidate'), 'opening_reward_disables_hierarchy_cash_candidates');
+$assert($contains($service, "'direct_partner_uid' => (int)(\$source['direct_partner_uid'] ?? 0)"), 'opening_reward_uses_direct_partner_only');
 $assert($contains($opening, "'first_purchase', 'name' => 'First purchase proof', 'required' => 0"), 'first_purchase_does_not_block_preopening_acceptance');
 $assert($contains($opening, "->where('id', \$profileId)->lock(true)->find()"), 'formal_store_creation_profile_lock');
 $assert($contains($opening, 'franchise_store_create_acceptance_not_passed'), 'formal_store_after_acceptance');
 $assert($contains($opening, 'franchise_identity_store_not_bound'), 'identity_after_store_binding');
-$assert($contains($opening, "['county_partner', 'franchisee', 'store_manager', 'all']"), 'county_partner_product_grant_maps_compatibility_role');
+$assert($contains($opening, "['county_partner', 'store_manager', 'all']") && !$contains($opening, "['county_partner', 'franchisee', 'store_manager', 'all']"), 'formal_opening_never_grants_new_franchisee_role');
+$assert($contains($unificationMigration, 'yfth_partner_store_binding') && $contains($unificationMigration, 'yfth_partner_opening_quota_award'), 'partner_store_ownership_and_opening_quota_are_explicit');
 
 $assert($contains($migration, "\$this->quote('franchisee')"), 'legacy_franchisee_backfill_present');
 $assert($contains($migration, 'legacy_franchisee_migration'), 'legacy_franchisee_mapping_auditable');
