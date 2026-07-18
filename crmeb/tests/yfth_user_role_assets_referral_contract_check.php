@@ -187,14 +187,34 @@ $assert(strpos($userPage, 'const keepUserCenter = isYfthBusinessUserCenterBrowsi
 $assert(strpos($userPage, 'onHide()') !== false && strpos($userPage, 'leaveYfthBusinessUserCenter()') !== false,
     'user_center_clears_transient_navigation_state');
 $assert(strpos($pageFooter, 'isYfthBusinessMallBrowsing') !== false
+	&& strpos($pageFooter, 'isYfthBusinessUserCenterBrowsing') !== false
     && strpos($pageFooter, 'this.businessNavs = roleNav(context.role_code)') !== false,
-    'mall_footer_uses_current_business_role_navigation');
-$assert(strpos($pageFooter, "item.action === 'mall'") !== false
+	'business_surface_footer_uses_current_business_role_navigation');
+$assert(strpos($pageFooter, 'item.action === businessActiveAction') !== false
+	&& strpos($pageFooter, "this.businessActiveAction = userCenterBrowsing ? 'user_center' : 'mall'") !== false
     && strpos($pageFooter, "business-footer-item") !== false,
-    'mall_is_parallel_active_business_navigation_item');
+	'business_mall_and_user_center_are_parallel_active_navigation_items');
 $assert(strpos($pageFooter, '/pages/yfth/workbench/index?pane=') !== false
-    && strpos($pageFooter, 'leaveYfthBusinessMall()') !== false,
-    'business_mall_footer_returns_to_workbench_panes');
+	&& strpos($pageFooter, 'leaveYfthBusinessMall()') !== false
+	&& strpos($pageFooter, 'leaveYfthBusinessUserCenter()') !== false,
+	'business_surface_footer_returns_to_workbench_panes_without_stale_state');
+$assert(preg_match('/customer: \[(.*?)\n\t\]/s', $contextLibrary, $customerNavMatches) === 1,
+	'customer_navigation_block_exists');
+$customerNavBlock = $customerNavMatches[1] ?? '';
+$assert(substr_count($customerNavBlock, '{ title:') === 4
+	&& strpos($customerNavBlock, "title: '首页'") !== false
+	&& strpos($customerNavBlock, "title: '分类'") !== false
+	&& strpos($customerNavBlock, "title: '购物车'") !== false
+	&& strpos($customerNavBlock, "title: '我的'") !== false,
+	'customer_navigation_contract_is_fixed_to_four_tabs');
+foreach (['franchisee', 'store_manager', 'store_staff', 'service_mentor'] as $roleCode) {
+	$pattern = '/' . preg_quote($roleCode, '/') . ': \[(.*?)\n\t\]/s';
+	$assert(preg_match($pattern, $contextLibrary, $matches) === 1, 'business_navigation_block_exists:' . $roleCode);
+	$block = $matches[1] ?? '';
+	$assert(substr_count($block, '{ title:') === 6, 'business_navigation_has_six_fixed_items:' . $roleCode);
+	$assert(strpos($block, "action: 'mall'") !== false && strpos($block, "action: 'user_center'") !== false,
+		'business_navigation_keeps_parallel_mall_and_user_center:' . $roleCode);
+}
 $assert(strpos($customHomepage, '<pageFooter :configData="footerConfigData"') !== false,
     'custom_home_always_mounts_business_aware_footer');
 $assert(strpos($storeAcquisitionService, "private const ROLES = ['store_manager', 'store_staff']") !== false, 'acquisition_code_role_boundary');

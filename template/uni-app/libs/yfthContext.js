@@ -14,9 +14,8 @@ export const YFTH_ROLE_LABELS = {
 export const YFTH_ROLE_NAVS = {
 	customer: [
 		{ title: '首页', url: '/pages/index/index', type: 'switchTab' },
-		{ title: '康养', url: '/pages/yfth/appointment/create' },
-		{ title: '商城', url: '/pages/goods/goods_list/index' },
-		{ title: '合作中心', url: '/pages/annex/settled/index' },
+		{ title: '分类', url: '/pages/goods_cate/goods_cate', type: 'switchTab' },
+		{ title: '购物车', url: '/pages/order_addcart/order_addcart', type: 'switchTab' },
 		{ title: '我的', url: '/pages/user/index', type: 'switchTab' }
 	],
 	franchisee: [

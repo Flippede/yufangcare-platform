@@ -7,7 +7,7 @@
 					v-for="(item, index) in businessNavs"
 					:key="index"
 					class="business-footer-item"
-					:class="{ active: item.action === 'mall' }"
+					:class="{ active: item.action === businessActiveAction }"
 					@click="goBusinessRouter(item)"
 				>
 					{{ item.title }}
@@ -55,10 +55,13 @@ import { getNavigation } from '@/api/public.js';
 import BaseBadge from '@/components/BaseBadge/index.vue';
 import {
 	currentContext,
+	enterYfthBusinessMall,
 	enterYfthBusinessUserCenter,
 	isBusinessRole,
 	isYfthBusinessMallBrowsing,
+	isYfthBusinessUserCenterBrowsing,
 	leaveYfthBusinessMall,
+	leaveYfthBusinessUserCenter,
 	roleNav
 } from '@/libs/yfthContext.js';
 export default {
@@ -165,23 +168,36 @@ export default {
 			showTabBar: false,
 			footerHeight: 0,
 			businessMode: false,
-			businessNavs: []
+			businessNavs: [],
+			businessActiveAction: ''
 		};
 	},
 	methods: {
 		setupBusinessNavigation() {
-			if (!isYfthBusinessMallBrowsing()) return;
+			const mallBrowsing = isYfthBusinessMallBrowsing();
+			const userCenterBrowsing = isYfthBusinessUserCenterBrowsing();
+			if (!mallBrowsing && !userCenterBrowsing) return;
 			const context = currentContext();
 			if (!context || !isBusinessRole(context.role_code)) {
-				leaveYfthBusinessMall();
+				this.leaveBusinessSurface();
 				return;
 			}
 			this.businessMode = true;
 			this.businessNavs = roleNav(context.role_code);
+			this.businessActiveAction = userCenterBrowsing ? 'user_center' : 'mall';
+		},
+		leaveBusinessSurface() {
+			leaveYfthBusinessMall();
+			leaveYfthBusinessUserCenter();
 		},
 		goBusinessRouter(item) {
-			if (!item || item.action === 'mall') return;
-			leaveYfthBusinessMall();
+			if (!item || item.action === this.businessActiveAction) return;
+			this.leaveBusinessSurface();
+			if (item.action === 'mall') {
+				enterYfthBusinessMall();
+				uni.switchTab({ url: '/pages/index/index' });
+				return;
+			}
 			if (item.action === 'user_center') {
 				enterYfthBusinessUserCenter();
 				uni.switchTab({ url: '/pages/user/index' });

@@ -235,6 +235,7 @@ import {
 	enterYfthBusinessUserCenter,
 	isBusinessRole,
 	leaveYfthBusinessMall,
+	leaveYfthBusinessUserCenter,
 	loadYfthIdentities,
 	resolveDominantYfthContext,
 	roleNav,
@@ -619,6 +620,8 @@ export default {
 		},
 		tapNav(item) {
 			if (item.url) {
+				leaveYfthBusinessMall();
+				leaveYfthBusinessUserCenter();
 				if (item.action === 'mall') enterYfthBusinessMall();
 				if (item.action === 'user_center') enterYfthBusinessUserCenter();
 				const fn = item.type === 'switchTab' ? uni.switchTab : uni.navigateTo;

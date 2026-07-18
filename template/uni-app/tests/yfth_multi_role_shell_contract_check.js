@@ -49,7 +49,9 @@ assert(context.includes('franchisee: 400') && context.includes('store_manager: 3
 assert(context.includes('dominantYfthIdentities'), 'identity selection must calculate the highest active operating role');
 assert(context.includes('resolveDominantYfthContext'), 'cached lower roles must be replaced by the highest server identity');
 assert((context.match(/action: 'mall'/g) || []).length === 4, 'every operating role must expose the headquarters mall entry');
+assert((context.match(/action: 'user_center'/g) || []).length === 4, 'every operating role must expose the parallel user-center entry');
 assert(context.includes('enterYfthBusinessMall') && context.includes('leaveYfthBusinessMall') && context.includes('isYfthBusinessMallBrowsing'), 'business mall browsing must be explicit and session-scoped');
+assert(context.includes("title: '分类', url: '/pages/goods_cate/goods_cate'") && context.includes("title: '购物车', url: '/pages/order_addcart/order_addcart'"), 'customer navigation must remain the fixed four-tab contract');
 
 assertNotContains('pages/yfth/workbench/index.vue', "/pages/admin/yfth_writeoff/index", 'user-token workbench must not link to admin writeoff page');
 assertNotContains('pages/yfth/workbench/index.vue', "/pages/admin/orderList/index", 'user-token workbench must not link to admin order page');
@@ -104,7 +106,9 @@ assertContains('pages/index/index.vue', 'getDiy', 'customer home must keep CRMEB
 assertContains('pages/index/index.vue', 'redirectDominantYfthRole', 'customer home must redirect an operating account to its highest workbench');
 assertContains('pages/index/index.vue', 'isYfthBusinessMallBrowsing()', 'an explicit mall entry must not bounce straight back to the workbench');
 assertContains('pages/index/index.vue', 'this.$nextTick(() => this.redirectDominantYfthRole())', 'cold H5 entry must retry dominant routing after mount');
-assertContains('pages/index/index.vue', 'if (newV) {\n\t\t\t\t\tthis.redirectDominantYfthRole();', 'restored login state must trigger dominant routing');
-assertContains('pages/user/index.vue', "uni.reLaunch({ url: '/pages/yfth/workbench/index' })", 'user center must not retain a higher identity on the customer surface');
+const homepage = read('pages/index/index.vue');
+assert(/if \(newV\) \{[\s\S]{0,120}this\.redirectDominantYfthRole\(\);/.test(homepage), 'restored login state must trigger dominant routing');
+assert(userPage.includes('cached.is_business_role && !keepUserCenter'), 'direct customer user-center entry must redirect a higher operating identity');
+assert(pageFooter.includes('isYfthBusinessUserCenterBrowsing') && pageFooter.includes("businessActiveAction: ''"), 'intentional business user-center entry must retain the role navigation');
 
 console.log('YFTH multi-role shell contract check passed.');
