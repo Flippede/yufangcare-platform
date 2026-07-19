@@ -107,7 +107,8 @@ function baseRequest(url, method, data, {
 	// #ifdef H5
 	if (typeof window !== 'undefined' && typeof window.fetch === 'function') {
 		if (uni.getStorageSync('locale')) header['Cb-lang'] = uni.getStorageSync('locale');
-		return h5FetchRequest(url, method, data, header, noVerify, Url).catch(() => Promise.reject(i18n.t(`璇锋眰澶辫触`)));
+		return h5FetchRequest(url, method, data, header, noVerify, Url)
+			.catch((error) => Promise.reject(error || i18n.t(`请求失败`)));
 	}
 	// #endif
 
