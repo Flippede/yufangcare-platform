@@ -106,7 +106,8 @@ foreach ([
     'membershipLockContext',
     "['locked_currents']",
     'closeForMembershipWithLockedCurrentsInTransaction',
-    'createPackageCandidateInTransaction',
+    'UnifiedRewardOrchestratorServices',
+    "'package_activated'",
     'grantFromPackageInTransaction',
     "'package_membership_activation'",
 ] as $needle) {
@@ -142,7 +143,7 @@ $assert(strpos($packageTemplate, 'published_package_rule_must_grant_permanent_me
 $assert(strpos($packageTemplate, 'supersedeCurrentPublishedRule') !== false, 'package_price_rules_support_immutable_version_rollover');
 $assert(strpos($packagePurchase, "'grants_permanent_membership'") !== false, 'purchase_snapshot_captures_membership_grant');
 $assert(strpos($packageActivation, 'PackageMembershipActivationCoordinator') !== false, 'activation_calls_membership_coordinator');
-$assert(strpos($packageActivation, 'PackageMembershipGrantPolicy') !== false, 'legacy_reward_uses_classified_membership_semantics');
+$assert(strpos($activation, 'PackageMembershipGrantPolicy') !== false, 'legacy_reward_uses_classified_membership_semantics');
 
 $grantPolicy = (string)file_get_contents($root . '/app/services/yfth/PackageMembershipGrantPolicy.php');
 $assert(strpos($grantPolicy, 'legacy_package_semantics') !== false, 'legacy_package_grant_semantics_is_explicit');

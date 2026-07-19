@@ -67,10 +67,25 @@ class CreateYfthPackageMembershipReferralV2 extends Migrator
 
         $this->execute('DELETE FROM `' . $this->prefixed('system_menus') . '` WHERE `id` IN (' . implode(',', $permissionIds) . ')');
         foreach (array_reverse(self::TABLES) as $table) {
+            if (in_array($table, ['yfth_permanent_membership', 'yfth_permanent_membership_event'], true)
+                && $this->migrationVersionExists('20260715100000')) {
+                continue;
+            }
             $this->table($table)->drop();
         }
         $this->table('yfth_package_purchase_snapshot')->removeColumn('grants_permanent_membership')->update();
         $this->table('yfth_package_rule_version')->removeColumn('grants_permanent_membership')->update();
+    }
+
+    private function migrationVersionExists(string $version): bool
+    {
+        if (!$this->hasTable('migrations')) {
+            return false;
+        }
+        return (bool)$this->getAdapter()->fetchRow(
+            'SELECT 1 FROM `' . $this->prefixed('migrations') . '` WHERE `version`='
+            . $this->quote($version) . ' LIMIT 1'
+        );
     }
 
     private function addPackageColumns(): void

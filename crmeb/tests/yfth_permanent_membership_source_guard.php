@@ -34,7 +34,7 @@ $assert($exit === 0, 'git_diff_scope_readable');
 foreach ($diff as $path) {
     $normalized = str_replace('\\', '/', $path);
     if (strpos($normalized, '项目文档/') === 0) continue;
-    $allowed = preg_match('#^(crmeb/(app/(model|dao|services)/yfth/Yfth?(PermanentMembership|BusinessDynamicCode|MembershipRewardCandidate)|app/services/yfth/(PermanentMembership|HqAuthoritySourceCanonicalizer|HqCustomerAttribution|HqActiveReferral)|app/(api|adminapi)/(controller|route)|database/migrations/20260715100000|tests/yfth_(permanent_membership|hq_authority_(foundation|readonly)))|template/(admin|uni-app)/|docs/)#', $normalized);
+    $allowed = preg_match('#^(crmeb/(app/(model|dao|services)/yfth/Yfth?(PermanentMembership|BusinessDynamicCode|MembershipRewardCandidate)|app/services/yfth/(PermanentMembership|HqAuthoritySourceCanonicalizer|HqCustomerAttribution|HqActiveReferral)|app/(api|adminapi)/(controller|route)|database/migrations/202607(15100000|16100000)|tests/yfth_(permanent_membership|package_membership_referral|hq_authority_(foundation|readonly)))|template/(admin|uni-app)/|docs/)#', $normalized);
     $assert((bool)$allowed, 'diff_is_stage2_scoped:' . $normalized);
 }
 

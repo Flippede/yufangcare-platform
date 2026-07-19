@@ -20,6 +20,7 @@ $productionFiles = [
     'app/services/yfth/PackageMembershipActivationCoordinator.php',
     'app/services/yfth/PackageMembershipReferralQualificationPolicy.php',
     'app/services/yfth/DirectReferralRewardServices.php',
+    'app/services/yfth/UnifiedRewardOrchestratorServices.php',
     'app/api/controller/v1/yfth/PackageMembershipReferralController.php',
     'app/api/controller/v1/yfth/PackageMembershipReferralStoreController.php',
     'app/adminapi/controller/v1/yfth/PackageMembershipReferral.php',
@@ -52,6 +53,7 @@ $assert($actualSources === [
     'package_membership_activation',
     'historical_package_activation',
     'headquarters_membership_grant',
+    'store_acquisition_code',
 ], 'production_authority_source_allowlist_is_exact');
 
 $listeners = '';
@@ -71,10 +73,13 @@ foreach (['app/event.php', 'app/listener', 'app/command'] as $relative) {
 $eventConfig = (string)file_get_contents($root . '/app/event.php');
 $payListener = (string)file_get_contents($root . '/app/listener/yfth/MallConsumptionRewardPayListener.php');
 $refundListener = (string)file_get_contents($root . '/app/listener/yfth/MallConsumptionRewardCustomEventListener.php');
+$orchestrator = (string)file_get_contents($root . '/app/services/yfth/UnifiedRewardOrchestratorServices.php');
 $assert(strpos($eventConfig, 'MallConsumptionRewardPayListener::class') !== false, 'stage3_mall_pay_listener_is_explicitly_wired');
 $assert(strpos($eventConfig, 'MallConsumptionRewardCustomEventListener::class') !== false, 'stage3_mall_refund_listener_is_explicitly_wired');
-$assert(strpos($payListener, 'recordMallOrderPaid') !== false, 'mall_candidate_entry_is_only_called_by_stage3_pay_listener');
-$assert(strpos($refundListener, 'cancelMallOrderCandidateAfterFullRefund') !== false, 'mall_refund_entry_is_only_called_by_stage3_refund_listener');
+$assert(strpos($payListener, "enqueueAndTry('mall_order_paid'") !== false, 'mall_pay_listener_enqueues_durable_reward_event');
+$assert(strpos($refundListener, "'mall_order_refunded'") !== false, 'mall_refund_listener_enqueues_durable_reward_event');
+$assert(strpos($orchestrator, 'recordMallOrderPaid') !== false, 'mall_candidate_entry_is_owned_by_reward_orchestrator');
+$assert(strpos($orchestrator, 'adjustMallOrderCandidateAfterRefund') !== false, 'mall_refund_entry_is_owned_by_reward_orchestrator');
 
 $controller = (string)file_get_contents($root . '/app/api/controller/v1/yfth/PackageMembershipReferralController.php');
 $acceptStart = strpos($controller, 'public function acceptInvite');

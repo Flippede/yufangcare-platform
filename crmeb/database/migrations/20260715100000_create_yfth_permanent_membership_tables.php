@@ -35,6 +35,8 @@ class CreateYfthPermanentMembershipTables extends Migrator
             return;
         }
 
+        $this->preflightPackageMembershipTables();
+        $this->upgradePackageMembershipTables();
         $this->preflightTables();
         $this->preflightPermissions();
         $this->createEnrollment();
@@ -60,6 +62,7 @@ class CreateYfthPermanentMembershipTables extends Migrator
             throw new RuntimeException('yfth_permanent_membership_down_signature_ambiguous');
         }
         $this->execute('DELETE FROM `' . $this->prefixed('system_menus') . '` WHERE `id` IN (' . implode(',', $permissionIds) . ')');
+        $packageMembershipV2Exists = $this->migrationVersionExists('20260716100000');
         foreach ([
             'yfth_membership_reward_candidate',
             'yfth_business_dynamic_code',
@@ -67,7 +70,13 @@ class CreateYfthPermanentMembershipTables extends Migrator
             'yfth_permanent_membership',
             'yfth_permanent_membership_enrollment',
         ] as $table) {
+            if ($packageMembershipV2Exists && in_array($table, ['yfth_permanent_membership', 'yfth_permanent_membership_event'], true)) {
+                continue;
+            }
             $this->table($table)->drop();
+        }
+        if ($packageMembershipV2Exists) {
+            $this->removeOfflineCompatibilityColumns();
         }
     }
 
@@ -108,11 +117,16 @@ class CreateYfthPermanentMembershipTables extends Migrator
             ->addColumn('membership_no', 'string', ['limit' => 64, 'default' => ''])
             ->addColumn('uid', 'integer', ['signed' => false, 'default' => 0])
             ->addColumn('store_id', 'integer', ['signed' => false, 'default' => 0])
-            ->addColumn('enrollment_id', 'integer', ['signed' => false, 'default' => 0])
+            ->addColumn('source_package_instance_id', 'integer', ['signed' => false, 'default' => 0])
+            ->addColumn('source_purchase_id', 'integer', ['signed' => false, 'default' => 0])
+            ->addColumn('source_rule_version_id', 'integer', ['signed' => false, 'default' => 0])
+            ->addColumn('actual_paid_amount_cent', 'biginteger', ['signed' => false, 'default' => 0])
+            ->addColumn('currency', 'string', ['limit' => 8, 'default' => 'CNY'])
+            ->addColumn('enrollment_id', 'integer', ['signed' => false, 'null' => true, 'default' => null])
             ->addColumn('status', 'string', ['limit' => 24, 'default' => 'active'])
             ->addColumn('amount_cents', 'biginteger', ['signed' => false, 'default' => 980000])
             ->addColumn('authority_version', 'integer', ['signed' => false, 'default' => 1])
-            ->addColumn('source_type', 'string', ['limit' => 64, 'default' => ''])
+            ->addColumn('source_type', 'string', ['limit' => 48, 'default' => 'package_activation'])
             ->addColumn('source_id', 'string', ['limit' => 64, 'default' => ''])
             ->addColumn('activated_at', 'integer', ['signed' => false, 'default' => 0])
             ->addColumn('request_id', 'string', ['limit' => 64, 'default' => ''])
@@ -120,8 +134,11 @@ class CreateYfthPermanentMembershipTables extends Migrator
             ->addColumn('update_time', 'integer', ['signed' => false, 'default' => 0])
             ->addIndex(['membership_no'], ['unique' => true, 'name' => 'uniq_yfth_pm_no'])
             ->addIndex(['uid'], ['unique' => true, 'name' => 'uniq_yfth_pm_uid'])
+            ->addIndex(['source_package_instance_id'], ['unique' => true, 'name' => 'uniq_yfth_pm_source_instance'])
             ->addIndex(['enrollment_id'], ['unique' => true, 'name' => 'uniq_yfth_pm_enrollment'])
             ->addIndex(['store_id', 'status'], ['name' => 'idx_yfth_pm_store'])
+            ->addIndex(['store_id', 'status', 'uid'], ['name' => 'idx_yfth_pm_store_status'])
+            ->addIndex(['source_purchase_id'], ['name' => 'idx_yfth_pm_source_purchase'])
             ->create();
     }
 
@@ -137,16 +154,21 @@ class CreateYfthPermanentMembershipTables extends Migrator
             ->addColumn('store_id', 'integer', ['signed' => false, 'default' => 0])
             ->addColumn('authority_version', 'integer', ['signed' => false, 'default' => 1])
             ->addColumn('event_type', 'string', ['limit' => 48, 'default' => 'membership_activated'])
-            ->addColumn('source_type', 'string', ['limit' => 64, 'default' => ''])
+            ->addColumn('source_type', 'string', ['limit' => 48, 'default' => 'package_activation'])
             ->addColumn('source_id', 'string', ['limit' => 64, 'default' => ''])
+            ->addColumn('source_unique_key', 'char', ['limit' => 64, 'null' => true, 'default' => null])
+            ->addColumn('actual_paid_amount_cent', 'biginteger', ['signed' => false, 'default' => 0])
             ->addColumn('operator_uid', 'integer', ['signed' => false, 'default' => 0])
-            ->addColumn('operator_role_code', 'string', ['limit' => 64, 'default' => ''])
+            ->addColumn('operator_role_code', 'string', ['limit' => 48, 'default' => 'system'])
             ->addColumn('request_id', 'string', ['limit' => 64, 'default' => ''])
             ->addColumn('add_time', 'integer', ['signed' => false, 'default' => 0])
             ->addIndex(['event_no'], ['unique' => true, 'name' => 'uniq_yfth_pm_event_no'])
             ->addIndex(['membership_id', 'authority_version'], ['unique' => true, 'name' => 'uniq_yfth_pm_event_version'])
+            ->addIndex(['source_unique_key'], ['unique' => true, 'name' => 'uniq_yfth_pm_event_source'])
             ->addIndex(['uid', 'add_time'], ['name' => 'idx_yfth_pm_event_uid'])
+            ->addIndex(['uid', 'add_time'], ['name' => 'idx_yfth_pm_event_uid_time'])
             ->create();
+        $this->execute('ALTER TABLE `' . $this->prefixed('yfth_permanent_membership_event') . '` MODIFY `source_unique_key` CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NULL DEFAULT NULL');
     }
 
     private function createDynamicCode(): void
@@ -219,6 +241,92 @@ class CreateYfthPermanentMembershipTables extends Migrator
                 }
             }
         }
+    }
+
+    /**
+     * Stage 2 V2 shipped first in some installations and already owns the
+     * permanent-membership current/event tables. Extend those canonical tables
+     * for the offline enrollment flow instead of creating a second authority.
+     */
+    private function preflightPackageMembershipTables(): void
+    {
+        $expected = $this->expectedColumns();
+        foreach (['yfth_permanent_membership', 'yfth_permanent_membership_event'] as $table) {
+            if (!$this->hasTable($table)) {
+                continue;
+            }
+            $this->assertTableEngine($table);
+            $columns = $expected[$table];
+            if ($table === 'yfth_permanent_membership') {
+                unset($columns['enrollment_id'], $columns['amount_cents'], $columns['source_id']);
+            } else {
+                unset($columns['membership_no']);
+            }
+            $this->assertTableColumns($table, $columns);
+        }
+    }
+
+    private function upgradePackageMembershipTables(): void
+    {
+        if ($this->hasTable('yfth_permanent_membership')) {
+            $table = $this->table('yfth_permanent_membership');
+            if (!$this->columnExists('yfth_permanent_membership', 'enrollment_id')) {
+                $table->addColumn('enrollment_id', 'integer', ['signed' => false, 'null' => true, 'default' => null, 'after' => 'currency']);
+            }
+            if (!$this->columnExists('yfth_permanent_membership', 'amount_cents')) {
+                $table->addColumn('amount_cents', 'biginteger', ['signed' => false, 'default' => 980000, 'after' => 'status']);
+            }
+            if (!$this->columnExists('yfth_permanent_membership', 'source_id')) {
+                $table->addColumn('source_id', 'string', ['limit' => 64, 'default' => '', 'after' => 'source_type']);
+            }
+            $table->update();
+        }
+        if ($this->hasTable('yfth_permanent_membership_event')) {
+            $table = $this->table('yfth_permanent_membership_event');
+            if (!$this->columnExists('yfth_permanent_membership_event', 'membership_no')) {
+                $table->addColumn('membership_no', 'string', ['limit' => 64, 'default' => '', 'after' => 'membership_id']);
+                $table->update();
+            }
+        }
+    }
+
+    private function removeOfflineCompatibilityColumns(): void
+    {
+        foreach ([
+            ['yfth_permanent_membership', 'idx_yfth_pm_store'],
+            ['yfth_permanent_membership_event', 'idx_yfth_pm_event_uid'],
+        ] as [$table, $index]) {
+            if ($this->indexExists($table, $index)) {
+                $this->execute('ALTER TABLE `' . $this->prefixed($table) . '` DROP INDEX `' . $index . '`');
+            }
+        }
+        foreach (['enrollment_id', 'amount_cents', 'source_id'] as $column) {
+            if ($this->columnExists('yfth_permanent_membership', $column)) {
+                $this->table('yfth_permanent_membership')->removeColumn($column)->update();
+            }
+        }
+        if ($this->columnExists('yfth_permanent_membership_event', 'membership_no')) {
+            $this->table('yfth_permanent_membership_event')->removeColumn('membership_no')->update();
+        }
+    }
+
+    private function columnExists(string $table, string $column): bool
+    {
+        return (bool)$this->getAdapter()->fetchRow(
+            'SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='
+            . $this->quote($this->prefixed($table)) . ' AND COLUMN_NAME=' . $this->quote($column) . ' LIMIT 1'
+        );
+    }
+
+    private function migrationVersionExists(string $version): bool
+    {
+        if (!$this->hasTable('migrations')) {
+            return false;
+        }
+        return (bool)$this->getAdapter()->fetchRow(
+            'SELECT 1 FROM `' . $this->prefixed('migrations') . '` WHERE `version`='
+            . $this->quote($version) . ' LIMIT 1'
+        );
     }
 
     private function preflightPermissions(): void
@@ -398,14 +506,19 @@ class CreateYfthPermanentMembershipTables extends Migrator
                 ['PRIMARY', ['id'], true],
                 ['uniq_yfth_pm_no', ['membership_no'], true],
                 ['uniq_yfth_pm_uid', ['uid'], true],
+                ['uniq_yfth_pm_source_instance', ['source_package_instance_id'], true],
                 ['uniq_yfth_pm_enrollment', ['enrollment_id'], true],
                 ['idx_yfth_pm_store', ['store_id', 'status'], false],
+                ['idx_yfth_pm_store_status', ['store_id', 'status', 'uid'], false],
+                ['idx_yfth_pm_source_purchase', ['source_purchase_id'], false],
             ],
             'yfth_permanent_membership_event' => [
                 ['PRIMARY', ['id'], true],
                 ['uniq_yfth_pm_event_no', ['event_no'], true],
                 ['uniq_yfth_pm_event_version', ['membership_id', 'authority_version'], true],
+                ['uniq_yfth_pm_event_source', ['source_unique_key'], true],
                 ['idx_yfth_pm_event_uid', ['uid', 'add_time'], false],
+                ['idx_yfth_pm_event_uid_time', ['uid', 'add_time'], false],
             ],
             'yfth_business_dynamic_code' => [
                 ['PRIMARY', ['id'], true],
@@ -490,7 +603,7 @@ class CreateYfthPermanentMembershipTables extends Migrator
         }
     }
 
-    private function assertTableColumns(string $table): void
+    private function assertTableColumns(string $table, ?array $expectedColumns = null): void
     {
         $rows = $this->getAdapter()->fetchAll(
             'SELECT COLUMN_NAME,DATA_TYPE,COLUMN_TYPE,IS_NULLABLE,COLUMN_DEFAULT,CHARACTER_MAXIMUM_LENGTH,'
@@ -501,7 +614,7 @@ class CreateYfthPermanentMembershipTables extends Migrator
         foreach ($rows as $row) {
             $actual[(string)$row['COLUMN_NAME']] = $row;
         }
-        foreach ($this->expectedColumns()[$table] as $name => $expected) {
+        foreach ($expectedColumns ?? $this->expectedColumns()[$table] as $name => $expected) {
             if (!isset($actual[$name])) {
                 throw new RuntimeException('yfth_permanent_membership_missing_column:' . $table . ':' . $name);
             }
@@ -537,7 +650,11 @@ class CreateYfthPermanentMembershipTables extends Migrator
     {
         $id = $this->column('int', null, false, true, null, true);
         $i = $this->column('int', null, false, true, '0');
+        $sourcePackageInstance = $this->migrationVersionExists('20260718130000')
+            ? $this->column('int', null, true, true, null)
+            : $i;
         $big9800 = $this->column('bigint', null, false, true, '980000');
+        $big0 = $this->column('bigint', null, false, true, '0');
         $v24 = function (string $default = '') { return $this->column('varchar', 24, false, false, $default); };
         $v40 = function (string $default = '') { return $this->column('varchar', 40, false, false, $default); };
         $v48 = function (string $default = '') { return $this->column('varchar', 48, false, false, $default); };
@@ -553,16 +670,21 @@ class CreateYfthPermanentMembershipTables extends Migrator
                 'add_time'=>$i,'update_time'=>$i,
             ],
             'yfth_permanent_membership' => [
-                'id'=>$id,'membership_no'=>$v64(),'uid'=>$i,'store_id'=>$i,'enrollment_id'=>$i,
+                'id'=>$id,'membership_no'=>$v64(),'uid'=>$i,'store_id'=>$i,
+                'source_package_instance_id'=>$sourcePackageInstance,'source_purchase_id'=>$i,'source_rule_version_id'=>$i,
+                'actual_paid_amount_cent'=>$big0,'currency'=>$this->column('varchar',8,false,false,'CNY'),
+                'enrollment_id'=>$this->column('int',null,true,true,null),
                 'status'=>$v24('active'),'amount_cents'=>$big9800,'authority_version'=>$this->column('int',null,false,true,'1'),
-                'source_type'=>$v64(),'source_id'=>$v64(),'activated_at'=>$i,'request_id'=>$v64(),
+                'source_type'=>$v48('package_activation'),'source_id'=>$v64(),'activated_at'=>$i,'request_id'=>$v64(),
                 'add_time'=>$i,'update_time'=>$i,
             ],
             'yfth_permanent_membership_event' => [
                 'id'=>$id,'event_no'=>$v64(),'membership_id'=>$i,'membership_no'=>$v64(),'uid'=>$i,
                 'store_id'=>$i,'authority_version'=>$this->column('int',null,false,true,'1'),
-                'event_type'=>$v48('membership_activated'),'source_type'=>$v64(),'source_id'=>$v64(),
-                'operator_uid'=>$i,'operator_role_code'=>$v64(),'request_id'=>$v64(),'add_time'=>$i,
+                'event_type'=>$v48('membership_activated'),'source_type'=>$v48('package_activation'),'source_id'=>$v64(),
+                'source_unique_key'=>$this->column('char',64,true,false,null,false,'ascii','ascii_bin'),
+                'actual_paid_amount_cent'=>$big0,'operator_uid'=>$i,
+                'operator_role_code'=>$v48('system'),'request_id'=>$v64(),'add_time'=>$i,
             ],
             'yfth_business_dynamic_code' => [
                 'id'=>$id,'code_no'=>$v64(),'scene'=>$v48(),'enrollment_id'=>$i,'target_uid'=>$i,
