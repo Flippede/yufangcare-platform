@@ -50,6 +50,7 @@ assert(context.includes('franchisee: 400') && context.includes('store_manager: 3
 assert(context.includes('dominantYfthIdentities'), 'identity selection must calculate the highest active operating role');
 assert(context.includes('resolveDominantYfthContext'), 'cached lower roles must be replaced by the highest server identity');
 assert(context.includes('PARTNER_ROLES.forEach((role) => { YFTH_ROLE_NAVS[role] = YFTH_ROLE_NAVS.franchisee; })'), 'partner roles must inherit the headquarters mall and user-center entries');
+assert(context.indexOf('export const YFTH_ROLE_NAVS = {') < context.indexOf('PARTNER_ROLES.forEach((role) => { YFTH_ROLE_NAVS[role] = YFTH_ROLE_NAVS.franchisee; })'), 'partner navigation inheritance must run after YFTH_ROLE_NAVS initialization');
 assert(context.includes('enterYfthBusinessMall') && context.includes('leaveYfthBusinessMall') && context.includes('isYfthBusinessMallBrowsing'), 'business mall browsing must be explicit and session-scoped');
 assert(context.includes("title: '分类', url: '/pages/goods_cate/goods_cate'") && context.includes("title: '购物车', url: '/pages/order_addcart/order_addcart'"), 'customer navigation must remain the fixed four-tab contract');
 

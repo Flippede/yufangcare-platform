@@ -17,7 +17,6 @@ export const YFTH_ROLE_LABELS = {
 };
 
 const PARTNER_ROLES = ['county_partner', 'prefecture_partner', 'province_partner', 'regional_director', 'platform_director'];
-PARTNER_ROLES.forEach((role) => { YFTH_ROLE_NAVS[role] = YFTH_ROLE_NAVS.franchisee; });
 
 export const YFTH_ROLE_NAVS = {
 	customer: [
@@ -59,6 +58,8 @@ export const YFTH_ROLE_NAVS = {
 		{ title: '我的', url: '/pages/user/index', type: 'switchTab', action: 'user_center' }
 	]
 };
+
+PARTNER_ROLES.forEach((role) => { YFTH_ROLE_NAVS[role] = YFTH_ROLE_NAVS.franchisee; });
 
 const CONTEXT_KEY = 'YFTH_CURRENT_CONTEXT';
 const ROLE_KEY = 'YFTH_CURRENT_ROLE';
