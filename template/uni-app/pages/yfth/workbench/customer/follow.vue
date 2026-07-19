@@ -9,14 +9,18 @@
 			<input v-model="form.next_follow_time" placeholder="下次跟进时间，可填 2026-07-08 10:00" />
 			<button @click="submit">提交跟进</button>
 		</view>
+
+		<pageFooter :business-context="context" business-pane="customers"></pageFooter>
 	</view>
 </template>
 
 <script>
 import { addYfthCustomerFollow } from '@/api/yfth.js';
+import pageFooter from '@/components/pageFooter/index.vue';
 import { currentContext } from '@/libs/yfthContext.js';
 
 export default {
+	components: { pageFooter },
 	data() {
 		return {
 			id: 0,
@@ -68,7 +72,7 @@ export default {
 </script>
 
 <style scoped>
-.page { min-height: 100vh; background: #f6f0e6; padding: 24rpx; }
+.page { min-height: 100vh; box-sizing: border-box; background: #f6f0e6; padding: 24rpx; overflow-x: hidden; }
 .panel { background: #fff; border-radius: 16rpx; padding: 24rpx; box-shadow: 0 10rpx 26rpx rgba(70, 45, 30, .06); }
 .panel-title { font-size: 32rpx; font-weight: 700; color: #2d2434; margin-bottom: 20rpx; }
 .picker, input, textarea { background: #fffaf2; border-radius: 12rpx; padding: 18rpx 20rpx; font-size: 26rpx; margin-bottom: 18rpx; color: #3a3029; }

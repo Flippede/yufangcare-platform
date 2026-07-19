@@ -91,6 +91,11 @@ assertContains('pages/yfth/workbench/customer/index.vue', 'resolveYfthContext(ro
 assertContains('pages/yfth/workbench/customer/index.vue', 'resolveDominantYfthContext(identities)', 'customer page must recover a missing context from server identities');
 assertNotContains('pages/yfth/workbench/customer/index.vue', "uni.reLaunch({ url: '/pages/yfth/workbench/index' })", 'customer context failure must render an explicit error instead of silently bouncing');
 assertContains('pages/yfth/workbench/customer/index.vue', 'this.listError = String', 'customer API failures must remain visible instead of looking like an empty list');
+assertContains('pages/yfth/workbench/customer/index.vue', 'business-pane="customers"', 'customer list must retain the shared operating footer');
+assertContains('pages/yfth/workbench/customer/detail.vue', 'business-pane="customers"', 'customer detail must retain the shared operating footer');
+assertContains('pages/yfth/workbench/customer/follow.vue', 'business-pane="customers"', 'customer follow must retain the shared operating footer');
+assertContains('components/pageFooter/index.vue', 'businessActivePane', 'shared footer must support active operating panes outside the workbench route');
+assertContains('components/pageFooter/index.vue', 'isBusinessNavActive(item)', 'shared footer must use one active-state resolver for actions and panes');
 assertContains('pages/yfth/workbench/customer/index.vue', 'phone_masked', 'customer list must render masked phone only');
 assertNotContains('pages/yfth/workbench/customer/index.vue', 'phone }}</', 'customer list must not render raw phone');
 

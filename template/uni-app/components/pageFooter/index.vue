@@ -7,7 +7,7 @@
 					v-for="(item, index) in businessNavs"
 					:key="index"
 					class="business-footer-item"
-					:class="{ active: item.action === businessActiveAction }"
+					:class="{ active: isBusinessNavActive(item) }"
 					@click="goBusinessRouter(item)"
 				>
 					{{ item.title }}
@@ -68,6 +68,14 @@ export default {
 	name: 'pageFooter',
 	components: { BaseBadge },
 	props: {
+		businessPane: {
+			type: String,
+			default: ''
+		},
+		businessContext: {
+			type: Object,
+			default: () => ({})
+		},
 		centeredH5: {
 			type: Boolean,
 			default: false
@@ -136,6 +144,15 @@ export default {
 		}
 	},
 	watch: {
+		businessPane() {
+			this.refreshBusinessNavigation();
+		},
+		businessContext: {
+			deep: true,
+			handler() {
+				this.refreshBusinessNavigation();
+			}
+		},
 		configData(newVal) {
 			if (!this.showTabBar && newVal) {
 				let configData = newVal;
@@ -174,7 +191,8 @@ export default {
 			footerHeight: 0,
 			businessMode: false,
 			businessNavs: [],
-			businessActiveAction: ''
+			businessActiveAction: '',
+			businessActivePane: ''
 		};
 	},
 	methods: {
@@ -182,6 +200,7 @@ export default {
 			this.businessMode = false;
 			this.businessNavs = [];
 			this.businessActiveAction = '';
+			this.businessActivePane = '';
 			this.setupBusinessNavigation();
 			if (this.businessMode) {
 				uni.hideTabBar();
@@ -192,22 +211,32 @@ export default {
 		setupBusinessNavigation() {
 			const mallBrowsing = isYfthBusinessMallBrowsing();
 			const userCenterBrowsing = isYfthBusinessUserCenterBrowsing();
-			if (!mallBrowsing && !userCenterBrowsing) return;
-			const context = currentContext();
+			const explicitPane = String(this.businessPane || '').trim();
+			if (!mallBrowsing && !userCenterBrowsing && !explicitPane) return;
+			const suppliedContext = this.businessContext || {};
+			const context = explicitPane && isBusinessRole(suppliedContext.role_code)
+				? suppliedContext
+				: currentContext();
 			if (!context || !isBusinessRole(context.role_code)) {
 				this.leaveBusinessSurface();
 				return;
 			}
 			this.businessMode = true;
 			this.businessNavs = roleNav(context.role_code);
-			this.businessActiveAction = userCenterBrowsing ? 'user_center' : 'mall';
+			this.businessActiveAction = userCenterBrowsing ? 'user_center' : (mallBrowsing ? 'mall' : '');
+			this.businessActivePane = explicitPane;
+		},
+		isBusinessNavActive(item) {
+			if (!item) return false;
+			return (item.action && item.action === this.businessActiveAction)
+				|| (item.pane && item.pane === this.businessActivePane);
 		},
 		leaveBusinessSurface() {
 			leaveYfthBusinessMall();
 			leaveYfthBusinessUserCenter();
 		},
 		goBusinessRouter(item) {
-			if (!item || item.action === this.businessActiveAction) return;
+			if (!item || this.isBusinessNavActive(item)) return;
 			this.leaveBusinessSurface();
 			if (item.action === 'mall') {
 				enterYfthBusinessMall();

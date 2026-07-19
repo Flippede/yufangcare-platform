@@ -56,14 +56,18 @@
 				</view>
 			</view>
 		</view>
+
+		<pageFooter :business-context="context" business-pane="customers"></pageFooter>
 	</view>
 </template>
 
 <script>
 import { createYfthCustomerRelation, getYfthCustomerList } from '@/api/yfth.js';
+import pageFooter from '@/components/pageFooter/index.vue';
 import { currentContext, isBusinessRole, loadYfthIdentities, resolveDominantYfthContext, resolveYfthContext } from '@/libs/yfthContext.js';
 
 export default {
+	components: { pageFooter },
 	data() {
 		return {
 			loading: false,
@@ -209,7 +213,7 @@ export default {
 </script>
 
 <style scoped>
-.page { min-height: 100vh; background: #f6f0e6; padding: 24rpx; }
+.page { min-height: 100vh; box-sizing: border-box; background: #f6f0e6; padding: 24rpx; overflow-x: hidden; }
 .header { border-radius: 18rpx; background: linear-gradient(135deg, #4f3424, #a5763b); color: #fff; padding: 28rpx; display: flex; justify-content: space-between; gap: 18rpx; }
 .eyebrow { color: #f2dfb5; font-size: 22rpx; }
 .title { font-size: 38rpx; font-weight: 700; margin-top: 8rpx; }
