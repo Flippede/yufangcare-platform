@@ -58,6 +58,8 @@ $service = $read('app/services/yfth/FranchiseCustomerServices.php');
 foreach ([
     'CurrentBusinessContextServices',
     "['franchisee', 'store_manager', 'store_staff']",
+    "['franchisee', 'store_manager', 'store_staff', 'county_partner', 'prefecture_partner', 'province_partner', 'regional_director', 'platform_director']",
+    'resolveStoreScope($request, true)',
     'TRUSTED_ATTRIBUTION_SOURCES',
     "['order', 'appointment', 'writeoff']",
     'resolveTrustedAttribution',

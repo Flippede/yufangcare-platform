@@ -17,6 +17,7 @@ class FranchiseCustomerServices extends YfthFoundationBaseServices
 {
     private const DOMAIN = 'yfth_franchise_customer';
     private const STORE_ROLES = ['franchisee', 'store_manager', 'store_staff'];
+    private const STORE_READ_ROLES = ['franchisee', 'store_manager', 'store_staff', 'county_partner', 'prefecture_partner', 'province_partner', 'regional_director', 'platform_director'];
     private const CUSTOMER_STATUSES = ['potential', 'leads', 'registered', 'purchased', 'serving', 'repeat', 'lost'];
     private const TRUSTED_ATTRIBUTION_SOURCES = ['order', 'appointment', 'writeoff'];
     private const AUTHORITY_PROJECTION_SOURCES = ['direct_referral', 'permanent_membership', 'permanent_attribution', 'store_acquisition'];
@@ -194,7 +195,7 @@ class FranchiseCustomerServices extends YfthFoundationBaseServices
 
     public function customerList(Request $request, array $where): array
     {
-        $scope = $this->resolveStoreScope($request);
+        $scope = $this->resolveStoreScope($request, true);
         $storeId = (int)$scope['context']['store_id'];
         [$page, $limit, $defaultLimit] = $this->getPageValue();
         $limit = $limit ?: $defaultLimit;
@@ -239,7 +240,7 @@ class FranchiseCustomerServices extends YfthFoundationBaseServices
 
     public function customerDetail(Request $request, int $relationId): array
     {
-        $scope = $this->resolveStoreScope($request);
+        $scope = $this->resolveStoreScope($request, true);
         $relation = $this->requireRelation($relationId, (int)$scope['context']['store_id']);
         $users = $this->userMap([(int)$relation['uid']]);
         $follows = app()->make(YfthCustomerFollowRecordDao::class)->search([])
@@ -288,11 +289,12 @@ class FranchiseCustomerServices extends YfthFoundationBaseServices
         return ['follow_record' => $this->formatFollow($record)];
     }
 
-    private function resolveStoreScope(Request $request): array
+    private function resolveStoreScope(Request $request, bool $readOnly = false): array
     {
         $context = app()->make(CurrentBusinessContextServices::class)->fromRequest($request);
         $roleCode = (string)($context['role_code'] ?? '');
-        if (!in_array($roleCode, self::STORE_ROLES, true)) {
+        $allowedRoles = $readOnly ? self::STORE_READ_ROLES : self::STORE_ROLES;
+        if (!in_array($roleCode, $allowedRoles, true)) {
             throw new ApiException('franchise_customer_role_forbidden');
         }
         $storeId = (int)($context['store_id'] ?? 0);
