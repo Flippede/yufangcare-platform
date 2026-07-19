@@ -189,9 +189,18 @@ foreach (['member', 'candidate', 'rule', 'legacy_backfill'] as $route) {
 
 $adminPage = (string)file_get_contents(dirname($root) . '/template/admin/src/pages/yfth/packageMembershipReferral/index.vue');
 $uniPage = (string)file_get_contents(dirname($root) . '/template/uni-app/pages/yfth/package_membership/index.vue');
+$acceptPage = (string)file_get_contents(dirname($root) . '/template/uni-app/pages/yfth/referral/accept.vue');
+$referralNavigation = (string)file_get_contents(dirname($root) . '/template/uni-app/libs/yfthReferralNavigation.js');
 $assert(strpos($adminPage, 'runBackfill') !== false, 'admin_page_has_controlled_backfill');
 $assert(strpos($adminPage, 'payout') === false, 'admin_page_has_no_automatic_payout');
-$assert(strpos($uniPage, 'acceptYfthDirectReferralInvite') !== false, 'uni_page_uses_real_invite_api');
+$assert(strpos($uniPage, 'forwardToReferralAccept') !== false, 'legacy_membership_invite_forwards_to_canonical_accept_page');
+$assert(strpos($uniPage, 'acceptYfthDirectReferralInvite') === false, 'membership_page_does_not_accept_invite_directly');
+$assert(strpos($acceptPage, 'acceptYfthDirectReferralInvite') !== false, 'canonical_accept_page_uses_real_invite_api');
+$assert(strpos($acceptPage, '进入商城首页') !== false, 'accept_success_exposes_headquarters_home_action');
+$assert(strpos($referralNavigation, "'/pages/index/index'") !== false, 'referral_success_uses_headquarters_home_route');
+$assert(strpos($referral, "'customer_status' => 'non_member'") !== false, 'accept_dto_keeps_referred_user_non_member');
+$assert(strpos($referral, "'is_permanent_member' => false") !== false, 'accept_dto_does_not_grant_membership');
+$assert(strpos($referral, "'target_page' => self::HEADQUARTERS_HOME_ROUTE") !== false, 'accept_dto_targets_headquarters_home');
 
 foreach (['5980', '9800'] as $price) {
     $assert(strpos($source, $price) === false, 'new_v2_production_has_no_hardcoded_price:' . $price);

@@ -42,6 +42,7 @@ $userApi = (string)file_get_contents(dirname($root) . '/template/uni-app/api/use
 $codePage = (string)file_get_contents(dirname($root) . '/template/uni-app/pages/yfth/referral/code.vue');
 $acceptPage = (string)file_get_contents(dirname($root) . '/template/uni-app/pages/yfth/referral/accept.vue');
 $scanPage = (string)file_get_contents(dirname($root) . '/template/uni-app/pages/yfth/referral/scan.vue');
+$referralNavigation = (string)file_get_contents(dirname($root) . '/template/uni-app/libs/yfthReferralNavigation.js');
 $roleSwitchPage = (string)file_get_contents(dirname($root) . '/template/uni-app/pages/yfth/workbench/role_switch.vue');
 $storeAcquisitionService = $read('app/services/yfth/StoreAcquisitionServices.php');
 $storeAcquisitionController = $read('app/api/controller/v1/yfth/StoreAcquisitionController.php');
@@ -139,7 +140,7 @@ foreach (['now_money', 'integral', 'couponCount', '商城资产与御方通和�
 $assert(strpos($userPage, 'goYfthReferralCode') !== false, 'permanent_member_referral_entry_exists');
 $assert(strpos($userPage, 'isYfthPermanentMember') !== false, 'referral_entry_is_membership_gated');
 foreach (['issueYfthDirectReferralInvite', 'getYfthPackageMembershipMe', 'zb-code', 'invited_count', 'store_name', '/pages/yfth/referral/accept'] as $needle) {
-    $assert(strpos($codePage . $membership, $needle) !== false, 'promotion_flow_contains:' . $needle);
+    $assert(strpos($codePage . $membership . $referralNavigation, $needle) !== false, 'promotion_flow_contains:' . $needle);
 }
 foreach (['directReferrals', 'assertReferral', 'reward_amount_cent', 'pending_amount_cent', 'settled_amount_cent', 'display_name'] as $needle) {
     $assert(strpos($membership, $needle) !== false, 'direct_referral_summary_service_contains:' . $needle);
@@ -154,7 +155,7 @@ foreach (['yfth_pending_referral_invite', 'toLogin', 'acceptYfthDirectReferralIn
     $assert(strpos($acceptPage, $needle) !== false, 'scan_login_continuation_contains:' . $needle);
 }
 foreach (['uni.scanCode', 'BarcodeDetector', 'jsQR', 'chooseQrImage', 'invite_token', '/pages/yfth/referral/accept'] as $needle) {
-    $assert(strpos($scanPage, $needle) !== false, 'referral_scan_contains:' . $needle);
+    $assert(strpos($scanPage . $referralNavigation, $needle) !== false, 'referral_scan_contains:' . $needle);
 }
 $assert(strpos($scanPage, 'onlyFromCamera: false') !== false, 'native_scanner_allows_album_qr');
 $assert(strpos($scanPage, 'onReady()') !== false && strpos($scanPage, 'this.scan()') !== false, 'referral_scanner_opens_immediately');

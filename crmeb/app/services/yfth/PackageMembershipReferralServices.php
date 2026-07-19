@@ -12,6 +12,7 @@ use think\facade\Db;
 class PackageMembershipReferralServices extends YfthFoundationBaseServices
 {
     private const DOMAIN = 'yfth_package_membership_referral';
+    private const HEADQUARTERS_HOME_ROUTE = '/pages/index/index';
     private $membership;
     private $attribution;
     private $referral;
@@ -438,9 +439,14 @@ class PackageMembershipReferralServices extends YfthFoundationBaseServices
         return [
             'changed' => (bool)($result['changed'] ?? false),
             'idempotent_replay' => (bool)($result['idempotent_replay'] ?? false),
+            'customer_status' => 'non_member',
+            'is_permanent_member' => false,
             'store_id' => $storeId,
             'store_name' => $storeName,
             'referrer_nickname' => $referrerName,
+            'next_action' => 'open_headquarters_home',
+            'target_page' => self::HEADQUARTERS_HOME_ROUTE,
+            'redirect_url' => self::HEADQUARTERS_HOME_ROUTE,
             'attribution' => $attribution ? [
                 'store_id' => (int)($attribution['store_id'] ?? 0),
                 'status' => (string)($attribution['status'] ?? ''),

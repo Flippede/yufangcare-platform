@@ -73,6 +73,7 @@
 <script>
 import { getYfthPackageMembershipMe, getYfthDirectReferrals, issueYfthDirectReferralInvite } from '@/api/yfth.js';
 import zbCode from '@/components/zb-code/zb-code.vue';
+import { YFTH_HEADQUARTERS_HOME_ROUTE, yfthReferralAcceptRoute } from '@/libs/yfthReferralNavigation.js';
 
 export default {
 	components: { zbCode },
@@ -96,7 +97,7 @@ export default {
 		promotion() { return this.profile.promotion || {}; },
 		inviteLink() {
 			if (!this.invite.invite_token) return '';
-			const path = `/pages/yfth/referral/accept?invite_token=${this.invite.invite_token}`;
+			const path = yfthReferralAcceptRoute(this.invite.invite_token);
 			// #ifdef H5
 			return `${window.location.origin}${path}`;
 			// #endif
@@ -111,7 +112,10 @@ export default {
 		}
 	},
 	onLoad() { this.load(); },
-	onShareAppMessage() { return { title: '邀请你加入御方通和', path: this.inviteLink || '/pages/yfth/package_membership/index' }; },
+	onShareAppMessage() {
+		const path = this.invite.invite_token ? yfthReferralAcceptRoute(this.invite.invite_token) : YFTH_HEADQUARTERS_HOME_ROUTE;
+		return { title: '接受御方通和推荐邀请', path };
+	},
 	methods: {
 		load() {
 			this.loading = true; this.error = '';

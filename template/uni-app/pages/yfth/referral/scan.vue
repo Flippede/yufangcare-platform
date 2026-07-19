@@ -74,6 +74,7 @@
 // #ifdef H5
 import jsQR from 'jsqr';
 // #endif
+import { yfthReferralAcceptRoute } from '@/libs/yfthReferralNavigation.js';
 
 export default {
 	data() {
@@ -269,7 +270,7 @@ export default {
 			this.stopCamera();
 			const url = target.type === 'store_acquisition'
 				? `/pages/yfth/store_acquisition/accept?acquisition_token=${target.token}`
-				: `/pages/yfth/referral/accept?invite_token=${target.token}`;
+				: yfthReferralAcceptRoute(target.token);
 			uni.navigateTo({ url });
 		},
 		extractTarget(value) {
@@ -281,7 +282,10 @@ export default {
 			if (acquisition) return { type: 'store_acquisition', token: acquisition[1].toLowerCase() };
 			const referral = /\/pages\/yfth\/referral\/accept/i.test(text)
 				? text.match(/[?&]invite_token=([a-f0-9]{64})(?:&|$)/i) : null;
-			return referral ? { type: 'referral', token: referral[1].toLowerCase() } : { type: '', token: '' };
+			if (referral) return { type: 'referral', token: referral[1].toLowerCase() };
+			const legacyReferral = /\/pages\/yfth\/package_membership\/index/i.test(text)
+				? text.match(/[?&]invite_token=([a-f0-9]{64})(?:&|$)/i) : null;
+			return legacyReferral ? { type: 'referral', token: legacyReferral[1].toLowerCase() } : { type: '', token: '' };
 		},
 		goBack() {
 			this.stopCamera();

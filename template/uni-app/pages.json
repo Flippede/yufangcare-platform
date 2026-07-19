@@ -339,7 +339,7 @@
 				{
 					"path": "referral/accept",
 					"style": {
-						"navigationBarTitleText": "接受会员邀请"
+						"navigationBarTitleText": "接受推荐邀请"
 					}
 				},
 				{

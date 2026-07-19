@@ -63,11 +63,11 @@
 
 <script>
 import {
-	acceptYfthDirectReferralInvite,
 	getYfthDirectReferralCandidates,
 	getYfthPackageMembershipMe,
 	issueYfthDirectReferralInvite
 } from '@/api/yfth.js';
+import { YFTH_HEADQUARTERS_HOME_ROUTE, yfthReferralAcceptRoute } from '@/libs/yfthReferralNavigation.js';
 
 export default {
 	data() {
@@ -81,12 +81,16 @@ export default {
 	},
 	onLoad(options) {
 		this.acceptToken = String((options && options.invite_token) || '');
+		if (/^[a-f0-9]{64}$/i.test(this.acceptToken)) {
+			this.forwardToReferralAccept(this.acceptToken);
+			return;
+		}
 		this.load();
 	},
 	onShareAppMessage() {
 		return {
-			title: '邀请你加入御方通和',
-			path: `/pages/yfth/package_membership/index?invite_token=${this.inviteToken}`
+			title: '接受御方通和推荐邀请',
+			path: this.inviteToken ? yfthReferralAcceptRoute(this.inviteToken) : YFTH_HEADQUARTERS_HOME_ROUTE
 		};
 	},
 	methods: {
@@ -108,12 +112,10 @@ export default {
 			if (!/^[a-f0-9]{64}$/.test(this.acceptToken)) {
 				uni.showToast({ title: '请输入有效邀请码', icon: 'none' }); return;
 			}
-			const operation = `invite-accept-${Date.now()}`;
-			acceptYfthDirectReferralInvite({
-				invite_token: this.acceptToken, idempotency_key: operation, request_id: operation
-			}).then(() => {
-				uni.showToast({ title: '已绑定归属门店', icon: 'success' }); this.acceptToken = ''; this.load();
-			});
+			this.forwardToReferralAccept(this.acceptToken);
+		},
+		forwardToReferralAccept(token) {
+			uni.redirectTo({ url: yfthReferralAcceptRoute(token) });
 		},
 		goPurchase() {
 			uni.navigateTo({ url: '/pages/yfth/package/list' });

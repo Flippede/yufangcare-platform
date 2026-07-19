@@ -178,6 +178,12 @@ try {
         'idempotency_key' => 'pmr-accept-flow-1',
         'request_id' => 'pmr-accept-flow-1',
     ]);
+    $assert(($accepted['customer_status'] ?? '') === 'non_member'
+        && ($accepted['is_permanent_member'] ?? true) === false,
+        'invite_accept_keeps_c2_as_non_member');
+    $assert(($accepted['target_page'] ?? '') === '/pages/index/index'
+        && ($accepted['redirect_url'] ?? '') === '/pages/index/index',
+        'invite_accept_targets_headquarters_home');
     pmrAssertRecursiveKeysAbsent($assert, $accepted, [
         'referrer_uid', 'referred_uid', 'owner_uid', 'reward_sequence_no', 'rule_version_id',
     ], 'invite_accept_user_dto');
@@ -189,6 +195,7 @@ try {
         'request_id' => 'pmr-accept-flow-1',
     ]);
     $assert(!empty($replayed['idempotent_replay']), 'invite_accept_same_request_is_idempotent_replay');
+    $assert(($replayed['target_page'] ?? '') === '/pages/index/index', 'invite_accept_replay_targets_headquarters_home');
     $assert((int)Db::name('yfth_hq_active_referral_current')->where('referred_uid', 920002)->value('id') === $relationId, 'invite_accept_replay_reuses_relation');
     $assert((int)Db::name('yfth_hq_active_referral_current')->where('referred_uid', 920002)->count() === $relationCount, 'invite_accept_replay_creates_no_relation');
     $assert((int)Db::name('yfth_hq_active_referral_event')->where('referred_uid', 920002)->count() === $eventCount, 'invite_accept_replay_creates_no_event');
@@ -202,6 +209,23 @@ try {
     );
     $assert($repair['failed'] === 0 && $repair['created'] >= 1, 'authority_customer_projection_repair_succeeds');
     $assert((int)Db::name('yfth_customer_relation')->where('uid', 920002)->where('store_id', $storeA)->where('status', 'active')->count() === 1, 'projection_repair_restores_store_customer_visibility');
+    $assert((int)Db::name('yfth_permanent_membership')->where('uid', 920002)->count() === 0,
+        'invite_accept_does_not_grant_permanent_membership');
+
+    if ((string)getenv('YFTH_REFERRAL_REDIRECT_REAL_FLOW_ONLY') === '1') {
+        pmrCleanup();
+        if ($failures) {
+            foreach ($failures as $failure) {
+                fwrite(STDERR, "[FAIL] {$failure}\n");
+            }
+            exit(1);
+        }
+        foreach ($passes as $pass) {
+            echo "[PASS] {$pass}\n";
+        }
+        echo "[OK] YFTH referral acceptance headquarters redirect real flow verified.\n";
+        exit(0);
+    }
 
     $duplicateInvite = $referral->issueInvite($c1, ['request_id' => 'pmr-existing-referral']);
     $duplicateRejected = false;
