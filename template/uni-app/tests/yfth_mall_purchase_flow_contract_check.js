@@ -18,6 +18,8 @@ const baseCss = read('static/css/base.css');
 assertContains(detail, '<productWindow', 'crm_product_sku_window_is_mounted');
 assertContains(detail, '@submit="joinCart"', 'detail_has_add_to_cart_action');
 assertContains(detail, '@submit="goBuy"', 'detail_has_buy_now_action');
+assertContains(detail, ':iScart="1"', 'sku_window_has_confirm_action');
+assertContains(detail, '@goCat="goCat"', 'sku_window_confirm_uses_crmeb_cart_action');
 assertContains(detail, "url = '/pages/goods/order_confirm/index?new=1&cartId=' + res.data.cartId", 'buy_now_uses_crmeb_order_confirmation');
 assertContains(detail, "background-color: var(--view-bntColor, #c99b5a)", 'add_to_cart_has_theme_fallback');
 assertContains(detail, "background-color: var(--view-theme, #a4773f)", 'buy_now_has_theme_fallback');
