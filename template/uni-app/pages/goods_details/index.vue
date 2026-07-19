@@ -263,10 +263,12 @@
 						<view class="title">{{ $t(`产品介绍`) }}</view>
 						<view class="conter">
 							<!-- #ifndef APP-PLUS -->
-							<parser :html="description" ref="article" :tag-style="tagStyle"></parser>
+							<parser v-if="description" :html="description" ref="article" :tag-style="tagStyle"></parser>
+							<view v-else class="product-description-empty">暂无商品图文介绍</view>
 							<!-- #endif -->
 							<!-- #ifdef APP-PLUS -->
-							<view class="description" v-html="description"></view>
+							<view v-if="description" class="description" v-html="description"></view>
+							<view v-else class="product-description-empty">暂无商品图文介绍</view>
 							<!-- #endif -->
 						</view>
 					</view>
@@ -1888,13 +1890,13 @@ export default {
 
 .product-con .footer .bnt .joinCart {
 	border-radius: 50rpx 0 0 50rpx;
-	background-color: var(--view-bntColor);
+	background-color: var(--view-bntColor, #c99b5a);
 	// background-image: linear-gradient(to right, #fea10f 0%, #fa8013 100%);
 }
 
 .product-con .footer .bnt .buy {
 	border-radius: 0 50rpx 50rpx 0;
-	background-color: var(--view-theme);
+	background-color: var(--view-theme, #a4773f);
 	// background-image: linear-gradient(to right, #fa6514 0%, #e93323 100%);
 }
 

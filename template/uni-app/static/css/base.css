@@ -2,15 +2,45 @@
 
 /* #ifdef H5 */
 :root {
-	/* --view-theme: red;
-	--view-fontColor: #333 */
+	/*
+	 * CRMEB normally injects these from the page-decoration color endpoint.
+	 * Keep a complete warm default for direct H5 routes and early page renders,
+	 * so critical order actions never become transparent before that async
+	 * configuration arrives. A configured theme still overrides these values.
+	 */
+	--view-theme: #a4773f;
+	--view-theme-16: #a4773f;
+	--view-priceColor: #a4773f;
+	--view-minorColor: rgba(164, 119, 63, 0.5);
+	--view-minorColorT: rgba(164, 119, 63, 0.1);
+	--view-bntColor: #c99b5a;
+	--view-op-ten: rgba(164, 119, 63, 0.1);
+	--view-main-start: #d8b16f;
+	--view-main-over: #a4773f;
+	--view-op-point-four: rgba(164, 119, 63, 0.04);
+	--view-op-point-eight: rgba(164, 119, 63, 0.8);
+	--view-linear: linear-gradient(180deg, rgba(164, 119, 63, 0.2) 0%, rgba(255, 255, 255, 0) 100%);
+	--view-gradient: #d8b16f;
+	--view-fontColor: #333;
 }
 
 /* #endif */
 /* #ifdef MP */
 page {
-	/* --view-theme: #fff;
-	--view-fontColor: #333 */
+	--view-theme: #a4773f;
+	--view-theme-16: #a4773f;
+	--view-priceColor: #a4773f;
+	--view-minorColor: rgba(164, 119, 63, 0.5);
+	--view-minorColorT: rgba(164, 119, 63, 0.1);
+	--view-bntColor: #c99b5a;
+	--view-op-ten: rgba(164, 119, 63, 0.1);
+	--view-main-start: #d8b16f;
+	--view-main-over: #a4773f;
+	--view-op-point-four: rgba(164, 119, 63, 0.04);
+	--view-op-point-eight: rgba(164, 119, 63, 0.8);
+	--view-linear: linear-gradient(180deg, rgba(164, 119, 63, 0.2) 0%, rgba(255, 255, 255, 0) 100%);
+	--view-gradient: #d8b16f;
+	--view-fontColor: #333;
 }
 
 /* #endif */
