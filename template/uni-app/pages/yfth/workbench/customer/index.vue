@@ -9,7 +9,7 @@
 			<button class="light" @click="goWorkbench">工作台</button>
 		</view>
 
-		<view class="search-panel">
+		<view v-if="contextReady" class="search-panel">
 			<input v-model="where.keyword" placeholder="按客户关系ID查询" @confirm="load(true)" />
 			<picker mode="selector" :range="statusOptions" range-key="label" @change="changeStatus">
 				<view class="picker">{{ currentStatusLabel }}</view>
@@ -17,7 +17,7 @@
 			<button @click="load(true)">查询</button>
 		</view>
 
-		<view class="bind-panel">
+		<view v-if="contextReady" class="bind-panel">
 			<view class="panel-title">客户归属绑定</view>
 			<view class="bind-row">
 				<picker mode="selector" :range="sourceOptions" range-key="label" @change="changeSource">
@@ -29,7 +29,16 @@
 			<view class="hint">仅允许从本店真实订单、预约或核销记录建立归属；不能直接输入客户 UID。</view>
 		</view>
 
-		<view v-if="loading" class="empty">正在加载客户...</view>
+		<view v-if="contextLoading" class="empty">正在校验当前经营身份和门店...</view>
+		<view v-else-if="contextError" class="empty error-state">
+			<view>{{ contextError }}</view>
+			<button @click="ensureContext">重新校验</button>
+		</view>
+		<view v-else-if="loading" class="empty">正在加载客户...</view>
+		<view v-else-if="listError" class="empty error-state">
+			<view>{{ listError }}</view>
+			<button @click="load(true)">重新加载</button>
+		</view>
 		<view v-else-if="!list.length" class="empty">当前门店暂无客户关系。</view>
 		<view v-else>
 			<view v-for="item in list" :key="item.id" class="customer-card" @click="goDetail(item)">
@@ -52,13 +61,17 @@
 
 <script>
 import { createYfthCustomerRelation, getYfthCustomerList } from '@/api/yfth.js';
-import { currentContext } from '@/libs/yfthContext.js';
+import { currentContext, isBusinessRole, loadYfthIdentities, resolveDominantYfthContext, resolveYfthContext } from '@/libs/yfthContext.js';
 
 export default {
 	data() {
 		return {
 			loading: false,
+			listError: '',
+			contextLoading: true,
+			contextError: '',
 			context: {},
+			requestedContext: { role_code: '', store_id: 0 },
 			where: { keyword: '', customer_status: '', page: 1, limit: 20 },
 			list: [],
 			bindForm: { source: 'order', reference_id: '' },
@@ -80,6 +93,9 @@ export default {
 		};
 	},
 	computed: {
+		contextReady() {
+			return Boolean(this.context && isBusinessRole(this.context.role_code) && Number(this.context.store_id) > 0);
+		},
 		currentStatusLabel() {
 			const found = this.statusOptions.find((item) => item.value === this.where.customer_status);
 			return found ? found.label : '全部状态';
@@ -89,16 +105,43 @@ export default {
 			return found ? found.label : '订单';
 		}
 	},
+	onLoad(options) {
+		options = options || {};
+		this.requestedContext = {
+			role_code: String(options.role_code || ''),
+			store_id: Number(options.store_id || 0)
+		};
+	},
 	onShow() {
-		this.context = currentContext();
-		if (!this.context.role_code || !this.context.store_id) {
-			uni.showToast({ title: '正在读取当前经营身份', icon: 'none' });
-			uni.reLaunch({ url: '/pages/yfth/workbench/index' });
-			return;
-		}
-		this.load(true);
+		this.ensureContext();
 	},
 	methods: {
+		ensureContext() {
+			const cached = currentContext();
+			const roleCode = this.requestedContext.role_code || cached.role_code || '';
+			const storeId = Number(this.requestedContext.store_id || cached.store_id || 0);
+			this.contextLoading = true;
+			this.contextError = '';
+			const resolver = roleCode && storeId
+				? resolveYfthContext(roleCode, storeId)
+				: loadYfthIdentities().then((identities) => resolveDominantYfthContext(identities));
+			return resolver.then((context) => {
+				if (!context || !isBusinessRole(context.role_code) || Number(context.store_id || 0) < 1) {
+					throw new Error('当前账号没有可用的门店客户权限');
+				}
+				this.context = context;
+				this.requestedContext = {
+					role_code: context.role_code,
+					store_id: Number(context.store_id)
+				};
+				return this.load(true);
+			}).catch((err) => {
+				this.context = {};
+				this.contextError = String((err && err.msg) || (err && err.message) || err || '经营身份校验失败');
+			}).finally(() => {
+				this.contextLoading = false;
+			});
+		},
 		contextParams(extra) {
 			return Object.assign({
 				role_code: this.context.role_code,
@@ -110,10 +153,13 @@ export default {
 				this.where.page = 1;
 			}
 			this.loading = true;
+			this.listError = '';
 			getYfthCustomerList(this.contextParams(this.where)).then((res) => {
 				this.list = (res.data && res.data.list) || [];
 			}).catch((err) => {
-				uni.showToast({ title: String((err && err.msg) || err), icon: 'none' });
+				this.list = [];
+				this.listError = String((err && err.msg) || (err && err.message) || err || '客户列表加载失败');
+				uni.showToast({ title: this.listError, icon: 'none' });
 			}).finally(() => {
 				this.loading = false;
 			});
@@ -182,4 +228,5 @@ button { background: #6f4c2f; color: #fff; border-radius: 10rpx; height: 64rpx; 
 .badge { background: #f5efe4; color: #8a725c; border-radius: 999rpx; padding: 10rpx 18rpx; font-size: 22rpx; }
 .badge.on { background: #e8d6ad; color: #6f4c2f; font-weight: 700; }
 .empty { text-align: center; color: #786b73; }
+.error-state button { margin: 20rpx auto 0; }
 </style>

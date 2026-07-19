@@ -52,6 +52,10 @@ assert(context.includes('resolveDominantYfthContext'), 'cached lower roles must 
 assert(context.includes('PARTNER_ROLES.forEach((role) => { YFTH_ROLE_NAVS[role] = YFTH_ROLE_NAVS.franchisee; })'), 'partner roles must inherit the headquarters mall and user-center entries');
 assert(context.indexOf('export const YFTH_ROLE_NAVS = {') < context.indexOf('PARTNER_ROLES.forEach((role) => { YFTH_ROLE_NAVS[role] = YFTH_ROLE_NAVS.franchisee; })'), 'partner navigation inheritance must run after YFTH_ROLE_NAVS initialization');
 assert(context.includes('enterYfthBusinessMall') && context.includes('leaveYfthBusinessMall') && context.includes('isYfthBusinessMallBrowsing'), 'business mall browsing must be explicit and session-scoped');
+assert(context.includes("const BUSINESS_SURFACE_KEY = 'YFTH_BUSINESS_SURFACE'"), 'business mall and user-center intent must survive a tab chunk reload');
+assert(context.includes("Cache.set(BUSINESS_SURFACE_KEY, { uid, action }, BUSINESS_SURFACE_TTL)"), 'business surface intent must be scoped to the current uid and expire');
+assert(context.includes("Number(surface.uid) !== uid"), 'business surface intent must be rejected after a user switch');
+assert(!context.includes('let businessMallBrowsing = false'), 'business mall intent must not rely on module memory only');
 assert(context.includes("title: '分类', url: '/pages/goods_cate/goods_cate'") && context.includes("title: '购物车', url: '/pages/order_addcart/order_addcart'"), 'customer navigation must remain the fixed four-tab contract');
 
 assertNotContains('pages/yfth/workbench/index.vue', "/pages/admin/yfth_writeoff/index", 'user-token workbench must not link to admin writeoff page');
@@ -75,11 +79,16 @@ assertNotContains('pages/yfth/workbench/role_switch.vue', 'chooseCustomer', 'rol
 assertContains('pages/yfth/workbench/role_switch.vue', 'dominantYfthIdentities', 'role selection must show only the highest role');
 assertContains('pages/yfth/workbench/store_switch.vue', 'dominantYfthIdentities', 'store selection must stay within the highest role');
 assertContains('pages/yfth/workbench/index.vue', '/pages/yfth/workbench/customer/index', 'workbench must link to customer relation page');
+assertContains('pages/yfth/workbench/index.vue', 'role_code=${role}&store_id=${storeId}', 'customer navigation must carry the last server-verified role and store selection');
 
 assertContains('api/yfth.js', 'yfth/customer/list', 'user API helper must expose customer list');
 assertContains('api/yfth.js', 'yfth/customer/relation', 'user API helper must expose customer relation binding');
 assertContains('api/yfth.js', "yfth/customer/' + id + '/follow", 'user API helper must expose customer follow record');
 assertContains('pages/yfth/workbench/customer/index.vue', 'currentContext', 'customer page must use current user-token context');
+assertContains('pages/yfth/workbench/customer/index.vue', 'resolveYfthContext(roleCode, storeId)', 'customer page must revalidate role and store server-side');
+assertContains('pages/yfth/workbench/customer/index.vue', 'resolveDominantYfthContext(identities)', 'customer page must recover a missing context from server identities');
+assertNotContains('pages/yfth/workbench/customer/index.vue', "uni.reLaunch({ url: '/pages/yfth/workbench/index' })", 'customer context failure must render an explicit error instead of silently bouncing');
+assertContains('pages/yfth/workbench/customer/index.vue', 'this.listError = String', 'customer API failures must remain visible instead of looking like an empty list');
 assertContains('pages/yfth/workbench/customer/index.vue', 'phone_masked', 'customer list must render masked phone only');
 assertNotContains('pages/yfth/workbench/customer/index.vue', 'phone }}</', 'customer list must not render raw phone');
 

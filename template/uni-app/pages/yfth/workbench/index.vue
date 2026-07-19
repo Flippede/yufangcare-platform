@@ -365,6 +365,7 @@ export default {
 	},
 	onShow() {
 		leaveYfthBusinessMall();
+		leaveYfthBusinessUserCenter();
 		this.load();
 	},
 	methods: {
@@ -595,7 +596,14 @@ export default {
 			uni.navigateTo({ url: '/pages/yfth/workbench/store_switch' });
 		},
 		goCustomers() {
-			uni.navigateTo({ url: '/pages/yfth/workbench/customer/index' });
+			const role = encodeURIComponent(this.context.role_code || '');
+			const storeId = Number(this.context.store_id || 0);
+			uni.navigateTo({
+				url: `/pages/yfth/workbench/customer/index?role_code=${role}&store_id=${storeId}`,
+				fail: (err) => {
+					uni.showToast({ title: String((err && err.errMsg) || '客户页面打开失败'), icon: 'none' });
+				}
+			});
 		},
 		goPurchase() {
 			uni.navigateTo({ url: '/pages/yfth/workbench/purchase/index' });
@@ -631,7 +639,14 @@ export default {
 				if (item.action === 'mall') enterYfthBusinessMall();
 				if (item.action === 'user_center') enterYfthBusinessUserCenter();
 				const fn = item.type === 'switchTab' ? uni.switchTab : uni.navigateTo;
-				fn({ url: item.url });
+				fn({
+					url: item.url,
+					fail: (err) => {
+						leaveYfthBusinessMall();
+						leaveYfthBusinessUserCenter();
+						uni.showToast({ title: String((err && err.errMsg) || '页面打开失败'), icon: 'none' });
+					}
+				});
 				return;
 			}
 			this.openPane(item.pane || 'dashboard');

@@ -64,8 +64,8 @@ PARTNER_ROLES.forEach((role) => { YFTH_ROLE_NAVS[role] = YFTH_ROLE_NAVS.franchis
 const CONTEXT_KEY = 'YFTH_CURRENT_CONTEXT';
 const ROLE_KEY = 'YFTH_CURRENT_ROLE';
 const STORE_KEY = 'YFTH_CURRENT_STORE';
-let businessMallBrowsing = false;
-let businessUserCenterBrowsing = false;
+const BUSINESS_SURFACE_KEY = 'YFTH_BUSINESS_SURFACE';
+const BUSINESS_SURFACE_TTL = 2 * 60 * 60;
 
 export const YFTH_ROLE_PRIORITY = {
 	franchisee: 400,
@@ -114,6 +114,7 @@ export function clearYfthContext() {
 	Cache.clear(CONTEXT_KEY);
 	Cache.clear(ROLE_KEY);
 	Cache.clear(STORE_KEY);
+	Cache.clear(BUSINESS_SURFACE_KEY);
 }
 
 export function loadYfthIdentities() {
@@ -121,27 +122,27 @@ export function loadYfthIdentities() {
 }
 
 export function enterYfthBusinessMall() {
-	businessMallBrowsing = true;
+	writeBusinessSurface('mall');
 }
 
 export function leaveYfthBusinessMall() {
-	businessMallBrowsing = false;
+	clearBusinessSurface('mall');
 }
 
 export function isYfthBusinessMallBrowsing() {
-	return businessMallBrowsing;
+	return readBusinessSurface().action === 'mall';
 }
 
 export function enterYfthBusinessUserCenter() {
-	businessUserCenterBrowsing = true;
+	writeBusinessSurface('user_center');
 }
 
 export function leaveYfthBusinessUserCenter() {
-	businessUserCenterBrowsing = false;
+	clearBusinessSurface('user_center');
 }
 
 export function isYfthBusinessUserCenterBrowsing() {
-	return businessUserCenterBrowsing;
+	return readBusinessSurface().action === 'user_center';
 }
 
 export function dominantYfthIdentities(identities) {
@@ -224,4 +225,30 @@ function normalizeContext(context) {
 
 function currentUid() {
 	return Number(Cache.get(UID) || 0);
+}
+
+function readBusinessSurface() {
+	if (!Cache.has(BUSINESS_SURFACE_KEY)) return {};
+	const surface = Cache.get(BUSINESS_SURFACE_KEY, true);
+	const uid = currentUid();
+	if (!surface || typeof surface !== 'object' || !uid || Number(surface.uid) !== uid) {
+		Cache.clear(BUSINESS_SURFACE_KEY);
+		return {};
+	}
+	return surface;
+}
+
+function writeBusinessSurface(action) {
+	const uid = currentUid();
+	if (!uid || ['mall', 'user_center'].indexOf(action) === -1) {
+		Cache.clear(BUSINESS_SURFACE_KEY);
+		return;
+	}
+	// This is navigation state only. Every operating API still revalidates role and store server-side.
+	Cache.set(BUSINESS_SURFACE_KEY, { uid, action }, BUSINESS_SURFACE_TTL);
+}
+
+function clearBusinessSurface(action) {
+	const surface = readBusinessSurface();
+	if (!action || surface.action === action) Cache.clear(BUSINESS_SURFACE_KEY);
 }
