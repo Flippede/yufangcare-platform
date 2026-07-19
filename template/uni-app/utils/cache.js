@@ -18,6 +18,24 @@ class Cache {
 		this.cacheSetHandler = uni.setStorageSync;
 		this.cacheGetHandler = uni.getStorageSync;
 		this.cacheClearHandler = uni.removeStorageSync;
+		// #ifdef H5
+		// Some H5 runtimes expose uni storage methods as unimplemented stubs. Keep
+		// authentication and YFTH role/store context durable across tab switches
+		// and browser refreshes by using the browser's native storage directly.
+		if (typeof window !== 'undefined' && window.localStorage) {
+			this.cacheSetHandler = (key, value) => window.localStorage.setItem(key, JSON.stringify(value));
+			this.cacheGetHandler = (key) => {
+				const value = window.localStorage.getItem(key);
+				if (value === null) return '';
+				try {
+					return JSON.parse(value);
+				} catch (e) {
+					return value;
+				}
+			};
+			this.cacheClearHandler = (key) => window.localStorage.removeItem(key);
+		}
+		// #endif
 		this.cacheExpire = 'UNI-APP-CRMEB:TAG';
 		this.clearOverdue();
 	}

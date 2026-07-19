@@ -150,6 +150,11 @@ export default {
 		let curRoute = routes[routes.length - 1].route; //获取当前页面路由
 		this.activeRouter = '/' + curRoute;
 	},
+	pageLifetimes: {
+		show() {
+			this.refreshBusinessNavigation();
+		}
+	},
 	mounted() {
 		if (this.businessMode) {
 			uni.hideTabBar();
@@ -173,6 +178,17 @@ export default {
 		};
 	},
 	methods: {
+		refreshBusinessNavigation() {
+			this.businessMode = false;
+			this.businessNavs = [];
+			this.businessActiveAction = '';
+			this.setupBusinessNavigation();
+			if (this.businessMode) {
+				uni.hideTabBar();
+				return;
+			}
+			this.navigationInfo();
+		},
 		setupBusinessNavigation() {
 			const mallBrowsing = isYfthBusinessMallBrowsing();
 			const userCenterBrowsing = isYfthBusinessUserCenterBrowsing();

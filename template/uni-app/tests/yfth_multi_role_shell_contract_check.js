@@ -40,6 +40,7 @@ assert(userPage.includes('yfthBusinessIdentityRequestSeq'), 'user center must gu
 assert(userPage.includes('requestUid') && userPage.includes('currentUid'), 'user center must prevent stale identity requests from writing after user switch');
 
 const context = read('libs/yfthContext.js');
+const cache = read('utils/cache.js');
 assert(context.includes("const PARTNER_ROLES = ['county_partner', 'prefecture_partner', 'province_partner', 'regional_director', 'platform_director']"), 'all five partner ranks must be operating roles');
 assert(context.includes("['franchisee', 'store_manager', 'store_staff', 'service_mentor'].concat(PARTNER_ROLES)"), 'business role whitelist must include legacy and partner roles');
 assert(context.includes('getYfthContext(data)'), 'role/store context must be verified by the backend');
@@ -56,6 +57,7 @@ assert(context.includes("const BUSINESS_SURFACE_KEY = 'YFTH_BUSINESS_SURFACE'"),
 assert(context.includes("Cache.set(BUSINESS_SURFACE_KEY, { uid, action }, BUSINESS_SURFACE_TTL)"), 'business surface intent must be scoped to the current uid and expire');
 assert(context.includes("Number(surface.uid) !== uid"), 'business surface intent must be rejected after a user switch');
 assert(!context.includes('let businessMallBrowsing = false'), 'business mall intent must not rely on module memory only');
+assert(cache.includes('window.localStorage.setItem') && cache.includes('window.localStorage.getItem'), 'H5 auth and operating context must survive tab switches and browser refreshes');
 assert(context.includes("title: '分类', url: '/pages/goods_cate/goods_cate'") && context.includes("title: '购物车', url: '/pages/order_addcart/order_addcart'"), 'customer navigation must remain the fixed four-tab contract');
 
 assertNotContains('pages/yfth/workbench/index.vue', "/pages/admin/yfth_writeoff/index", 'user-token workbench must not link to admin writeoff page');
@@ -110,6 +112,7 @@ assertContains('utils/yfthH5Fallback.js', 'isWhitelistedFallbackApi', 'fallback 
 assertContains('utils/yfthH5Fallback.js', "host === 'localhost' || host === '127.0.0.1' || host === '::1'", 'fallback helper must require local dev server host');
 
 const pageFooter = read('components/pageFooter/index.vue');
+assert(pageFooter.includes('pageLifetimes') && pageFooter.includes('this.refreshBusinessNavigation()'), 'reused tab pages must refresh role navigation whenever they become visible');
 assertContains('components/pageFooter/index.vue', 'keepCurrentNavigation', 'footer request failure must preserve valid navigation');
 assertContains('components/pageFooter/index.vue', 'this.getNavigationInfo(footerNavigation)', 'footer refresh failure must retain cached navigation');
 assertNotContains('components/pageFooter/index.vue', '.catch(() => {\n\t\t\t\t\tthis.setNavigationInfo({});', 'footer catch must not unconditionally clear navigation');
