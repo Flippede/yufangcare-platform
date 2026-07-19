@@ -20,14 +20,23 @@ class HomepageServices
         $fallbackCategoryId = $this->fallbackCategoryId($categories);
 
         foreach ($config['quick_entries'] as &$entry) {
-            $entry['target'] = $this->target($entry, $fallbackCategoryId);
+            $entryCategoryId = (int)$entry['category_id'] ?: $this->categoryIdForTitle(
+                (string)($entry['title'] ?? ''),
+                $categories,
+                $fallbackCategoryId
+            );
+            $entry['target'] = $this->target($entry, $entryCategoryId);
             $entry['icon_url'] = $this->fileUrl($entry['icon_url'] ?? '');
             unset($entry['product_ids'], $entry['package_id'], $entry['category_id']);
         }
         unset($entry);
 
         foreach ($config['sections'] as &$section) {
-            $categoryId = (int)$section['category_id'] ?: $fallbackCategoryId;
+            $categoryId = (int)$section['category_id'] ?: $this->categoryIdForTitle(
+                (string)($section['title'] ?? ''),
+                $categories,
+                $fallbackCategoryId
+            );
             $section['target'] = $this->target($section, $categoryId);
             $section['items'] = $section['content_type'] === 'package'
                 ? $this->packages((int)$section['package_id'], (int)$section['display_limit'])
@@ -247,6 +256,25 @@ class HomepageServices
             }
         }
         return isset($categories[0]) ? (int)$categories[0]['id'] : 0;
+    }
+
+    private function categoryIdForTitle(string $title, array $categories, int $fallbackCategoryId): int
+    {
+        $normalizedTitle = $this->normalizeCategoryTitle($title);
+        if ($normalizedTitle === '') {
+            return $fallbackCategoryId;
+        }
+        foreach ($categories as $category) {
+            if ($this->normalizeCategoryTitle((string)($category['cate_name'] ?? '')) === $normalizedTitle) {
+                return (int)$category['id'];
+            }
+        }
+        return $fallbackCategoryId;
+    }
+
+    private function normalizeCategoryTitle(string $title): string
+    {
+        return trim(str_replace(['产品区', ' '], '', $title));
     }
 
     private function products(int $categoryId, array $productIds, int $limit): array

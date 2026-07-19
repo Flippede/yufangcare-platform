@@ -49,6 +49,8 @@ foreach ([
     'no_hardcoded_product_id' => "product_ids' => []",
     'homepage_featured_product' => "'featured_product' => \$this->featuredProduct()",
     'purchasable_product_stock' => "->where('stock', '>', 0)",
+    'category_title_fallback' => 'categoryIdForTitle(',
+    'category_title_normalization' => "str_replace(['产品区', ' '], '', \$title)",
 ] as $name => $needle) {
     if (strpos($service, $needle) === false) {
         fwrite(STDERR, "missing_service_contract:$name\n");
