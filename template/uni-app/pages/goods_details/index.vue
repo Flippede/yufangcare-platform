@@ -577,6 +577,7 @@ export default {
 			isAuto: false, //没有授权的不会自动授权
 			isShowAuth: false, //是否隐藏授权
 			isOpen: false, //是否打开属性组件
+			purchaseMode: 0, // 0: 加入购物车，1: 立即购买；规格弹层确认事件不携带该意图
 			actionSheetHidden: true,
 			posterImageStatus: false,
 			storeImage: '', //海报产品图
@@ -1420,6 +1421,7 @@ export default {
 		onMyEvent: function () {
 			this.$set(this.attr, 'cartAttr', false);
 			this.$set(this, 'isOpen', false);
+			this.purchaseMode = 0;
 			this.isGiftOrder = 0;
 		},
 		/**
@@ -1432,6 +1434,7 @@ export default {
 				toLogin();
 			} else {
 				this.$refs.proSwiper.videoIsPause();
+				this.purchaseMode = 0;
 				this.goCat();
 			}
 		},
@@ -1446,6 +1449,7 @@ export default {
 		goCat(news) {
 			let that = this,
 				productSelect = that.productValue[this.attrValue];
+			const buyNow = news === true || that.purchaseMode === 1;
 			that.currentPage = false;
 			//打开属性
 			if (that.attrValue) {
@@ -1472,7 +1476,7 @@ export default {
 			let q = {
 				productId: that.id,
 				cartNum: that.attr.productSelect.cart_num,
-				new: news === undefined ? 0 : 1,
+				new: buyNow ? 1 : 0,
 				uniqueId: that.attr.productSelect !== undefined ? that.attr.productSelect.unique : '',
 				virtual_type: that.storeInfo.virtual_type
 			};
@@ -1480,7 +1484,7 @@ export default {
 				.then((res) => {
 					that.isOpen = false;
 					that.attr.cartAttr = false;
-					if (news) {
+					if (buyNow) {
 						let url = '/pages/goods/order_confirm/index?new=1&cartId=' + res.data.cartId;
 						if (this.isGiftOrder) url += '&is_gift=' + this.isGiftOrder;
 						uni.navigateTo({
@@ -1494,6 +1498,7 @@ export default {
 							}
 						});
 					}
+					that.purchaseMode = 0;
 					this.isGiftOrder = 0;
 				})
 				.catch((err) => {
@@ -1540,6 +1545,7 @@ export default {
 				toLogin();
 			} else {
 				this.$refs.proSwiper.videoIsPause();
+				this.purchaseMode = 1;
 				this.goCat(true);
 			}
 		},
