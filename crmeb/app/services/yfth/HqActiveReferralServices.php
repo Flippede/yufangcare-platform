@@ -220,6 +220,55 @@ class HqActiveReferralServices extends YfthFoundationBaseServices
         return $this->transition($relationId, $expectedVersion, ['active', 'paused'], 'invalid', 'relation_invalid', $closeReason, false, $mutation);
     }
 
+    public function invalidateWithLockedCurrentsInTransaction(
+        int $relationId,
+        int $expectedVersion,
+        string $closeReason,
+        HqAuthorityMutation $mutation,
+        array $lockedCurrents
+    ): array {
+        $closeReason = trim($closeReason);
+        if ($closeReason === '') {
+            throw new ApiException('referral_invalid_reason_required');
+        }
+        $row = $this->row($this->dao->search([])->where('id', $relationId)->lock(true)->find());
+        if (!$row) {
+            throw new ApiException('referral_relation_not_found');
+        }
+        $this->assertConsistent($row);
+        if ((int)$row['relation_version'] !== $expectedVersion) {
+            throw new ApiException('referral_version_conflict');
+        }
+        if (!in_array((string)$row['status'], ['active', 'paused'], true)) {
+            throw new ApiException('referral_status_transition_forbidden');
+        }
+        $referrerUid = (int)$row['referrer_uid'];
+        $referredUid = (int)$row['referred_uid'];
+        if (!isset($lockedCurrents[$referrerUid], $lockedCurrents[$referredUid])) {
+            throw new ApiException('referral_lock_set_incomplete');
+        }
+        $this->assertAttributionForTransition((array)$lockedCurrents[$referrerUid], (int)$row['store_id'], true);
+        $this->assertAttributionForTransition((array)$lockedCurrents[$referredUid], (int)$row['store_id'], true);
+
+        $eventType = 'relation_invalid';
+        $sourceKey = $this->canonicalizer->referralEvent($eventType, $mutation->source());
+        $now = time();
+        $update = [
+            'status' => 'invalid',
+            'active_referred_uid' => null,
+            'paused_at' => 0,
+            'closed_at' => $now,
+            'close_reason' => substr($closeReason, 0, 64),
+            'relation_version' => $expectedVersion + 1,
+            'request_id' => $mutation->requestId(),
+            'update_time' => $now,
+        ];
+        $this->dao->update($relationId, $update);
+        $after = array_merge($row, $update);
+        $this->appendEvent($row, $after, $eventType, $sourceKey, $mutation);
+        return $this->result($row, $after, true);
+    }
+
     private function transition(
         int $relationId,
         int $expectedVersion,
@@ -253,8 +302,9 @@ class HqActiveReferralServices extends YfthFoundationBaseServices
                 if (!in_array((string)$row['status'], $fromStatuses, true)) {
                     throw new ApiException('referral_status_transition_forbidden');
                 }
-                $this->assertActiveAttribution($attributions[(int)$row['referrer_uid']], (int)$row['store_id']);
-                $this->assertActiveAttribution($attributions[(int)$row['referred_uid']], (int)$row['store_id']);
+                $allowPausedAttribution = in_array($toStatus, ['closed', 'invalid'], true);
+                $this->assertAttributionForTransition($attributions[(int)$row['referrer_uid']], (int)$row['store_id'], $allowPausedAttribution);
+                $this->assertAttributionForTransition($attributions[(int)$row['referred_uid']], (int)$row['store_id'], $allowPausedAttribution);
                 if ($requireQualification) {
                     $this->qualification->assertQualified((int)$row['referrer_uid'], (int)$row['store_id']);
                 }
@@ -320,6 +370,15 @@ class HqActiveReferralServices extends YfthFoundationBaseServices
     private function assertActiveAttribution(array $row, int $storeId): void
     {
         if ((string)$row['status'] !== 'active' || (int)$row['store_id'] !== $storeId || $storeId <= 0) {
+            throw new ApiException('referral_attribution_store_mismatch');
+        }
+    }
+
+    private function assertAttributionForTransition(array $row, int $storeId, bool $allowPaused): void
+    {
+        $allowedStatuses = $allowPaused ? ['active', 'paused'] : ['active'];
+        if (!in_array((string)$row['status'], $allowedStatuses, true)
+            || (int)$row['store_id'] !== $storeId || $storeId <= 0) {
             throw new ApiException('referral_attribution_store_mismatch');
         }
     }

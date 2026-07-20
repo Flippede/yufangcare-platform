@@ -4,6 +4,7 @@ namespace app\services\yfth;
 
 use app\dao\yfth\YfthPermanentMembershipDao;
 use app\dao\yfth\YfthPermanentMembershipEventDao;
+use app\dao\yfth\YfthHqCustomerAttributionCurrentDao;
 use crmeb\exceptions\ApiException;
 use think\facade\Db;
 
@@ -12,16 +13,19 @@ class PackageMembershipServices extends YfthFoundationBaseServices
     private const DOMAIN = 'yfth_package_membership_referral';
     private $eventDao;
     private $attribution;
+    private $attributionDao;
     private $audit;
 
     public function __construct(
         YfthPermanentMembershipDao $dao,
         YfthPermanentMembershipEventDao $eventDao,
+        YfthHqCustomerAttributionCurrentDao $attributionDao,
         HqCustomerAttributionServices $attribution,
         AuditEventServices $audit
     ) {
         $this->dao = $dao;
         $this->eventDao = $eventDao;
+        $this->attributionDao = $attributionDao;
         $this->attribution = $attribution;
         $this->audit = $audit;
     }
@@ -41,6 +45,7 @@ class PackageMembershipServices extends YfthFoundationBaseServices
             'member' => [
                 'membership_no' => '',
                 'store_id' => (int)$authority['store_id'],
+                'binding_status' => (string)($authority['binding_status'] ?? ((int)$authority['store_id'] > 0 ? 'bound' : 'unbound')),
                 'status' => 'active',
                 'activated_at' => (int)$authority['activated_at'],
                 'actual_paid_amount_cent' => $this->moneyToCents($authority['order_pay_price']),
@@ -62,17 +67,18 @@ class PackageMembershipServices extends YfthFoundationBaseServices
         $member = $this->row($query->find());
         if ($member) {
             $member['authority_type'] = 'persisted';
+            $member = $this->applyCurrentBindingStore($member);
             return $member;
         }
         $legacy = $this->legacyPackageFactForUid($uid);
         if (!$legacy) {
             return [];
         }
-        return array_merge($legacy, [
+        return $this->applyCurrentBindingStore(array_merge($legacy, [
             'authority_type' => 'historical_package_activation',
             'source_package_instance_id' => (int)$legacy['instance_id'],
             'source_purchase_id' => (int)$legacy['purchase_id'],
-        ]);
+        ]));
     }
 
     public function assertEffectiveActive(int $uid, int $storeId = 0, bool $lockPersisted = false): array
@@ -91,9 +97,29 @@ class PackageMembershipServices extends YfthFoundationBaseServices
             $query = $query->lock(true);
         }
         $member = $this->row($query->find());
+        if ($member) {
+            $member = $this->applyCurrentBindingStore($member);
+        }
         if (!$member || ($storeId > 0 && (int)$member['store_id'] !== $storeId)) {
             throw new ApiException('permanent_membership_required');
         }
+        return $member;
+    }
+
+    private function applyCurrentBindingStore(array $member): array
+    {
+        $uid = (int)($member['uid'] ?? 0);
+        if ($uid <= 0) {
+            return $member;
+        }
+        $current = $this->row($this->attributionDao->getOne(['uid' => $uid]));
+        if (!$current || ((string)$current['status'] === 'unassigned' && (int)$current['authority_version'] === 0)) {
+            return $member;
+        }
+        $member['membership_origin_store_id'] = (int)($member['store_id'] ?? 0);
+        $member['store_id'] = in_array((string)$current['status'], ['active', 'paused'], true)
+            ? (int)$current['store_id'] : 0;
+        $member['binding_status'] = (int)$member['store_id'] > 0 ? 'bound' : 'unbound';
         return $member;
     }
 
@@ -293,6 +319,7 @@ class PackageMembershipServices extends YfthFoundationBaseServices
         return [
             'membership_no' => (string)$row['membership_no'],
             'store_id' => (int)$row['store_id'],
+            'binding_status' => (string)($row['binding_status'] ?? ((int)$row['store_id'] > 0 ? 'bound' : 'unbound')),
             'status' => (string)$row['status'],
             'activated_at' => (int)$row['activated_at'],
             'actual_paid_amount_cent' => (int)$row['actual_paid_amount_cent'],

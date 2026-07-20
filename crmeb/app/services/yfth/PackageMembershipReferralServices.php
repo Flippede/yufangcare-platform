@@ -74,6 +74,39 @@ class PackageMembershipReferralServices extends YfthFoundationBaseServices
         ];
     }
 
+    public function bindStoreFromQr(int $uid, int $storeId, array $data): array
+    {
+        if ($uid <= 0 || $storeId <= 0) {
+            throw new ApiException('store_qr_binding_target_invalid');
+        }
+        $idempotencyKey = trim((string)($data['idempotency_key'] ?? ''));
+        if ($idempotencyKey === '' || strlen($idempotencyKey) > 128) {
+            throw new ApiException('authority_idempotency_key_required');
+        }
+        $requestId = trim((string)($data['request_id'] ?? ''));
+        if ($requestId === '') {
+            $requestId = 'store-qr-bind-' . substr(hash('sha256', $idempotencyKey), 0, 40);
+        }
+        $requestId = substr($requestId, 0, 64);
+        $sourceId = (string)base_convert(substr(hash('sha256', $uid . '|' . $storeId . '|' . $idempotencyKey), 0, 12), 16, 10);
+        $source = HqAuthoritySource::fromTrusted('store_qr_binding', $sourceId, $data);
+        $mutation = new HqAuthorityMutation(
+            $source,
+            $uid,
+            'customer',
+            'customer_scanned_store_qr',
+            $requestId,
+            $idempotencyKey
+        );
+        $result = $this->attribution->assignFirst($uid, $storeId, $mutation);
+        return [
+            'changed' => (bool)($result['changed'] ?? false),
+            'idempotent_replay' => (bool)($result['idempotent_replay'] ?? false),
+            'store_id' => (int)($result['after']['store_id'] ?? 0),
+            'binding_status' => (string)($result['after']['status'] ?? '') === 'active' ? 'bound' : 'unbound',
+        ];
+    }
+
     public function issueInvite(int $uid, array $data): array
     {
         $requestId = $this->requestId($data);

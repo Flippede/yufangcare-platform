@@ -18,6 +18,8 @@ class HqAuthorityDtoServices extends YfthFoundationBaseServices
         'membership_confirmation' => '会员确认',
         'package_sale_confirmation' => '套餐成交确认',
         'headquarters_correction' => '总部治理',
+        'headquarters_parent_revoke' => '总部撤销上级',
+        'store_qr_binding' => '扫码绑定门店',
     ];
 
     public function userAttribution(array $row, array $store, bool $hasActiveReferral): array
@@ -227,6 +229,7 @@ class HqAuthorityDtoServices extends YfthFoundationBaseServices
         $labels = [
             'referred_became_member' => '被推荐人已成为会员',
             'headquarters_correction_closed' => '总部治理关闭',
+            'headquarters_parent_revoked' => '总部撤销上级关系',
             'account_closed' => '账号关闭',
         ];
         return $reason === '' ? '' : ($labels[$reason] ?? '关系已结束');

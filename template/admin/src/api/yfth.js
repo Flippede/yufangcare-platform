@@ -1019,6 +1019,30 @@ export function yfthPackageMembershipLegacyBackfill(data) {
   return request({ url: 'yfth/package_membership/legacy_backfill', method: 'post', data });
 }
 
+export function yfthRelationshipUserHierarchy(params) {
+  return request({
+    url: 'yfth/relationship_management/user_hierarchy',
+    method: 'get',
+    params,
+  });
+}
+
+export function yfthRelationshipStoreHierarchy(params) {
+  return request({
+    url: 'yfth/relationship_management/store_hierarchy',
+    method: 'get',
+    params,
+  });
+}
+
+export function yfthRelationshipRevokeParent(attributionId, data) {
+  return request({
+    url: `yfth/relationship_management/user/${attributionId}/revoke_parent`,
+    method: 'post',
+    data,
+  });
+}
+
 export function yfthHqAuthorityAttributionList(params) {
   return request({ url: 'yfth/hq_authority/attribution', method: 'get', params });
 }

@@ -121,6 +121,12 @@
 					}
 				},
 				{
+					"path": "store_binding/index",
+					"style": {
+						"navigationBarTitleText": "绑定门店"
+					}
+				},
+				{
 					"path": "package/timeline",
 					"style": {
 						"navigationBarTitleText": "权益时间轴"

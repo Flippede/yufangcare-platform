@@ -104,19 +104,21 @@ class HqCustomerAttributionServices extends YfthFoundationBaseServices
     public function assignFirst(int $uid, int $storeId, HqAuthorityMutation $mutation): array
     {
         $this->assertStoreActive($storeId);
-        $sourceKey = $this->canonicalizer->attributionEvent('attribution_created', $mutation->source());
+        // Validate the trusted source before acquiring an idempotency record.
+        // The locked current determines which of these two event keys is used.
+        $this->canonicalizer->attributionEvent('attribution_created', $mutation->source());
+        $this->canonicalizer->attributionEvent('attribution_rebound', $mutation->source());
         $result = $this->runner->run(
             'attribution_assign_first',
             $mutation,
             ['uid' => $uid, 'store_id' => $storeId],
             'uid:' . $uid,
-            function () use ($uid, $storeId, $sourceKey, $mutation) {
+            function () use ($uid, $storeId, $mutation) {
                 return $this->assignFirstWithLockedCurrentsInTransaction(
                     $uid,
                     $storeId,
                     $mutation,
-                    $this->lockCurrents([$uid]),
-                    $sourceKey
+                    $this->lockCurrents([$uid])
                 );
             }
         );
@@ -135,7 +137,6 @@ class HqCustomerAttributionServices extends YfthFoundationBaseServices
         if (!isset($lockedCurrents[$uid])) {
             throw new ApiException('attribution_lock_set_incomplete');
         }
-        $sourceKey = $sourceKey ?: $this->canonicalizer->attributionEvent('attribution_created', $mutation->source());
         $row = (array)$lockedCurrents[$uid];
         $this->assertConsistent($row);
         if ((string)$row['status'] === 'active') {
@@ -144,16 +145,21 @@ class HqCustomerAttributionServices extends YfthFoundationBaseServices
             }
             throw new ApiException('attribution_store_conflict');
         }
-        if (!$this->isPristineShape($row)) {
+        $isPristine = $this->isPristineShape($row);
+        $isRebindable = $this->isRebindableShape($row);
+        if (!$isPristine && !$isRebindable) {
             throw new ApiException('attribution_not_pristine');
         }
+
+        $eventType = $isPristine ? 'attribution_created' : 'attribution_rebound';
+        $sourceKey = $sourceKey ?: $this->canonicalizer->attributionEvent($eventType, $mutation->source());
 
         $now = time();
         $update = [
             'store_id' => $storeId,
             'status' => 'active',
             'status_reason_code' => '',
-            'authority_version' => 1,
+            'authority_version' => (int)$row['authority_version'] + 1,
             'source_type' => $mutation->source()->type(),
             'source_id' => $mutation->source()->id(),
             'bound_at' => $now,
@@ -164,7 +170,7 @@ class HqCustomerAttributionServices extends YfthFoundationBaseServices
         ];
         $this->dao->update((int)$row['id'], $update);
         $after = array_merge($row, $update);
-        $this->appendEvent($row, $after, 'attribution_created', $sourceKey, $mutation);
+        $this->appendEvent($row, $after, $eventType, $sourceKey, $mutation);
         return $this->result($row, $after, true);
     }
 
@@ -184,6 +190,58 @@ class HqCustomerAttributionServices extends YfthFoundationBaseServices
     public function markHistoricalUnassigned(int $uid, int $expectedVersion, HqAuthorityMutation $mutation): array
     {
         return $this->transition($uid, $expectedVersion, ['active', 'paused'], 'unassigned', 'store_terminated_no_successor', 'attribution_unassigned', $mutation);
+    }
+
+    public function unassignForRebinding(int $uid, int $expectedVersion, HqAuthorityMutation $mutation): array
+    {
+        return $this->transition(
+            $uid,
+            $expectedVersion,
+            ['active', 'paused'],
+            'unassigned',
+            'headquarters_parent_revoked',
+            'attribution_unassigned_for_rebinding',
+            $mutation
+        );
+    }
+
+    public function unassignForRebindingWithLockedCurrentInTransaction(
+        int $uid,
+        int $expectedVersion,
+        HqAuthorityMutation $mutation,
+        array $lockedCurrent
+    ): array {
+        $this->assertConsistent($lockedCurrent);
+        if ((int)($lockedCurrent['uid'] ?? 0) !== $uid) {
+            throw new ApiException('attribution_lock_set_incomplete');
+        }
+        if ((int)$lockedCurrent['authority_version'] !== $expectedVersion) {
+            throw new ApiException('attribution_version_conflict');
+        }
+        if (!in_array((string)$lockedCurrent['status'], ['active', 'paused'], true)) {
+            throw new ApiException('attribution_status_transition_forbidden');
+        }
+
+        $eventType = 'attribution_unassigned_for_rebinding';
+        $reasonCode = 'headquarters_parent_revoked';
+        $sourceKey = $this->canonicalizer->attributionEvent($eventType, $mutation->source());
+        $now = time();
+        $update = [
+            'store_id' => 0,
+            'status' => 'unassigned',
+            'status_reason_code' => $reasonCode,
+            'authority_version' => $expectedVersion + 1,
+            'source_type' => $mutation->source()->type(),
+            'source_id' => $mutation->source()->id(),
+            'paused_at' => 0,
+            'closed_at' => $now,
+            'close_reason' => $reasonCode,
+            'update_time' => $now,
+        ];
+        $this->dao->update((int)$lockedCurrent['id'], $update);
+        $after = array_merge($lockedCurrent, $update);
+        $this->appendEvent($lockedCurrent, $after, $eventType, $sourceKey, $mutation);
+        return $this->result($lockedCurrent, $after, true);
     }
 
     public function close(int $uid, int $expectedVersion, string $reasonCode, HqAuthorityMutation $mutation): array
@@ -288,6 +346,14 @@ class HqCustomerAttributionServices extends YfthFoundationBaseServices
             && (int)$row['store_id'] === 0
             && (int)$row['authority_version'] === 0
             && (string)$row['status_reason_code'] === 'initial_placeholder';
+    }
+
+    private function isRebindableShape(array $row): bool
+    {
+        return (string)$row['status'] === 'unassigned'
+            && (int)$row['store_id'] === 0
+            && (int)$row['authority_version'] > 0
+            && (string)$row['status_reason_code'] === 'headquarters_parent_revoked';
     }
 
     private function assertUserExists(int $uid): void

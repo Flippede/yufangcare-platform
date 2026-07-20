@@ -16,6 +16,8 @@ class HqAuthoritySourceCanonicalizer
         'package_membership_referral_invite',
         'package_membership_activation',
         'historical_package_activation',
+        'headquarters_parent_revoke',
+        'store_qr_binding',
     ])
     {
         $this->allowedSourceTypes = array_values(array_unique(array_map('strval', $allowedSourceTypes)));

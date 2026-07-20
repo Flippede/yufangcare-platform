@@ -204,7 +204,8 @@ class HqAuthorityConsistencyValidator
             return in_array($reason, self::ATTRIBUTION_PAUSE_REASONS, true) && $closeReason === '';
         }
         if ($status === 'unassigned') {
-            return $reason === 'store_terminated_no_successor' && $closeReason === $reason;
+            return in_array($reason, ['store_terminated_no_successor', 'headquarters_parent_revoked'], true)
+                && $closeReason === $reason;
         }
         return $status === 'closed' && in_array($reason, self::ATTRIBUTION_CLOSE_REASONS, true) && $closeReason === $reason;
     }

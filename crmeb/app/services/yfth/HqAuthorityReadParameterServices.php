@@ -61,6 +61,28 @@ class HqAuthorityReadParameterServices
         return $this->dates($input, $result);
     }
 
+    public function hierarchyFilters(array $input): array
+    {
+        $this->rejectSort($input);
+        $result = $this->page($input);
+        $result['keyword'] = $this->optionalString($input, 'keyword', 50);
+        if (array_key_exists('store_id', $input) && $input['store_id'] !== '') {
+            $result['store_id'] = $this->positiveId($input['store_id'], 'store_id');
+        }
+        $result['user_type'] = $this->optionalEnum($input, 'user_type', ['c1', 'c2', 'ordinary']);
+        $result['binding_status'] = $this->optionalEnum($input, 'binding_status', ['bound', 'unbound']);
+        return $result;
+    }
+
+    public function storeHierarchyFilters(array $input): array
+    {
+        $this->rejectSort($input);
+        $result = $this->page($input);
+        $result['keyword'] = $this->optionalString($input, 'keyword', 50);
+        $result['status'] = $this->optionalEnum($input, 'status', ['active', 'disabled']);
+        return $result;
+    }
+
     private function page(array $input): array
     {
         return [
