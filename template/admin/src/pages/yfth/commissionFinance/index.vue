@@ -23,6 +23,8 @@
           <el-table-column label="C1比例" width="100"><template slot-scope="{ row }">{{ row.c1_ratio_bps / 100 }}%</template></el-table-column>
           <el-table-column label="B1比例" width="100"><template slot-scope="{ row }">{{ row.b1_ratio_bps / 100 }}%</template></el-table-column>
           <el-table-column prop="observation_days" label="观察期(天)" width="110" />
+          <el-table-column label="启用" width="80"><template slot-scope="{ row }">{{ row.enabled ? '是' : '否' }}</template></el-table-column>
+          <el-table-column label="生效时间" min-width="150"><template slot-scope="{ row }">{{ timeText(row.effective_at) }}</template></el-table-column>
           <el-table-column label="状态" width="110">
             <template slot-scope="{ row }"><el-tag size="mini" :type="row.status === 'published' ? 'success' : 'info'">{{ ruleStatus(row.status) }}</el-tag></template>
           </el-table-column>
@@ -31,14 +33,33 @@
             <template slot-scope="{ row }"><el-button v-if="row.status === 'draft'" type="text" @click="publishRule(row)">发布</el-button></template>
           </el-table-column>
         </el-table>
+        <div class="section-title">
+          <div><strong>会员套餐奖励规则</strong><span>15% / 25% / 60% 循环比例独立于普通商城佣金。</span></div>
+          <el-button type="primary" plain @click="openPackageRule()">新建套餐规则版本</el-button>
+        </div>
+        <el-table v-loading="loading" :data="packageRules" border size="small">
+          <el-table-column prop="version_no" label="版本" width="80" />
+          <el-table-column label="套餐循环比例" min-width="190">
+            <template slot-scope="{ row }">{{ row.package_ratio_first_bps / 100 }}% / {{ row.package_ratio_second_bps / 100 }}% / {{ row.package_ratio_third_bps / 100 }}%</template>
+          </el-table-column>
+          <el-table-column prop="package_observation_days" label="套餐观察期(天)" width="140" />
+          <el-table-column label="状态" width="100"><template slot-scope="{ row }">{{ packageRuleStatus(row.status) }}</template></el-table-column>
+          <el-table-column label="生效时间" min-width="150"><template slot-scope="{ row }">{{ timeText(row.effective_at) }}</template></el-table-column>
+          <el-table-column label="操作" width="130">
+            <template slot-scope="{ row }"><el-button v-if="row.status === 'draft'" type="text" @click="openPackageRule(row)">编辑</el-button><el-button v-if="row.status === 'draft'" type="text" @click="publishPackageRule(row)">发布</el-button></template>
+          </el-table-column>
+        </el-table>
       </el-tab-pane>
 
-      <el-tab-pane label="自动入账" name="accruals">
+      <el-tab-pane label="自动佣金记录" name="accruals">
         <div class="toolbar">
           <el-select v-model="accrualQuery.status" clearable placeholder="状态">
             <el-option label="观察期中" value="observing" /><el-option label="已入账" value="credited" />
             <el-option label="部分冲正" value="partially_reversed" /><el-option label="已冲正" value="reversed" />
             <el-option label="已取消" value="cancelled" />
+          </el-select>
+          <el-select v-model="accrualQuery.source_type" clearable placeholder="佣金类型">
+            <el-option label="普通商城" value="mall_order_item" /><el-option label="会员套餐" value="package_activation" />
           </el-select>
           <el-input v-model="accrualQuery.order_id" placeholder="订单ID" clearable />
           <el-input v-model="accrualQuery.store_id" placeholder="门店ID" clearable />
@@ -47,43 +68,25 @@
         </div>
         <el-table v-loading="loading" :data="accruals" border size="small">
           <el-table-column prop="accrual_no" label="记录号" min-width="190" />
-          <el-table-column prop="source_type" label="来源" width="140" />
+          <el-table-column label="佣金类型" width="120"><template slot-scope="{ row }">{{ sourceType(row.source_type) }}</template></el-table-column>
           <el-table-column prop="order_id" label="订单ID" width="90" />
-          <el-table-column prop="store_id" label="B1门店" width="90" />
-          <el-table-column prop="c1_uid" label="C1 UID" width="90" />
+          <el-table-column label="用户" min-width="130"><template slot-scope="{ row }">{{ row.c1_name || '-' }}<br><small>{{ row.c1_phone_masked || '-' }}</small></template></el-table-column>
+          <el-table-column label="B1门店" min-width="140"><template slot-scope="{ row }">{{ row.store_name || `门店 ${row.store_id}` }}</template></el-table-column>
           <el-table-column prop="c1_amount" label="C1佣金" width="100" />
           <el-table-column prop="b1_amount" label="B1佣金" width="100" />
-          <el-table-column prop="status" label="状态" width="120" />
-          <el-table-column prop="due_at" label="到期时间" min-width="120" />
+          <el-table-column label="冲正明细" min-width="150"><template slot-scope="{ row }">C1 {{ row.reversed_c1 || '0.00' }} / B1 {{ row.reversed_b1 || '0.00' }}</template></el-table-column>
+          <el-table-column label="状态" width="110"><template slot-scope="{ row }">{{ accrualStatus(row.status) }}</template></el-table-column>
+          <el-table-column prop="rule_version_id" label="规则版本" width="95" />
+          <el-table-column label="观察期结束" min-width="150"><template slot-scope="{ row }">{{ timeText(row.due_at) }}</template></el-table-column>
         </el-table>
       </el-tab-pane>
 
-      <el-tab-pane label="账户与流水" name="accounts">
-        <div class="toolbar">
-          <el-select v-model="accountType"><el-option label="用户账户" value="user" /><el-option label="门店账户" value="store" /></el-select>
-          <el-input v-model="accountId" :placeholder="accountType === 'user' ? '用户UID' : '门店ID'" clearable />
-          <el-button type="primary" @click="loadAccount">查询账户</el-button>
-          <el-button @click="openAdjustment">余额调整</el-button>
-        </div>
-        <div v-if="accountResult" class="account-strip">
-          <div v-for="item in accountMetrics" :key="item.label"><strong>{{ item.value }}</strong><span>{{ item.label }}</span></div>
-        </div>
-        <el-table v-loading="loading" :data="ledgers" border size="small">
-          <el-table-column prop="ledger_no" label="流水号" min-width="190" />
-          <el-table-column prop="bucket" label="余额类型" width="130" />
-          <el-table-column prop="direction" label="方向" width="90" />
-          <el-table-column prop="amount" label="金额" width="100" />
-          <el-table-column prop="source_type" label="业务来源" min-width="150" />
-          <el-table-column prop="source_order_id" label="订单ID" width="90" />
-          <el-table-column prop="reason" label="原因" min-width="150" />
-        </el-table>
-      </el-tab-pane>
-
-      <el-tab-pane label="结算批次" name="settlements">
+      <el-tab-pane label="B1结算批次" name="settlements">
         <div class="toolbar">
           <el-select v-model="settlementQuery.status" clearable placeholder="状态">
             <el-option label="待结算" value="pending" /><el-option label="结算中" value="processing" />
             <el-option label="已结算" value="settled" /><el-option label="异常" value="exception" />
+            <el-option label="等待配置接收方" value="waiting_receiver" />
           </el-select>
           <el-input v-model="settlementQuery.store_id" placeholder="门店ID" clearable />
           <el-button type="primary" @click="loadSettlements">查询</el-button>
@@ -93,10 +96,12 @@
         <el-table v-loading="loading" :data="settlements" border size="small">
           <el-table-column prop="batch_no" label="批次号" min-width="190" />
           <el-table-column prop="store_name" label="门店" min-width="130" />
-          <el-table-column prop="amount" label="分账金额" width="110" />
+          <el-table-column prop="unsettled_amount" label="未结算金额" width="120" />
+          <el-table-column prop="settled_amount" label="已结算金额" width="120" />
           <el-table-column label="周期" min-width="190"><template slot-scope="{ row }">{{ dateText(row.period_start) }} - {{ dateText(row.period_end) }}</template></el-table-column>
           <el-table-column label="状态" width="100"><template slot-scope="{ row }">{{ settlementStatus(row.status) }}</template></el-table-column>
-          <el-table-column prop="receiver_account_masked" label="B1接收方" min-width="150" />
+          <el-table-column label="微信分账接收方" min-width="150"><template slot-scope="{ row }">{{ receiverStatus(row) }}</template></el-table-column>
+          <el-table-column prop="exception_reason" label="异常原因" min-width="180" show-overflow-tooltip />
           <el-table-column label="操作" width="180">
             <template slot-scope="{ row }">
               <el-button type="text" @click="openReceiver(row.store_id)">接收方</el-button>
@@ -121,15 +126,14 @@
       <span slot="footer"><el-button @click="ruleVisible = false">取消</el-button><el-button type="primary" @click="saveRule">保存草稿</el-button></span>
     </el-dialog>
 
-    <el-dialog title="人工余额调整" :visible.sync="adjustVisible" width="520px">
-      <el-alert title="扣减后允许形成负余额，后续佣金优先抵扣；调整会生成不可删除流水。" type="warning" :closable="false" />
-      <el-form label-width="120px">
-        <el-form-item label="账户"><el-input :value="`${accountType}:${accountId}`" disabled /></el-form-item>
-        <el-form-item v-if="accountType === 'store'" label="门店结算台账"><el-input value="未结算佣金" disabled /></el-form-item>
-        <el-form-item label="调整金额(分)"><el-input-number v-model="adjustForm.delta_cent" /></el-form-item>
-        <el-form-item label="原因"><el-input v-model="adjustForm.reason" minlength="4" maxlength="255" /></el-form-item>
+    <el-dialog title="会员套餐奖励规则" :visible.sync="packageRuleVisible" width="560px">
+      <el-form label-width="150px">
+        <el-form-item label="套餐循环比例"><el-input value="15% / 25% / 60%" disabled /></el-form-item>
+        <el-form-item label="套餐观察期(天)"><el-input-number v-model="packageRuleForm.package_observation_days" :min="0" :max="365" /></el-form-item>
+        <el-form-item label="生效时间"><el-date-picker v-model="packageRuleForm.effective_at" type="datetime" value-format="yyyy-MM-dd HH:mm:ss" /></el-form-item>
+        <el-form-item label="失效时间"><el-date-picker v-model="packageRuleForm.expires_at" type="datetime" value-format="yyyy-MM-dd HH:mm:ss" /></el-form-item>
       </el-form>
-      <span slot="footer"><el-button @click="adjustVisible = false">取消</el-button><el-button type="danger" @click="submitAdjustment">确认并生成流水</el-button></span>
+      <span slot="footer"><el-button @click="packageRuleVisible = false">取消</el-button><el-button type="primary" @click="savePackageRule">保存草稿</el-button></span>
     </el-dialog>
 
     <el-dialog title="B1微信分账接收方" :visible.sync="receiverVisible" width="520px">
@@ -147,63 +151,53 @@
 <script>
 import {
   yfthCommissionRuleList, yfthCommissionRuleSave, yfthCommissionRulePublish,
-  yfthCommissionAccrualList, yfthCommissionLedgerList, yfthCommissionAccount,
-  yfthCommissionAdjustment, yfthCommissionSettlementReceiver, yfthCommissionSettlementReceiverSave,
+  yfthCommissionAccrualList, yfthCommissionSettlementReceiver, yfthCommissionSettlementReceiverSave,
   yfthCommissionSettlementBatchList, yfthCommissionSettlementBatchGenerate,
   yfthCommissionSettlementBatchStart, yfthCommissionRetry, yfthCommissionLegacyReport,
+  yfthPackageMembershipRuleList, yfthPackageMembershipRuleSave, yfthPackageMembershipRulePublish,
 } from '@/api/yfth';
 
 export default {
   name: 'YfthCommissionFinance',
   data() {
     return {
-      tab: 'rules', loading: false, rules: [], accruals: [], ledgers: [], settlements: [],
-      accrualQuery: { status: '', order_id: '', store_id: '', page: 1, limit: 50 },
+      tab: 'rules', loading: false, rules: [], packageRules: [], accruals: [], settlements: [],
+      accrualQuery: { status: '', source_type: '', order_id: '', store_id: '', page: 1, limit: 50 },
       settlementQuery: { status: '', store_id: '', page: 1, limit: 50 }, period: [],
-      accountType: 'user', accountId: '', accountResult: null,
-      ruleVisible: false, adjustVisible: false, receiverVisible: false, receiverStoreId: '',
+      ruleVisible: false, packageRuleVisible: false, receiverVisible: false, receiverStoreId: '',
       receiverForm: { store_id: 0, receiver_type: 'MERCHANT_ID', receiver_account: '', receiver_name: '' },
       ruleForm: { scope_type: 'all', scope_id: 0, c1_ratio_bps: 500, b1_ratio_bps: 500, observation_days: 0, enabled: 1, effective_at: 0, expires_at: 0, note: '' },
-      adjustForm: { bucket: 'store_commission', delta_cent: 0, reason: '' },
+      packageRuleForm: {},
     };
-  },
-  computed: {
-    accountMetrics() {
-      if (!this.accountResult) return [];
-      const a = this.accountResult.account || this.accountResult;
-      const keys = this.accountType === 'user'
-        ? [['应结算佣金', 'available'], ['已申请结算', 'frozen'], ['已完成结算', 'withdrawn']]
-        : [['未结算金额', 'unsettled'], ['已结算金额', 'settled']];
-      return keys.map(([label, key]) => ({ label, value: a[key] || '0.00' }));
-    },
   },
   created() { this.loadRules(); },
   methods: {
     ruleStatus(v) { return ({ draft: '草稿', published: '已发布', retired: '已替代' })[v] || v; },
-    refreshCurrent() { ({ rules: this.loadRules, accruals: this.loadAccruals, accounts: this.loadAccount, settlements: this.loadSettlements }[this.tab] || this.loadRules)(); },
+    refreshCurrent() { ({ rules: this.loadRules, accruals: this.loadAccruals, settlements: this.loadSettlements }[this.tab] || this.loadRules)(); },
     withLoading(promise) { this.loading = true; return promise.finally(() => { this.loading = false; }); },
-    loadRules() { return this.withLoading(yfthCommissionRuleList({ limit: 100 }).then((r) => { this.rules = (r.data && r.data.list) || []; })); },
+    loadRules() { return this.withLoading(Promise.all([
+      yfthCommissionRuleList({ limit: 100 }).then((r) => { this.rules = (r.data && r.data.list) || []; }),
+      yfthPackageMembershipRuleList({ limit: 100 }).then((r) => { this.packageRules = (r.data && r.data.list) || []; }),
+    ])); },
     openRule() { this.ruleVisible = true; },
     saveRule() { yfthCommissionRuleSave(this.ruleForm).then(() => { this.$message.success('规则草稿已保存'); this.ruleVisible = false; this.loadRules(); }); },
     publishRule(row) { this.$confirm('发布后仅影响新订单，历史快照不会重算。', '确认发布').then(() => yfthCommissionRulePublish(row.id)).then(() => { this.$message.success('规则已发布'); this.loadRules(); }); },
+    openPackageRule(row) {
+      this.packageRuleForm = Object.assign({ id: 0, version_no: 0, package_ratio_first_bps: 1500, package_ratio_second_bps: 2500, package_ratio_third_bps: 6000, package_observation_days: 0, mall_consumption_enabled: 0, mall_consumption_ratio_bps: 0, effective_at: '', expires_at: '' }, row || {});
+      this.packageRuleVisible = true;
+    },
+    savePackageRule() { yfthPackageMembershipRuleSave(this.packageRuleForm).then(() => { this.$message.success('套餐规则草稿已保存'); this.packageRuleVisible = false; this.loadRules(); }); },
+    publishPackageRule(row) { this.$confirm('发布后仅影响新的套餐激活，历史奖励快照不会变化。', '确认发布').then(() => yfthPackageMembershipRulePublish(row.id)).then(() => { this.$message.success('套餐规则已发布'); this.loadRules(); }); },
+    packageRuleStatus(v) { return ({ draft: '草稿', published: '已发布', superseded: '已替代' })[v] || v; },
     loadLegacyReport() { yfthCommissionLegacyReport().then((r) => { this.$alert(JSON.stringify(r.data || {}, null, 2), '历史候选对账（只读）'); }); },
     loadAccruals() { return this.withLoading(yfthCommissionAccrualList(this.accrualQuery).then((r) => { this.accruals = (r.data && r.data.list) || []; })); },
     retryDue() { yfthCommissionRetry({ limit: 100 }).then((r) => { this.$message.success(`扫描 ${r.data.scanned || 0} 条，入账 ${r.data.credited || 0} 条`); this.loadAccruals(); }); },
-    loadAccount() {
-      if (!Number(this.accountId)) { this.accountResult = null; this.ledgers = []; return Promise.resolve(); }
-      const params = this.accountType === 'user' ? { uid: Number(this.accountId) } : { store_id: Number(this.accountId) };
-      return this.withLoading(Promise.all([
-        yfthCommissionAccount(params).then((r) => { this.accountResult = r.data || null; }),
-        yfthCommissionLedgerList({ account_type: this.accountType, account_id: Number(this.accountId), limit: 100 }).then((r) => { this.ledgers = (r.data && r.data.list) || []; }),
-      ]));
-    },
-    openAdjustment() { if (!Number(this.accountId)) return this.$message.warning('请先查询账户'); this.adjustVisible = true; },
-    submitAdjustment() {
-      const data = { account_type: this.accountType, account_id: Number(this.accountId), bucket: this.accountType === 'user' ? 'c1_commission' : this.adjustForm.bucket, delta_cent: Number(this.adjustForm.delta_cent), reason: this.adjustForm.reason, request_id: `admin-${Date.now()}` };
-      this.$confirm(`确认调整 ${data.delta_cent} 分？该操作会生成不可删除流水。`, '二次确认', { type: 'warning' }).then(() => yfthCommissionAdjustment(data)).then(() => { this.$message.success('调整完成'); this.adjustVisible = false; this.loadAccount(); });
-    },
-    settlementStatus(v) { return ({ pending: '待结算', processing: '结算中', settled: '已结算', exception: '异常' })[v] || v; },
+    sourceType(v) { return ({ mall_order_item: '普通商城', package_activation: '会员套餐' })[v] || v; },
+    accrualStatus(v) { return ({ observing: '观察期中', credited: '已入账', partially_reversed: '部分冲正', reversed: '已冲正', cancelled: '已取消' })[v] || v; },
+    settlementStatus(v) { return ({ pending: '待结算', processing: '结算中', settled: '已结算', exception: '异常', waiting_receiver: '等待配置' })[v] || v; },
     dateText(v) { return v ? new Date(Number(v) * 1000).toLocaleDateString() : '-'; },
+    timeText(v) { return v ? new Date(Number(v) * 1000).toLocaleString() : '-'; },
+    receiverStatus(row) { return row.receiver_status === 'configured' ? (row.receiver_account_masked || '已配置') : '等待配置'; },
     loadSettlements() { return this.withLoading(yfthCommissionSettlementBatchList(this.settlementQuery).then((r) => { this.settlements = (r.data && r.data.list) || []; })); },
     generateSettlements() {
       if (!this.period || this.period.length !== 2) return this.$message.warning('请选择结算周期');
@@ -228,10 +222,8 @@ export default {
 .page-head p { margin: 0; color: #777; }
 .toolbar { display: flex; gap: 10px; align-items: center; margin: 16px 0; }
 .toolbar .el-input, .toolbar .el-select { width: 180px; }
-.account-strip { display: grid; grid-template-columns: repeat(5, minmax(120px, 1fr)); border: 1px solid #ebeef5; margin: 16px 0; }
-.account-strip div { padding: 18px; border-right: 1px solid #ebeef5; }
-.account-strip div:last-child { border-right: 0; }
-.account-strip strong, .account-strip span { display: block; }
-.account-strip strong { font-size: 22px; margin-bottom: 6px; }
-.account-strip span { color: #777; }
+.section-title { display: flex; justify-content: space-between; align-items: center; margin: 24px 0 12px; }
+.section-title strong, .section-title span { display: block; }
+.section-title span { margin-top: 5px; color: #888; font-size: 13px; }
+small { color: #999; }
 </style>

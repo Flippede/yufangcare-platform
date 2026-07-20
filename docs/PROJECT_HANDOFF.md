@@ -1,5 +1,14 @@
 # 项目交接文档
 
+## Current Fact Snapshot - Automatic Commission Admin Entry Closure
+
+- The headquarters Admin entry is `御方通和康养服务 -> 佣金与结算`; it is separate from CRMEB legacy distribution, commission records and withdrawal pages.
+- Production investigation found the menu and API permissions in the database, but an already-open browser session was still running an older Admin bundle and routed the new menu to the 404 page. A reload loaded the current hashed bundle and proved the page route and APIs are present.
+- The page is consolidated into three product tabs: `佣金规则`, `自动佣金记录`, and `B1结算批次`. It includes ordinary C1/B1 ratios and zero-day observation, package 15%/25%/60% observation rules, immutable historical versions, automatic accrual/reversal facts, and B1 receiver/batch exceptions.
+- B1 withdrawal remains absent. A batch cannot be manually marked settled; production profit sharing remains fail closed until a trusted WeChat provider and receiver are configured.
+- The Admin HTML entry must be served without browser caching while hashed JS/CSS assets remain cacheable, so future releases cannot leave an open session on a removed route map.
+- Final feature/main commit, production deployment, menu cache refresh and browser verification must be read from Git and the deployment record after this closure is committed and released.
+
 ## Current Fact Snapshot - Automatic Commission Settlement Final Verification
 
 - Development branch: `codex/yfth-auto-commission-balance-withdrawal-v1`; final-validation baseline: `c7507daeea4e6cbc752e0e106bb29bcdd66e30b2`; stable main/origin main at task start: `e0dbcdee4b87b2955a964c385a3fd8a4a61e7bc1`. The final feature/main hash must be read from Git after the explicit commit, fast-forward merge and push.

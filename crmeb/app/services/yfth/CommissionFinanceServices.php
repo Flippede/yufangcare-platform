@@ -625,8 +625,12 @@ class CommissionFinanceServices
         if (!$row) return [];
         unset($row['receiver_account_enc'], $row['receiver_name_enc'], $row['merchant_no_enc'], $row['request_id']);
         $row['store_name'] = (string)Db::name('system_store')->where('id', (int)$row['store_id'])->value('name');
+        $row['receiver_status'] = (int)($row['receiver_id'] ?? 0) > 0 ? 'configured' : 'waiting_configuration';
+        $row['split_status'] = (string)($row['status'] ?? 'pending');
+        $row['unsettled_amount_cent'] = (string)($row['status'] ?? '') === 'settled' ? 0 : (int)($row['amount_cent'] ?? 0);
+        $row['settled_amount_cent'] = (string)($row['status'] ?? '') === 'settled' ? (int)($row['amount_cent'] ?? 0) : 0;
         if (!$headquarters) unset($row['admin_uid'], $row['exception_reason'], $row['receiver_id']);
-        return $this->moneyDto($row, ['amount_cent']);
+        return $this->moneyDto($row, ['amount_cent', 'unsettled_amount_cent', 'settled_amount_cent']);
     }
 
     private function receiverDto(array $row, bool $headquarters): array

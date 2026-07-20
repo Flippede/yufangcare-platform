@@ -30,25 +30,35 @@ class AutomaticCommissionServices
 
     public function accrualList(array $where = []): array
     {
-        $query = Db::name('yfth_commission_accrual');
+        $query = Db::name('yfth_commission_accrual')->alias('a')
+            ->leftJoin('user u', 'u.uid=a.c1_uid')
+            ->leftJoin('system_store s', 's.id=a.store_id')
+            ->field('a.*,u.nickname AS c1_name,u.phone AS c1_phone,s.name AS store_name');
         foreach (['status', 'source_type'] as $field) {
-            if (($where[$field] ?? '') !== '') $query->where($field, (string)$where[$field]);
+            if (($where[$field] ?? '') !== '') $query->where('a.' . $field, (string)$where[$field]);
         }
         foreach (['store_id', 'c1_uid', 'order_id'] as $field) {
-            if ((int)($where[$field] ?? 0) > 0) $query->where($field, (int)$where[$field]);
+            if ((int)($where[$field] ?? 0) > 0) $query->where('a.' . $field, (int)$where[$field]);
         }
         $page = max(1, (int)($where['page'] ?? 1));
         $limit = max(1, min(100, (int)($where['limit'] ?? 20)));
         $count = (int)(clone $query)->count();
-        $rows = $query->order('id desc')->page($page, $limit)->select()->toArray();
+        $rows = $query->order('a.id desc')->page($page, $limit)->select()->toArray();
         foreach ($rows as &$row) {
             unset($row['snapshot_json'], $row['source_unique_key']);
+            $row['c1_phone_masked'] = $this->maskPhone((string)($row['c1_phone'] ?? ''));
+            unset($row['c1_phone']);
             foreach (['base_amount_cent', 'c1_amount_cent', 'b1_amount_cent', 'reversed_c1_cent', 'reversed_b1_cent'] as $field) {
                 $row[preg_replace('/_cent$/', '', $field)] = number_format((int)$row[$field] / 100, 2, '.', '');
             }
         }
         unset($row);
         return ['list' => $rows, 'count' => $count];
+    }
+
+    private function maskPhone(string $phone): string
+    {
+        return strlen($phone) >= 7 ? substr($phone, 0, 3) . '****' . substr($phone, -4) : '';
     }
 
     public function legacyCompatibilityReport(): array
