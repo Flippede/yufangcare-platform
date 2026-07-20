@@ -2,8 +2,15 @@
 
 use app\services\yfth\AutomaticCommissionServices;
 use app\services\yfth\CommissionFinanceServices;
+use app\services\yfth\YfthCommissionOrderSourceServices;
 use think\facade\Config;
 use think\facade\Db;
+
+// The provider factory admits this mock only inside an explicitly isolated
+// validation database. Completed batches still require a signed callback.
+putenv('YFTH_COMMISSION_PROFIT_SHARING_PROVIDER=mock');
+putenv('YFTH_COMMISSION_TEST_MODE=1');
+putenv('YFTH_COMMISSION_TEST_CALLBACK_SECRET=yfth-isolated-commission-test-secret');
 
 require __DIR__ . '/yfth_package_membership_referral_test_bootstrap.php';
 
@@ -53,8 +60,13 @@ try {
     ], 1);
     $automatic->publishRule((int)$global['id'], 1);
 
+    $unmarkedOrder = acCreateOrder($buyer, '10.00', 'not-yfth-source', false);
+    acCreateOrderItem($unmarkedOrder, $buyer, $fixture['product_a'], 1, '10.00');
+    $assert((string)($automatic->snapshotMallOrderPaid($unmarkedOrder)['reason'] ?? '') === 'order_not_yfth_commission_source',
+        'shared_crmeb_order_without_yfth_source_never_enters_automatic_commission');
+
     $order = acCreateOrder($buyer, '100.00', 'zero-day');
-    acCreateOrderItem($order, $buyer, $fixture['product_a'], 1, '100.00');
+    acCreateOrderItem($order, $buyer, $fixture['product_a'], 2, '100.00');
     $paid = $automatic->snapshotMallOrderPaid($order);
     $completed = $automatic->completeMallOrder($order);
     $assert(!empty($paid['created']) && !empty($completed['accrual_ids']), 'zero_day_order_creates_accrual');
@@ -64,6 +76,8 @@ try {
     $assert((int)$storeAccount['unsettled_cent'] === 1500, 'mall_store_unsettled_includes_c1_responsibility_and_b1_commission');
     $assert((int)$storeAccount['settled_cent'] === 0, 'mall_store_initial_settled_is_zero');
     $assert((int)$storeAccount['c1_pending_cent'] === 1000, 'mall_store_c1_pending_exact');
+    $assert((int)Db::name('yfth_direct_referral_reward_candidate')->count() === 0,
+        'ordinary_mall_order_never_creates_legacy_pending_candidate');
     $automatic->snapshotMallOrderPaid($order);
     $automatic->completeMallOrder($order);
     $automatic->processDue(100);
@@ -95,24 +109,36 @@ try {
     Db::name('store_order')->where('id', $refundOrder)->update([
         'refund_status' => 2, 'refund_price' => '30.00', 'status' => -2,
     ]);
-    $automatic->refundMallOrder($refundOrder, ['refunded_amount_cent' => 3000]);
-    $automatic->refundMallOrder($refundOrder, ['refunded_amount_cent' => 3000]);
+    acCreateRefund($refundOrder, $buyer, [[
+        'product_id' => $fixture['product_b'], 'cart_num' => 1,
+    ]], '30.00');
+    $automatic->refundMallOrder($refundOrder);
+    $automatic->refundMallOrder($refundOrder);
     $refundAccrual = acAccrual($refundOrder);
     $afterRefund = acStoreAccount($storeA);
     $assert((string)$refundAccrual['status'] === 'reversed', 'full_refund_reverses_credited_accrual');
     $assert((int)$afterRefund['unsettled_cent'] === (int)$beforeRefund['unsettled_cent'] - 450, 'full_refund_reverses_store_unsettled_once');
     $assert((int)$afterRefund['reversed_cent'] >= 450, 'refund_reversal_is_recorded');
 
-    $directRuleId = acCreateDirectRule();
+    acCreateDirectRule();
     $unsettledBeforePackages = (int)acStoreAccount($storeA)['unsettled_cent'];
     $packageAmounts = [1500, 2500, 6000];
-    foreach ($packageAmounts as $index => $rewardCent) {
-        $candidate = acCreatePackageCandidate($c1, $buyer, $storeA, $directRuleId, $index + 1, $rewardCent);
-        $automatic->creditPackageCandidate($candidate);
-        $automatic->creditPackageCandidate($candidate);
+    foreach (['buyer', 'buyer_two', 'buyer_three'] as $index => $buyerKey) {
+        $packageBuyer = (int)$fixture[$buyerKey];
+        $relation = (array)Db::name('yfth_hq_active_referral_current')->where('referred_uid', $packageBuyer)->find();
+        $activation = [
+            'instance_id' => 980001 + $index,
+            'order_id' => 0,
+            'purchase_id' => 0,
+            'amount_cent' => 10000,
+            'relation' => $relation,
+        ];
+        $automatic->consumePackageActivation($activation);
+        $automatic->consumePackageActivation($activation);
     }
-    $packageRows = Db::name('yfth_commission_accrual')->where('source_type', 'package_candidate')->order('candidate_id asc')->select()->toArray();
+    $packageRows = Db::name('yfth_commission_accrual')->where('source_type', 'package_activation')->order('package_sequence_no asc')->select()->toArray();
     $assert(array_map('intval', array_column($packageRows, 'c1_amount_cent')) === $packageAmounts, 'package_rewards_are_15_25_60');
+    $assert(array_map('intval', array_column($packageRows, 'package_sequence_no')) === [1, 2, 3], 'package_rewards_have_unique_frozen_sequence');
     $assert((int)acStoreAccount($storeA)['unsettled_cent'] === $unsettledBeforePackages + array_sum($packageAmounts), 'package_rewards_enter_store_unsettled_responsibility_once');
 
     $c1PendingBefore = (int)acStoreAccount($storeA)['c1_pending_cent'];
@@ -164,33 +190,127 @@ try {
     $started = $finance->startSettlementBatch((int)$batch['id'], 1);
     $assert((string)$started['status'] === 'processing', 'batch_enters_processing_for_wechat_adapter');
     $beforeFailedCallback = acStoreAccount($storeA);
-    $failed = $finance->recordSettlementCallback((int)$batch['id'], [
-        'callback_event_id' => 'ac-callback-failed', 'status' => 'failed',
-        'wechat_batch_no' => 'WX-BATCH-FAILED', 'message' => 'isolated failure',
-    ], 1);
-    $assert((string)$failed['status'] === 'exception', 'failed_callback_marks_batch_exception');
+    $expectFailure(function () use ($finance, $batch) {
+        $finance->recordSettlementCallback((int)$batch['id'], ['status' => 'success'], 1);
+    }, 'ordinary_admin_cannot_forge_settlement_success');
+    $expectFailure(function () use ($finance, $batch) {
+        acSettlementCallback($finance, $batch, 'success', 'ac-callback-invalid-signature', true);
+    }, 'invalid_signed_profit_sharing_callback_is_rejected');
+    $failed = acSettlementCallback($finance, $batch, 'failed', 'ac-callback-failed');
+    $assert((string)$failed['batch']['status'] === 'exception', 'signed_failed_callback_marks_batch_exception');
     $assert(acStoreAccount($storeA) === $beforeFailedCallback, 'failed_callback_does_not_move_store_balance');
     $finance->startSettlementBatch((int)$batch['id'], 1);
-    $settled = $finance->recordSettlementCallback((int)$batch['id'], [
-        'callback_event_id' => 'ac-callback-success', 'status' => 'success',
-        'wechat_batch_no' => 'WX-BATCH-SUCCESS', 'wechat_detail_no' => 'WX-DETAIL-SUCCESS',
-    ], 1);
-    $finance->recordSettlementCallback((int)$batch['id'], [
-        'callback_event_id' => 'ac-callback-success', 'status' => 'success',
-        'wechat_batch_no' => 'WX-BATCH-SUCCESS', 'wechat_detail_no' => 'WX-DETAIL-SUCCESS',
-    ], 1);
+    $settled = acSettlementCallback($finance, $batch, 'success', 'ac-callback-success');
+    $duplicateSettlement = acSettlementCallback($finance, $batch, 'success', 'ac-callback-success');
     $afterSettlement = acStoreAccount($storeA);
-    $assert((string)$settled['status'] === 'settled', 'successful_callback_marks_batch_settled');
+    $assert((string)$settled['batch']['status'] === 'settled' && !empty($duplicateSettlement['duplicate']), 'trusted_callback_marks_batch_settled_once');
     $assert((int)$afterSettlement['unsettled_cent'] === 0 && (int)$afterSettlement['settled_cent'] === $unsettledBeforeBatch, 'settlement_moves_unsettled_to_settled_once');
     $assert((int)Db::name('yfth_store_settlement_callback')->where('callback_event_id', 'ac-callback-success')->count() === 1, 'settlement_callback_is_idempotent');
+    $return = $finance->requestSettlementReturn((int)$batch['id'], 100, 'isolated return boundary', 'ac-return-request-1', 1);
+    $returned = acSettlementReturnCallback($finance, $return, 'success', 'ac-return-success');
+    $returnReplay = acSettlementReturnCallback($finance, $return, 'success', 'ac-return-success');
+    $assert((string)$returned['return']['status'] === 'returned' && !empty($returnReplay['duplicate']),
+        'trusted_profit_sharing_return_and_replay_are_idempotent');
 
+    acCreateRefund($order, $buyer, [[
+        'product_id' => $fixture['product_a'], 'cart_num' => 1,
+    ]], '50.00');
     Db::name('store_order')->where('id', $order)->update(['refund_status' => 1, 'refund_price' => '50.00']);
-    $automatic->refundMallOrder($order, ['refunded_amount_cent' => 5000]);
+    $automatic->refundMallOrder($order);
     $afterSettledRefund = acStoreAccount($storeA);
     $assert((string)acAccrual($order)['status'] === 'partially_reversed', 'partial_refund_after_settlement_marks_accrual_partially_reversed');
     $assert((int)$afterSettledRefund['unsettled_cent'] === -750, 'post_settlement_refund_creates_next_cycle_negative_adjustment');
     $assert((int)$afterSettledRefund['settled_cent'] === (int)$afterSettlement['settled_cent'], 'post_settlement_refund_preserves_completed_settlement_history');
     $assert((int)Db::name('yfth_commission_ledger')->where(['account_type' => 'store', 'source_order_id' => $order, 'direction' => 'debit'])->sum('amount_cent') === 750, 'post_settlement_refund_has_traceable_store_debit');
+
+    // A separate B1 verifies that old cross-cycle refunds are never forgotten:
+    // a settled 100.00 order, later -30.00 item refund, and new 50.00 income
+    // may only share 20.00 in the next batch.
+    $storeBRule = $automatic->saveRule([
+        'scope_type' => 'product', 'scope_id' => $fixture['product_c'],
+        'c1_ratio_bps' => 0, 'b1_ratio_bps' => 10000, 'observation_days' => 0,
+        'enabled' => 1, 'note' => 'isolated store B exact refund rule',
+    ], 1);
+    $automatic->publishRule((int)$storeBRule['id'], 1);
+    $storeBOrder = acCreateOrder($fixture['buyer_b'], '100.00', 'store-b-settled-100');
+    acCreateOrderItem($storeBOrder, $fixture['buyer_b'], $fixture['product_c'], 10, '100.00');
+    $automatic->snapshotMallOrderPaid($storeBOrder);
+    $automatic->completeMallOrder($storeBOrder);
+    $withoutReceiver = $finance->generateSettlementBatches(0, time() + 60, 1);
+    $waitingBatch = array_values(array_filter($withoutReceiver['list'], function (array $row) use ($storeB) {
+        return (int)$row['store_id'] === $storeB;
+    }))[0] ?? [];
+    $assert((string)($waitingBatch['status'] ?? '') === 'waiting_receiver', 'b1_without_receiver_stays_waiting_not_settled');
+    $expectFailure(function () use ($finance, $waitingBatch) {
+        $finance->startSettlementBatch((int)$waitingBatch['id'], 1);
+    }, 'b1_without_receiver_cannot_start_profit_sharing');
+    $finance->saveSettlementReceiver($storeB, [
+        'receiver_type' => 'MERCHANT_ID', 'receiver_account' => '1900000110',
+        'receiver_name' => 'Isolation B1 Merchant B',
+    ], 1);
+    $settledStoreB = $finance->startSettlementBatch((int)$waitingBatch['id'], 1);
+    $settledStoreB = acSettlementCallback($finance, $settledStoreB, 'success', 'ac-store-b-settled-100');
+    $assert((string)$settledStoreB['batch']['status'] === 'settled', 'store_b_initial_100_is_trusted_settled');
+
+    acCreateRefund($storeBOrder, $fixture['buyer_b'], [[
+        'product_id' => $fixture['product_c'], 'cart_num' => 3,
+    ]], '30.00');
+    Db::name('store_order')->where('id', $storeBOrder)->update(['refund_status' => 1, 'refund_price' => '30.00']);
+    $automatic->refundMallOrder($storeBOrder);
+    $assert((int)acStoreAccount($storeB)['unsettled_cent'] === -3000, 'settled_order_partial_refund_becomes_negative_carry');
+    $storeBNewOrder = acCreateOrder($fixture['buyer_b'], '50.00', 'store-b-new-50');
+    acCreateOrderItem($storeBNewOrder, $fixture['buyer_b'], $fixture['product_c'], 1, '50.00');
+    $automatic->snapshotMallOrderPaid($storeBNewOrder);
+    $automatic->completeMallOrder($storeBNewOrder);
+    $carryBatchResult = $finance->generateSettlementBatches(time() - 60, time() + 60, 1);
+    $carryBatch = array_values(array_filter($carryBatchResult['list'], function (array $row) use ($storeB) {
+        return (int)$row['store_id'] === $storeB;
+    }))[0] ?? [];
+    $assert((int)($carryBatch['amount_cent'] ?? 0) === 2000, 'cross_cycle_negative_30_offsets_future_positive_50_to_20');
+    $carryStarted = $finance->startSettlementBatch((int)$carryBatch['id'], 1);
+    $carrySettled = acSettlementCallback($finance, $carryStarted, 'success', 'ac-store-b-carry-20');
+    $assert((string)$carrySettled['batch']['status'] === 'settled', 'cross_cycle_net_batch_is_settled_once');
+
+    // Freight is outside the frozen commission base, while SKU/quantity refunds
+    // reverse only the matched item amounts and are safe under repeated events.
+    $freightOrder = acCreateOrder($fixture['buyer_b'], '110.00', 'freight-only-refund');
+    Db::name('store_order')->where('id', $freightOrder)->update(['pay_postage' => '10.00']);
+    acCreateOrderItem($freightOrder, $fixture['buyer_b'], $fixture['product_c'], 1, '100.00');
+    $automatic->snapshotMallOrderPaid($freightOrder);
+    $automatic->completeMallOrder($freightOrder);
+    $freightBefore = acStoreAccount($storeB);
+    acCreateRefund($freightOrder, $fixture['buyer_b'], [], '10.00');
+    $automatic->refundMallOrder($freightOrder);
+    $assert((int)acStoreAccount($storeB)['unsettled_cent'] === (int)$freightBefore['unsettled_cent'], 'freight_only_refund_does_not_reverse_commission');
+
+    $storeBDRule = $automatic->saveRule([
+        'scope_type' => 'product', 'scope_id' => $fixture['product_d'],
+        'c1_ratio_bps' => 0, 'b1_ratio_bps' => 10000, 'observation_days' => 0,
+        'enabled' => 1, 'note' => 'isolated multi sku exact refund rule',
+    ], 1);
+    $automatic->publishRule((int)$storeBDRule['id'], 1);
+    $multiSkuOrder = acCreateOrder($fixture['buyer_b'], '150.00', 'multi-sku-refund');
+    acCreateOrderItem($multiSkuOrder, $fixture['buyer_b'], $fixture['product_c'], 2, '100.00');
+    acCreateOrderItem($multiSkuOrder, $fixture['buyer_b'], $fixture['product_d'], 1, '50.00');
+    $automatic->snapshotMallOrderPaid($multiSkuOrder);
+    $automatic->completeMallOrder($multiSkuOrder);
+    $multiBefore = (int)acStoreAccount($storeB)['unsettled_cent'];
+    acCreateRefund($multiSkuOrder, $fixture['buyer_b'], [[
+        'product_id' => $fixture['product_c'], 'cart_num' => 1,
+    ]], '50.00');
+    acCreateRefund($multiSkuOrder, $fixture['buyer_b'], [[
+        'product_id' => $fixture['product_d'], 'cart_num' => 1,
+    ]], '50.00');
+    acCreateRefund($multiSkuOrder, $fixture['buyer_b'], [[
+        'product_id' => $fixture['product_c'], 'cart_num' => 1,
+    ]], '50.00');
+    $automatic->refundMallOrder($multiSkuOrder);
+    $automatic->refundMallOrder($multiSkuOrder);
+    $multiAccruals = Db::name('yfth_commission_accrual')->where('order_id', $multiSkuOrder)->order('product_id asc')->select()->toArray();
+    $assert((int)acStoreAccount($storeB)['unsettled_cent'] === $multiBefore - 15000,
+        'multi_sku_partial_refunds_reverse_exact_item_quantities_once');
+    $assert(count($multiAccruals) === 2 && array_sum(array_column($multiAccruals, 'reversed_b1_cent')) === 15000,
+        'multiple_partial_refunds_never_exceed_original_commission');
 
     $storeSummary = $finance->storeSummary(acContext($fixture['manager'], 'store_manager', $storeA));
     $assert(isset($storeSummary['account']['unsettled']) && isset($storeSummary['account']['settled']), 'b1_surface_exposes_only_settlement_balances');
@@ -212,10 +332,11 @@ echo "[OK] YFTH automatic commission and B1 settlement real flow verified.\n";
 
 function acCleanup(): void
 {
-    foreach (['yfth_store_settlement_callback', 'yfth_store_settlement_batch_item',
+    foreach (['yfth_store_settlement_callback', 'yfth_store_settlement_return', 'yfth_store_settlement_batch_item',
         'yfth_store_settlement_batch', 'yfth_store_settlement_receiver', 'yfth_c1_settlement_request',
         'yfth_commission_ledger', 'yfth_store_commission_account', 'yfth_user_commission_account',
-        'yfth_commission_accrual', 'yfth_mall_commission_order_snapshot', 'yfth_commission_rule_version'] as $table) {
+        'yfth_commission_accrual', 'yfth_mall_commission_order_snapshot', 'yfth_commission_rule_version',
+        'yfth_commission_sequence_counter', 'yfth_commission_refund_reversal', 'yfth_commission_order_source'] as $table) {
         Db::name($table)->delete(true);
     }
     Db::name('yfth_direct_referral_reward_candidate')->whereBetween('referrer_uid', [970001, 970020])->delete();
@@ -234,8 +355,8 @@ function acCreateFixtures(): array
 {
     $now = time();
     $users = [
-        'c1' => 970001, 'buyer' => 970002, 'manager' => 970006, 'staff' => 970007,
-        'manager_b' => 970008, 'negative' => 970009,
+        'c1' => 970001, 'buyer' => 970002, 'buyer_two' => 970003, 'buyer_three' => 970004, 'manager' => 970006, 'staff' => 970007,
+        'manager_b' => 970008, 'negative' => 970009, 'buyer_b' => 970010,
     ];
     foreach ($users as $name => $uid) {
         Db::name('user')->insert([
@@ -252,13 +373,21 @@ function acCreateFixtures(): array
             'day_time' => '1,2,3,4,5,6,7', 'is_show' => 1, 'is_del' => 0, 'add_time' => $now,
         ]);
     }
-    foreach ([$users['c1'], $users['buyer'], $users['manager'], $users['staff'], $users['negative']] as $uid) {
+    foreach ([$users['c1'], $users['buyer'], $users['buyer_two'], $users['buyer_three'], $users['manager'], $users['staff'], $users['negative']] as $uid) {
         acInsertAttribution($uid, 9701);
     }
-    acInsertAttribution($users['manager_b'], 9702);
+    foreach ([$users['manager_b'], $users['buyer_b']] as $uid) {
+        acInsertAttribution($uid, 9702);
+    }
     acInsertReferral($users['c1'], $users['buyer'], 9701, 'primary');
+    acInsertReferral($users['c1'], $users['buyer_two'], 9701, 'second');
+    acInsertReferral($users['c1'], $users['buyer_three'], 9701, 'third');
     $products = acCloneProducts();
-    return $users + ['store_a' => 9701, 'store_b' => 9702, 'product_a' => $products[0], 'product_b' => $products[1]];
+    return $users + [
+        'store_a' => 9701, 'store_b' => 9702,
+        'product_a' => $products[0], 'product_b' => $products[1],
+        'product_c' => $products[2], 'product_d' => $products[3],
+    ];
 }
 
 function acCloneProducts(): array
@@ -267,7 +396,7 @@ function acCloneProducts(): array
     if (!$source) throw new RuntimeException('isolated_product_fixture_required');
     unset($source['id']);
     $ids = [];
-    foreach (['A', 'B'] as $suffix) {
+    foreach (['A', 'B', 'C', 'D'] as $suffix) {
         $row = $source;
         $row['store_name'] = 'Automatic Commission Product ' . $suffix;
         $row['spu'] = substr('AC' . date('His') . $suffix . random_int(100, 999), 0, 13);
@@ -302,10 +431,10 @@ function acInsertReferral(int $referrerUid, int $referredUid, int $storeId, stri
     ]);
 }
 
-function acCreateOrder(int $uid, string $amount, string $suffix): int
+function acCreateOrder(int $uid, string $amount, string $suffix, bool $markYfthSource = true): int
 {
     $now = time();
-    return (int)Db::name('store_order')->insertGetId([
+    $orderId = (int)Db::name('store_order')->insertGetId([
         'order_id' => 'AC' . strtoupper(substr(hash('sha256', $suffix . microtime(true)), 0, 22)),
         'uid' => $uid, 'pay_price' => $amount, 'total_price' => $amount, 'pay_postage' => '0.00',
         'paid' => 1, 'pay_time' => $now, 'pay_type' => 'test', 'add_time' => $now,
@@ -313,6 +442,10 @@ function acCreateOrder(int $uid, string $amount, string $suffix): int
         'store_id' => 0, 'pid' => 0, 'status' => 2, 'refund_status' => 0,
         'refund_price' => '0.00', 'is_del' => 0, 'is_system_del' => 0, 'is_cancel' => 0,
     ]);
+    if ($markYfthSource) {
+        app()->make(YfthCommissionOrderSourceServices::class)->mark($orderId, 'normal_mall');
+    }
+    return $orderId;
 }
 
 function acCreateOrderItem(int $orderId, int $uid, int $productId, int $cartNum, string $sumTruePrice): int
@@ -344,25 +477,6 @@ function acCreateDirectRule(): int
     ]);
 }
 
-function acCreatePackageCandidate(int $c1, int $buyer, int $storeId, int $ruleId, int $sequence, int $rewardCent): array
-{
-    $now = time();
-    $row = [
-        'candidate_no' => 'ACPC' . $sequence . strtoupper(substr(hash('sha256', microtime(true)), 0, 20)),
-        'candidate_type' => 'package_activation', 'referrer_uid' => $c1, 'referred_uid' => $buyer,
-        'store_id' => $storeId, 'relation_id' => 1, 'source_business_type' => 'package_instance',
-        'source_business_id' => (string)(980000 + $sequence),
-        'source_unique_key' => hash('sha256', 'ac-package-' . $sequence . microtime(true)),
-        'reward_sequence_no' => $sequence, 'actual_paid_amount_cent' => 10000,
-        'ratio_bps' => [1 => 1500, 2 => 2500, 3 => 6000][$sequence],
-        'reward_amount_cent' => $rewardCent, 'rule_version_id' => $ruleId,
-        'status' => 'pending', 'responsibility_type' => 'store_package_revenue',
-        'add_time' => $now, 'update_time' => $now,
-    ];
-    $row['id'] = (int)Db::name('yfth_direct_referral_reward_candidate')->insertGetId($row);
-    return $row;
-}
-
 function acAccrual(int $orderId): array
 {
     return (array)Db::name('yfth_commission_accrual')->where('order_id', $orderId)->order('id asc')->find();
@@ -384,4 +498,69 @@ function acCrmebMoneySnapshot(array $uids): array
         'users' => Db::name('user')->whereIn('uid', $uids)->order('uid asc')->column('uid,now_money,brokerage_price', 'uid'),
         'bills' => (int)Db::name('user_bill')->whereIn('uid', $uids)->count(),
     ];
+}
+
+function acCreateRefund(int $orderId, int $uid, array $items, string $amount): int
+{
+    $now = time();
+    return (int)Db::name('store_order_refund')->insertGetId([
+        'order_id' => (string)Db::name('store_order')->where('id', $orderId)->value('order_id'),
+        'store_order_id' => $orderId,
+        'uid' => $uid,
+        'refund_num' => array_sum(array_map(function (array $item) { return (int)$item['cart_num']; }, $items)),
+        'refund_price' => $amount,
+        'cart_info' => json_encode($items, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+        'is_cancel' => 0,
+        'is_del' => 0,
+        'is_pink_cancel' => 0,
+        'refunded_time' => $now,
+        'add_time' => $now,
+        'update_time' => $now,
+    ]);
+}
+
+function acSettlementCallback(CommissionFinanceServices $finance, array $batch, string $status, string $eventId, bool $invalidSignature = false): array
+{
+    $payload = [
+        'type' => 'settlement',
+        'status' => $status,
+        'event_id' => $eventId,
+        'batch_no' => (string)$batch['batch_no'],
+        'amount_cent' => (int)$batch['amount_cent'],
+        'receiver_account_masked' => (string)$batch['receiver_account_masked'],
+        'message' => 'isolated mock callback',
+    ];
+    $raw = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    $timestamp = (string)time();
+    $nonce = 'ac-' . substr(hash('sha256', $eventId), 0, 20);
+    $secret = (string)getenv('YFTH_COMMISSION_TEST_CALLBACK_SECRET');
+    $signature = hash_hmac('sha256', $timestamp . "\n" . $nonce . "\n" . $raw, $invalidSignature ? $secret . '-invalid' : $secret);
+    return $finance->handleTrustedSettlementCallback([
+        'X-Yfth-Mock-Signature' => $signature,
+        'X-Yfth-Mock-Timestamp' => $timestamp,
+        'X-Yfth-Mock-Nonce' => $nonce,
+        'X-Yfth-Mock-Certificate' => 'YFTH-ISOLATED-TEST',
+    ], $raw);
+}
+
+function acSettlementReturnCallback(CommissionFinanceServices $finance, array $return, string $status, string $eventId): array
+{
+    $payload = [
+        'type' => 'return',
+        'status' => $status,
+        'event_id' => $eventId,
+        'return_no' => (string)$return['return_no'],
+        'amount_cent' => (int)$return['amount_cent'],
+        'message' => 'isolated mock return callback',
+    ];
+    $raw = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    $timestamp = (string)time();
+    $nonce = 'ac-return-' . substr(hash('sha256', $eventId), 0, 20);
+    $signature = hash_hmac('sha256', $timestamp . "\n" . $nonce . "\n" . $raw, (string)getenv('YFTH_COMMISSION_TEST_CALLBACK_SECRET'));
+    return $finance->handleTrustedSettlementCallback([
+        'X-Yfth-Mock-Signature' => $signature,
+        'X-Yfth-Mock-Timestamp' => $timestamp,
+        'X-Yfth-Mock-Nonce' => $nonce,
+        'X-Yfth-Mock-Certificate' => 'YFTH-ISOLATED-TEST',
+    ], $raw);
 }

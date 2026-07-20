@@ -181,7 +181,12 @@ class UnifiedRewardOrchestratorServices extends YfthFoundationBaseServices
         $issues = [];
         $events = Db::name('yfth_reward_event')->where('status', 'succeeded')
             ->where('result_id', '>', 0)->order('id desc')->limit($limit * 2)->select()->toArray();
-        $tables = ['direct_reward_candidate' => 'yfth_direct_referral_reward_candidate', 'opening_quota_award' => 'yfth_partner_opening_quota_award'];
+        $tables = [
+            'direct_reward_candidate' => 'yfth_direct_referral_reward_candidate',
+            'commission_accrual' => 'yfth_commission_accrual',
+            'mall_commission_snapshot' => 'yfth_mall_commission_order_snapshot',
+            'opening_quota_award' => 'yfth_partner_opening_quota_award',
+        ];
         foreach ($events as $event) {
             $table = $tables[(string)$event['result_type']] ?? '';
             if ($table && !Db::name($table)->where('id', (int)$event['result_id'])->find()) {
@@ -207,34 +212,26 @@ class UnifiedRewardOrchestratorServices extends YfthFoundationBaseServices
         $payload = json_decode((string)($event['payload_snapshot'] ?? ''), true) ?: [];
         switch ((string)$event['event_type']) {
             case 'package_activated':
-                $result = app()->make(DirectReferralRewardServices::class)->createPackageCandidateFromEvent($payload);
-                if (!empty($result['candidate'])) {
-                    app()->make(AutomaticCommissionServices::class)->creditPackageCandidate((array)$result['candidate']);
-                }
-                return $this->candidateResult($result);
+                $result = app()->make(AutomaticCommissionServices::class)->consumePackageActivation($payload);
+                return ['result_type' => 'commission_accrual', 'result_id' => (int)($result['accrual']['id'] ?? 0)];
             case 'package_invalidated':
-                $result = app()->make(DirectReferralRewardServices::class)->reversePackageCandidateFromEvent($payload);
-                if (!empty($result['candidate'])) {
-                    app()->make(AutomaticCommissionServices::class)->reversePackageCandidate((array)$result['candidate'], $payload);
-                }
-                return $this->candidateResult($result);
+                $result = app()->make(AutomaticCommissionServices::class)->reversePackageActivation($payload);
+                return ['result_type' => 'commission_accrual', 'result_id' => (int)($result['accrual']['id'] ?? 0)];
             case 'mall_order_paid':
-                $result = app()->make(DirectReferralRewardServices::class)->recordMallOrderPaid((int)$event['source_id']);
                 $snapshot = app()->make(AutomaticCommissionServices::class)->snapshotMallOrderPaid((int)$event['source_id']);
                 if (!empty($snapshot['snapshot'])) {
                     return ['result_type' => 'mall_commission_snapshot', 'result_id' => (int)$snapshot['snapshot']['id']];
                 }
-                return $this->candidateResult($result);
+                return ['ignored' => true, 'reason' => (string)($snapshot['reason'] ?? 'mall_order_not_eligible')];
             case 'mall_order_completed':
                 $result = app()->make(AutomaticCommissionServices::class)->completeMallOrder((int)$event['source_id']);
                 return ['result_type' => 'mall_commission_snapshot', 'result_id' => (int)($result['snapshot_id'] ?? 0)];
             case 'mall_order_refunded':
-                $result = app()->make(DirectReferralRewardServices::class)->adjustMallOrderCandidateAfterRefund((int)$event['source_id'], $payload);
                 $automatic = app()->make(AutomaticCommissionServices::class)->refundMallOrder((int)$event['source_id'], $payload);
                 if (($automatic['reason'] ?? '') !== 'mall_order_snapshot_missing') {
                     return ['result_type' => 'mall_commission_snapshot', 'result_id' => (int)Db::name('yfth_mall_commission_order_snapshot')->where('order_id', (int)$event['source_id'])->value('id')];
                 }
-                return $this->candidateResult($result);
+                return ['ignored' => true, 'reason' => 'mall_order_snapshot_missing'];
             case 'partner_store_opened':
                 return $this->grantOpeningQuota($payload);
             case 'partner_opening_cancelled':

@@ -1,6 +1,8 @@
 <?php
 
 use app\services\yfth\DirectReferralRewardServices;
+use app\services\yfth\AutomaticCommissionServices;
+use app\services\yfth\YfthCommissionOrderSourceServices;
 use app\services\yfth\CurrentBusinessContextServices;
 use app\services\yfth\HqAuthorityMutation;
 use app\services\yfth\HqAuthoritySource;
@@ -59,6 +61,7 @@ try {
     $membership = app()->make(PackageMembershipServices::class);
     $referral = app()->make(PackageMembershipReferralServices::class);
     $reward = app()->make(DirectReferralRewardServices::class);
+    $automatic = app()->make(AutomaticCommissionServices::class);
     $coordinator = app()->make(PackageMembershipActivationCoordinator::class);
     $attribution = app()->make(HqCustomerAttributionServices::class);
     $templates = app()->make(PackageTemplateServices::class);
@@ -254,10 +257,10 @@ try {
         ]);
     }, 'direct_referral_referred_user_must_be_non_member', 'permanent_member_scan_is_rejected');
     $assert((string)Db::name('yfth_hq_active_referral_current')->where('referred_uid', 920002)->value('close_reason') === 'membership_activated', 'relation_close_reason_is_membership_activated');
-    pmrAssertCandidate($assert, 920002, 1, 1500, 1851, 'first_package_candidate');
+    pmrAssertCandidate($assert, 920002, 1, 1500, 1851, 'first_package_accrual');
     $postMembershipOrder = pmrCreatePaidOrder(920002, $storeA, '66.00', 'closed-referral-consumption');
-    $postMembership = $reward->recordMallOrderPaid($postMembershipOrder);
-    $assert(($postMembership['reason'] ?? '') === 'active_referral_not_found', 'closed_referral_produces_no_new_consumption_candidate');
+    $postMembership = $automatic->snapshotMallOrderPaid($postMembershipOrder);
+    $assert(empty($postMembership['snapshot']['referrer_uid']), 'closed_referral_produces_no_new_c1_mall_commission');
     $c2Referral = pmrCreateReferral($referral, 920002, 920011, 'c2-independent-referral');
     $assert((int)$c2Referral['referrer_uid'] === 920002 && (int)$c2Referral['store_id'] === $storeA, 'qualified_c2_can_refer_independently');
     $userSummary = $referral->me(920002);
@@ -271,7 +274,7 @@ try {
 
     pmrCreateReferral($referral, 920001, 920003, 'flow-2');
     pmrActivate($coordinator, 920003, $storeA, 991003, 992003, '200.00');
-    pmrAssertCandidate($assert, 920003, 2, 2500, 5000, 'second_package_candidate');
+    pmrAssertCandidate($assert, 920003, 2, 2500, 5000, 'second_package_accrual');
     $directReferrals = $referral->directReferrals($c1, 1, 20);
     pmrAssertRecursiveKeysAbsent($assert, $directReferrals, [
         'referrer_uid', 'referred_uid', 'owner_uid', 'reward_sequence_no', 'rule_version_id',
@@ -291,7 +294,7 @@ try {
 
     pmrCreateReferral($referral, 920001, 920004, 'flow-3');
     pmrActivate($coordinator, 920004, $storeA, 991004, 992004, '300.00');
-    pmrAssertCandidate($assert, 920004, 3, 6000, 18000, 'third_package_candidate');
+    pmrAssertCandidate($assert, 920004, 3, 6000, 18000, 'third_package_accrual');
 
     pmrCreateReferral($referral, 920001, 920005, 'flow-4');
     pmrCreateReferral($referral, 920001, 920006, 'flow-5');
@@ -304,22 +307,23 @@ try {
     foreach ($workers as $index => $worker) {
         $assert($worker['exit_code'] === 0, 'concurrent_activation_worker_' . ($index + 1) . ':' . $worker['stderr']);
     }
-    $sequences = Db::name('yfth_direct_referral_reward_candidate')->where('referrer_uid', $c1)
-        ->whereNotNull('reward_sequence_no')->order('reward_sequence_no asc')->column('reward_sequence_no');
+    $sequences = Db::name('yfth_commission_accrual')->where('c1_uid', $c1)
+        ->where('source_type', 'package_activation')->whereNotNull('package_sequence_no')
+        ->order('package_sequence_no asc')->column('package_sequence_no');
     $assert(array_map('intval', $sequences) === [1, 2, 3, 4, 5], 'concurrent_sequence_is_unique_and_contiguous');
-    $concurrentCandidates = Db::name('yfth_direct_referral_reward_candidate')
-        ->whereIn('referred_uid', [920005, 920006])
-        ->where('candidate_type', 'package_activation')
-        ->order('reward_sequence_no asc')
+    $concurrentCandidates = Db::name('yfth_commission_accrual')
+        ->whereIn('buyer_uid', [920005, 920006])
+        ->where('source_type', 'package_activation')
+        ->order('package_sequence_no asc')
         ->select()
         ->toArray();
-    $assert(array_map('intval', array_column($concurrentCandidates, 'reward_sequence_no')) === [4, 5], 'concurrent_candidates_receive_next_two_sequences');
+    $assert(array_map('intval', array_column($concurrentCandidates, 'package_sequence_no')) === [4, 5], 'concurrent_accruals_receive_next_two_sequences');
     foreach ($concurrentCandidates as $candidate) {
-        $sequence = (int)$candidate['reward_sequence_no'];
+        $sequence = (int)$candidate['package_sequence_no'];
         $expectedRatio = $sequence === 4 ? 1500 : 2500;
-        $paidCent = (int)$candidate['referred_uid'] === 920005 ? 40000 : 50000;
-        $assert((int)$candidate['ratio_bps'] === $expectedRatio, 'concurrent_candidate_ratio_for_sequence_' . $sequence);
-        $assert((int)$candidate['reward_amount_cent'] === intdiv($paidCent * $expectedRatio, 10000), 'concurrent_candidate_integer_amount_for_sequence_' . $sequence);
+        $paidCent = (int)$candidate['buyer_uid'] === 920005 ? 40000 : 50000;
+        $assert((int)$candidate['c1_ratio_bps'] === $expectedRatio, 'concurrent_accrual_ratio_for_sequence_' . $sequence);
+        $assert((int)$candidate['c1_amount_cent'] === intdiv($paidCent * $expectedRatio, 10000), 'concurrent_accrual_integer_amount_for_sequence_' . $sequence);
     }
 
     pmrCreateReferral($referral, 920001, 920007, 'flow-rollback');
@@ -330,15 +334,15 @@ try {
     ]);
     $expect(function () use ($coordinator, $storeA) {
         pmrActivate($coordinator, 920007, $storeA, 991007, 992007, '600.00');
-    }, 'direct_referral_rule_unavailable', 'missing_rule_fails_closed');
+    }, 'package_commission_rule_not_found', 'missing_rule_fails_closed');
     $rollbackRelation = Db::name('yfth_hq_active_referral_current')->where('referred_uid', 920007)->find();
     $assert((string)$rollbackRelation['status'] === 'active' && (int)$rollbackRelation['active_referred_uid'] === 920007, 'failed_activation_rolls_back_relation_close');
     $assert((int)Db::name('yfth_permanent_membership')->where('uid', 920007)->count() === 0, 'failed_activation_rolls_back_membership');
-    $assert((int)Db::name('yfth_direct_referral_reward_candidate')->where('referred_uid', 920007)->count() === 0, 'failed_activation_rolls_back_candidate');
+    $assert((int)Db::name('yfth_commission_accrual')->where('buyer_uid', 920007)->count() === 0, 'failed_activation_rolls_back_accrual');
 
     $mallOrderWithoutRule = pmrCreatePaidOrder(920007, $storeA, '88.00', 'mall-no-rule');
-    $noRule = $reward->recordMallOrderPaid($mallOrderWithoutRule);
-    $assert(($noRule['reason'] ?? '') === 'mall_consumption_rule_unavailable', 'mall_extension_fails_closed_without_rule');
+    $noRule = $automatic->snapshotMallOrderPaid($mallOrderWithoutRule);
+    $assert(($noRule['reason'] ?? '') === 'mall_order_has_no_commission_rule', 'mall_extension_fails_closed_without_automatic_rule');
     Db::name('yfth_direct_referral_rule_version')->where('id', (int)$rule['id'])->update([
         'status' => 'published',
         'active_key' => 'published',
@@ -346,31 +350,25 @@ try {
     ]);
     $refundedOrder = pmrCreatePaidOrder(920007, $storeA, '88.00', 'mall-refunded');
     Db::name('store_order')->where('id', $refundedOrder)->update(['refund_status' => 2]);
-    $expect(function () use ($reward, $refundedOrder) {
-        $reward->recordMallOrderPaid($refundedOrder);
-    }, 'trusted_paid_unrefunded_main_order_required', 'mall_refunded_order_rejected');
+    $refundedResult = $automatic->snapshotMallOrderPaid($refundedOrder);
+    $assert(($refundedResult['reason'] ?? '') === 'mall_order_not_eligible', 'mall_refunded_order_rejected');
     $childOrder = pmrCreatePaidOrder(920007, $storeA, '88.00', 'mall-child');
     Db::name('store_order')->where('id', $childOrder)->update(['pid' => $refundedOrder]);
-    $expect(function () use ($reward, $childOrder) {
-        $reward->recordMallOrderPaid($childOrder);
-    }, 'trusted_paid_unrefunded_main_order_required', 'mall_child_order_rejected');
+    $childResult = $automatic->snapshotMallOrderPaid($childOrder);
+    $assert(($childResult['reason'] ?? '') === 'mall_order_not_eligible', 'mall_child_order_rejected');
     $deletedOrder = pmrCreatePaidOrder(920007, $storeA, '88.00', 'mall-deleted');
     Db::name('store_order')->where('id', $deletedOrder)->update(['is_del' => 1]);
-    $expect(function () use ($reward, $deletedOrder) {
-        $reward->recordMallOrderPaid($deletedOrder);
-    }, 'trusted_paid_unrefunded_main_order_required', 'mall_deleted_order_rejected');
-    $assert((int)Db::name('yfth_direct_referral_reward_candidate')
-        ->whereIn('source_business_id', [(string)$refundedOrder, (string)$childOrder, (string)$deletedOrder])
-        ->count() === 0, 'invalid_mall_orders_create_no_candidate');
+    $deletedResult = $automatic->snapshotMallOrderPaid($deletedOrder);
+    $assert(($deletedResult['reason'] ?? '') === 'mall_order_not_eligible', 'mall_deleted_order_rejected');
+    $assert((int)Db::name('yfth_mall_commission_order_snapshot')
+        ->whereIn('order_id', [$refundedOrder, $childOrder, $deletedOrder])
+        ->count() === 0, 'invalid_mall_orders_create_no_snapshot');
     $mallOrder = pmrCreatePaidOrder(920007, $storeA, '88.00', 'mall-active-rule');
-    $mallCandidate = $reward->recordMallOrderPaid($mallOrder);
-    $assert(!empty($mallCandidate['created']), 'mall_extension_creates_candidate_with_active_rule');
-    $assert((int)$mallCandidate['candidate']['ratio_bps'] === 500 && (int)$mallCandidate['candidate']['reward_amount_cent'] === 440, 'mall_candidate_uses_versioned_integer_ratio');
+    $mallSnapshot = $automatic->snapshotMallOrderPaid($mallOrder);
+    $assert(($mallSnapshot['reason'] ?? '') === 'mall_order_has_no_commission_rule', 'mall_extension_never_creates_legacy_candidate');
     $storeMetadataOrder = pmrCreatePaidOrder(920007, $storeB, '88.00', 'mall-store-metadata');
-    $storeMetadataCandidate = $reward->recordMallOrderPaid($storeMetadataOrder);
-    $assert(!empty($storeMetadataCandidate['created'])
-        && (int)$storeMetadataCandidate['candidate']['store_id'] === $storeA,
-        'mall_candidate_b1_comes_from_authoritative_attribution_not_order_store_metadata');
+    $storeMetadataSnapshot = $automatic->snapshotMallOrderPaid($storeMetadataOrder);
+    $assert(($storeMetadataSnapshot['reason'] ?? '') === 'mall_order_has_no_commission_rule', 'mall_snapshot_does_not_trust_order_store_metadata');
 
     $fullUid = 920008;
     pmrCreateReferral($referral, $c1, $fullUid, 'full-package');
@@ -384,7 +382,7 @@ try {
     }
     $assert((int)Db::name('yfth_package_instance')->where('purchase_id', $full['purchase_id'])->count() === 1, 'duplicate_activation_creates_one_package_instance');
     $assert((int)Db::name('yfth_permanent_membership')->where('uid', $fullUid)->count() === 1, 'duplicate_activation_creates_one_membership');
-    $assert((int)Db::name('yfth_direct_referral_reward_candidate')->where('referred_uid', $fullUid)->where('candidate_type', 'package_activation')->count() === 1, 'duplicate_activation_creates_one_candidate');
+    $assert((int)Db::name('yfth_commission_accrual')->where('buyer_uid', $fullUid)->where('source_type', 'package_activation')->count() === 1, 'duplicate_activation_creates_one_accrual');
     $assert((int)Db::name('yfth_package_purchase')->where('id', $full['purchase_id'])->value('instance_id') > 0, 'real_package_activation_updates_purchase');
 
     $legacyUid = 920009;
@@ -440,11 +438,11 @@ try {
         $assert((string)$raceRelation['status'] === 'closed'
             && (string)$raceRelation['close_reason'] === 'membership_activated',
             'accepted_concurrent_relation_is_atomically_closed');
-        $assert((int)Db::name('yfth_direct_referral_reward_candidate')->where('referred_uid', $raceUid)->count() === 1,
-            'accepted_concurrent_relation_creates_one_candidate');
+        $assert((int)Db::name('yfth_commission_accrual')->where('buyer_uid', $raceUid)->where('source_type', 'package_activation')->count() === 1,
+            'accepted_concurrent_relation_creates_one_accrual');
     } else {
-        $assert((int)Db::name('yfth_direct_referral_reward_candidate')->where('referred_uid', $raceUid)->count() === 0,
-            'activation_first_concurrent_outcome_creates_no_partial_candidate');
+        $assert((int)Db::name('yfth_commission_accrual')->where('buyer_uid', $raceUid)->count() === 0,
+            'activation_first_concurrent_outcome_creates_no_partial_accrual');
     }
     $assert((int)Db::name('yfth_idempotency_record')
         ->where('idempotency_key', 'pmr-race-accept')->where('process_status', 'processing')->count() === 0,
@@ -509,6 +507,11 @@ function pmrCleanup(): void
 {
     foreach ([
         'yfth_customer_relation', 'yfth_direct_referral_reward_candidate', 'yfth_direct_referral_rule_version', 'yfth_direct_referral_invite',
+        'yfth_store_settlement_callback', 'yfth_store_settlement_return', 'yfth_store_settlement_batch_item',
+        'yfth_store_settlement_batch', 'yfth_store_settlement_receiver', 'yfth_commission_refund_reversal',
+        'yfth_commission_ledger', 'yfth_store_commission_account', 'yfth_user_commission_account',
+        'yfth_commission_accrual', 'yfth_mall_commission_order_snapshot', 'yfth_commission_order_source',
+        'yfth_commission_sequence_counter', 'yfth_commission_rule_version',
         'yfth_permanent_membership_event', 'yfth_permanent_membership', 'yfth_hq_active_referral_event',
         'yfth_hq_active_referral_current', 'yfth_hq_customer_attribution_event', 'yfth_hq_customer_attribution_current',
         'yfth_idempotency_record', 'yfth_audit_event', 'yfth_benefit_item', 'yfth_benefit_period',
@@ -652,18 +655,18 @@ function pmrActivate(PackageMembershipActivationCoordinator $coordinator, int $u
 
 function pmrAssertCandidate(callable $assert, int $referredUid, int $sequence, int $ratio, int $amount, string $label): void
 {
-    $candidate = Db::name('yfth_direct_referral_reward_candidate')->where('referred_uid', $referredUid)
-        ->where('candidate_type', 'package_activation')->find();
-    $assert((int)($candidate['reward_sequence_no'] ?? 0) === $sequence, $label . ':sequence');
-    $assert((int)($candidate['ratio_bps'] ?? 0) === $ratio, $label . ':ratio');
-    $assert((int)($candidate['reward_amount_cent'] ?? 0) === $amount, $label . ':integer_amount');
-    $assert((string)($candidate['status'] ?? '') === 'pending', $label . ':pending_only');
+    $accrual = Db::name('yfth_commission_accrual')->where('buyer_uid', $referredUid)
+        ->where('source_type', 'package_activation')->find();
+    $assert((int)($accrual['package_sequence_no'] ?? 0) === $sequence, $label . ':sequence');
+    $assert((int)($accrual['c1_ratio_bps'] ?? 0) === $ratio, $label . ':ratio');
+    $assert((int)($accrual['c1_amount_cent'] ?? 0) === $amount, $label . ':integer_amount');
+    $assert(in_array((string)($accrual['status'] ?? ''), ['observing', 'credited'], true), $label . ':automatic_status');
 }
 
 function pmrCreatePaidOrder(int $uid, int $storeId, string $amount, string $suffix): int
 {
     $now = time();
-    return (int)Db::name('store_order')->insertGetId([
+    $orderId = (int)Db::name('store_order')->insertGetId([
         'order_id' => 'PMR' . strtoupper(substr(hash('sha256', $suffix . microtime(true)), 0, 20)),
         'uid' => $uid,
         'pay_price' => $amount,
@@ -675,6 +678,8 @@ function pmrCreatePaidOrder(int $uid, int $storeId, string $amount, string $suff
         'unique' => substr(hash('md5', $suffix . microtime(true)), 0, 32),
         'store_id' => $storeId,
     ]);
+    app()->make(YfthCommissionOrderSourceServices::class)->mark($orderId, 'normal_mall');
+    return $orderId;
 }
 
 function pmrCreateActivatablePackage(int $uid, int $storeId, string $amount): array

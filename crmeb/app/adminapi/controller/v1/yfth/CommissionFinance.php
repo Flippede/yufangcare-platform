@@ -127,15 +127,6 @@ class CommissionFinance extends AuthController
         return app('json')->success($services->startSettlementBatch((int)$id, (int)$this->adminId));
     }
 
-    public function settlementBatchCallback(CommissionFinanceServices $services, $id)
-    {
-        $this->auth('yfth/commission/settlement_batch', 'POST');
-        return app('json')->success($services->recordSettlementCallback((int)$id, $this->request->postMore([
-            ['callback_event_id', ''], ['status', ''], ['wechat_batch_no', ''],
-            ['wechat_detail_no', ''], ['message', ''],
-        ]), (int)$this->adminId));
-    }
-
     public function retry(AutomaticCommissionServices $services)
     {
         $this->auth('yfth/commission/retry', 'POST');

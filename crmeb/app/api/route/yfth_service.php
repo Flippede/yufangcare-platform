@@ -15,6 +15,10 @@ Route::group(function () {
     ->middleware(\app\api\middleware\AuthTokenMiddleware::class, false)
     ->option(['mark' => 'yfth_service_public', 'mark_name' => 'YFTH service appointment public API']);
 
+Route::post('yfth/commission/profit_sharing/callback', 'v1.yfth.CommissionProfitSharingCallbackController/receive')
+    ->middleware(\app\api\middleware\StationOpenMiddleware::class)
+    ->option(['real_name' => 'YFTH trusted commission profit-sharing callback']);
+
 Route::group(function () {
     Route::get('yfth/service/appointment/benefits', 'v1.yfth.ServiceAppointmentController/availableBenefits')->option(['real_name' => 'YFTH service appointment available benefits']);
     Route::post('yfth/service/appointment', 'v1.yfth.ServiceAppointmentController/create')->option(['real_name' => 'YFTH service appointment create']);

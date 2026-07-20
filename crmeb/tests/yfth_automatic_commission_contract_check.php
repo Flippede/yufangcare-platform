@@ -3,7 +3,9 @@
 $root = dirname(__DIR__);
 $failures = [];
 $assert = function (bool $condition, string $message) use (&$failures): void {
-    if (!$condition) $failures[] = $message;
+    if (!$condition) {
+        $failures[] = $message;
+    }
 };
 $read = function (string $file) use ($root, $assert): string {
     $path = $root . '/' . $file;
@@ -13,111 +15,106 @@ $read = function (string $file) use ($root, $assert): string {
 
 $automatic = $read('app/services/yfth/AutomaticCommissionServices.php');
 $finance = $read('app/services/yfth/CommissionFinanceServices.php');
-$migration = $read('database/migrations/20260720200000_create_yfth_automatic_commission_accounts_v1.php');
 $orchestrator = $read('app/services/yfth/UnifiedRewardOrchestratorServices.php');
-$listener = $read('app/listener/yfth/MallConsumptionRewardCustomEventListener.php');
+$legacySettlement = $read('app/services/yfth/DirectReferralRewardSettlementServices.php');
+$legacyRewardWriter = $read('app/services/yfth/DirectReferralRewardServices.php');
+$packageActivation = $read('app/services/yfth/PackageMembershipActivationCoordinator.php');
+$sourceGuard = $read('app/services/yfth/YfthCommissionOrderSourceServices.php');
+$migrationHealth = $read('app/services/yfth/AutomaticCommissionMigrationHealthServices.php');
+$provider = $read('app/services/yfth/CommissionProfitSharingProviderInterface.php');
+$providerFactory = $read('app/services/yfth/CommissionProfitSharingProviderFactory.php');
+$mockProvider = $read('app/services/yfth/MockCommissionProfitSharingProvider.php');
+$failClosedProvider = $read('app/services/yfth/FailClosedCommissionProfitSharingProvider.php');
+$v1 = $read('database/migrations/20260720200000_create_yfth_automatic_commission_accounts_v1.php');
+$v2 = $read('database/migrations/20260720210000_harden_yfth_automatic_commission_execution_v2.php');
 $apiRoute = $read('app/api/route/yfth_service.php');
 $adminRoute = $read('app/adminapi/route/yfth.php');
-$adminApi = $read('../template/admin/src/api/yfth.js');
-$uniApi = $read('../template/uni-app/api/yfth.js');
-$adminPage = $read('../template/admin/src/pages/yfth/commissionFinance/index.vue');
-$userPage = $read('../template/uni-app/pages/yfth/commission/account.vue');
-$storePage = $read('../template/uni-app/pages/yfth/workbench/commission/index.vue');
-$legacyReport = $read('crmeb/command/YfthCommissionLegacyReport.php');
-$console = $read('config/console.php');
+$orderCreate = $read('app/services/order/StoreOrderCreateServices.php');
+$orderTake = $read('app/services/order/StoreOrderTakeServices.php');
 
 foreach ([
     'yfth_commission_rule_version', 'yfth_mall_commission_order_snapshot', 'yfth_commission_accrual',
-    'yfth_user_commission_account', 'yfth_store_commission_account', 'yfth_commission_ledger',
-    'yfth_c1_settlement_request', 'yfth_store_settlement_receiver', 'yfth_store_settlement_batch',
-    'yfth_store_settlement_batch_item', 'yfth_store_settlement_return', 'yfth_store_settlement_callback',
+    'yfth_commission_ledger', 'yfth_store_settlement_batch', 'yfth_store_settlement_batch_item',
+    'yfth_store_settlement_receiver', 'yfth_store_settlement_callback', 'yfth_store_settlement_return',
 ] as $table) {
-    $assert(strpos($migration, $table) !== false, 'migration_table_missing:' . $table);
+    $assert(strpos($v1, $table) !== false, 'v1_table_missing:' . $table);
 }
 foreach ([
-    'uniq_yfth_commission_rule_version', 'uniq_yfth_mall_commission_order',
-    'uniq_yfth_commission_accrual_source', 'uniq_yfth_commission_ledger_source',
-    'uniq_yfth_c1_settlement_request', 'uniq_yfth_store_settlement_receiver',
-    'uniq_yfth_store_settlement_request', 'uniq_yfth_store_settlement_ledger',
-    'uniq_yfth_store_settlement_return_no', 'uniq_yfth_store_settlement_return_request',
-    'uniq_yfth_store_settlement_callback',
-] as $index) {
-    $assert(strpos($migration, $index) !== false, 'migration_unique_guard_missing:' . $index);
-}
-foreach ([
-    'unsettled_cent', 'settled_cent', 'c1_pending_cent', 'c1_paid_cent',
-    'receiver_type', 'receiver_account_enc', 'merchant_no_enc', 'wechat_batch_no',
-    'wechat_detail_no', 'wechat_return_no', 'return_id', 'callback_type',
-    'callback_event_id', 'callback_json',
-] as $field) {
-    $assert(strpos($migration, $field) !== false, 'settlement_schema_field_missing:' . $field);
-}
-foreach ([
-    'snapshotMallOrderPaid', 'completeMallOrder', 'processDue', 'refundMallOrder',
-    'creditPackageCandidate', 'reversePackageCandidate', 'activeMallRule',
-    "['product', \$productId]", "['category', \$categoryId]", "['all', 0]",
-    'remainingItemBase', 'syncMallSnapshotStatus', "\$referrerUid === \$buyerUid",
-    'money_snapshot_invalid', 'commission_b1_credit', 'commission_c1_responsibility_credit',
-    'syncStoreC1Pending',
+    'yfth_commission_sequence_counter', 'yfth_commission_refund_reversal', 'yfth_commission_order_source',
+    'uniq_yfth_commission_package_sequence', 'uniq_yfth_commission_sequence_referrer',
+    'uniq_yfth_commission_refund_item_accrual', 'uniq_yfth_commission_order_source',
 ] as $needle) {
-    $assert(strpos($automatic, $needle) !== false, 'automatic_service_missing:' . $needle);
-}
-foreach ([
-    'requestUserSettlement', 'completeUserSettlement', 'storeSettlementBatches',
-    'saveSettlementReceiver', 'generateSettlementBatches', 'startSettlementBatch',
-    'recordSettlementCallback', 'unsettled_cent', 'settled_cent', 'c1_pending_cent',
-    'wechat_batch_no', 'lock(true)', 'store_commission',
-] as $needle) {
-    $assert(strpos($finance, $needle) !== false, 'finance_service_missing:' . $needle);
-}
-foreach (['mall_order_completed', 'mall_order_refunded', 'creditPackageCandidate', 'reversePackageCandidate'] as $needle) {
-    $assert(strpos($orchestrator, $needle) !== false, 'orchestrator_missing:' . $needle);
-}
-foreach (['order_take', 'admin_order_refund_success'] as $needle) {
-    $assert(strpos($listener, $needle) !== false, 'listener_missing:' . $needle);
-}
-foreach (['yfth/commission/summary', 'yfth/commission/settlement', 'store_workbench/commission/settlement_batch'] as $needle) {
-    $assert(strpos($apiRoute, $needle) !== false, 'api_route_missing:' . $needle);
-}
-foreach (["Route::group('commission'", "Route::get('settlement_receiver'", "Route::post('settlement_batch/generate'",
-    "Route::post('settlement_batch/:id/start'", "Route::post('settlement_batch/:id/callback'"] as $needle) {
-    $assert(strpos($adminRoute, $needle) !== false, 'admin_route_missing:' . $needle);
-}
-foreach (['yfthCommissionSettlementBatchList', 'yfthCommissionSettlementBatchGenerate',
-    'yfthCommissionSettlementBatchStart', 'yfthCommissionSettlementReceiverSave'] as $needle) {
-    $assert(strpos($adminApi, $needle) !== false, 'admin_api_missing:' . $needle);
-}
-foreach (['requestYfthCommissionSettlement', 'getYfthStoreC1Settlements',
-    'completeYfthStoreC1Settlement', 'getYfthStoreCommissionSettlementBatches'] as $needle) {
-    $assert(strpos($uniApi, $needle) !== false, 'uni_api_missing:' . $needle);
-}
-foreach (['结算批次', '微信分账', '待结算', '已结算'] as $needle) {
-    $assert(strpos($adminPage . $storePage, $needle) !== false, 'settlement_page_surface_missing:' . $needle);
-}
-foreach (['应结算佣金', '已申请结算', '已完成结算'] as $needle) {
-    $assert(strpos($userPage, $needle) !== false, 'c1_page_surface_missing:' . $needle);
+    $assert(strpos($v2, $needle) !== false, 'v2_idempotency_guard_missing:' . $needle);
 }
 
-$allFeatureSources = implode("\n", [$finance, $migration, $apiRoute, $adminRoute, $adminApi, $uniApi, $adminPage, $storePage]);
+foreach ([
+    'consumePackageActivation', 'reversePackageActivation', 'snapshotMallOrderPaid', 'completeMallOrder',
+    'refundMallOrder', 'processDue', 'nextPackageSequence', 'refundItemFacts',
+    'yfth_commission_refund_reversal', 'package_activation|', 'commission_observation_due',
+] as $needle) {
+    $assert(strpos($automatic, $needle) !== false, 'automatic_execution_missing:' . $needle);
+}
+$assert(strpos($automatic, 'creditPackageCandidate') === false, 'legacy_package_candidate_credit_must_be_absent');
+$assert(strpos($automatic, 'syncLegacyMallCandidate') === false, 'legacy_mall_candidate_write_must_be_absent');
+foreach (['consumePackageActivation', 'closeActiveReferral', 'package_activated'] as $needle) {
+    $assert(strpos($packageActivation, $needle) !== false, 'package_activation_consumer_or_close_order_missing:' . $needle);
+}
+foreach (['consumePackageActivation', 'reversePackageActivation', 'snapshotMallOrderPaid', 'refundMallOrder'] as $needle) {
+    $assert(strpos($orchestrator, $needle) !== false, 'orchestrator_automatic_path_missing:' . $needle);
+}
+$assert(strpos($orchestrator, 'DirectReferralRewardServices') === false, 'orchestrator_must_not_create_legacy_candidates');
+foreach (['assertAutomaticExecutionOnly', 'yfth_legacy_reward_manual_execution_disabled'] as $needle) {
+    $assert(strpos($legacySettlement, $needle) !== false, 'legacy_manual_write_not_disabled:' . $needle);
+}
+foreach (['createPackageCandidateInTransaction', 'recordMallOrderPaid', 'adjustMallOrderCandidateAfterRefund', 'yfth_legacy_reward_manual_execution_disabled'] as $needle) {
+    $assert(strpos($legacyRewardWriter, $needle) !== false, 'legacy_candidate_writer_not_explicitly_disabled:' . $needle);
+}
+
+foreach ([
+    'generateSettlementBatches', 'startSettlementBatch', 'handleTrustedSettlementCallback',
+    'requestSettlementReturn', 'applyTrustedReturnCallback', 'recordSettlementCallback',
+    'settlement_callback_admin_write_disabled', 'whereNull(\'i.id\')', 'l.add_time asc,l.id asc',
+    'waiting_receiver', 'profit_sharing_provider_unavailable',
+] as $needle) {
+    $assert(strpos($finance, $needle) !== false, 'settlement_execution_missing:' . $needle);
+}
+foreach (['registerReceiver', 'createSettlement', 'querySettlement', 'createReturn', 'queryReturn', 'verifyCallback'] as $needle) {
+    $assert(strpos($provider, $needle) !== false, 'provider_boundary_missing:' . $needle);
+}
+foreach (['YFTH_COMMISSION_TEST_MODE', 'YFTH_REAL_FLOW_ISOLATED_DB', 'MockCommissionProfitSharingProvider', 'FailClosedCommissionProfitSharingProvider'] as $needle) {
+    $assert(strpos($providerFactory, $needle) !== false, 'provider_environment_guard_missing:' . $needle);
+}
+foreach (['x-yfth-mock-signature', 'x-yfth-mock-timestamp', 'x-yfth-mock-nonce', 'x-yfth-mock-certificate', 'YFTH-ISOLATED-TEST', 'hash_hmac'] as $needle) {
+    $assert(strpos($mockProvider, $needle) !== false, 'mock_callback_validation_missing:' . $needle);
+}
+$assert(strpos($failClosedProvider, 'commission_profit_sharing_provider_not_configured') !== false,
+    'production_provider_must_fail_closed');
+
+foreach (['shouldMarkCustomerOrder', 'mark(', 'excludesCrmebBrokerage', 'legacy_brokerage_excluded'] as $needle) {
+    $assert(strpos($sourceGuard, $needle) !== false, 'order_source_guard_missing:' . $needle);
+}
+foreach (['YfthCommissionOrderSourceServices', 'excludesCrmebBrokerage', 'division_brokerage'] as $needle) {
+    $assert(strpos($orderCreate . $orderTake, $needle) !== false, 'crmeb_brokerage_exclusion_missing:' . $needle);
+}
+
+foreach (['assertHealthy', 'yfth_commission_rule_version', 'uniq_yfth_commission_rule_version', 'yfth-auto-commission-settlement-write'] as $needle) {
+    $assert(strpos($migrationHealth, $needle) !== false, 'migration_health_gate_missing:' . $needle);
+}
+foreach (['commission/profit_sharing/callback', 'CommissionProfitSharingCallbackController'] as $needle) {
+    $assert(strpos($apiRoute, $needle) !== false, 'trusted_callback_route_missing:' . $needle);
+}
+$assert(strpos($adminRoute, "Route::post('settlement_batch/:id/callback'") === false,
+    'ordinary_admin_callback_route_must_be_removed');
+
+$all = implode("\n", [$automatic, $finance, $orchestrator, $legacySettlement, $apiRoute, $adminRoute]);
 foreach ([
     'yfth_store_withdrawal', 'yfth_withdrawal_allocation', 'requestStoreWithdrawal',
-    'completeStoreWithdrawal', 'own_available_cent', 'proxy_available_cent',
-    'hq_frozen_cent', 'hq_withdrawn_cent', 'remaining_withdrawable_cent',
+    'completeStoreWithdrawal', 'own_available_cent', 'proxy_available_cent', 'hq_frozen_cent',
 ] as $forbidden) {
-    $assert(strpos($allFeatureSources, $forbidden) === false, 'b1_withdrawal_model_must_be_absent:' . $forbidden);
+    $assert(strpos($all, $forbidden) === false, 'b1_withdrawal_surface_must_be_absent:' . $forbidden);
 }
 foreach (["now_money')->update", "brokerage_price')->update", "user_bill')->insert"] as $forbidden) {
-    $assert(strpos($automatic, $forbidden) === false && strpos($finance, $forbidden) === false,
-        'restricted_commission_must_not_become_spendable:' . $forbidden);
-}
-
-$assert(strpos($console, 'yfth:commission-legacy-report') !== false, 'legacy_reconciliation_command_not_registered');
-foreach (['read_only', 'yfth_direct_referral_reward_candidate', 'yfth_direct_referral_reward_settlement_ledger',
-    'yfth_reward_settlement_record', 'row_count', 'amount_cent'] as $needle) {
-    $assert(strpos($legacyReport, $needle) !== false, 'legacy_reconciliation_report_missing:' . $needle);
-}
-foreach (['uid', 'phone', 'openid', 'unionid'] as $forbidden) {
-    $assert(strpos($legacyReport, "'" . $forbidden . "'") === false, 'legacy_report_must_not_emit_personal_field:' . $forbidden);
+    $assert(strpos($automatic . $finance, $forbidden) === false, 'commission_must_not_write_crmeb_asset:' . $forbidden);
 }
 
 if ($failures) {

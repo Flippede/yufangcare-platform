@@ -1,5 +1,16 @@
 # 御方通和自动佣金与门店结算 V1 运行验证
 
+## 2026-07-20 P1 Remediation Status - Pending Targeted Review
+
+- Branch: `codex/yfth-auto-commission-balance-withdrawal-v1`; remediation baseline: `5af9bffe3930bbca8d5bb5aa17c429ea48f4b413`.
+- The current implementation consumes package activation into automatic 15/25/60 accruals before referral closure, uses direct mall automatic accruals, and disables legacy manual candidate confirmation/settlement writers.
+- YFTH sources explicitly bypass CRMEB legacy brokerage. Settlement batching carries unallocated negative ledger items across cycles, and refund reversal is item/SKU/quantity-based with freight excluded from commission base.
+- Settlement completion is no longer an ordinary Admin success write. Production is fail-closed without a trusted profit-sharing provider; a signed mock callback is available only for isolated test mode.
+- The contract and real-flow suites now contain the corresponding source-guard, package sequence, negative carry, refund matrix, receiver gating, callback security and return-idempotency cases.
+- This environment does not currently provide PHP 7.4, an isolated MySQL 8 runtime or a usable HBuilderX CLI. Therefore PHP syntax, contract, real-flow, migration, H5 and mp-weixin checks were not rerun for this remediation. Do not treat the older validation record below as evidence for these new P1 changes.
+- The first Admin build attempt exceeded a short command limit. A second `npm.cmd run build` completed with exit code 0 in 130 seconds, with existing CSS-order, asset-size and Browserslist warnings only.
+- `git diff --check` passes. No main merge, production deployment, production migration, production database access or real WeChat profit-sharing call has occurred. Await independent targeted architecture review after commit and push.
+
 ## 1. 验证范围
 
 - 当前分支：`codex/yfth-auto-commission-balance-withdrawal-v1`。

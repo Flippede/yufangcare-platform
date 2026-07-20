@@ -83,7 +83,7 @@ class AutomaticCommissionServices
         $now = time();
         $row = [
             'rule_no' => $this->makeNo('YFCR'),
-            'version_no' => (int)Db::name('yfth_commission_rule_version')->max('version_no') + 1,
+            'version_no' => 0,
             'scope_type' => $scopeType,
             'scope_id' => $scopeType === 'all' ? 0 : $scopeId,
             'c1_ratio_bps' => $c1,
@@ -101,8 +101,23 @@ class AutomaticCommissionServices
             'add_time' => $now,
             'update_time' => $now,
         ];
-        $row['id'] = (int)Db::name('yfth_commission_rule_version')->insertGetId($row);
-        return $row;
+        // version_no is a business sequence, so a MAX()+1 read must never race.
+        // The unique index remains the final authority and the short retry covers
+        // the first-row case where no existing version can be locked yet.
+        for ($attempt = 0; $attempt < 3; $attempt++) {
+            try {
+                return Db::transaction(function () use ($row) {
+                    $last = $this->row(Db::name('yfth_commission_rule_version')
+                        ->order('version_no desc,id desc')->lock(true)->find());
+                    $row['version_no'] = (int)($last['version_no'] ?? 0) + 1;
+                    $row['id'] = (int)Db::name('yfth_commission_rule_version')->insertGetId($row);
+                    return $row;
+                });
+            } catch (\Throwable $e) {
+                if ($attempt === 2 || stripos($e->getMessage(), 'Duplicate') === false) throw $e;
+            }
+        }
+        throw new ApiException('commission_rule_version_create_failed');
     }
 
     public function publishRule(int $id, int $operatorUid): array
@@ -131,6 +146,9 @@ class AutomaticCommissionServices
             if ($existing) return ['snapshot' => $existing, 'created' => false];
             $order = $this->row(Db::name('store_order')->where('id', $orderId)->lock(true)->find());
             if (!$this->validMallOrder($order, true)) return ['reason' => 'mall_order_not_eligible'];
+            if (!app()->make(YfthCommissionOrderSourceServices::class)->excludesCrmebBrokerage($order)) {
+                return ['reason' => 'order_not_yfth_commission_source'];
+            }
             if (Db::name('yfth_package_purchase')->where('order_id', $orderId)->count() > 0) {
                 return ['reason' => 'package_order_excluded'];
             }
@@ -141,16 +159,13 @@ class AutomaticCommissionServices
             $storeId = (int)($attribution['store_id'] ?? 0);
             if ($storeId <= 0) return ['reason' => 'buyer_store_attribution_missing'];
 
-            $candidate = $this->row(Db::name('yfth_direct_referral_reward_candidate')
-                ->where('source_unique_key', hash('sha256', 'mall_consumption|store_order|' . $orderId))->find());
-            $referrerUid = (int)($candidate['referrer_uid'] ?? 0);
-            $relationId = (int)($candidate['relation_id'] ?? 0);
-            if ($referrerUid <= 0) {
-                $relation = $this->row(Db::name('yfth_hq_active_referral_current')
-                    ->where(['referred_uid' => $buyerUid, 'status' => 'active', 'store_id' => $storeId])->find());
-                $referrerUid = (int)($relation['referrer_uid'] ?? 0);
-                $relationId = (int)($relation['id'] ?? 0);
-            }
+            // Do not create or consult the legacy pending-candidate model.  The
+            // active referral is the authority at paid time and this snapshot is
+            // the first durable fact in the automatic commission chain.
+            $relation = $this->row(Db::name('yfth_hq_active_referral_current')
+                ->where(['referred_uid' => $buyerUid, 'status' => 'active', 'store_id' => $storeId])->lock(true)->find());
+            $referrerUid = (int)($relation['referrer_uid'] ?? 0);
+            $relationId = (int)($relation['id'] ?? 0);
             if ($referrerUid === $buyerUid) {
                 $referrerUid = 0;
                 $relationId = 0;
@@ -172,11 +187,6 @@ class AutomaticCommissionServices
                 'add_time' => $now, 'update_time' => $now,
             ];
             $row['id'] = (int)Db::name('yfth_mall_commission_order_snapshot')->insertGetId($row);
-            if (!empty($candidate['id'])) {
-                Db::name('yfth_direct_referral_reward_candidate')->where('id', (int)$candidate['id'])->update([
-                    'status' => 'automatic_pending', 'update_time' => $now,
-                ]);
-            }
             return ['snapshot' => $row, 'created' => true];
         });
     }
@@ -198,16 +208,22 @@ class AutomaticCommissionServices
                 return ['reason' => 'mall_order_not_completed'];
             }
             $items = json_decode((string)$snapshot['item_snapshot_json'], true) ?: [];
-            $refundCent = min((int)$snapshot['pay_amount_cent'], $this->moneyToCents($order['refund_price'] ?? 0));
-            $payCent = max(1, (int)$snapshot['pay_amount_cent']);
             $now = time();
             $maxDue = $now;
             $ids = [];
             foreach ($items as $index => $item) {
-                $sourceKey = hash('sha256', 'mall_order_item|' . $orderId . '|' . (int)$index . '|' . (int)$item['product_id']);
+                $sourceKey = hash('sha256', 'mall_order_item|' . $orderId . '|' . (int)($item['order_item_id'] ?? $index));
                 $accrual = $this->row(Db::name('yfth_commission_accrual')->where('source_unique_key', $sourceKey)->lock(true)->find());
                 if (!$accrual) {
-                    $base = $this->remainingItemBase($orderId, $item, $refundCent, $payCent);
+                    $preRefunded = 0;
+                    foreach ($this->refundItemFacts($orderId, []) as $fact) {
+                        if ((int)$fact['order_item_id'] === (int)($item['order_item_id'] ?? 0)) {
+                            $preRefunded += (int)$fact['refund_quantity'];
+                        }
+                    }
+                    $base = $this->remainingItemBaseFromFacts(
+                        (int)$item['base_amount_cent'], 0, (int)($item['cart_num'] ?? 0), $preRefunded
+                    );
                     $c1Amount = (int)$snapshot['referrer_uid'] > 0 ? intdiv($base * (int)$item['c1_ratio_bps'], 10000) : 0;
                     $b1Amount = intdiv($base * (int)$item['b1_ratio_bps'], 10000);
                     $dueAt = $now + (int)$item['observation_days'] * 86400;
@@ -241,72 +257,104 @@ class AutomaticCommissionServices
             Db::name('yfth_mall_commission_order_snapshot')->where('id', (int)$snapshot['id'])->update([
                 'status' => $hasObserving ? 'observing' : ($hasCredited ? 'credited' : 'cancelled'),
                 'completed_at' => $now, 'due_at' => $maxDue,
-                'refunded_amount_cent' => $refundCent, 'update_time' => $now,
+                'refunded_amount_cent' => $this->refundedItemBase($orderId), 'update_time' => $now,
             ]);
-            $this->syncLegacyMallCandidate($orderId);
             return ['snapshot_id' => (int)$snapshot['id'], 'accrual_ids' => $ids];
         });
     }
 
-    public function creditPackageCandidate(array $candidate): array
+    /**
+     * Freeze and create the package reward accrual directly from the trusted
+     * package activation event.  Legacy reward candidates are deliberately not
+     * part of this execution path.
+     */
+    public function consumePackageActivation(array $payload): array
     {
-        return Db::transaction(function () use ($candidate) {
-            $candidateId = (int)($candidate['id'] ?? 0);
-            $locked = $this->row(Db::name('yfth_direct_referral_reward_candidate')->where('id', $candidateId)->lock(true)->find());
-            if (!$locked) throw new ApiException('package_reward_candidate_not_found');
-            $sourceKey = hash('sha256', 'package_candidate|' . $candidateId);
+        return Db::transaction(function () use ($payload) {
+            $instanceId = (int)($payload['instance_id'] ?? 0);
+            if ($instanceId <= 0) {
+                throw new ApiException('package_activation_commission_payload_invalid');
+            }
+            $sourceKey = hash('sha256', 'package_activation|package_instance|' . $instanceId);
+            // Idempotency must be checked before looking at the current referral.
+            // The membership transition closes that relation after the first write,
+            // so a payment/activation retry must still return the original fact.
             $accrual = $this->row(Db::name('yfth_commission_accrual')->where('source_unique_key', $sourceKey)->lock(true)->find());
+            if ($accrual) {
+                return (int)$accrual['due_at'] <= time()
+                    ? $this->creditLockedAccrual($accrual)
+                    : ['accrual' => $accrual, 'created' => false, 'observing' => true];
+            }
+            $relation = (array)($payload['relation'] ?? []);
+            $referrerUid = (int)($relation['referrer_uid'] ?? 0);
+            $buyerUid = (int)($relation['referred_uid'] ?? 0);
+            $storeId = (int)($relation['store_id'] ?? 0);
+            $amountCent = max(0, (int)($payload['amount_cent'] ?? 0));
+            if ($referrerUid <= 0 || $buyerUid <= 0 || $storeId <= 0 || $amountCent <= 0) {
+                throw new ApiException('package_activation_commission_payload_invalid');
+            }
             if (!$accrual) {
-                $now = time();
-                $observationDays = (int)Db::name('yfth_direct_referral_rule_version')
-                    ->where('id', (int)$locked['rule_version_id'])->value('package_observation_days');
-                $row = [
-                    'accrual_no' => $this->makeNo('YFCA'), 'source_type' => 'package_candidate',
-                    'source_id' => (string)$candidateId, 'source_unique_key' => $sourceKey,
-                    'candidate_id' => $candidateId, 'order_id' => 0, 'product_id' => 0, 'category_id' => 0,
-                    'c1_uid' => (int)$locked['referrer_uid'], 'buyer_uid' => (int)$locked['referred_uid'],
-                    'store_id' => (int)$locked['store_id'],
-                    'base_amount_cent' => (int)$locked['actual_paid_amount_cent'],
-                    'c1_ratio_bps' => (int)$locked['ratio_bps'], 'b1_ratio_bps' => 0,
-                    'c1_amount_cent' => (int)$locked['reward_amount_cent'], 'b1_amount_cent' => 0,
-                    'rule_version_id' => (int)$locked['rule_version_id'], 'status' => 'observing',
-                    'due_at' => $now + max(0, $observationDays) * 86400, 'credited_at' => 0,
+                $sequenceState = $this->nextPackageSequence($referrerUid, $sourceKey);
+                $accrual = (array)($sequenceState['existing'] ?? []);
+                if (!$accrual) {
+                    $now = time();
+                    $rule = $this->activePackageRule();
+                    $sequence = (int)$sequenceState['sequence'];
+                    $ratio = $this->packageRatioForSequence($rule, $sequence);
+                    if ($ratio <= 0) return ['ignored' => true, 'reason' => 'package_sequence_not_rewarded'];
+                    $sequenceKey = $referrerUid . ':' . $sequence;
+                    $row = [
+                    'accrual_no' => $this->makeNo('YFCA'), 'source_type' => 'package_activation',
+                    'source_id' => (string)$instanceId, 'source_unique_key' => $sourceKey,
+                    'candidate_id' => 0, 'order_id' => (int)($payload['order_id'] ?? 0), 'product_id' => 0, 'category_id' => 0,
+                    'c1_uid' => $referrerUid, 'buyer_uid' => $buyerUid, 'store_id' => $storeId,
+                    'base_amount_cent' => $amountCent, 'c1_ratio_bps' => $ratio, 'b1_ratio_bps' => 0,
+                    'c1_amount_cent' => intdiv($amountCent * $ratio, 10000), 'b1_amount_cent' => 0,
+                    'rule_version_id' => (int)$rule['id'], 'status' => 'observing',
+                    'due_at' => $now + max(0, (int)$rule['package_observation_days']) * 86400, 'credited_at' => 0,
                     'reversed_c1_cent' => 0, 'reversed_b1_cent' => 0,
-                    'snapshot_json' => $this->json($locked), 'add_time' => $now, 'update_time' => $now,
+                    'package_sequence_no' => $sequence, 'package_sequence_key' => $sequenceKey,
+                    'snapshot_json' => $this->json(['event' => $payload, 'relation' => $relation, 'rule' => $rule, 'sequence_no' => $sequence]),
+                    'add_time' => $now, 'update_time' => $now,
                 ];
-                $row['id'] = (int)Db::name('yfth_commission_accrual')->insertGetId($row);
-                $accrual = $row;
+                    try {
+                        $row['id'] = (int)Db::name('yfth_commission_accrual')->insertGetId($row);
+                        $accrual = $row;
+                    } catch (\Throwable $e) {
+                        if (!$this->isUniqueConflict($e)) {
+                            throw $e;
+                        }
+                        $accrual = $this->row(Db::name('yfth_commission_accrual')
+                            ->where('source_unique_key', $sourceKey)->lock(true)->find());
+                        if (!$accrual) {
+                            throw $e;
+                        }
+                    }
+                }
             }
             if ((int)$accrual['due_at'] <= time()) {
-                $result = $this->creditLockedAccrual($accrual);
-                $candidateStatus = 'credited';
+                return $this->creditLockedAccrual($accrual);
             } else {
-                $result = ['accrual' => $accrual, 'created' => false, 'observing' => true];
-                $candidateStatus = 'automatic_pending';
+                return ['accrual' => $accrual, 'created' => false, 'observing' => true];
             }
-            if ((string)$locked['status'] !== $candidateStatus) {
-                Db::name('yfth_direct_referral_reward_candidate')->where('id', $candidateId)->update([
-                    'status' => $candidateStatus, 'update_time' => time(),
-                ]);
-            }
-            return $result;
         });
     }
 
-    public function reversePackageCandidate(array $candidate, array $snapshot = []): array
+    public function reversePackageActivation(array $payload = []): array
     {
-        return Db::transaction(function () use ($candidate, $snapshot) {
+        return Db::transaction(function () use ($payload) {
+            $instanceId = (int)($payload['instance_id'] ?? 0);
             $accrual = $this->row(Db::name('yfth_commission_accrual')->where([
-                'source_type' => 'package_candidate', 'candidate_id' => (int)$candidate['id'],
+                'source_type' => 'package_activation', 'source_id' => (string)$instanceId,
             ])->lock(true)->find());
             if (!$accrual) return ['changed' => false, 'reason' => 'automatic_accrual_missing'];
             if ((string)$accrual['status'] === 'observing') {
                 Db::name('yfth_commission_accrual')->where('id', (int)$accrual['id'])->update([
                     'status' => 'cancelled', 'update_time' => time(),
                 ]);
-                return ['changed' => true, 'status' => 'cancelled', 'snapshot' => $snapshot];
+                return ['changed' => true, 'status' => 'cancelled', 'snapshot' => $payload];
             }
-            return $this->reverseLockedAccrual($accrual, (int)$accrual['c1_amount_cent'], (int)$accrual['b1_amount_cent'], 'package_invalidated', $snapshot);
+            return $this->reverseLockedAccrual($accrual, (int)$accrual['c1_amount_cent'], (int)$accrual['b1_amount_cent'], 'package_invalidated', $payload, 'package:' . $instanceId);
         });
     }
 
@@ -315,23 +363,43 @@ class AutomaticCommissionServices
         return Db::transaction(function () use ($orderId, $payload) {
             $snapshot = $this->row(Db::name('yfth_mall_commission_order_snapshot')->where('order_id', $orderId)->lock(true)->find());
             if (!$snapshot) return ['changed' => false, 'reason' => 'mall_order_snapshot_missing'];
-            $order = $this->row(Db::name('store_order')->where('id', $orderId)->lock(true)->find());
-            $payCent = max(1, (int)$snapshot['pay_amount_cent']);
-            $refundCent = (int)($payload['refunded_amount_cent'] ?? 0);
-            if ($refundCent <= 0) $refundCent = $this->moneyToCents($order['refund_price'] ?? 0);
-            $refundCent = min($payCent, max((int)$snapshot['refunded_amount_cent'], $refundCent));
-            Db::name('yfth_mall_commission_order_snapshot')->where('id', (int)$snapshot['id'])->update([
-                'refunded_amount_cent' => $refundCent,
-                'status' => $refundCent >= $payCent ? 'cancelled' : (string)$snapshot['status'],
-                'update_time' => time(),
-            ]);
+            $facts = $this->refundItemFacts($orderId, $payload);
+            if (!$facts) return ['changed' => false, 'reason' => 'refund_has_no_product_items'];
             $accruals = Db::name('yfth_commission_accrual')->where('order_id', $orderId)->lock(true)->select()->toArray();
             $changed = false;
             foreach ($accruals as $accrual) {
+                $immutable = json_decode((string)$accrual['snapshot_json'], true) ?: [];
+                $orderItemId = (int)($immutable['order_item_id'] ?? 0);
+                $itemFacts = array_values(array_filter($facts, function (array $fact) use ($orderItemId) {
+                    return (int)$fact['order_item_id'] === $orderItemId;
+                }));
+                if (!$itemFacts) continue; // freight-only or another SKU: no commission reversal.
+
+                $originalBase = (int)($immutable['base_amount_cent'] ?? $accrual['base_amount_cent']);
+                $totalQty = max(1, (int)($immutable['cart_num'] ?? 1));
+                foreach ($itemFacts as $fact) {
+                    $already = $this->row(Db::name('yfth_commission_refund_reversal')->where([
+                        'refund_id' => (int)$fact['refund_id'], 'order_item_id' => $orderItemId,
+                        'accrual_id' => (int)$accrual['id'],
+                    ])->lock(true)->find());
+                    if ($already) continue;
+                    $usedQty = (int)Db::name('yfth_commission_refund_reversal')
+                        ->where('accrual_id', (int)$accrual['id'])->sum('refund_quantity');
+                    $quantity = min(max(0, $totalQty - $usedQty), (int)$fact['refund_quantity']);
+                    if ($quantity <= 0) continue;
+                    $baseReversal = $this->refundBaseForQuantity($originalBase, $totalQty, $usedQty, $quantity);
+                    Db::name('yfth_commission_refund_reversal')->insert([
+                        'refund_id' => (int)$fact['refund_id'], 'order_id' => $orderId,
+                        'order_item_id' => $orderItemId, 'accrual_id' => (int)$accrual['id'],
+                        'refund_quantity' => $quantity, 'base_reversal_cent' => $baseReversal,
+                        'snapshot_json' => $this->json($fact), 'add_time' => time(),
+                    ]);
+                    $changed = true;
+                }
+                $reversedBase = (int)Db::name('yfth_commission_refund_reversal')
+                    ->where('accrual_id', (int)$accrual['id'])->sum('base_reversal_cent');
+                $base = max(0, $originalBase - $reversedBase);
                 if ((string)$accrual['status'] === 'observing') {
-                    $immutable = json_decode((string)$accrual['snapshot_json'], true) ?: [];
-                    $originalBase = (int)($immutable['base_amount_cent'] ?? $accrual['base_amount_cent']);
-                    $base = $this->remainingItemBase($orderId, $immutable, $refundCent, $payCent, $payload);
                     $update = [
                         'base_amount_cent' => $base,
                         'c1_amount_cent' => intdiv($base * (int)$accrual['c1_ratio_bps'], 10000),
@@ -340,26 +408,28 @@ class AutomaticCommissionServices
                     ];
                     if ($base === 0) $update['status'] = 'cancelled';
                     Db::name('yfth_commission_accrual')->where('id', (int)$accrual['id'])->update($update);
-                    $changed = true;
                     continue;
                 }
                 if (!in_array((string)$accrual['status'], ['credited', 'partially_reversed', 'reversed'], true)) continue;
-                $immutable = json_decode((string)$accrual['snapshot_json'], true) ?: [];
-                $originalBase = (int)($immutable['base_amount_cent'] ?? $accrual['base_amount_cent']);
-                $remainingBase = $this->remainingItemBase($orderId, $immutable, $refundCent, $payCent, $payload);
-                $desiredC1 = intdiv($remainingBase * (int)$accrual['c1_ratio_bps'], 10000);
-                $desiredB1 = intdiv($remainingBase * (int)$accrual['b1_ratio_bps'], 10000);
+                $desiredC1 = intdiv($base * (int)$accrual['c1_ratio_bps'], 10000);
+                $desiredB1 = intdiv($base * (int)$accrual['b1_ratio_bps'], 10000);
                 $targetC1 = max(0, (int)$accrual['c1_amount_cent'] - $desiredC1);
                 $targetB1 = max(0, (int)$accrual['b1_amount_cent'] - $desiredB1);
                 $deltaC1 = max(0, $targetC1 - (int)$accrual['reversed_c1_cent']);
                 $deltaB1 = max(0, $targetB1 - (int)$accrual['reversed_b1_cent']);
                 if ($deltaC1 > 0 || $deltaB1 > 0) {
-                    $this->reverseLockedAccrual($accrual, $deltaC1, $deltaB1, 'mall_order_refund', $payload);
+                    $keys = array_map(function (array $fact) { return (string)$fact['refund_id']; }, $itemFacts);
+                    $this->reverseLockedAccrual($accrual, $deltaC1, $deltaB1, 'mall_order_refund', $payload, 'refund:' . implode(',', $keys) . ':item:' . $orderItemId);
                     $changed = true;
                 }
             }
-            $this->syncLegacyMallCandidate($orderId);
-            return ['changed' => $changed, 'refunded_amount_cent' => $refundCent];
+            $refundedBase = $this->refundedItemBase($orderId);
+            Db::name('yfth_mall_commission_order_snapshot')->where('id', (int)$snapshot['id'])->update([
+                'refunded_amount_cent' => $refundedBase,
+                'status' => $refundedBase >= (int)$snapshot['commission_base_cent'] ? 'cancelled' : (string)$snapshot['status'],
+                'update_time' => time(),
+            ]);
+            return ['changed' => $changed, 'refunded_amount_cent' => $refundedBase];
         });
     }
 
@@ -379,40 +449,12 @@ class AutomaticCommissionServices
                     }
                 });
                 $orderId = (int)Db::name('yfth_commission_accrual')->where('id', (int)$id)->value('order_id');
-                if ($orderId > 0) {
-                    $this->syncMallSnapshotStatus($orderId);
-                    $this->syncLegacyMallCandidate($orderId);
-                }
-                $candidateId = (int)Db::name('yfth_commission_accrual')->where('id', (int)$id)->value('candidate_id');
-                if ($candidateId > 0) {
-                    Db::name('yfth_direct_referral_reward_candidate')->where('id', $candidateId)->update([
-                        'status' => 'credited', 'update_time' => time(),
-                    ]);
-                }
+                if ($orderId > 0) $this->syncMallSnapshotStatus($orderId);
             } catch (\Throwable $e) {
                 $failed[] = ['id' => (int)$id, 'error' => $e->getMessage()];
             }
         }
         return ['scanned' => count($ids), 'credited' => $credited, 'failed' => $failed];
-    }
-
-    private function syncLegacyMallCandidate(int $orderId): void
-    {
-        $candidateId = (int)Db::name('yfth_direct_referral_reward_candidate')
-            ->where('source_unique_key', hash('sha256', 'mall_consumption|store_order|' . $orderId))->value('id');
-        if ($candidateId <= 0) return;
-        $statuses = Db::name('yfth_commission_accrual')->where('order_id', $orderId)->column('status');
-        if (!$statuses) return;
-        if (!array_diff($statuses, ['cancelled', 'reversed'])) {
-            $status = 'cancelled';
-        } elseif (!array_intersect($statuses, ['observing'])) {
-            $status = 'credited';
-        } else {
-            $status = 'automatic_pending';
-        }
-        Db::name('yfth_direct_referral_reward_candidate')->where('id', $candidateId)->update([
-            'status' => $status, 'update_time' => time(),
-        ]);
     }
 
     private function syncMallSnapshotStatus(int $orderId): void
@@ -454,11 +496,11 @@ class AutomaticCommissionServices
         return ['accrual' => array_merge($accrual, $update), 'created' => true];
     }
 
-    private function reverseLockedAccrual(array $accrual, int $c1Cent, int $b1Cent, string $reason, array $snapshot): array
+    private function reverseLockedAccrual(array $accrual, int $c1Cent, int $b1Cent, string $reason, array $snapshot, string $idempotencySuffix = ''): array
     {
         $c1Cent = min($c1Cent, max(0, (int)$accrual['c1_amount_cent'] - (int)$accrual['reversed_c1_cent']));
         $b1Cent = min($b1Cent, max(0, (int)$accrual['b1_amount_cent'] - (int)$accrual['reversed_b1_cent']));
-        $sequence = (int)$accrual['reversed_c1_cent'] . ':' . (int)$accrual['reversed_b1_cent'];
+        $sequence = $idempotencySuffix !== '' ? $idempotencySuffix : (int)$accrual['reversed_c1_cent'] . ':' . (int)$accrual['reversed_b1_cent'];
         if ($c1Cent > 0 && (int)$accrual['c1_uid'] > 0) {
             $this->postUser((int)$accrual['c1_uid'], -$c1Cent, $reason, (int)$accrual['id'], 'reverse:' . $sequence);
             $this->postStore((int)$accrual['store_id'], -$c1Cent, $reason . '_c1_responsibility', (int)$accrual['id'], 'c1-reverse:' . $sequence);
@@ -602,11 +644,15 @@ class AutomaticCommissionServices
             $category = (string)Db::name('store_product')->where('id', $productId)->value('cate_id');
             $categoryId = (int)(preg_split('/[,|]/', $category)[0] ?? 0);
             $weight = $this->moneyToCents($cart['sum_true_price'] ?? bcmul((string)($cart['truePrice'] ?? 0), (string)($cart['cart_num'] ?? 1), 2));
-            $rule = $this->activeMallRule($productId, $categoryId);
             if ($weight <= 0) continue;
+            $rule = $this->activeMallRule($productId, $categoryId);
+            // Excluded products do not take any share of a commission base.
+            if (!$rule) continue;
             $orderItemId = (int)($row['id'] ?? 0);
             $cartNum = max(1, (int)($row['cart_num'] ?? $cart['cart_num'] ?? 1));
-            $raw[] = compact('productId', 'categoryId', 'weight', 'rule', 'orderItemId', 'cartNum');
+            $cartId = (int)($row['cart_id'] ?? $cart['id'] ?? 0);
+            $skuUnique = (string)($row['unique'] ?? $cart['productInfo']['attrInfo']['unique'] ?? '');
+            $raw[] = compact('productId', 'categoryId', 'weight', 'rule', 'orderItemId', 'cartNum', 'cartId', 'skuUnique');
             $totalWeight += $weight;
         }
         if (!$raw || $totalWeight <= 0) return [];
@@ -618,7 +664,8 @@ class AutomaticCommissionServices
             $rule = $entry['rule'];
             if (!$rule) continue;
             $items[] = [
-                'order_item_id' => $entry['orderItemId'], 'cart_num' => $entry['cartNum'],
+                'order_item_id' => $entry['orderItemId'], 'cart_id' => $entry['cartId'],
+                'sku_unique' => $entry['skuUnique'], 'cart_num' => $entry['cartNum'],
                 'product_id' => $entry['productId'], 'category_id' => $entry['categoryId'],
                 'base_amount_cent' => max(0, $amount), 'c1_ratio_bps' => (int)$rule['c1_ratio_bps'],
                 'b1_ratio_bps' => (int)$rule['b1_ratio_bps'],
@@ -645,26 +692,120 @@ class AutomaticCommissionServices
         return [];
     }
 
-    private function remainingItemBase(int $orderId, array $item, int $refundCent, int $payCent, array $payload = []): int
+    private function refundItemFacts(int $orderId, array $payload): array
     {
-        $originalBase = max(0, (int)($item['base_amount_cent'] ?? 0));
-        if ($originalBase <= 0) return 0;
-        $orderItemId = (int)($item['order_item_id'] ?? 0);
-        $itemRefunds = (array)($payload['refunded_item_amounts_cent'] ?? []);
-        if ($orderItemId > 0 && array_key_exists((string)$orderItemId, $itemRefunds)) {
-            return max(0, $originalBase - min($originalBase, max(0, (int)$itemRefunds[(string)$orderItemId])));
+        $query = Db::name('store_order_refund')->where([
+            'store_order_id' => $orderId, 'is_cancel' => 0, 'is_del' => 0, 'is_pink_cancel' => 0,
+        ]);
+        $requestedId = (int)($payload['refund_id'] ?? 0);
+        if ($requestedId > 0) {
+            $query->where('id', $requestedId)->where('refunded_time', '>', 0);
+        } else {
+            // Only refund records that CRMEB has completed may affect money.
+            $query->where('refunded_time', '>', 0);
         }
-        if ($orderItemId > 0) {
-            $orderItem = $this->row(Db::name('store_order_cart_info')->where([
-                'id' => $orderItemId, 'oid' => $orderId,
-            ])->field('cart_num,refund_num')->find());
-            $cartNum = max(1, (int)($item['cart_num'] ?? $orderItem['cart_num'] ?? 1));
-            $refundNum = min($cartNum, max(0, (int)($orderItem['refund_num'] ?? 0)));
-            if ($refundNum > 0) {
-                return intdiv($originalBase * ($cartNum - $refundNum), $cartNum);
+        $refunds = $query->field('id,refund_num,refund_price,cart_info,refunded_time')->order('id asc')->select()->toArray();
+        if (!$refunds) return [];
+        $orderItems = Db::name('store_order_cart_info')->where('oid', $orderId)
+            ->field('id,cart_id,cart_num,unique,product_id,cart_info')->select()->toArray();
+        $facts = [];
+        foreach ($refunds as $refund) {
+            $carts = is_array($refund['cart_info']) ? $refund['cart_info'] : json_decode((string)$refund['cart_info'], true);
+            if (!is_array($carts)) continue;
+            if (isset($carts['cart_info']) || isset($carts['cart_id']) || isset($carts['product_id'])) $carts = [$carts];
+            foreach ($carts as $cart) {
+                if (isset($cart['cart_info'])) {
+                    $nested = is_array($cart['cart_info'])
+                        ? $cart['cart_info']
+                        : json_decode((string)$cart['cart_info'], true);
+                    if (is_array($nested)) $cart = $nested;
+                }
+                if (!is_array($cart)) continue;
+                $cartId = (int)($cart['cart_id'] ?? $cart['id'] ?? 0);
+                $productId = (int)($cart['product_id'] ?? $cart['productInfo']['id'] ?? 0);
+                $sku = (string)($cart['productInfo']['attrInfo']['unique'] ?? $cart['unique'] ?? '');
+                $quantity = max(0, (int)($cart['refund_num'] ?? $cart['cart_num'] ?? 0));
+                if ($quantity <= 0) continue;
+                foreach ($orderItems as $orderItem) {
+                    $matchesCart = $cartId > 0 && (int)$orderItem['cart_id'] === $cartId;
+                    $matchesProduct = $cartId <= 0 && $productId > 0 && (int)$orderItem['product_id'] === $productId
+                        && ($sku === '' || $sku === (string)$orderItem['unique']);
+                    if (!$matchesCart && !$matchesProduct) continue;
+                    $facts[] = [
+                        'refund_id' => (int)$refund['id'], 'order_item_id' => (int)$orderItem['id'],
+                        'refund_quantity' => min((int)$orderItem['cart_num'], $quantity),
+                        'refund_price_cent' => $this->moneyToCents($refund['refund_price'] ?? '0.00'),
+                    ];
+                    break;
+                }
             }
         }
-        return intdiv($originalBase * max(0, $payCent - $refundCent), max(1, $payCent));
+        return $facts;
+    }
+
+    private function refundBaseForQuantity(int $originalBase, int $totalQuantity, int $beforeQuantity, int $refundQuantity): int
+    {
+        $totalQuantity = max(1, $totalQuantity);
+        $beforeQuantity = min($totalQuantity, max(0, $beforeQuantity));
+        $afterQuantity = min($totalQuantity, $beforeQuantity + max(0, $refundQuantity));
+        return max(0, intdiv($originalBase * $afterQuantity, $totalQuantity)
+            - intdiv($originalBase * $beforeQuantity, $totalQuantity));
+    }
+
+    private function remainingItemBaseFromFacts(int $originalBase, int $processedRefundQuantity, int $totalQuantity, int $refundQuantity): int
+    {
+        return max(0, $originalBase - $this->refundBaseForQuantity(
+            $originalBase, $totalQuantity, $processedRefundQuantity, $refundQuantity
+        ));
+    }
+
+    private function refundedItemBase(int $orderId): int
+    {
+        return (int)Db::name('yfth_commission_refund_reversal')->where('order_id', $orderId)->sum('base_reversal_cent');
+    }
+
+    private function activePackageRule(): array
+    {
+        $now = time();
+        $row = $this->row(Db::name('yfth_direct_referral_rule_version')->where([
+            'status' => 'published',
+        ])->where('effective_at', '<=', $now)->where(function ($query) use ($now) {
+            $query->where('expires_at', 0)->whereOr('expires_at', '>', $now);
+        })->order('version_no desc,id desc')->lock(true)->find());
+        if (!$row) throw new ApiException('package_commission_rule_not_found');
+        return $row;
+    }
+
+    private function nextPackageSequence(int $referrerUid, string $sourceKey): array
+    {
+        $counter = $this->row(Db::name('yfth_commission_sequence_counter')->where('referrer_uid', $referrerUid)->lock(true)->find());
+        if (!$counter) {
+            try {
+                Db::name('yfth_commission_sequence_counter')->insert([
+                    'referrer_uid' => $referrerUid, 'last_package_sequence_no' => 0,
+                    'add_time' => time(), 'update_time' => time(),
+                ]);
+            } catch (\Throwable $e) {
+                if (!$this->isUniqueConflict($e)) throw $e;
+            }
+            $counter = $this->row(Db::name('yfth_commission_sequence_counter')->where('referrer_uid', $referrerUid)->lock(true)->find());
+        }
+        $existing = $this->row(Db::name('yfth_commission_accrual')->where('source_unique_key', $sourceKey)->lock(true)->find());
+        if ($existing) {
+            return ['existing' => $existing, 'sequence' => 0];
+        }
+        $next = (int)$counter['last_package_sequence_no'] + 1;
+        Db::name('yfth_commission_sequence_counter')->where('id', (int)$counter['id'])->update([
+            'last_package_sequence_no' => $next, 'update_time' => time(),
+        ]);
+        return ['existing' => [], 'sequence' => $next];
+    }
+
+    private function packageRatioForSequence(array $rule, int $sequence): int
+    {
+        $slot = (($sequence - 1) % 3) + 1;
+        $field = [1 => 'package_ratio_first_bps', 2 => 'package_ratio_second_bps', 3 => 'package_ratio_third_bps'][$slot];
+        return max(0, (int)($rule[$field] ?? 0));
     }
 
     private function validMallOrder(array $order, bool $requireUnrefunded): bool

@@ -132,6 +132,7 @@ class DirectReferralRewardServices extends YfthFoundationBaseServices
 
     public function createPackageCandidateInTransaction(array $relation, int $instanceId, int $amountCent): array
     {
+        throw new ApiException('yfth_legacy_reward_manual_execution_disabled');
         $referrerUid = (int)$relation['referrer_uid'];
         $storeId = (int)$relation['store_id'];
         $this->membership->assertEffectiveActive($referrerUid, $storeId, true);
@@ -170,6 +171,7 @@ class DirectReferralRewardServices extends YfthFoundationBaseServices
 
     public function createPackageCandidateFromEvent(array $payload): array
     {
+        throw new ApiException('yfth_legacy_reward_manual_execution_disabled');
         $relation = (array)($payload['relation'] ?? []);
         $instanceId = (int)($payload['instance_id'] ?? 0);
         $amountCent = (int)($payload['amount_cent'] ?? 0);
@@ -183,6 +185,7 @@ class DirectReferralRewardServices extends YfthFoundationBaseServices
 
     public function reversePackageCandidateFromEvent(array $payload): array
     {
+        throw new ApiException('yfth_legacy_reward_manual_execution_disabled');
         $instanceId = (int)($payload['instance_id'] ?? 0);
         if ($instanceId <= 0) throw new ApiException('package_reward_reversal_snapshot_invalid');
         return Db::transaction(function () use ($instanceId, $payload) {
@@ -202,6 +205,7 @@ class DirectReferralRewardServices extends YfthFoundationBaseServices
 
     public function recordMallOrderPaid(int $orderId): array
     {
+        throw new ApiException('yfth_legacy_reward_manual_execution_disabled');
         return Db::transaction(function () use ($orderId) {
             $order = $this->row(Db::name('store_order')->where('id', $orderId)->lock(true)->find());
             if (!$order
@@ -286,6 +290,7 @@ class DirectReferralRewardServices extends YfthFoundationBaseServices
 
     public function cancelMallOrderCandidateAfterFullRefund(string $orderSn): array
     {
+        throw new ApiException('yfth_legacy_reward_manual_execution_disabled');
         $orderSn = trim($orderSn);
         if ($orderSn === '') {
             return ['changed' => false, 'reason' => 'mall_consumption_refund_order_missing'];
@@ -339,6 +344,7 @@ class DirectReferralRewardServices extends YfthFoundationBaseServices
     /** Applies cumulative partial/full refunds without deleting or rewriting history. */
     public function adjustMallOrderCandidateAfterRefund(int $orderId, array $payload = []): array
     {
+        throw new ApiException('yfth_legacy_reward_manual_execution_disabled');
         return Db::transaction(function () use ($orderId, $payload) {
             $order = $this->row(Db::name('store_order')->where('id', $orderId)->lock(true)->find());
             if (!$order || (int)($order['pid'] ?? 0) !== 0) return ['reason' => 'mall_consumption_refund_main_order_not_found'];

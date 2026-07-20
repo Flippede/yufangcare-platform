@@ -22,6 +22,7 @@ use app\services\user\member\MemberCardServices;
 use app\services\user\UserBillServices;
 use app\services\user\UserBrokerageServices;
 use app\services\user\UserServices;
+use app\services\yfth\YfthCommissionOrderSourceServices;
 use crmeb\exceptions\ApiException;
 use crmeb\utils\Str;
 use think\facade\Log;
@@ -285,6 +286,9 @@ class StoreOrderTakeServices extends BaseServices
         if (!$orderInfo || !$userInfo) {
             return true;
         }
+        if ($this->isYfthUnifiedRewardOrder((array)$orderInfo)) {
+            return true;
+        }
         // 营销产品不返佣金
         if (isset($orderInfo['combination_id']) && $orderInfo['combination_id']) {
             //检测拼团是否参与返佣
@@ -541,6 +545,9 @@ class StoreOrderTakeServices extends BaseServices
     private function isYfthUnifiedRewardOrder(array $orderInfo): bool
     {
         $orderId = (int)($orderInfo['id'] ?? 0);
+        if ($orderId > 0 && app()->make(YfthCommissionOrderSourceServices::class)->excludesCrmebBrokerage($orderInfo)) {
+            return true;
+        }
         if ($orderId > 0 && Db::name('yfth_package_purchase')->where('order_id', $orderId)->count() > 0) {
             return true;
         }

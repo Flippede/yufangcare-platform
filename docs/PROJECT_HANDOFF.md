@@ -1,5 +1,18 @@
 # 项目交接文档
 
+## Current Fact Snapshot - Automatic Commission P1 Remediation Pending Targeted Review
+
+- Development branch: `codex/yfth-auto-commission-balance-withdrawal-v1`; remediation baseline: `5af9bffe3930bbca8d5bb5aa17c429ea48f4b413`; stable main/origin main at task start: `e0dbcdee4b87b2955a964c385a3fd8a4a61e7bc1`.
+- Automatic commission is the only executable YFTH reward path: package activation consumes `package_activated` before closing the active C1-to-C2 referral; ordinary mall orders enter automatic accrual directly and legacy manual candidate writers return an explicit disabled result.
+- YFTH package, test and attributed customer mall orders are marked at order sources and are explicitly excluded from CRMEB legacy brokerage dispatch. Package rewards use frozen 15/25/60 snapshots with idempotent sequence allocation and observation processing.
+- Settlement batches allocate every unallocated positive and negative store ledger item up to the cutoff in stable order. Negative carry is retained and offsets a later positive amount before a profit-sharing request is created.
+- Refund reversal is item-level and idempotent by refund, order item and accrual. Freight-only refunds do not reverse commission; partial quantity and multi-SKU refunds use actual order/refund item facts.
+- B1 has unsettled/settled settlement projections, not a withdrawal balance. Admin users can initiate or retry a server-authoritative settlement batch but cannot mark a batch successful. Production profit sharing is fail-closed until a trusted provider is configured; the mock provider is isolated-test-only.
+- The provider boundary includes receiver registration, create/query settlement, trusted callback verification, returns/query returns, idempotency and exception recording. Rule versions have a database uniqueness guard, C1 response DTOs omit raw UID, and migration health checks required tables, columns, unique indexes and permissions.
+- Focused contract and real-flow tests were expanded for package 15/25/60, source guards, observation periods, negative carry, itemized refunds, callback rejection/idempotency, receiver gating and legacy-write disablement. At this snapshot they have not been executed locally because no PHP 7.4 or isolated MySQL 8 runtime is available in this worktree environment.
+- The first local Admin build attempt exceeded a short command limit, but a second `npm.cmd run build` completed with exit code 0 in 130 seconds. It emitted only existing CSS-order, asset-size and Browserslist warnings. H5/mp-weixin production compilation has not been rerun because a usable HBuilderX CLI was not located.
+- `git diff --check` passes. No main merge, production deployment, production migration, production database or production provider call has occurred. The next gate is an independent targeted architecture review.
+
 ## Current Fact Snapshot - Automatic Commission Settlement Refinement
 
 - Development branch: `codex/yfth-auto-commission-balance-withdrawal-v1`; starting commit: `ed48bde621094f477432b12214a03a261f1c0448`. This refinement is not merged to main and is not deployed; the final feature commit must be read from Git after commit and push.

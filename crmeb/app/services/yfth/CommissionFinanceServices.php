@@ -84,7 +84,7 @@ class CommissionFinanceServices
         return [
             'store_id' => $storeId,
             'account' => $this->moneyDto($account, [
-                'unsettled_cent', 'settled_cent', 'c1_pending_cent', 'c1_paid_cent', 'reversed_cent',
+                'unsettled_cent', 'settled_cent',
             ]),
             'notice' => '门店佣金按总部结算周期处理；页面不提供余额或提现能力。',
         ];
@@ -114,7 +114,6 @@ class CommissionFinanceServices
             $user = $this->row(Db::name('user')->where('uid', (int)$row['uid'])
                 ->field('uid,nickname,avatar,phone')->find());
             $row['user'] = [
-                'uid' => (int)($user['uid'] ?? 0),
                 'nickname' => (string)($user['nickname'] ?? ''),
                 'avatar' => (string)($user['avatar'] ?? ''),
                 'phone_masked' => $this->maskPhone((string)($user['phone'] ?? '')),
@@ -234,33 +233,32 @@ class CommissionFinanceServices
         if ($periodEnd <= 0 || $periodStart < 0 || $periodStart > $periodEnd) {
             throw new ApiException('settlement_period_invalid');
         }
+        app()->make(AutomaticCommissionMigrationHealthServices::class)->assertHealthy();
         $rows = Db::name('yfth_commission_ledger')->alias('l')
             ->leftJoin('yfth_store_settlement_batch_item i', 'i.ledger_id=l.id')
             ->where(['l.account_type' => 'store', 'l.bucket' => 'store_commission'])
-            ->where('l.add_time', 'between', [$periodStart, $periodEnd])
-            ->whereNull('i.id')->field('l.*')->order('l.id asc')->select()->toArray();
+            ->where('l.add_time', '<=', $periodEnd)
+            ->whereNull('i.id')->field('l.account_id')->distinct(true)->select()->toArray();
         $groups = [];
-        foreach ($rows as $row) $groups[(int)$row['account_id']][] = $row;
+        foreach ($rows as $row) $groups[(int)$row['account_id']] = true;
         $created = [];
-        foreach ($groups as $storeId => $ledgers) {
-            $amount = 0;
-            foreach ($ledgers as $ledger) {
-                $amount += (string)$ledger['direction'] === 'debit' ? -(int)$ledger['amount_cent'] : (int)$ledger['amount_cent'];
-            }
-            if ($amount <= 0) continue;
-            $receiver = $this->row(Db::name('yfth_store_settlement_receiver')->where([
-                'store_id' => $storeId, 'status' => 'active',
-            ])->find());
-            if (!$receiver) continue;
+        foreach (array_keys($groups) as $storeId) {
             $requestId = hash('sha256', $storeId . '|' . $periodStart . '|' . $periodEnd);
-            $created[] = Db::transaction(function () use ($storeId, $periodStart, $periodEnd, $adminUid, $receiver, $ledgers, $requestId) {
+            $batch = Db::transaction(function () use ($storeId, $periodStart, $periodEnd, $adminUid, $requestId) {
                 $existing = $this->row(Db::name('yfth_store_settlement_batch')->where([
                     'store_id' => $storeId, 'request_id' => $requestId,
                 ])->lock(true)->find());
                 if ($existing) return $this->settlementBatchDto($existing, true);
 
-                $ids = array_map(function ($row) { return (int)$row['id']; }, $ledgers);
-                $locked = Db::name('yfth_commission_ledger')->whereIn('id', $ids)->lock(true)->order('id asc')->select()->toArray();
+                // Include every still-unallocated positive and negative fact up to this cutoff.
+                // Old refunds are therefore carried forward and offset before new funds are shared.
+                $locked = Db::name('yfth_commission_ledger')->alias('l')
+                    ->leftJoin('yfth_store_settlement_batch_item i', 'i.ledger_id=l.id')
+                    ->where(['l.account_type' => 'store', 'l.bucket' => 'store_commission', 'l.account_id' => $storeId])
+                    ->where('l.add_time', '<=', $periodEnd)->whereNull('i.id')
+                    ->field('l.*')->order('l.add_time asc,l.id asc')->lock(true)->select()->toArray();
+                $ids = array_map(function ($row) { return (int)$row['id']; }, $locked);
+                if (!$ids) return [];
                 $used = Db::name('yfth_store_settlement_batch_item')->whereIn('ledger_id', $ids)->column('ledger_id');
                 $usedMap = array_fill_keys(array_map('intval', $used), true);
                 $amount = 0; $items = [];
@@ -272,21 +270,26 @@ class CommissionFinanceServices
                         'source_type' => (string)$ledger['source_type'], 'source_id' => (string)$ledger['source_id'],
                         'source_order_id' => (int)$ledger['source_order_id']];
                 }
-                if ($amount <= 0 || !$items) throw new ApiException('settlement_batch_nothing_to_settle');
+                // A non-positive net stays as immutable unallocated ledger carry. It will be
+                // consumed before any future positive amount; nothing is sent to WeChat here.
+                if ($amount <= 0 || !$items) return [];
+                $receiver = $this->row(Db::name('yfth_store_settlement_receiver')->where([
+                    'store_id' => $storeId, 'status' => 'active',
+                ])->lock(true)->find());
                 $merchantNo = trim((string)Env::get('wechat.merchant_no', Env::get('pay.wechat_mchid', '')));
                 $now = time();
                 $batch = [
                     'batch_no' => $this->makeNo('YFSB'), 'store_id' => $storeId,
                     'period_start' => $periodStart, 'period_end' => $periodEnd, 'amount_cent' => $amount,
-                    'status' => 'pending', 'receiver_id' => (int)$receiver['id'],
-                    'receiver_type' => (string)$receiver['receiver_type'],
-                    'receiver_account_enc' => (string)$receiver['receiver_account_enc'],
-                    'receiver_account_masked' => (string)$receiver['receiver_account_masked'],
-                    'receiver_name_enc' => (string)$receiver['receiver_name_enc'],
+                    'status' => $receiver ? 'pending' : 'waiting_receiver', 'receiver_id' => (int)($receiver['id'] ?? 0),
+                    'receiver_type' => (string)($receiver['receiver_type'] ?? ''),
+                    'receiver_account_enc' => (string)($receiver['receiver_account_enc'] ?? ''),
+                    'receiver_account_masked' => (string)($receiver['receiver_account_masked'] ?? ''),
+                    'receiver_name_enc' => (string)($receiver['receiver_name_enc'] ?? ''),
                     'merchant_no_enc' => $merchantNo === '' ? '' : $this->encrypt($merchantNo),
                     'merchant_no_masked' => $merchantNo === '' ? '' : $this->maskAccount($merchantNo),
                     'wechat_batch_no' => '', 'wechat_detail_no' => '', 'request_id' => $requestId,
-                    'admin_uid' => $adminUid, 'exception_reason' => '', 'processing_at' => 0,
+                    'admin_uid' => $adminUid, 'exception_reason' => $receiver ? '' : 'settlement_receiver_not_configured', 'processing_at' => 0,
                     'settled_at' => 0, 'callback_at' => 0, 'add_time' => $now, 'update_time' => $now,
                 ];
                 $batch['id'] = (int)Db::name('yfth_store_settlement_batch')->insertGetId($batch);
@@ -298,69 +301,107 @@ class CommissionFinanceServices
                     $adminUid, 'headquarters', $storeId);
                 return $this->settlementBatchDto($batch, true);
             });
+            if ($batch) $created[] = $batch;
         }
         return ['list' => $created, 'count' => count($created)];
     }
 
     public function startSettlementBatch(int $id, int $adminUid): array
     {
-        return Db::transaction(function () use ($id, $adminUid) {
+        app()->make(AutomaticCommissionMigrationHealthServices::class)->assertHealthy();
+        $batch = Db::transaction(function () use ($id, $adminUid) {
             $row = $this->row(Db::name('yfth_store_settlement_batch')->where('id', $id)->lock(true)->find());
             if (!$row) throw new ApiException('settlement_batch_not_found');
-            if ((string)$row['status'] === 'processing' || (string)$row['status'] === 'settled') {
+            if ((string)$row['status'] === 'settled') {
                 return $this->settlementBatchDto($row, true);
             }
-            if (!in_array((string)$row['status'], ['pending', 'exception'], true)) {
+            if ((string)$row['status'] === 'processing') return $this->settlementBatchDto($row, true);
+            if (!in_array((string)$row['status'], ['pending', 'exception', 'waiting_receiver'], true)) {
                 throw new ApiException('settlement_batch_status_invalid');
+            }
+            $receiver = $this->row(Db::name('yfth_store_settlement_receiver')->where([
+                'store_id' => (int)$row['store_id'], 'status' => 'active',
+            ])->lock(true)->find());
+            if (!$receiver) {
+                Db::name('yfth_store_settlement_batch')->where('id', $id)->update([
+                    'status' => 'waiting_receiver', 'exception_reason' => 'settlement_receiver_not_configured',
+                    'admin_uid' => $adminUid, 'update_time' => time(),
+                ]);
+                throw new ApiException('settlement_receiver_not_configured');
             }
             $now = time();
             $update = [
                 'status' => 'processing', 'admin_uid' => $adminUid, 'exception_reason' => '',
+                'receiver_id' => (int)$receiver['id'], 'receiver_type' => (string)$receiver['receiver_type'],
+                'receiver_account_enc' => (string)$receiver['receiver_account_enc'],
+                'receiver_account_masked' => (string)$receiver['receiver_account_masked'],
+                'receiver_name_enc' => (string)$receiver['receiver_name_enc'],
                 'processing_at' => $now, 'update_time' => $now,
             ];
             Db::name('yfth_store_settlement_batch')->where('id', $id)->update($update);
             $after = array_merge($row, $update);
             $this->audit('store_settlement_batch', (string)$id, 'start_profit_sharing', $row, $after,
                 $adminUid, 'headquarters', (int)$row['store_id'], 'WeChat profit-sharing adapter reserved');
-            return $this->settlementBatchDto($after, true);
+            return $after;
         });
+        if ((string)$batch['status'] === 'settled' || (string)$batch['status'] === 'processing' && !empty($batch['wechat_batch_no'])) {
+            return $this->settlementBatchDto($batch, true);
+        }
+        try {
+            $provider = app()->make(CommissionProfitSharingProviderFactory::class)->make();
+            $provider->registerReceiver([
+                'store_id' => (int)$batch['store_id'],
+                'receiver_type' => (string)$batch['receiver_type'],
+                'receiver_account_masked' => (string)$batch['receiver_account_masked'],
+            ]);
+            $result = $provider->createSettlement($batch);
+        } catch (\Throwable $e) {
+            Db::name('yfth_store_settlement_batch')->where('id', $id)->where('status', 'processing')->update([
+                'status' => 'exception', 'exception_reason' => 'profit_sharing_provider_unavailable', 'update_time' => time(),
+            ]);
+            throw $e;
+        }
+        Db::name('yfth_store_settlement_batch')->where('id', $id)->where('status', 'processing')->update([
+            'wechat_batch_no' => substr((string)($result['wechat_batch_no'] ?? ''), 0, 96),
+            'wechat_detail_no' => substr((string)($result['wechat_detail_no'] ?? ''), 0, 96),
+            'update_time' => time(),
+        ]);
+        return $this->settlementBatchDto($this->row(Db::name('yfth_store_settlement_batch')->where('id', $id)->find()), true);
     }
 
     public function recordSettlementCallback(int $id, array $data, int $adminUid): array
     {
-        $eventId = trim((string)($data['callback_event_id'] ?? ''));
-        $status = strtolower(trim((string)($data['status'] ?? '')));
-        if ($eventId === '' || !in_array($status, ['success', 'failed'], true)) {
-            throw new ApiException('settlement_callback_invalid');
-        }
-        return Db::transaction(function () use ($id, $data, $adminUid, $eventId, $status) {
-            $existing = $this->row(Db::name('yfth_store_settlement_callback')->where('callback_event_id', $eventId)->lock(true)->find());
-            $batch = $this->row(Db::name('yfth_store_settlement_batch')->where('id', $id)->lock(true)->find());
-            if (!$batch) throw new ApiException('settlement_batch_not_found');
-            if ($existing) return $this->settlementBatchDto($batch, true);
-            if ((string)$batch['status'] === 'settled') return $this->settlementBatchDto($batch, true);
-            if ((string)$batch['status'] !== 'processing') throw new ApiException('settlement_batch_not_processing');
+        throw new ApiException('settlement_callback_admin_write_disabled');
+    }
 
+    /** Callback entrypoint used only after the active provider verifies the raw signed request. */
+    public function handleTrustedSettlementCallback(array $headers, string $rawBody): array
+    {
+        $event = app()->make(CommissionProfitSharingProviderFactory::class)->make()->verifyCallback($headers, $rawBody);
+        return Db::transaction(function () use ($event) {
+            $existing = $this->row(Db::name('yfth_store_settlement_callback')->where('callback_event_id', $event['event_id'])->lock(true)->find());
+            if ($existing) return ['accepted' => true, 'duplicate' => true];
+            if ($event['type'] === 'return') return $this->applyTrustedReturnCallback($event);
+
+            $batch = $this->row(Db::name('yfth_store_settlement_batch')->where('batch_no', $event['batch_no'])->lock(true)->find());
+            if (!$batch || (string)$batch['status'] !== 'processing' || (int)$event['amount_cent'] !== (int)$batch['amount_cent']
+                || !hash_equals((string)$batch['receiver_account_masked'], (string)$event['receiver_account_masked'])) {
+                throw new ApiException('settlement_callback_business_mismatch');
+            }
             $now = time();
-            $safe = [
-                'callback_event_id' => $eventId, 'status' => $status,
-                'wechat_batch_no' => substr(trim((string)($data['wechat_batch_no'] ?? '')), 0, 96),
-                'wechat_detail_no' => substr(trim((string)($data['wechat_detail_no'] ?? '')), 0, 96),
-                'message' => substr(trim((string)($data['message'] ?? '')), 0, 255),
-            ];
             Db::name('yfth_store_settlement_callback')->insert([
-                'batch_id' => $id, 'callback_event_id' => $eventId, 'callback_status' => $status,
-                'callback_json' => $this->json($safe), 'add_time' => $now,
+                'batch_id' => (int)$batch['id'], 'return_id' => 0, 'callback_type' => 'settlement',
+                'callback_event_id' => $event['event_id'], 'callback_status' => $event['status'],
+                'callback_json' => $this->json($event['raw']), 'add_time' => $now,
             ]);
             $update = [
-                'status' => $status === 'success' ? 'settled' : 'exception',
-                'wechat_batch_no' => $safe['wechat_batch_no'], 'wechat_detail_no' => $safe['wechat_detail_no'],
-                'exception_reason' => $status === 'failed' ? $safe['message'] : '',
-                'callback_at' => $now, 'settled_at' => $status === 'success' ? $now : 0,
-                'admin_uid' => $adminUid, 'update_time' => $now,
+                'status' => $event['status'] === 'success' ? 'settled' : 'exception',
+                'exception_reason' => $event['status'] === 'failed' ? $event['message'] : '',
+                'callback_at' => $now, 'settled_at' => $event['status'] === 'success' ? $now : 0,
+                'update_time' => $now,
             ];
-            Db::name('yfth_store_settlement_batch')->where('id', $id)->update($update);
-            if ($status === 'success') {
+            Db::name('yfth_store_settlement_batch')->where('id', (int)$batch['id'])->update($update);
+            if ($event['status'] === 'success') {
                 $account = $this->lockStoreAccount((int)$batch['store_id']);
                 Db::name('yfth_store_commission_account')->where('id', (int)$account['id'])->update([
                     'unsettled_cent' => (int)$account['unsettled_cent'] - (int)$batch['amount_cent'],
@@ -369,10 +410,82 @@ class CommissionFinanceServices
                 ]);
             }
             $after = array_merge($batch, $update);
-            $this->audit('store_settlement_batch', (string)$id, 'profit_sharing_callback', $batch, $after,
-                $adminUid, 'headquarters', (int)$batch['store_id'], $safe['message'], $eventId);
-            return $this->settlementBatchDto($after, true);
+            $this->audit('store_settlement_batch', (string)$batch['id'], 'profit_sharing_callback', $batch, $after,
+                0, 'trusted_payment_callback', (int)$batch['store_id'], $event['message'], $event['event_id']);
+            return ['accepted' => true, 'duplicate' => false, 'batch' => $this->settlementBatchDto($after, true)];
         });
+    }
+
+    /**
+     * Reserved for an actual signed WeChat return operation. This is not an
+     * admin-settlement shortcut: provider creation and callback confirmation
+     * remain mandatory.
+     */
+    public function requestSettlementReturn(int $batchId, int $amountCent, string $reason, string $requestId, int $adminUid): array
+    {
+        if ($amountCent <= 0 || trim($requestId) === '' || mb_strlen(trim($reason)) < 4) {
+            throw new ApiException('settlement_return_invalid');
+        }
+        $prepared = Db::transaction(function () use ($batchId, $amountCent, $reason, $requestId, $adminUid) {
+            $existing = $this->row(Db::name('yfth_store_settlement_return')->where('request_id', $requestId)->lock(true)->find());
+            if ($existing) return ['return' => $existing, 'batch' => []];
+            $batch = $this->row(Db::name('yfth_store_settlement_batch')->where('id', $batchId)->lock(true)->find());
+            if (!$batch || (string)$batch['status'] !== 'settled' || $amountCent > (int)$batch['amount_cent']) {
+                throw new ApiException('settlement_return_batch_invalid');
+            }
+            $now = time();
+            $row = [
+                'return_no' => $this->makeNo('YFSR'), 'batch_id' => $batchId, 'store_id' => (int)$batch['store_id'],
+                'amount_cent' => $amountCent, 'status' => 'processing', 'request_id' => $requestId,
+                'wechat_batch_no' => (string)$batch['wechat_batch_no'], 'wechat_detail_no' => (string)$batch['wechat_detail_no'],
+                'wechat_return_no' => '', 'reason' => mb_substr(trim($reason), 0, 255), 'callback_json' => '{}',
+                'admin_uid' => $adminUid, 'processing_at' => $now, 'returned_at' => 0, 'callback_at' => 0,
+                'add_time' => $now, 'update_time' => $now,
+            ];
+            $row['id'] = (int)Db::name('yfth_store_settlement_return')->insertGetId($row);
+            $this->audit('store_settlement_return', (string)$row['id'], 'start_profit_sharing_return', [], $row,
+                $adminUid, 'headquarters', (int)$batch['store_id'], $row['reason'], $requestId);
+            return ['return' => $row, 'batch' => $batch];
+        });
+        if (!$prepared['batch']) return $prepared['return'];
+        try {
+            $result = app()->make(CommissionProfitSharingProviderFactory::class)->make()
+                ->createReturn($prepared['return'], $prepared['batch']);
+        } catch (\Throwable $e) {
+            Db::name('yfth_store_settlement_return')->where('id', (int)$prepared['return']['id'])->update([
+                'status' => 'exception', 'update_time' => time(),
+            ]);
+            throw $e;
+        }
+        Db::name('yfth_store_settlement_return')->where('id', (int)$prepared['return']['id'])->update([
+            'wechat_return_no' => substr((string)($result['wechat_return_no'] ?? ''), 0, 96), 'update_time' => time(),
+        ]);
+        return $this->row(Db::name('yfth_store_settlement_return')->where('id', (int)$prepared['return']['id'])->find());
+    }
+
+    private function applyTrustedReturnCallback(array $event): array
+    {
+        $return = $this->row(Db::name('yfth_store_settlement_return')->where('return_no', $event['return_no'])->lock(true)->find());
+        if (!$return || (string)$return['status'] !== 'processing' || (int)$return['amount_cent'] !== (int)$event['amount_cent']) {
+            throw new ApiException('settlement_return_callback_business_mismatch');
+        }
+        $now = time();
+        Db::name('yfth_store_settlement_callback')->insert([
+            'batch_id' => (int)$return['batch_id'], 'return_id' => (int)$return['id'], 'callback_type' => 'return',
+            'callback_event_id' => $event['event_id'], 'callback_status' => $event['status'],
+            'callback_json' => $this->json($event['raw']), 'add_time' => $now,
+        ]);
+        $update = [
+            'status' => $event['status'] === 'success' ? 'returned' : 'exception',
+            'wechat_return_no' => (string)($event['return_no'] ?: $return['wechat_return_no']),
+            'callback_json' => $this->json($event['raw']), 'callback_at' => $now,
+            'returned_at' => $event['status'] === 'success' ? $now : 0, 'update_time' => $now,
+        ];
+        Db::name('yfth_store_settlement_return')->where('id', (int)$return['id'])->update($update);
+        $after = array_merge($return, $update);
+        $this->audit('store_settlement_return', (string)$return['id'], 'profit_sharing_return_callback', $return, $after,
+            0, 'trusted_payment_callback', (int)$return['store_id'], $event['message'], $event['event_id']);
+        return ['accepted' => true, 'duplicate' => false, 'return' => $after];
     }
 
     public function adjustUser(int $uid, int $deltaCent, int $adminUid, string $reason, string $requestId): array

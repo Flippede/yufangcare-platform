@@ -147,6 +147,42 @@ class PackageMembershipReferralServices extends YfthFoundationBaseServices
             }
         }
 
+        // Automatic commission is now the only writer for new package and mall
+        // rewards. Keep legacy candidates readable, but project current accruals
+        // into the same narrow user DTO so the referral screen never depends on
+        // a second, stale execution path.
+        $automaticRows = Db::name('yfth_commission_accrual')
+            ->where('c1_uid', $uid)
+            ->whereIn('buyer_uid', $referredUids)
+            ->whereIn('source_type', ['package_activation', 'mall_order_item'])
+            ->field('buyer_uid,status,SUM(GREATEST(c1_amount_cent - reversed_c1_cent, 0)) AS amount_cent,COUNT(*) AS accrual_count')
+            ->group('buyer_uid,status')
+            ->select()
+            ->toArray();
+        foreach ($automaticRows as $reward) {
+            $referredUid = (int)$reward['buyer_uid'];
+            $status = (string)$reward['status'];
+            $amount = (int)$reward['amount_cent'];
+            $accrualCount = (int)$reward['accrual_count'];
+            if (!isset($rewardByUid[$referredUid])) {
+                $rewardByUid[$referredUid] = [
+                    'reward_amount_cent' => 0,
+                    'pending_amount_cent' => 0,
+                    'settled_amount_cent' => 0,
+                    'candidate_count' => 0,
+                ];
+            }
+            if (in_array($status, ['cancelled', 'reversed'], true)) {
+                continue;
+            }
+            $rewardByUid[$referredUid]['reward_amount_cent'] += $amount;
+            $rewardByUid[$referredUid]['candidate_count'] += $accrualCount;
+            // C1's line-item settlement is a separate local settlement fact;
+            // observing and credited automatic amounts remain payable until it
+            // is completed through that existing B1 workflow.
+            $rewardByUid[$referredUid]['pending_amount_cent'] += $amount;
+        }
+
         $list = [];
         foreach ($relations as $relation) {
             $this->consistency->assertReferral($relation);

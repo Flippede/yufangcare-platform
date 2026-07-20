@@ -36,6 +36,7 @@ class DirectReferralRewardSettlementServices extends YfthFoundationBaseServices
 
     public function confirmByStore(int $candidateId, array $context, array $data): array
     {
+        $this->assertAutomaticExecutionOnly();
         return $this->runIdempotent('confirm', $candidateId, (int)$context['uid'], $data, function () use ($candidateId, $context, $data) {
             $candidate = $this->lockedCandidate($candidateId, (int)$context['store_id']);
             if ((string)$candidate['status'] === 'confirmed') {
@@ -53,6 +54,7 @@ class DirectReferralRewardSettlementServices extends YfthFoundationBaseServices
 
     public function settleByStore(int $candidateId, array $context, array $data): array
     {
+        $this->assertAutomaticExecutionOnly();
         return $this->runIdempotent('settle', $candidateId, (int)$context['uid'], $data, function ($requestId) use ($candidateId, $context, $data) {
             $candidate = $this->lockedCandidate($candidateId, (int)$context['store_id']);
             $existing = $this->row($this->ledgerDao->search([])->where('candidate_id', $candidateId)->lock(true)->find());
@@ -113,12 +115,21 @@ class DirectReferralRewardSettlementServices extends YfthFoundationBaseServices
 
     public function cancelByHeadquarters(int $candidateId, int $adminId, array $data): array
     {
+        $this->assertAutomaticExecutionOnly();
         return $this->headquartersTransition('cancel', $candidateId, $adminId, $data, ['pending', 'confirmed'], 'cancelled');
     }
 
     public function correctByHeadquarters(int $candidateId, int $adminId, array $data): array
     {
+        $this->assertAutomaticExecutionOnly();
         return $this->headquartersTransition('correct', $candidateId, $adminId, $data, ['confirmed'], 'pending');
+    }
+
+    private function assertAutomaticExecutionOnly(): void
+    {
+        // Historical candidate records are readable for audit only.  All new
+        // YFTH reward facts are executed by AutomaticCommissionServices.
+        throw new ApiException('yfth_legacy_reward_manual_execution_disabled');
     }
 
     private function headquartersTransition(string $action, int $candidateId, int $adminId, array $data, array $from, string $to): array

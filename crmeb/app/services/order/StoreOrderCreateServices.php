@@ -29,6 +29,7 @@ use crmeb\exceptions\ApiStatusException;
 use crmeb\services\CacheService;
 use app\dao\order\StoreOrderDao;
 use app\services\user\UserServices;
+use app\services\yfth\YfthCommissionOrderSourceServices;
 use app\services\user\UserBillServices;
 use app\services\user\UserAddressServices;
 use app\services\activity\bargain\StoreBargainServices;
@@ -301,6 +302,13 @@ class StoreOrderCreateServices extends BaseServices
             if (!$order) {
                 throw new ApiException(410200);
             }
+            // Only orders whose buyer has YFTH's authoritative store attribution
+            // enter the YFTH commission domain.  The shared CRMEB creator still
+            // serves unrelated native storefront flows.
+            $commissionSource = app()->make(YfthCommissionOrderSourceServices::class);
+            if ($commissionSource->shouldMarkCustomerOrder((int)$uid)) {
+                $commissionSource->mark((int)$order['id'], 'normal_mall');
+            }
             //记录自提人电话和姓名
             /** @var UserServices $userService */
             $userService = app()->make(UserServices::class);
@@ -482,6 +490,14 @@ class StoreOrderCreateServices extends BaseServices
                 }
             }
             $isCommission = 0;
+            if (app()->make(YfthCommissionOrderSourceServices::class)->excludesCrmebBrokerage((array)$order)) {
+                $createService->update(['id' => $orderId], [
+                    'spread_uid' => 0, 'spread_two_uid' => 0, 'one_brokerage' => 0,
+                    'two_brokerage' => 0, 'staff_brokerage' => 0, 'agent_brokerage' => 0,
+                    'division_brokerage' => 0,
+                ]);
+                return;
+            }
             if ($order['combination_id']) {
                 //检测拼团是否参与返佣
                 $isCommission = app()->make(StoreCombinationServices::class)->value(['id' => $order['combination_id']], 'is_commission');

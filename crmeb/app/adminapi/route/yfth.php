@@ -248,7 +248,6 @@ Route::group('yfth', function () {
         Route::get('settlement_batch', 'v1.yfth.CommissionFinance/settlementBatches')->option(['real_name' => '门店结算批次']);
         Route::post('settlement_batch/generate', 'v1.yfth.CommissionFinance/settlementBatchGenerate')->option(['real_name' => '生成门店结算批次']);
         Route::post('settlement_batch/:id/start', 'v1.yfth.CommissionFinance/settlementBatchStart')->option(['real_name' => '发起微信分账预留']);
-        Route::post('settlement_batch/:id/callback', 'v1.yfth.CommissionFinance/settlementBatchCallback')->option(['real_name' => '记录微信分账回调']);
         Route::post('retry', 'v1.yfth.CommissionFinance/retry')->option(['real_name' => '到期佣金补偿']);
     })->option(['parent' => 'yfth', 'cate_name' => '佣金与结算']);
 })->middleware([

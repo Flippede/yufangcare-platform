@@ -36,17 +36,40 @@ class PackageMembershipActivationCoordinator
         $attribution = $this->attribution->assignFirstWithLockedCurrentsInTransaction($uid, $storeId, $mutation, $lockedCurrents);
 
         $relation = [];
-        $candidate = [];
+        $rewardEvent = [];
+        $commission = [];
         if ((int)$lockContext['relation_id'] > 0) {
-            $closed = $this->referral->closeForMembershipWithLockedCurrentsInTransaction($uid, $storeId, $mutation, $lockContext, $lockedCurrents);
-            $relation = (array)$closed['before'];
+            // The package order is always a YFTH source. Marking it again here
+            // is harmless and closes the recovery-path gap before any payment
+            // listener can consult CRMEB's legacy brokerage services.
+            app()->make(YfthCommissionOrderSourceServices::class)->mark((int)($purchase['order_id'] ?? 0), 'package');
+            // The active referral is frozen into the durable activation event and
+            // its automatic accrual before the relationship is closed.  That
+            // ordering prevents a membership retry from observing neither a
+            // reward nor an active referral.
+            $relation = [
+                'id' => (int)$lockContext['relation_id'],
+                'referrer_uid' => (int)$lockContext['referrer_uid'],
+                'referred_uid' => $uid,
+                'store_id' => $storeId,
+            ];
             $amountCent = $this->moneyToCents($snapshot['order_pay_price'] ?? '0.00');
-            $candidate = app()->make(UnifiedRewardOrchestratorServices::class)->enqueue(
+            $payload = [
+                'relation' => $relation,
+                'instance_id' => $instanceId,
+                'order_id' => (int)($purchase['order_id'] ?? 0),
+                'purchase_id' => (int)($purchase['id'] ?? 0),
+                'amount_cent' => $amountCent,
+            ];
+            $rewardEvent = app()->make(UnifiedRewardOrchestratorServices::class)->enqueue(
                 'package_activated',
                 'package_instance',
                 (string)$instanceId,
-                ['relation' => $relation, 'instance_id' => $instanceId, 'amount_cent' => $amountCent]
+                $payload
             );
+            $commission = app()->make(AutomaticCommissionServices::class)->consumePackageActivation($payload);
+            $closed = $this->referral->closeForMembershipWithLockedCurrentsInTransaction($uid, $storeId, $mutation, $lockContext, $lockedCurrents);
+            $relation = (array)$closed['before'];
         }
 
         $membership = $this->membership->grantFromPackageInTransaction(
@@ -63,8 +86,9 @@ class PackageMembershipActivationCoordinator
             'membership_id' => (int)$membership['member']['id'],
             'attribution_changed' => (bool)$attribution['changed'],
             'relation_closed' => !empty($relation),
-            'reward_event_created' => (bool)($candidate['created'] ?? false),
-            'reward_event_id' => (int)($candidate['event']['id'] ?? 0),
+            'reward_event_created' => (bool)($rewardEvent['created'] ?? false),
+            'reward_event_id' => (int)($rewardEvent['event']['id'] ?? 0),
+            'commission_accrual_id' => (int)($commission['accrual']['id'] ?? 0),
         ];
     }
 
