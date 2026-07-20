@@ -50,13 +50,13 @@ foreach ([
 foreach ([
     'consumePackageActivation', 'reversePackageActivation', 'snapshotMallOrderPaid', 'completeMallOrder',
     'refundMallOrder', 'processDue', 'nextPackageSequence', 'refundItemFacts',
-    'yfth_commission_refund_reversal', 'package_activation|', 'commission_observation_due',
+    'yfth_commission_refund_reversal', 'package_activation|', 'due_at', 'creditLockedAccrual',
 ] as $needle) {
     $assert(strpos($automatic, $needle) !== false, 'automatic_execution_missing:' . $needle);
 }
 $assert(strpos($automatic, 'creditPackageCandidate') === false, 'legacy_package_candidate_credit_must_be_absent');
 $assert(strpos($automatic, 'syncLegacyMallCandidate') === false, 'legacy_mall_candidate_write_must_be_absent');
-foreach (['consumePackageActivation', 'closeActiveReferral', 'package_activated'] as $needle) {
+foreach (['consumePackageActivation', 'closeForMembershipWithLockedCurrentsInTransaction', 'package_activated'] as $needle) {
     $assert(strpos($packageActivation, $needle) !== false, 'package_activation_consumer_or_close_order_missing:' . $needle);
 }
 foreach (['consumePackageActivation', 'reversePackageActivation', 'snapshotMallOrderPaid', 'refundMallOrder'] as $needle) {
@@ -97,14 +97,15 @@ foreach (['YfthCommissionOrderSourceServices', 'excludesCrmebBrokerage', 'divisi
     $assert(strpos($orderCreate . $orderTake, $needle) !== false, 'crmeb_brokerage_exclusion_missing:' . $needle);
 }
 
-foreach (['assertHealthy', 'yfth_commission_rule_version', 'uniq_yfth_commission_rule_version', 'yfth-auto-commission-settlement-write'] as $needle) {
+foreach (['assertHealthy', 'information_schema.TABLES', 'information_schema.COLUMNS', 'information_schema.STATISTICS', 'migration_table', 'yfth_commission_rule_version', 'uniq_yfth_commission_rule_version', 'yfth-auto-commission-settlement-write'] as $needle) {
     $assert(strpos($migrationHealth, $needle) !== false, 'migration_health_gate_missing:' . $needle);
 }
 foreach (['commission/profit_sharing/callback', 'CommissionProfitSharingCallbackController'] as $needle) {
     $assert(strpos($apiRoute, $needle) !== false, 'trusted_callback_route_missing:' . $needle);
 }
-$assert(strpos($adminRoute, "Route::post('settlement_batch/:id/callback'") === false,
-    'ordinary_admin_callback_route_must_be_removed');
+$assert(strpos($finance, 'recordSettlementCallback') !== false
+    && strpos($finance, 'settlement_callback_admin_write_disabled') !== false,
+    'ordinary_admin_callback_must_be_explicitly_disabled');
 
 $all = implode("\n", [$automatic, $finance, $orchestrator, $legacySettlement, $apiRoute, $adminRoute]);
 foreach ([

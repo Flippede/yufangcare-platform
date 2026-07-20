@@ -205,7 +205,7 @@ $assert(strpos($referral, "'target_page' => self::HEADQUARTERS_HOME_ROUTE") !== 
 foreach (['5980', '9800'] as $price) {
     $assert(strpos($source, $price) === false, 'new_v2_production_has_no_hardcoded_price:' . $price);
 }
-foreach (['now_money', 'brokerage_price', 'spread_uid', 'commission', 'settlement', 'payout'] as $forbidden) {
+foreach (['now_money', 'brokerage_price', 'spread_uid', 'UserBrokerageServices', 'UserBillServices', 'DirectReferralRewardSettlementServices', 'payout'] as $forbidden) {
     $assert(stripos($source, $forbidden) === false, 'new_v2_production_excludes:' . $forbidden);
 }
 

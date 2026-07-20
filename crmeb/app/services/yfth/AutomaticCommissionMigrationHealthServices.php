@@ -74,7 +74,7 @@ class AutomaticCommissionMigrationHealthServices
     private function tableExists(string $table): bool
     {
         try {
-            return Db::query('SHOW TABLES LIKE ?', [$this->prefixed($table)]) !== [];
+            return $this->physicalTableExists($this->prefixed($table));
         } catch (\Throwable $e) {
             return false;
         }
@@ -83,11 +83,10 @@ class AutomaticCommissionMigrationHealthServices
     private function migrationRecorded(string $version): bool
     {
         try {
-            // Phinx keeps its migration ledger outside CRMEB's table-prefix
-            // convention. Query the real ledger directly so a healthy database
-            // is not falsely blocked when its application tables use a prefix.
-            if (Db::query('SHOW TABLES LIKE ?', ['migrations']) === []) return false;
-            return (int)Db::query('SELECT COUNT(*) AS count FROM `migrations` WHERE `version` = ?', [$version])[0]['count'] === 1;
+            $table = $this->migrationTable();
+            if (!$this->physicalTableExists($table)) return false;
+            $rows = Db::query('SELECT COUNT(*) AS count FROM `' . $this->identifier($table) . '` WHERE `version` = ?', [$version]);
+            return (int)($rows[0]['count'] ?? 0) === 1;
         } catch (\Throwable $e) {
             return false;
         }
@@ -95,14 +94,51 @@ class AutomaticCommissionMigrationHealthServices
 
     private function columnExists(string $table, string $column): bool
     {
-        if (!$this->tableExists($table)) return false;
-        return Db::query('SHOW COLUMNS FROM `' . str_replace('`', '', $this->prefixed($table)) . '` LIKE ?', [$column]) !== [];
+        try {
+            $physicalTable = $this->prefixed($table);
+            if (!$this->physicalTableExists($physicalTable)) return false;
+            return Db::query(
+                'SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ? LIMIT 1',
+                [$physicalTable, $column]
+            ) !== [];
+        } catch (\Throwable $e) {
+            return false;
+        }
     }
 
     private function indexExists(string $table, string $index): bool
     {
-        if (!$this->tableExists($table)) return false;
-        return Db::query('SHOW INDEX FROM `' . str_replace('`', '', $this->prefixed($table)) . '` WHERE Key_name = ?', [$index]) !== [];
+        try {
+            $physicalTable = $this->prefixed($table);
+            if (!$this->physicalTableExists($physicalTable)) return false;
+            return Db::query(
+                'SELECT 1 FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND INDEX_NAME = ? LIMIT 1',
+                [$physicalTable, $index]
+            ) !== [];
+        } catch (\Throwable $e) {
+            return false;
+        }
+    }
+
+    private function physicalTableExists(string $table): bool
+    {
+        return Db::query(
+            'SELECT 1 FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? LIMIT 1',
+            [$table]
+        ) !== [];
+    }
+
+    private function migrationTable(): string
+    {
+        return $this->prefixed((string)Config::get('database.migration_table', 'migrations'));
+    }
+
+    private function identifier(string $identifier): string
+    {
+        if (!preg_match('/^[A-Za-z0-9_]+$/', $identifier)) {
+            throw new \RuntimeException('invalid_automatic_commission_health_identifier');
+        }
+        return $identifier;
     }
 
     private function prefixed(string $table): string

@@ -1,8 +1,14 @@
 <?php
 
 use app\services\yfth\AutomaticCommissionServices;
+use app\services\yfth\AutomaticCommissionMigrationHealthServices;
 use app\services\yfth\CommissionFinanceServices;
+use app\services\yfth\CommissionProfitSharingProviderFactory;
+use app\services\yfth\FailClosedCommissionProfitSharingProvider;
+use app\services\yfth\MockCommissionProfitSharingProvider;
 use app\services\yfth\YfthCommissionOrderSourceServices;
+use app\services\order\StoreOrderTakeServices;
+use crmeb\services\CacheService;
 use think\facade\Config;
 use think\facade\Db;
 
@@ -11,6 +17,7 @@ use think\facade\Db;
 putenv('YFTH_COMMISSION_PROFIT_SHARING_PROVIDER=mock');
 putenv('YFTH_COMMISSION_TEST_MODE=1');
 putenv('YFTH_COMMISSION_TEST_CALLBACK_SECRET=yfth-isolated-commission-test-secret');
+putenv('APP_ENV=testing');
 
 require __DIR__ . '/yfth_package_membership_referral_test_bootstrap.php';
 
@@ -44,6 +51,21 @@ try {
     $assert(trim((string)getenv('YFTH_SETTLEMENT_KEY')) !== '', 'isolated_settlement_encryption_key_present');
     if ($failures) throw new RuntimeException('isolated_database_guard_failed');
 
+    $health = app()->make(AutomaticCommissionMigrationHealthServices::class)->report();
+    $assert(!empty($health['healthy']), 'complete_automatic_commission_migration_is_healthy');
+    if (empty($health['healthy'])) throw new RuntimeException('automatic_commission_migration_health_failed:' . implode(',', (array)($health['missing'] ?? [])));
+
+    $providerFactory = app()->make(CommissionProfitSharingProviderFactory::class);
+    putenv('APP_ENV=local');
+    $assert($providerFactory->make() instanceof FailClosedCommissionProfitSharingProvider, 'mock_provider_is_not_enabled_in_local_environment');
+    putenv('APP_ENV=production');
+    $assert($providerFactory->make() instanceof FailClosedCommissionProfitSharingProvider, 'mock_provider_is_not_enabled_in_production_environment');
+    putenv('APP_ENV=testing');
+    putenv('YFTH_REAL_FLOW_ISOLATED_DB=0');
+    $assert($providerFactory->make() instanceof FailClosedCommissionProfitSharingProvider, 'mock_provider_requires_isolated_database_marker');
+    putenv('YFTH_REAL_FLOW_ISOLATED_DB=1');
+    $assert($providerFactory->make() instanceof MockCommissionProfitSharingProvider, 'mock_provider_requires_explicit_isolated_test_environment');
+
     acCleanup();
     $fixture = acCreateFixtures();
     $automatic = app()->make(AutomaticCommissionServices::class);
@@ -52,7 +74,6 @@ try {
     $buyer = $fixture['buyer'];
     $storeA = $fixture['store_a'];
     $storeB = $fixture['store_b'];
-    $crmebBefore = acCrmebMoneySnapshot([$c1, $buyer]);
 
     $global = $automatic->saveRule([
         'scope_type' => 'all', 'c1_ratio_bps' => 1000, 'b1_ratio_bps' => 500,
@@ -65,8 +86,37 @@ try {
     $assert((string)($automatic->snapshotMallOrderPaid($unmarkedOrder)['reason'] ?? '') === 'order_not_yfth_commission_source',
         'shared_crmeb_order_without_yfth_source_never_enters_automatic_commission');
 
+    // With CRMEB brokerage explicitly enabled, unrelated orders continue to use
+    // its own path, while every YFTH source (including package sources) is
+    // excluded before legacy brokerage can create a second commission.
+    $legacyConfig = acEnableLegacyBrokerageForMatrix();
+    Db::name('user')->where('uid', $c1)->update(['is_promoter' => 1, 'spread_open' => 1]);
+    Db::name('store_order')->where('id', $unmarkedOrder)->update([
+        'spread_uid' => $c1, 'spread_two_uid' => 0, 'one_brokerage' => '2.00',
+    ]);
+    $legacyTake = app()->make(StoreOrderTakeServices::class);
+    $legacyBefore = acLegacyBrokerageSnapshot($c1);
+    $legacyTake->backOrderBrokerage(
+        (array)Db::name('store_order')->where('id', $unmarkedOrder)->find(),
+        (array)Db::name('user')->where('uid', $buyer)->find()
+    );
+    $legacyAfter = acLegacyBrokerageSnapshot($c1);
+    $assert($legacyAfter['brokerage_cent'] === $legacyBefore['brokerage_cent'] + 200
+        && $legacyAfter['brokerage_count'] === $legacyBefore['brokerage_count'] + 1,
+        'non_yfth_order_retains_crmeb_legacy_brokerage_when_enabled');
+
     $order = acCreateOrder($buyer, '100.00', 'zero-day');
     acCreateOrderItem($order, $buyer, $fixture['product_a'], 2, '100.00');
+    Db::name('store_order')->where('id', $order)->update([
+        'spread_uid' => $c1, 'spread_two_uid' => 0, 'one_brokerage' => '2.00',
+    ]);
+    $yfthLegacyBefore = acLegacyBrokerageSnapshot($c1);
+    $legacyTake->backOrderBrokerage(
+        (array)Db::name('store_order')->where('id', $order)->find(),
+        (array)Db::name('user')->where('uid', $buyer)->find()
+    );
+    $assert(acLegacyBrokerageSnapshot($c1) === $yfthLegacyBefore,
+        'yfth_normal_order_never_executes_crmeb_legacy_brokerage');
     $paid = $automatic->snapshotMallOrderPaid($order);
     $completed = $automatic->completeMallOrder($order);
     $assert(!empty($paid['created']) && !empty($completed['accrual_ids']), 'zero_day_order_creates_accrual');
@@ -84,6 +134,45 @@ try {
     $assert((int)Db::name('yfth_commission_accrual')->where('order_id', $order)->count() === 1, 'duplicate_order_events_do_not_duplicate_accrual');
     $assert((int)Db::name('yfth_commission_ledger')->where('source_order_id', $order)->count() === 3, 'duplicate_order_events_do_not_duplicate_ledgers');
 
+    $categoryId = (int)(preg_split('/[,|]/', (string)Db::name('store_product')->where('id', $fixture['product_b'])->value('cate_id'))[0] ?? 0);
+    if ($categoryId <= 0) throw new RuntimeException('isolated_product_category_fixture_required');
+    $categoryRule = $automatic->saveRule([
+        'scope_type' => 'category', 'scope_id' => $categoryId,
+        'c1_ratio_bps' => 1200, 'b1_ratio_bps' => 300, 'observation_days' => 0,
+        'enabled' => 1, 'note' => 'isolated category precedence rule',
+    ], 1);
+    $automatic->publishRule((int)$categoryRule['id'], 1);
+    $categoryOrder = acCreateOrder($buyer, '100.00', 'category-precedence');
+    acCreateOrderItem($categoryOrder, $buyer, $fixture['product_b'], 1, '100.00');
+    $automatic->snapshotMallOrderPaid($categoryOrder);
+    $automatic->completeMallOrder($categoryOrder);
+    $categoryAccrual = acAccrual($categoryOrder);
+    $assert((string)$categoryAccrual['rule_version_id'] === (string)$categoryRule['id']
+        && (int)$categoryAccrual['c1_ratio_bps'] === 1200 && (int)$categoryAccrual['b1_ratio_bps'] === 300,
+        'category_rule_overrides_global_rule');
+
+    $frozenOrder = acCreateOrder($buyer, '40.00', 'category-snapshot');
+    acCreateOrderItem($frozenOrder, $buyer, $fixture['product_b'], 1, '40.00');
+    $automatic->snapshotMallOrderPaid($frozenOrder);
+    $updatedCategoryRule = $automatic->saveRule([
+        'scope_type' => 'category', 'scope_id' => $categoryId,
+        'c1_ratio_bps' => 4000, 'b1_ratio_bps' => 4000, 'observation_days' => 0,
+        'enabled' => 1, 'note' => 'isolated later category rule',
+    ], 1);
+    $automatic->publishRule((int)$updatedCategoryRule['id'], 1);
+    $automatic->completeMallOrder($frozenOrder);
+    $frozenAccrual = acAccrual($frozenOrder);
+    $assert((int)$frozenAccrual['rule_version_id'] === (int)$categoryRule['id']
+        && (int)$frozenAccrual['c1_ratio_bps'] === 1200 && (int)$frozenAccrual['b1_ratio_bps'] === 300,
+        'paid_order_keeps_immutable_category_rule_snapshot');
+
+    $refundProductRule = $automatic->saveRule([
+        'scope_type' => 'product', 'scope_id' => $fixture['product_b'],
+        'c1_ratio_bps' => 1000, 'b1_ratio_bps' => 500, 'observation_days' => 0,
+        'enabled' => 1, 'note' => 'isolated refund fixture product rule',
+    ], 1);
+    $automatic->publishRule((int)$refundProductRule['id'], 1);
+
     $sevenDay = $automatic->saveRule([
         'scope_type' => 'product', 'scope_id' => $fixture['product_a'],
         'c1_ratio_bps' => 1000, 'b1_ratio_bps' => 500, 'observation_days' => 7,
@@ -100,6 +189,21 @@ try {
     $due = $automatic->processDue(100);
     $assert((int)$due['credited'] >= 1, 'due_worker_credits_nonzero_observation');
     $assert((int)Db::name('yfth_user_commission_account')->where('uid', $c1)->value('available_cent') === $beforeDue + 400, 'nonzero_observation_c1_amount_exact');
+
+    $packageLegacyOrder = acCreateOrder($buyer, '20.00', 'package-legacy-guard');
+    app()->make(YfthCommissionOrderSourceServices::class)->mark($packageLegacyOrder, 'package');
+    Db::name('store_order')->where('id', $packageLegacyOrder)->update([
+        'spread_uid' => $c1, 'spread_two_uid' => 0, 'one_brokerage' => '2.00',
+    ]);
+    $packageLegacyBefore = acLegacyBrokerageSnapshot($c1);
+    $legacyTake->backOrderBrokerage(
+        (array)Db::name('store_order')->where('id', $packageLegacyOrder)->find(),
+        (array)Db::name('user')->where('uid', $buyer)->find()
+    );
+    $assert(acLegacyBrokerageSnapshot($c1) === $packageLegacyBefore,
+        'yfth_package_order_never_executes_crmeb_legacy_brokerage');
+    acRestoreLegacyBrokerageConfig($legacyConfig);
+    $crmebBefore = acCrmebMoneySnapshot([$c1, $buyer]);
 
     $refundOrder = acCreateOrder($buyer, '30.00', 'refund');
     acCreateOrderItem($refundOrder, $buyer, $fixture['product_b'], 1, '30.00');
@@ -344,9 +448,14 @@ function acCleanup(): void
     Db::name('yfth_hq_active_referral_current')->whereBetween('referrer_uid', [970001, 970020])->delete();
     Db::name('yfth_hq_customer_attribution_current')->whereBetween('uid', [970001, 970020])->delete();
     $orderIds = Db::name('store_order')->whereBetween('uid', [970001, 970020])->column('id');
-    if ($orderIds) Db::name('store_order_cart_info')->whereIn('oid', $orderIds)->delete();
+    if ($orderIds) {
+        Db::name('store_order_refund')->whereIn('store_order_id', $orderIds)->delete();
+        Db::name('store_order_cart_info')->whereIn('oid', $orderIds)->delete();
+    }
     Db::name('store_order')->whereBetween('uid', [970001, 970020])->delete();
     Db::name('user_bill')->whereBetween('uid', [970001, 970020])->delete();
+    Db::name('user_brokerage')->whereBetween('uid', [970001, 970020])->delete();
+    Db::name('user_brokerage_frozen')->whereBetween('uid', [970001, 970020])->delete();
     Db::name('user')->whereBetween('uid', [970001, 970020])->delete();
     Db::name('system_store')->whereIn('id', [9701, 9702])->delete();
 }
@@ -450,14 +559,16 @@ function acCreateOrder(int $uid, string $amount, string $suffix, bool $markYfthS
 
 function acCreateOrderItem(int $orderId, int $uid, int $productId, int $cartNum, string $sumTruePrice): int
 {
+    $cartId = 'ac-' . $orderId . '-' . $productId;
+    $unitPrice = bcdiv($sumTruePrice, (string)max(1, $cartNum), 2);
     return (int)Db::name('store_order_cart_info')->insertGetId([
-        'oid' => $orderId, 'uid' => $uid, 'cart_id' => 'ac-' . $orderId . '-' . $productId,
+        'oid' => $orderId, 'uid' => $uid, 'cart_id' => $cartId,
         'product_id' => $productId, 'old_cart_id' => '', 'cart_num' => $cartNum,
         'refund_num' => 0, 'surplus_num' => $cartNum, 'split_status' => 0,
         'cart_info' => json_encode([
-            'product_id' => $productId, 'cart_num' => $cartNum, 'sum_true_price' => $sumTruePrice,
-            'truePrice' => number_format(((float)$sumTruePrice) / max(1, $cartNum), 2, '.', ''),
-            'productInfo' => ['id' => $productId],
+            'id' => $cartId, 'product_id' => $productId, 'cart_num' => $cartNum, 'sum_true_price' => $sumTruePrice,
+            'truePrice' => $unitPrice,
+            'productInfo' => ['id' => $productId, 'store_name' => 'Automatic Commission Product', 'price' => $unitPrice],
         ], JSON_UNESCAPED_UNICODE),
         'unique' => substr(hash('md5', $orderId . ':' . $productId . ':' . microtime(true)), 0, 32),
     ]);
@@ -500,6 +611,29 @@ function acCrmebMoneySnapshot(array $uids): array
     ];
 }
 
+function acEnableLegacyBrokerageForMatrix(): string
+{
+    $original = Db::name('system_config')->where('menu_name', 'brokerage_func_status')->value('value');
+    if ($original === null) throw new RuntimeException('brokerage_func_status_configuration_required');
+    Db::name('system_config')->where('menu_name', 'brokerage_func_status')->update(['value' => json_encode(1)]);
+    CacheService::clear();
+    return (string)$original;
+}
+
+function acRestoreLegacyBrokerageConfig(string $original): void
+{
+    Db::name('system_config')->where('menu_name', 'brokerage_func_status')->update(['value' => $original]);
+    CacheService::clear();
+}
+
+function acLegacyBrokerageSnapshot(int $uid): array
+{
+    return [
+        'brokerage_cent' => (int)round((float)Db::name('user')->where('uid', $uid)->value('brokerage_price') * 100),
+        'brokerage_count' => (int)Db::name('user_brokerage')->where('uid', $uid)->count(),
+    ];
+}
+
 function acCreateRefund(int $orderId, int $uid, array $items, string $amount): int
 {
     $now = time();
@@ -515,7 +649,6 @@ function acCreateRefund(int $orderId, int $uid, array $items, string $amount): i
         'is_pink_cancel' => 0,
         'refunded_time' => $now,
         'add_time' => $now,
-        'update_time' => $now,
     ]);
 }
 

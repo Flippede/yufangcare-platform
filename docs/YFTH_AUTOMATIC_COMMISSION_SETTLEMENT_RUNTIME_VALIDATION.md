@@ -1,15 +1,16 @@
 # 御方通和自动佣金与门店结算 V1 运行验证
 
-## 2026-07-20 P1 Remediation Status - Pending Targeted Review
+## 2026-07-20 Final Verification - Ready For Controlled Merge
 
-- Branch: `codex/yfth-auto-commission-balance-withdrawal-v1`; remediation baseline: `5af9bffe3930bbca8d5bb5aa17c429ea48f4b413`.
+- Branch: `codex/yfth-auto-commission-balance-withdrawal-v1`; final-validation baseline: `c7507daeea4e6cbc752e0e106bb29bcdd66e30b2`. Final feature and main commit IDs must be read from Git after commit, fast-forward merge and push.
 - The current implementation consumes package activation into automatic 15/25/60 accruals before referral closure, uses direct mall automatic accruals, and disables legacy manual candidate confirmation/settlement writers.
 - YFTH sources explicitly bypass CRMEB legacy brokerage. Settlement batching carries unallocated negative ledger items across cycles, and refund reversal is item/SKU/quantity-based with freight excluded from commission base.
-- Settlement completion is no longer an ordinary Admin success write. Production is fail-closed without a trusted profit-sharing provider; a signed mock callback is available only for isolated test mode.
+- Settlement completion is no longer an ordinary Admin success write. Production is fail-closed without a trusted profit-sharing provider; the mock callback/provider requires `APP_ENV=testing`, explicit test mode and the isolated-database marker together.
 - The contract and real-flow suites now contain the corresponding source-guard, package sequence, negative carry, refund matrix, receiver gating, callback security and return-idempotency cases.
-- This environment does not currently provide PHP 7.4, an isolated MySQL 8 runtime or a usable HBuilderX CLI. Therefore PHP syntax, contract, real-flow, migration, H5 and mp-weixin checks were not rerun for this remediation. Do not treat the older validation record below as evidence for these new P1 changes.
-- The first Admin build attempt exceeded a short command limit. A second `npm.cmd run build` completed with exit code 0 in 130 seconds, with existing CSS-order, asset-size and Browserslist warnings only.
-- `git diff --check` passes. No main merge, production deployment, production migration, production database access or real WeChat profit-sharing call has occurred. Await independent targeted architecture review after commit and push.
+- PHP 7.4.33 and an isolated MySQL Community 8.0.46 instance were used. Migration health was verified with run, V2 rollback, V1 rollback, rerun and duplicate run: only the complete state passed; partial and unmigrated states failed closed. The lifecycle test also removed and restored a real required unique index and settlement-write permission, confirming both faults fail closed before restoration.
+- The automatic real flow passed package 15/25/60, relationship closure, C1/B1 mall accrual, category-over-global priority, immutable snapshots, 0-day/nonzero observation, old CRMEB brokerage dynamic guards, cross-cycle negative carry, exact item/SKU/quantity refunds, callback security/idempotency, receiver gating, C1 same-store settlement and B1 settlement-only DTOs.
+- PHP syntax, automatic-commission contract, package-membership/referral contract and real flow, Admin production build, H5 production build, mp-weixin production compile, sensitive-information scan and `git diff --check` passed. Build output contained only existing CSS-order, Browserslist, asset-size, skeleton-key and subpackage-placement warnings.
+- No main merge, production deployment, production migration, production database access or real WeChat profit-sharing call has occurred at this snapshot. The requested next action is controlled fast-forward merge and production release; no additional architecture review is required for this task.
 
 ## 1. 验证范围
 
