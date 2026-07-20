@@ -67,10 +67,10 @@ $assert(strpos($service, '$refundedCent < $paidCent') !== false, 'refund_require
 
 $assert(strpos($event, 'MallConsumptionRewardPayListener::class') !== false, 'pay_listener_registered_on_existing_event');
 $assert(strpos($event, 'MallConsumptionRewardCustomEventListener::class') !== false, 'refund_listener_registered_on_existing_event');
-$assert(strpos($payListener, 'recordMallOrderPaid') !== false && strpos($payListener, 'catch (\\Throwable $e)') !== false,
+$assert(strpos($payListener, "enqueueAndTry('mall_order_paid'") !== false && strpos($payListener, 'catch (\\Throwable $e)') !== false,
     'pay_listener_is_failure_isolated');
 $assert(strpos($refundListener, "admin_order_refund_success") !== false
-    && strpos($refundListener, 'cancelMallOrderCandidateAfterFullRefund') !== false
+    && strpos($refundListener, "'mall_order_refunded'") !== false
     && strpos($refundListener, 'catch (\\Throwable $e)') !== false,
     'refund_listener_is_failure_isolated');
 

@@ -15,6 +15,7 @@ class UnifiedRewardOrchestratorServices extends YfthFoundationBaseServices
         'package_activated',
         'package_invalidated',
         'mall_order_paid',
+        'mall_order_completed',
         'mall_order_refunded',
         'partner_store_opened',
         'partner_opening_cancelled',
@@ -207,15 +208,32 @@ class UnifiedRewardOrchestratorServices extends YfthFoundationBaseServices
         switch ((string)$event['event_type']) {
             case 'package_activated':
                 $result = app()->make(DirectReferralRewardServices::class)->createPackageCandidateFromEvent($payload);
+                if (!empty($result['candidate'])) {
+                    app()->make(AutomaticCommissionServices::class)->creditPackageCandidate((array)$result['candidate']);
+                }
                 return $this->candidateResult($result);
             case 'package_invalidated':
                 $result = app()->make(DirectReferralRewardServices::class)->reversePackageCandidateFromEvent($payload);
+                if (!empty($result['candidate'])) {
+                    app()->make(AutomaticCommissionServices::class)->reversePackageCandidate((array)$result['candidate'], $payload);
+                }
                 return $this->candidateResult($result);
             case 'mall_order_paid':
                 $result = app()->make(DirectReferralRewardServices::class)->recordMallOrderPaid((int)$event['source_id']);
+                $snapshot = app()->make(AutomaticCommissionServices::class)->snapshotMallOrderPaid((int)$event['source_id']);
+                if (!empty($snapshot['snapshot'])) {
+                    return ['result_type' => 'mall_commission_snapshot', 'result_id' => (int)$snapshot['snapshot']['id']];
+                }
                 return $this->candidateResult($result);
+            case 'mall_order_completed':
+                $result = app()->make(AutomaticCommissionServices::class)->completeMallOrder((int)$event['source_id']);
+                return ['result_type' => 'mall_commission_snapshot', 'result_id' => (int)($result['snapshot_id'] ?? 0)];
             case 'mall_order_refunded':
                 $result = app()->make(DirectReferralRewardServices::class)->adjustMallOrderCandidateAfterRefund((int)$event['source_id'], $payload);
+                $automatic = app()->make(AutomaticCommissionServices::class)->refundMallOrder((int)$event['source_id'], $payload);
+                if (($automatic['reason'] ?? '') !== 'mall_order_snapshot_missing') {
+                    return ['result_type' => 'mall_commission_snapshot', 'result_id' => (int)Db::name('yfth_mall_commission_order_snapshot')->where('order_id', (int)$event['source_id'])->value('id')];
+                }
                 return $this->candidateResult($result);
             case 'partner_store_opened':
                 return $this->grantOpeningQuota($payload);

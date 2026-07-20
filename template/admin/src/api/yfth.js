@@ -1197,3 +1197,15 @@ export function yfthOpeningQuotaAwards(params) { return request({ url: 'yfth/rew
 export function yfthOpeningQuotaConfirm(id) { return request({ url: `yfth/reward_governance/opening_quota/${id}/confirm`, method: 'post' }); }
 export function yfthRewardConsistency(params) { return request({ url: 'yfth/reward_governance/consistency', method: 'get', params }); }
 export function yfthPartnerMigrationIssues(params) { return request({ url: 'yfth/reward_governance/migration_issue', method: 'get', params }); }
+
+export function yfthCommissionRuleList(params) { return request({ url: 'yfth/commission/rule', method: 'get', params }); }
+export function yfthCommissionRuleSave(data) { return request({ url: 'yfth/commission/rule', method: 'post', data }); }
+export function yfthCommissionRulePublish(id) { return request({ url: `yfth/commission/rule/${id}/publish`, method: 'post' }); }
+export function yfthCommissionAccrualList(params) { return request({ url: 'yfth/commission/accrual', method: 'get', params }); }
+export function yfthCommissionLedgerList(params) { return request({ url: 'yfth/commission/ledger', method: 'get', params }); }
+export function yfthCommissionAccount(params) { return request({ url: 'yfth/commission/account', method: 'get', params }); }
+export function yfthCommissionAdjustment(data) { return request({ url: 'yfth/commission/adjustment', method: 'post', data }); }
+export function yfthCommissionWithdrawalList(params) { return request({ url: 'yfth/commission/withdrawal', method: 'get', params }); }
+export function yfthCommissionWithdrawalComplete(id, data) { return request({ url: `yfth/commission/withdrawal/${id}/complete`, method: 'post', data }); }
+export function yfthCommissionRetry(data) { return request({ url: 'yfth/commission/retry', method: 'post', data }); }
+export function yfthCommissionLegacyReport() { return request({ url: 'yfth/commission/legacy_report', method: 'get' }); }

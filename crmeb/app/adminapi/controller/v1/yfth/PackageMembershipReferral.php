@@ -50,6 +50,7 @@ class PackageMembershipReferral extends AuthController
             [['package_ratio_first_bps', 'd'], 1500],
             [['package_ratio_second_bps', 'd'], 2500],
             [['package_ratio_third_bps', 'd'], 6000],
+            [['package_observation_days', 'd'], 0],
             [['mall_consumption_enabled', 'd'], 0],
             [['mall_consumption_ratio_bps', 'd'], 0],
             ['effective_at', 0],

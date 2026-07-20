@@ -88,6 +88,7 @@
           <el-table-column label="套餐循环比例" min-width="190">
             <template slot-scope="{ row }">{{ row.package_ratio_first_bps / 100 }}% / {{ row.package_ratio_second_bps / 100 }}% / {{ row.package_ratio_third_bps / 100 }}%</template>
           </el-table-column>
+          <el-table-column prop="package_observation_days" label="套餐观察期(天)" width="130" />
           <el-table-column label="普通商城比例" min-width="160">
             <template slot-scope="{ row }">{{ row.mall_consumption_enabled ? `${row.mall_consumption_ratio_bps / 100}%` : '未启用' }}</template>
           </el-table-column>
@@ -113,6 +114,7 @@
       <el-form label-width="150px">
         <el-form-item label="版本号"><el-input v-model="ruleForm.version_no" placeholder="留空自动递增" /></el-form-item>
         <el-form-item label="套餐循环比例"><el-input value="15% / 25% / 60%" disabled /></el-form-item>
+        <el-form-item label="套餐观察期(天)"><el-input-number v-model="ruleForm.package_observation_days" :min="0" :max="365" /></el-form-item>
         <el-form-item label="普通商城收益">
           <el-switch v-model="ruleForm.mall_consumption_enabled" :active-value="1" :inactive-value="0" />
         </el-form-item>
@@ -184,6 +186,7 @@ export default {
       this.ruleForm = Object.assign({
         id: 0, version_no: 0,
         package_ratio_first_bps: 1500, package_ratio_second_bps: 2500, package_ratio_third_bps: 6000,
+        package_observation_days: 0,
         mall_consumption_enabled: 0, mall_consumption_ratio_bps: 0, effective_at: '', expires_at: '',
       }, row || {});
       this.ruleVisible = true;

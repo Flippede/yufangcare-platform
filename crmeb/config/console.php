@@ -21,6 +21,8 @@ return [
         'timer' => \crmeb\command\Timer::class,
         'util' => \crmeb\command\Util::class,
         'npm' => \crmeb\command\Npm::class,
-        'yfth:package' => \crmeb\command\YfthPackage::class
+        'yfth:package' => \crmeb\command\YfthPackage::class,
+        'yfth:commission-settle' => \crmeb\command\YfthCommission::class,
+        'yfth:commission-legacy-report' => \crmeb\command\YfthCommissionLegacyReport::class
     ],
 ];

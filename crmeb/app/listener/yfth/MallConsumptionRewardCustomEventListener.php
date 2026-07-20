@@ -11,10 +11,20 @@ class MallConsumptionRewardCustomEventListener
     public function handle($event): void
     {
         [$mark, $data] = $event;
-        if ($mark !== 'admin_order_refund_success') {
+        if (!in_array($mark, ['admin_order_refund_success', 'order_take'], true)) {
             return;
         }
         try {
+            if ($mark === 'order_take') {
+                $orderId = (int)($data['id'] ?? 0);
+                if ($orderId > 0) {
+                    app()->make(UnifiedRewardOrchestratorServices::class)->enqueueAndTry(
+                        'mall_order_completed', 'store_order', (string)$orderId,
+                        ['completed_at' => time()]
+                    );
+                }
+                return;
+            }
             $orderSn = (string)($data['order_id'] ?? '');
             $orderId = (int)Db::name('store_order')->where('order_id', $orderSn)->value('id');
             if ($orderId > 0) {

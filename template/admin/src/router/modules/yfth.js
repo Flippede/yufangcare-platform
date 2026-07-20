@@ -148,5 +148,14 @@ export default {
       },
       component: () => import('@/pages/yfth/userRole/index'),
     },
+    {
+      path: 'commission-finance',
+      name: `${pre}commission_finance`,
+      meta: {
+        auth: ['yfth-auto-commission-index'],
+        title: '佣金与提现',
+      },
+      component: () => import('@/pages/yfth/commissionFinance/index'),
+    },
   ],
 };

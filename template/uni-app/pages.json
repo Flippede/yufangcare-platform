@@ -369,6 +369,18 @@
 					}
 				},
 				{
+					"path": "commission/account",
+					"style": {
+						"navigationBarTitleText": "账户余额"
+					}
+				},
+				{
+					"path": "workbench/commission/index",
+					"style": {
+						"navigationBarTitleText": "门店佣金与提现"
+					}
+				},
+				{
 					"path": "product_quota/index",
 					"style": {
 						"navigationBarTitleText": "产品额度"

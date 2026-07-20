@@ -55,8 +55,12 @@ class DirectReferralRewardServices extends YfthFoundationBaseServices
         }
         $mallEnabled = (int)!empty($data['mall_consumption_enabled']);
         $mallRatio = (int)($data['mall_consumption_ratio_bps'] ?? 0);
+        $packageObservationDays = (int)($data['package_observation_days'] ?? 0);
         if ($mallRatio < 0 || $mallRatio > 10000 || ($mallEnabled && $mallRatio <= 0)) {
             throw new ApiException('mall_consumption_ratio_invalid');
+        }
+        if ($packageObservationDays < 0 || $packageObservationDays > 365) {
+            throw new ApiException('package_observation_days_invalid');
         }
         $row = [
             'rule_no' => $before['rule_no'] ?? $this->makeNo('YFDRR'),
@@ -65,6 +69,7 @@ class DirectReferralRewardServices extends YfthFoundationBaseServices
             'package_ratio_first_bps' => $ratios[0],
             'package_ratio_second_bps' => $ratios[1],
             'package_ratio_third_bps' => $ratios[2],
+            'package_observation_days' => $packageObservationDays,
             'mall_consumption_enabled' => $mallEnabled,
             'mall_consumption_ratio_bps' => $mallRatio,
             'effective_at' => $this->parseTime($data['effective_at'] ?? 0),
@@ -518,6 +523,7 @@ class DirectReferralRewardServices extends YfthFoundationBaseServices
             'package_ratio_first_bps' => (int)$row['package_ratio_first_bps'],
             'package_ratio_second_bps' => (int)$row['package_ratio_second_bps'],
             'package_ratio_third_bps' => (int)$row['package_ratio_third_bps'],
+            'package_observation_days' => (int)($row['package_observation_days'] ?? 0),
             'mall_consumption_enabled' => (bool)$row['mall_consumption_enabled'],
             'mall_consumption_ratio_bps' => (int)$row['mall_consumption_ratio_bps'],
             'effective_at' => (int)$row['effective_at'],

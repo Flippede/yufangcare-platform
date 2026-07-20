@@ -24,6 +24,10 @@
 
 			<view v-if="storeRoleReady">
 				<view v-if="pane === 'dashboard'" class="section">
+					<view class="commission-overview" @click="goCommission">
+						<view><text class="commission-label">门店总部可提现</text><text class="commission-total">¥ {{ commissionAccount.hq_withdrawable || '0.00' }}</text></view>
+						<view class="commission-split">自身 {{ commissionAccount.own_available || '0.00' }} · C1代发 {{ commissionAccount.proxy_available || '0.00' }} · C1待付 {{ commissionAccount.c1_pending || '0.00' }}</view>
+					</view>
 					<view class="metrics">
 						<view v-for="item in dashboardCards" :key="item.key" class="metric" @click="tapDashboard(item)">
 							<view class="metric-value">{{ item.value }}</view>
@@ -224,6 +228,7 @@ import {
 	getYfthStoreWorkbenchOrderDetail,
 	getYfthStoreWorkbenchOrders,
 	getYfthStoreWorkbenchOverview,
+	getYfthStoreCommissionSummary,
 	getYfthStoreWorkbenchWriteoffRecords,
 	precheckYfthStoreWorkbenchWriteoff,
 	rejectYfthStoreWorkbenchAppointment,
@@ -253,6 +258,7 @@ export default {
 			context: cachedContext && isBusinessRole(cachedContext.role_code) ? cachedContext : {},
 			identities: [],
 			overview: {},
+			commissionAccount: {},
 			appointments: [],
 			appointmentLoading: false,
 			appointmentWhere: { status: '', page: 1, limit: 10 },
@@ -326,6 +332,7 @@ export default {
 		},
 		businessTools() {
 			const tools = [];
+			tools.push({ key: 'commission', icon: '账', title: '佣金与提现', desc: '账户明细、C1提现、门店提现与结算账户' });
 			if (this.context.role_code === 'franchisee' || this.isPartnerRole) {
 				tools.push({ key: 'partner', icon: '招', title: '招商合伙人工作台', desc: '申请二维码、团队、业绩、职级与招商收益' });
 			}
@@ -404,8 +411,12 @@ export default {
 			}, extra || {});
 		},
 		loadOverview() {
-			return getYfthStoreWorkbenchOverview(this.contextParams()).then((res) => {
-				this.overview = res.data || {};
+			return Promise.all([
+				getYfthStoreWorkbenchOverview(this.contextParams()),
+				getYfthStoreCommissionSummary(this.contextParams())
+			]).then(([overview, commission]) => {
+				this.overview = overview.data || {};
+				this.commissionAccount = (commission.data && commission.data.account) || {};
 			}).catch((err) => {
 				uni.showToast({ title: String((err && err.msg) || err), icon: 'none' });
 			});
@@ -614,6 +625,9 @@ export default {
 		goPackageMembership() {
 			uni.navigateTo({ url: '/pages/yfth/workbench/package_membership/index' });
 		},
+		goCommission() {
+			uni.navigateTo({ url: '/pages/yfth/workbench/commission/index' });
+		},
 		goMonthlyBenefitPickup() {
 			uni.navigateTo({ url: '/pages/yfth/workbench/monthly_benefit_pickup' });
 		},
@@ -672,6 +686,7 @@ export default {
 		},
 			tapBusinessTool(item) {
 			const actions = {
+				commission: this.goCommission,
 				partner: this.goPartnerWorkbench,
 				purchase: this.goPurchase,
 				product_quota: this.goProductQuota,
@@ -709,6 +724,9 @@ button { font-size: 26rpx; }
 .switch-row { display: flex; gap: 18rpx; margin: 22rpx 0; }
 .switch-row button { flex: 1; background: #fff; color: #6f4c2f; border-radius: 12rpx; }
 .notice { background: #fff8e8; color: #8a5a3c; border: 1rpx solid #ead7a8; padding: 18rpx; border-radius: 12rpx; font-size: 24rpx; margin-bottom: 20rpx; }
+.commission-overview { display: flex; align-items: center; justify-content: space-between; gap: 20rpx; padding: 24rpx; border-radius: 16rpx; background: #755331; color: #fff; }
+.commission-overview > view:first-child { display: flex; flex-direction: column; gap: 8rpx; }
+.commission-label { color: #eedcc4; font-size: 21rpx; }.commission-total { font-size: 38rpx; font-weight: 700; }.commission-split { max-width: 320rpx; color: #f0dfca; font-size: 21rpx; line-height: 1.55; text-align: right; }
 .section { display: flex; flex-direction: column; gap: 18rpx; }
 .metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 18rpx; }
 .metric, .panel, .list-card, .detail-box, .result-box { background: #fff; border-radius: 16rpx; padding: 24rpx; box-shadow: 0 10rpx 26rpx rgba(70, 45, 30, .06); }

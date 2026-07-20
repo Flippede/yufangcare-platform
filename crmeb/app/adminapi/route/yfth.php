@@ -234,6 +234,19 @@ Route::group('yfth', function () {
         Route::post('candidate/:id/cancel', 'v1.yfth.RewardSettlement/cancel')->option(['real_name' => 'Direct referral reward candidate exception cancel']);
         Route::post('candidate/:id/correct', 'v1.yfth.RewardSettlement/correct')->option(['real_name' => 'Direct referral reward candidate exception correct']);
     })->option(['parent' => 'yfth', 'cate_name' => 'Reward Settlement Ledger']);
+    Route::group('commission', function () {
+        Route::get('rule', 'v1.yfth.CommissionFinance/ruleList')->option(['real_name' => '佣金规则列表']);
+        Route::post('rule', 'v1.yfth.CommissionFinance/ruleSave')->option(['real_name' => '保存佣金规则']);
+        Route::post('rule/:id/publish', 'v1.yfth.CommissionFinance/rulePublish')->option(['real_name' => '发布佣金规则']);
+        Route::get('account', 'v1.yfth.CommissionFinance/accounts')->option(['real_name' => '佣金账户查询']);
+        Route::get('accrual', 'v1.yfth.CommissionFinance/accruals')->option(['real_name' => '自动佣金记录']);
+        Route::get('ledger', 'v1.yfth.CommissionFinance/ledger')->option(['real_name' => '佣金流水']);
+        Route::get('legacy_report', 'v1.yfth.CommissionFinance/legacyReport')->option(['real_name' => '历史候选对账报告']);
+        Route::post('adjustment', 'v1.yfth.CommissionFinance/adjustment')->option(['real_name' => '佣金台账调整']);
+        Route::get('withdrawal', 'v1.yfth.CommissionFinance/withdrawals')->option(['real_name' => '门店提现列表']);
+        Route::post('withdrawal/:id/complete', 'v1.yfth.CommissionFinance/completeWithdrawal')->option(['real_name' => '完成门店提现']);
+        Route::post('retry', 'v1.yfth.CommissionFinance/retry')->option(['real_name' => '到期佣金补偿']);
+    })->option(['parent' => 'yfth', 'cate_name' => '佣金与提现']);
 })->middleware([
     \app\http\middleware\AllowOriginMiddleware::class,
     \app\adminapi\middleware\AdminAuthTokenMiddleware::class,

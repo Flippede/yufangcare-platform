@@ -80,9 +80,9 @@
 						</view>
 					</view>
 					<view class="mall-assets" v-if="isLogin">
-						<view class="asset-item" @click="goMenuPage('/pages/users/user_money/index')">
-							<text class="asset-value">{{ Number(userInfo.now_money || 0).toFixed(2) }}</text>
-							<text class="asset-label">商城余额</text>
+						<view class="asset-item" @click="goYfthCommissionAccount">
+							<text class="asset-value">{{ yfthUnifiedBalance }}</text>
+							<text class="asset-label">账户余额</text>
 						</view>
 						<view class="asset-item" @click="goMenuPage('/pages/users/user_integral/index')">
 							<text class="asset-value">{{ userInfo.integral || 0 }}</text>
@@ -92,7 +92,7 @@
 							<text class="asset-value">{{ userInfo.couponCount || 0 }}</text>
 							<text class="asset-label">优惠券</text>
 						</view>
-						<view class="asset-note">商城资产与御方通和推荐奖励独立核算</view>
+						<view class="asset-note">一个入口查看余额；商城支付与佣金提现仍按来源隔离</view>
 					</view>
 					<view class="member-exclusive" v-if="isLogin">
 						<view class="section-title">会员专属</view>
@@ -239,7 +239,7 @@ import pageFooter from '@/components/pageFooter/index.vue';
 import { getCustomer } from '@/utils/index.js';
 import editUserModal from '@/components/eidtUserModal/index.vue';
 import { currentContext, dominantYfthIdentities, isBusinessRole, isYfthBusinessUserCenterBrowsing, leaveYfthBusinessUserCenter, loadYfthIdentities, resolveDominantYfthContext, roleLabel } from '@/libs/yfthContext.js';
-import { getYfthPackageMembershipMe } from '@/api/yfth.js';
+import { getYfthPackageMembershipMe, getYfthCommissionSummary } from '@/api/yfth.js';
 export default {
 	components: {
 		pageFooter,
@@ -272,6 +272,9 @@ export default {
 		},
 		isYfthPermanentMember() {
 			return Boolean(this.yfthMembershipProfile.membership && this.yfthMembershipProfile.membership.is_member);
+		},
+		yfthUnifiedBalance() {
+			return (Number(this.userInfo.now_money || 0) + Number(this.yfthCommissionProfile.account && this.yfthCommissionProfile.account.available || 0)).toFixed(2);
 		}
 	},
 	filters: {
@@ -354,6 +357,7 @@ export default {
 			yfthMembershipProfile: {},
 			yfthMembershipState: 'idle',
 			yfthMembershipRequestSeq: 0,
+			yfthCommissionProfile: {},
 			my_banner_status: 0,
 			is_diy: uni.getStorageSync('is_diy')
 		};
@@ -427,6 +431,7 @@ export default {
 			this.getUserInfo().then(() => {
 				this.loadYfthBusinessEntry();
 				this.loadYfthMembership();
+				this.loadYfthCommission();
 			}).catch(() => {
 				this.resetYfthBusinessEntry();
 				this.resetYfthMembership();
@@ -474,6 +479,7 @@ export default {
 			this.getUserInfo().then(() => {
 				this.loadYfthBusinessEntry();
 				this.loadYfthMembership();
+				this.loadYfthCommission();
 			}).catch(() => {
 				this.resetYfthBusinessEntry();
 				this.resetYfthMembership();
@@ -550,6 +556,17 @@ export default {
 				}
 				return false;
 			});
+		},
+		loadYfthCommission() {
+			if (!this.isLogin) { this.yfthCommissionProfile = {}; return Promise.resolve(false); }
+			return getYfthCommissionSummary().then((res) => {
+				this.yfthCommissionProfile = res.data || {};
+				return true;
+			}).catch(() => { this.yfthCommissionProfile = {}; return false; });
+		},
+		goYfthCommissionAccount() {
+			if (!this.isLogin) { toLogin(); return; }
+			uni.navigateTo({ url: '/pages/yfth/commission/account' });
 		},
 		serviceMenuInitial(name) {
 			const text = String(name || '服务').trim();
