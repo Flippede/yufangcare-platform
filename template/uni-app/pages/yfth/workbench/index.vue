@@ -25,8 +25,8 @@
 			<view v-if="storeRoleReady">
 				<view v-if="pane === 'dashboard'" class="section">
 					<view class="commission-overview" @click="goCommission">
-						<view><text class="commission-label">门店总部可提现</text><text class="commission-total">¥ {{ commissionAccount.hq_withdrawable || '0.00' }}</text></view>
-						<view class="commission-split">自身 {{ commissionAccount.own_available || '0.00' }} · C1代发 {{ commissionAccount.proxy_available || '0.00' }} · C1待付 {{ commissionAccount.c1_pending || '0.00' }}</view>
+						<view><text class="commission-label">门店未结算佣金</text><text class="commission-total">¥ {{ commissionAccount.unsettled || '0.00' }}</text></view>
+						<view class="commission-split">已结算 {{ commissionAccount.settled || '0.00' }} · C1待结算 {{ commissionAccount.c1_pending || '0.00' }}</view>
 					</view>
 					<view class="metrics">
 						<view v-for="item in dashboardCards" :key="item.key" class="metric" @click="tapDashboard(item)">
@@ -332,7 +332,7 @@ export default {
 		},
 		businessTools() {
 			const tools = [];
-			tools.push({ key: 'commission', icon: '账', title: '佣金与提现', desc: '账户明细、C1提现、门店提现与结算账户' });
+			tools.push({ key: 'commission', icon: '账', title: '佣金与结算', desc: '未结算、已结算、C1申请与结算明细' });
 			if (this.context.role_code === 'franchisee' || this.isPartnerRole) {
 				tools.push({ key: 'partner', icon: '招', title: '招商合伙人工作台', desc: '申请二维码、团队、业绩、职级与招商收益' });
 			}

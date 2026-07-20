@@ -443,10 +443,10 @@ class AutomaticCommissionServices
         $b1 = (int)$accrual['b1_amount_cent'];
         if ($c1 > 0 && (int)$accrual['c1_uid'] > 0) {
             $this->postUser((int)$accrual['c1_uid'], $c1, 'commission_credit', (int)$accrual['id'], 'credit');
-            $this->postStore((int)$accrual['store_id'], 'store_proxy', $c1, 'commission_proxy_credit', (int)$accrual['id'], 'credit');
+            $this->postStore((int)$accrual['store_id'], $c1, 'commission_c1_responsibility_credit', (int)$accrual['id'], 'c1-credit');
         }
         if ($b1 > 0) {
-            $this->postStore((int)$accrual['store_id'], 'store_own', $b1, 'commission_store_credit', (int)$accrual['id'], 'credit');
+            $this->postStore((int)$accrual['store_id'], $b1, 'commission_b1_credit', (int)$accrual['id'], 'b1-credit');
         }
         $this->syncStoreC1Pending((int)$accrual['store_id']);
         $update = ['status' => 'credited', 'credited_at' => time(), 'update_time' => time()];
@@ -461,10 +461,10 @@ class AutomaticCommissionServices
         $sequence = (int)$accrual['reversed_c1_cent'] . ':' . (int)$accrual['reversed_b1_cent'];
         if ($c1Cent > 0 && (int)$accrual['c1_uid'] > 0) {
             $this->postUser((int)$accrual['c1_uid'], -$c1Cent, $reason, (int)$accrual['id'], 'reverse:' . $sequence);
-            $this->postStore((int)$accrual['store_id'], 'store_proxy', -$c1Cent, $reason . '_proxy', (int)$accrual['id'], 'reverse:' . $sequence);
+            $this->postStore((int)$accrual['store_id'], -$c1Cent, $reason . '_c1_responsibility', (int)$accrual['id'], 'c1-reverse:' . $sequence);
         }
         if ($b1Cent > 0) {
-            $this->postStore((int)$accrual['store_id'], 'store_own', -$b1Cent, $reason . '_store', (int)$accrual['id'], 'reverse:' . $sequence);
+            $this->postStore((int)$accrual['store_id'], -$b1Cent, $reason . '_b1', (int)$accrual['id'], 'b1-reverse:' . $sequence);
         }
         $this->syncStoreC1Pending((int)$accrual['store_id']);
         $reversedC1 = (int)$accrual['reversed_c1_cent'] + $c1Cent;
@@ -500,46 +500,6 @@ class AutomaticCommissionServices
             'amount_cent' => abs($delta), 'balance_before_cent' => (int)$account['available_cent'],
             'balance_after_cent' => $after, 'available_after_cent' => $after,
             'frozen_after_cent' => (int)$account['frozen_cent'], 'withdrawn_after_cent' => (int)$account['withdrawn_cent'],
-            'remaining_withdrawable_cent' => 0, 'source_type' => $sourceType, 'source_id' => (string)$sourceId,
-            'source_order_id' => $meta['source_order_id'], 'source_order_item_id' => $meta['source_order_item_id'],
-            'rule_version_id' => $meta['rule_version_id'], 'c1_ratio_bps' => $meta['c1_ratio_bps'],
-            'b1_ratio_bps' => $meta['b1_ratio_bps'], 'reverse_ledger_id' => $reverseLedgerId,
-            'source_unique_key' => $key, 'reason' => $sourceType, 'snapshot_json' => $this->json($meta),
-            'operator_uid' => 0, 'add_time' => time(),
-        ]);
-    }
-
-    private function postStore(int $storeId, string $bucket, int $delta, string $sourceType, int $sourceId, string $suffix): int
-    {
-        if ($storeId <= 0 || $delta === 0) return 0;
-        $key = hash('sha256', 'store|' . $storeId . '|' . $bucket . '|' . $sourceType . '|' . $sourceId . '|' . $suffix);
-        $existing = (int)Db::name('yfth_commission_ledger')->where('source_unique_key', $key)->value('id');
-        if ($existing > 0) return $existing;
-        $account = $this->lockStoreAccount($storeId);
-        $field = $bucket === 'store_proxy' ? 'proxy_available_cent' : 'own_available_cent';
-        $after = (int)$account[$field] + $delta;
-        $update = [$field => $after, 'version' => (int)$account['version'] + 1, 'update_time' => time()];
-        if ($bucket === 'store_proxy') {
-            $update['c1_pending_cent'] = (int)$account['c1_pending_cent'] + $delta;
-        }
-        if ($delta < 0) $update['reversed_cent'] = (int)$account['reversed_cent'] + abs($delta);
-        Db::name('yfth_store_commission_account')->where('id', (int)$account['id'])->update($update);
-        if ($delta < 0) {
-            $this->consumeStoreCreditLots($storeId, $bucket, abs($delta));
-        }
-        $meta = $this->ledgerMetaFromAccrual($sourceId);
-        $reverseLedgerId = $delta < 0 ? (int)Db::name('yfth_commission_ledger')->where([
-            'account_type' => 'store', 'account_id' => $storeId, 'bucket' => $bucket,
-            'source_id' => (string)$sourceId, 'direction' => 'credit',
-        ])->value('id') : 0;
-        return (int)Db::name('yfth_commission_ledger')->insertGetId([
-            'ledger_no' => $this->makeNo('YFCL'), 'account_type' => 'store', 'account_id' => $storeId,
-            'bucket' => $bucket, 'direction' => $delta > 0 ? 'credit' : 'debit',
-            'amount_cent' => abs($delta), 'balance_before_cent' => (int)$account[$field],
-            'balance_after_cent' => $after, 'available_after_cent' => $after,
-            'frozen_after_cent' => (int)$account['hq_frozen_cent'],
-            'withdrawn_after_cent' => (int)$account['hq_withdrawn_cent'],
-            'remaining_withdrawable_cent' => $delta > 0 ? $delta : 0,
             'source_type' => $sourceType, 'source_id' => (string)$sourceId,
             'source_order_id' => $meta['source_order_id'], 'source_order_item_id' => $meta['source_order_item_id'],
             'rule_version_id' => $meta['rule_version_id'], 'c1_ratio_bps' => $meta['c1_ratio_bps'],
@@ -549,23 +509,36 @@ class AutomaticCommissionServices
         ]);
     }
 
-    private function consumeStoreCreditLots(int $storeId, string $bucket, int $amountCent): void
+    private function postStore(int $storeId, int $delta, string $sourceType, int $sourceId, string $suffix): int
     {
-        $remaining = $amountCent;
-        $credits = Db::name('yfth_commission_ledger')->where([
-            'account_type' => 'store', 'account_id' => $storeId,
-            'bucket' => $bucket, 'direction' => 'credit',
-        ])->where('remaining_withdrawable_cent', '>', 0)->order('id asc')->lock(true)->select()->toArray();
-        foreach ($credits as $credit) {
-            if ($remaining <= 0) break;
-            $available = max(0, (int)$credit['remaining_withdrawable_cent']);
-            $used = min($available, $remaining);
-            if ($used <= 0) continue;
-            Db::name('yfth_commission_ledger')->where('id', (int)$credit['id'])->update([
-                'remaining_withdrawable_cent' => $available - $used,
-            ]);
-            $remaining -= $used;
-        }
+        if ($storeId <= 0 || $delta === 0) return 0;
+        $bucket = 'store_commission';
+        $key = hash('sha256', 'store|' . $storeId . '|' . $sourceType . '|' . $sourceId . '|' . $suffix);
+        $existing = (int)Db::name('yfth_commission_ledger')->where('source_unique_key', $key)->value('id');
+        if ($existing > 0) return $existing;
+        $account = $this->lockStoreAccount($storeId);
+        $after = (int)$account['unsettled_cent'] + $delta;
+        $update = ['unsettled_cent' => $after, 'version' => (int)$account['version'] + 1, 'update_time' => time()];
+        if ($delta < 0) $update['reversed_cent'] = (int)$account['reversed_cent'] + abs($delta);
+        Db::name('yfth_store_commission_account')->where('id', (int)$account['id'])->update($update);
+        $meta = $this->ledgerMetaFromAccrual($sourceId);
+        $reverseLedgerId = $delta < 0 ? (int)Db::name('yfth_commission_ledger')->where([
+            'account_type' => 'store', 'account_id' => $storeId, 'bucket' => $bucket,
+            'source_id' => (string)$sourceId, 'direction' => 'credit',
+        ])->value('id') : 0;
+        return (int)Db::name('yfth_commission_ledger')->insertGetId([
+            'ledger_no' => $this->makeNo('YFCL'), 'account_type' => 'store', 'account_id' => $storeId,
+            'bucket' => $bucket, 'direction' => $delta > 0 ? 'credit' : 'debit',
+            'amount_cent' => abs($delta), 'balance_before_cent' => (int)$account['unsettled_cent'],
+            'balance_after_cent' => $after, 'available_after_cent' => $after,
+            'frozen_after_cent' => 0, 'withdrawn_after_cent' => (int)$account['settled_cent'],
+            'source_type' => $sourceType, 'source_id' => (string)$sourceId,
+            'source_order_id' => $meta['source_order_id'], 'source_order_item_id' => $meta['source_order_item_id'],
+            'rule_version_id' => $meta['rule_version_id'], 'c1_ratio_bps' => $meta['c1_ratio_bps'],
+            'b1_ratio_bps' => $meta['b1_ratio_bps'], 'reverse_ledger_id' => $reverseLedgerId,
+            'source_unique_key' => $key, 'reason' => $sourceType, 'snapshot_json' => $this->json($meta),
+            'operator_uid' => 0, 'add_time' => time(),
+        ]);
     }
 
     private function syncStoreC1Pending(int $storeId): void
@@ -606,8 +579,7 @@ class AutomaticCommissionServices
         $now = time();
         try {
             Db::name('yfth_store_commission_account')->insert([
-                'store_id' => $storeId, 'own_available_cent' => 0, 'proxy_available_cent' => 0,
-                'hq_frozen_cent' => 0, 'hq_withdrawn_cent' => 0, 'c1_pending_cent' => 0,
+                'store_id' => $storeId, 'unsettled_cent' => 0, 'settled_cent' => 0, 'c1_pending_cent' => 0,
                 'c1_paid_cent' => 0, 'reversed_cent' => 0, 'version' => 0,
                 'add_time' => $now, 'update_time' => $now,
             ]);

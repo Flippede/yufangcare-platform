@@ -19,18 +19,18 @@ class CommissionAccountController
         ])));
     }
 
-    public function withdrawals(Request $request, CommissionFinanceServices $services)
+    public function settlements(Request $request, CommissionFinanceServices $services)
     {
-        return app('json')->success($services->userWithdrawals((int)$request->uid(), $request->getMore([
+        return app('json')->success($services->userSettlements((int)$request->uid(), $request->getMore([
             ['status', ''], [['page', 'd'], 1], [['limit', 'd'], 20],
         ])));
     }
 
-    public function withdraw(Request $request, CommissionFinanceServices $services)
+    public function settle(Request $request, CommissionFinanceServices $services)
     {
         $data = $request->postMore([[['amount_cent', 'd'], 0], ['request_id', '']]);
         $data['request_id'] = $data['request_id'] ?: (string)$request->header('Idempotency-Key', '');
-        return app('json')->success($services->requestUserWithdrawal(
+        return app('json')->success($services->requestUserSettlement(
             (int)$request->uid(), (int)$data['amount_cent'], (string)$data['request_id']
         ));
     }

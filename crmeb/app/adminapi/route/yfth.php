@@ -243,10 +243,14 @@ Route::group('yfth', function () {
         Route::get('ledger', 'v1.yfth.CommissionFinance/ledger')->option(['real_name' => '佣金流水']);
         Route::get('legacy_report', 'v1.yfth.CommissionFinance/legacyReport')->option(['real_name' => '历史候选对账报告']);
         Route::post('adjustment', 'v1.yfth.CommissionFinance/adjustment')->option(['real_name' => '佣金台账调整']);
-        Route::get('withdrawal', 'v1.yfth.CommissionFinance/withdrawals')->option(['real_name' => '门店提现列表']);
-        Route::post('withdrawal/:id/complete', 'v1.yfth.CommissionFinance/completeWithdrawal')->option(['real_name' => '完成门店提现']);
+        Route::get('settlement_receiver', 'v1.yfth.CommissionFinance/settlementReceiver')->option(['real_name' => '门店分账接收方']);
+        Route::post('settlement_receiver', 'v1.yfth.CommissionFinance/settlementReceiverSave')->option(['real_name' => '保存门店分账接收方']);
+        Route::get('settlement_batch', 'v1.yfth.CommissionFinance/settlementBatches')->option(['real_name' => '门店结算批次']);
+        Route::post('settlement_batch/generate', 'v1.yfth.CommissionFinance/settlementBatchGenerate')->option(['real_name' => '生成门店结算批次']);
+        Route::post('settlement_batch/:id/start', 'v1.yfth.CommissionFinance/settlementBatchStart')->option(['real_name' => '发起微信分账预留']);
+        Route::post('settlement_batch/:id/callback', 'v1.yfth.CommissionFinance/settlementBatchCallback')->option(['real_name' => '记录微信分账回调']);
         Route::post('retry', 'v1.yfth.CommissionFinance/retry')->option(['real_name' => '到期佣金补偿']);
-    })->option(['parent' => 'yfth', 'cate_name' => '佣金与提现']);
+    })->option(['parent' => 'yfth', 'cate_name' => '佣金与结算']);
 })->middleware([
     \app\http\middleware\AllowOriginMiddleware::class,
     \app\adminapi\middleware\AdminAuthTokenMiddleware::class,

@@ -153,7 +153,7 @@ export default {
       name: `${pre}commission_finance`,
       meta: {
         auth: ['yfth-auto-commission-index'],
-        title: '佣金与提现',
+        title: '佣金与结算',
       },
       component: () => import('@/pages/yfth/commissionFinance/index'),
     },

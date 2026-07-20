@@ -1205,7 +1205,11 @@ export function yfthCommissionAccrualList(params) { return request({ url: 'yfth/
 export function yfthCommissionLedgerList(params) { return request({ url: 'yfth/commission/ledger', method: 'get', params }); }
 export function yfthCommissionAccount(params) { return request({ url: 'yfth/commission/account', method: 'get', params }); }
 export function yfthCommissionAdjustment(data) { return request({ url: 'yfth/commission/adjustment', method: 'post', data }); }
-export function yfthCommissionWithdrawalList(params) { return request({ url: 'yfth/commission/withdrawal', method: 'get', params }); }
-export function yfthCommissionWithdrawalComplete(id, data) { return request({ url: `yfth/commission/withdrawal/${id}/complete`, method: 'post', data }); }
+export function yfthCommissionSettlementReceiver(params) { return request({ url: 'yfth/commission/settlement_receiver', method: 'get', params }); }
+export function yfthCommissionSettlementReceiverSave(data) { return request({ url: 'yfth/commission/settlement_receiver', method: 'post', data }); }
+export function yfthCommissionSettlementBatchList(params) { return request({ url: 'yfth/commission/settlement_batch', method: 'get', params }); }
+export function yfthCommissionSettlementBatchGenerate(data) { return request({ url: 'yfth/commission/settlement_batch/generate', method: 'post', data }); }
+export function yfthCommissionSettlementBatchStart(id) { return request({ url: `yfth/commission/settlement_batch/${id}/start`, method: 'post' }); }
+export function yfthCommissionSettlementBatchCallback(id, data) { return request({ url: `yfth/commission/settlement_batch/${id}/callback`, method: 'post', data }); }
 export function yfthCommissionRetry(data) { return request({ url: 'yfth/commission/retry', method: 'post', data }); }
 export function yfthCommissionLegacyReport() { return request({ url: 'yfth/commission/legacy_report', method: 'get' }); }

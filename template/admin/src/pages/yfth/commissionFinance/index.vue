@@ -2,13 +2,13 @@
   <div class="commission-finance">
     <div class="page-head">
       <div>
-        <h2>佣金与提现</h2>
+        <h2>佣金与结算</h2>
         <p>普通商城佣金自动入账；会员套餐继续使用 15% / 25% / 60% 独立规则。</p>
       </div>
       <el-button icon="el-icon-refresh" @click="refreshCurrent">刷新</el-button>
     </div>
 
-    <el-alert title="系统展示税前金额。正常佣金不经过总部逐笔确认，余额不能用于商城或采购支付。" type="warning" :closable="false" />
+    <el-alert title="系统展示税前金额。B1不发起提现，总部按周期生成结算批次；微信分账当前仅保留接入模型。" type="warning" :closable="false" />
 
     <el-tabs v-model="tab" @tab-click="refreshCurrent">
       <el-tab-pane label="佣金规则" name="rules">
@@ -79,28 +79,32 @@
         </el-table>
       </el-tab-pane>
 
-      <el-tab-pane label="门店提现" name="withdrawals">
+      <el-tab-pane label="结算批次" name="settlements">
         <div class="toolbar">
-          <el-select v-model="withdrawalQuery.status" clearable placeholder="状态">
-            <el-option label="审核中" value="reviewing" /><el-option label="提现成功" value="success" />
+          <el-select v-model="settlementQuery.status" clearable placeholder="状态">
+            <el-option label="待结算" value="pending" /><el-option label="结算中" value="processing" />
+            <el-option label="已结算" value="settled" /><el-option label="异常" value="exception" />
           </el-select>
-          <el-input v-model="withdrawalQuery.store_id" placeholder="门店ID" clearable />
-          <el-button type="primary" @click="loadWithdrawals">查询</el-button>
+          <el-input v-model="settlementQuery.store_id" placeholder="门店ID" clearable />
+          <el-button type="primary" @click="loadSettlements">查询</el-button>
+          <el-date-picker v-model="period" type="daterange" value-format="timestamp" range-separator="至" start-placeholder="周期开始" end-placeholder="周期结束" />
+          <el-button type="success" @click="generateSettlements">生成结算批次</el-button>
         </div>
-        <el-table v-loading="loading" :data="withdrawals" border size="small">
-          <el-table-column prop="withdrawal_no" label="提现单号" min-width="190" />
+        <el-table v-loading="loading" :data="settlements" border size="small">
+          <el-table-column prop="batch_no" label="批次号" min-width="190" />
           <el-table-column prop="store_name" label="门店" min-width="130" />
-          <el-table-column prop="amount" label="总额" width="100" />
-          <el-table-column prop="own_amount" label="门店自身" width="100" />
-          <el-table-column prop="proxy_amount" label="C1代发" width="100" />
-          <el-table-column prop="status" label="状态" width="100" />
-          <el-table-column label="收款账户" min-width="190">
-            <template slot-scope="{ row }">{{ row.settlement_account && row.settlement_account.account_name }} {{ row.settlement_account && row.settlement_account.account_no_masked }}</template>
-          </el-table-column>
-          <el-table-column label="操作" width="110">
-            <template slot-scope="{ row }"><el-button v-if="row.status === 'reviewing'" type="text" @click="completeWithdrawal(row)">提现成功</el-button></template>
+          <el-table-column prop="amount" label="分账金额" width="110" />
+          <el-table-column label="周期" min-width="190"><template slot-scope="{ row }">{{ dateText(row.period_start) }} - {{ dateText(row.period_end) }}</template></el-table-column>
+          <el-table-column label="状态" width="100"><template slot-scope="{ row }">{{ settlementStatus(row.status) }}</template></el-table-column>
+          <el-table-column prop="receiver_account_masked" label="B1接收方" min-width="150" />
+          <el-table-column label="操作" width="180">
+            <template slot-scope="{ row }">
+              <el-button type="text" @click="openReceiver(row.store_id)">接收方</el-button>
+              <el-button v-if="row.status === 'pending' || row.status === 'exception'" type="text" @click="startSettlement(row)">进入结算中</el-button>
+            </template>
           </el-table-column>
         </el-table>
+        <div class="toolbar"><el-input v-model="receiverStoreId" placeholder="门店ID" /><el-button @click="openReceiver(Number(receiverStoreId))">配置分账接收方</el-button></div>
       </el-tab-pane>
     </el-tabs>
 
@@ -118,14 +122,24 @@
     </el-dialog>
 
     <el-dialog title="人工余额调整" :visible.sync="adjustVisible" width="520px">
-      <el-alert title="扣减后允许形成负余额；负余额不能申请提现，后续佣金优先抵扣。" type="warning" :closable="false" />
+      <el-alert title="扣减后允许形成负余额，后续佣金优先抵扣；调整会生成不可删除流水。" type="warning" :closable="false" />
       <el-form label-width="120px">
         <el-form-item label="账户"><el-input :value="`${accountType}:${accountId}`" disabled /></el-form-item>
-        <el-form-item v-if="accountType === 'store'" label="门店余额类型"><el-select v-model="adjustForm.bucket"><el-option label="门店自身佣金" value="store_own" /><el-option label="C1代发佣金" value="store_proxy" /></el-select></el-form-item>
+        <el-form-item v-if="accountType === 'store'" label="门店结算台账"><el-input value="未结算佣金" disabled /></el-form-item>
         <el-form-item label="调整金额(分)"><el-input-number v-model="adjustForm.delta_cent" /></el-form-item>
         <el-form-item label="原因"><el-input v-model="adjustForm.reason" minlength="4" maxlength="255" /></el-form-item>
       </el-form>
       <span slot="footer"><el-button @click="adjustVisible = false">取消</el-button><el-button type="danger" @click="submitAdjustment">确认并生成流水</el-button></span>
+    </el-dialog>
+
+    <el-dialog title="B1微信分账接收方" :visible.sync="receiverVisible" width="520px">
+      <el-form label-width="130px">
+        <el-form-item label="门店ID"><el-input-number v-model="receiverForm.store_id" :min="1" /></el-form-item>
+        <el-form-item label="接收方类型"><el-select v-model="receiverForm.receiver_type"><el-option label="商户号" value="MERCHANT_ID" /><el-option label="个人OpenID" value="PERSONAL_OPENID" /></el-select></el-form-item>
+        <el-form-item label="接收方账号"><el-input v-model="receiverForm.receiver_account" /></el-form-item>
+        <el-form-item label="接收方名称"><el-input v-model="receiverForm.receiver_name" /></el-form-item>
+      </el-form>
+      <span slot="footer"><el-button @click="receiverVisible = false">取消</el-button><el-button type="primary" @click="saveReceiver">保存</el-button></span>
     </el-dialog>
   </div>
 </template>
@@ -134,21 +148,23 @@
 import {
   yfthCommissionRuleList, yfthCommissionRuleSave, yfthCommissionRulePublish,
   yfthCommissionAccrualList, yfthCommissionLedgerList, yfthCommissionAccount,
-  yfthCommissionAdjustment, yfthCommissionWithdrawalList,
-  yfthCommissionWithdrawalComplete, yfthCommissionRetry, yfthCommissionLegacyReport,
+  yfthCommissionAdjustment, yfthCommissionSettlementReceiver, yfthCommissionSettlementReceiverSave,
+  yfthCommissionSettlementBatchList, yfthCommissionSettlementBatchGenerate,
+  yfthCommissionSettlementBatchStart, yfthCommissionRetry, yfthCommissionLegacyReport,
 } from '@/api/yfth';
 
 export default {
   name: 'YfthCommissionFinance',
   data() {
     return {
-      tab: 'rules', loading: false, rules: [], accruals: [], ledgers: [], withdrawals: [],
+      tab: 'rules', loading: false, rules: [], accruals: [], ledgers: [], settlements: [],
       accrualQuery: { status: '', order_id: '', store_id: '', page: 1, limit: 50 },
-      withdrawalQuery: { status: '', store_id: '', page: 1, limit: 50 },
+      settlementQuery: { status: '', store_id: '', page: 1, limit: 50 }, period: [],
       accountType: 'user', accountId: '', accountResult: null,
-      ruleVisible: false, adjustVisible: false,
+      ruleVisible: false, adjustVisible: false, receiverVisible: false, receiverStoreId: '',
+      receiverForm: { store_id: 0, receiver_type: 'MERCHANT_ID', receiver_account: '', receiver_name: '' },
       ruleForm: { scope_type: 'all', scope_id: 0, c1_ratio_bps: 500, b1_ratio_bps: 500, observation_days: 0, enabled: 1, effective_at: 0, expires_at: 0, note: '' },
-      adjustForm: { bucket: 'store_own', delta_cent: 0, reason: '' },
+      adjustForm: { bucket: 'store_commission', delta_cent: 0, reason: '' },
     };
   },
   computed: {
@@ -156,15 +172,15 @@ export default {
       if (!this.accountResult) return [];
       const a = this.accountResult.account || this.accountResult;
       const keys = this.accountType === 'user'
-        ? [['可提现', 'available'], ['提现中', 'frozen'], ['已提现', 'withdrawn']]
-        : [['门店自身', 'own_available'], ['C1代发', 'proxy_available'], ['合计可提现', 'hq_withdrawable'], ['总部提现中', 'hq_frozen'], ['C1待付', 'c1_pending']];
+        ? [['应结算佣金', 'available'], ['已申请结算', 'frozen'], ['已完成结算', 'withdrawn']]
+        : [['未结算金额', 'unsettled'], ['已结算金额', 'settled']];
       return keys.map(([label, key]) => ({ label, value: a[key] || '0.00' }));
     },
   },
   created() { this.loadRules(); },
   methods: {
     ruleStatus(v) { return ({ draft: '草稿', published: '已发布', retired: '已替代' })[v] || v; },
-    refreshCurrent() { ({ rules: this.loadRules, accruals: this.loadAccruals, accounts: this.loadAccount, withdrawals: this.loadWithdrawals }[this.tab] || this.loadRules)(); },
+    refreshCurrent() { ({ rules: this.loadRules, accruals: this.loadAccruals, accounts: this.loadAccount, settlements: this.loadSettlements }[this.tab] || this.loadRules)(); },
     withLoading(promise) { this.loading = true; return promise.finally(() => { this.loading = false; }); },
     loadRules() { return this.withLoading(yfthCommissionRuleList({ limit: 100 }).then((r) => { this.rules = (r.data && r.data.list) || []; })); },
     openRule() { this.ruleVisible = true; },
@@ -186,8 +202,21 @@ export default {
       const data = { account_type: this.accountType, account_id: Number(this.accountId), bucket: this.accountType === 'user' ? 'c1_commission' : this.adjustForm.bucket, delta_cent: Number(this.adjustForm.delta_cent), reason: this.adjustForm.reason, request_id: `admin-${Date.now()}` };
       this.$confirm(`确认调整 ${data.delta_cent} 分？该操作会生成不可删除流水。`, '二次确认', { type: 'warning' }).then(() => yfthCommissionAdjustment(data)).then(() => { this.$message.success('调整完成'); this.adjustVisible = false; this.loadAccount(); });
     },
-    loadWithdrawals() { return this.withLoading(yfthCommissionWithdrawalList(this.withdrawalQuery).then((r) => { this.withdrawals = (r.data && r.data.list) || []; })); },
-    completeWithdrawal(row) { this.$prompt('可选：填写付款备注', '确认企业网银已完成线下转账', { inputValue: '' }).then(({ value }) => yfthCommissionWithdrawalComplete(row.id, { remark: value || '' })).then(() => { this.$message.success('已记录提现成功'); this.loadWithdrawals(); }); },
+    settlementStatus(v) { return ({ pending: '待结算', processing: '结算中', settled: '已结算', exception: '异常' })[v] || v; },
+    dateText(v) { return v ? new Date(Number(v) * 1000).toLocaleDateString() : '-'; },
+    loadSettlements() { return this.withLoading(yfthCommissionSettlementBatchList(this.settlementQuery).then((r) => { this.settlements = (r.data && r.data.list) || []; })); },
+    generateSettlements() {
+      if (!this.period || this.period.length !== 2) return this.$message.warning('请选择结算周期');
+      const data = { period_start: Math.floor(this.period[0] / 1000), period_end: Math.floor((this.period[1] + 86399999) / 1000) };
+      yfthCommissionSettlementBatchGenerate(data).then((r) => { this.$message.success(`已生成 ${(r.data && r.data.count) || 0} 个批次`); this.loadSettlements(); });
+    },
+    startSettlement(row) { this.$confirm('当前仅记录进入结算中，不会真实调用微信分账。', '确认').then(() => yfthCommissionSettlementBatchStart(row.id)).then(() => { this.$message.success('批次已进入结算中'); this.loadSettlements(); }); },
+    openReceiver(storeId) {
+      if (!storeId) return this.$message.warning('请输入门店ID');
+      this.receiverForm = { store_id: storeId, receiver_type: 'MERCHANT_ID', receiver_account: '', receiver_name: '' };
+      yfthCommissionSettlementReceiver({ store_id: storeId }).then((r) => { if (r.data && r.data.id) this.receiverForm = Object.assign({}, this.receiverForm, r.data); this.receiverVisible = true; });
+    },
+    saveReceiver() { yfthCommissionSettlementReceiverSave(this.receiverForm).then(() => { this.$message.success('分账接收方已保存'); this.receiverVisible = false; this.loadSettlements(); }); },
   },
 };
 </script>

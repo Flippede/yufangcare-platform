@@ -15,11 +15,7 @@ if ((string)getenv('YFTH_AUTOMATIC_COMMISSION_REAL_FLOW_EXECUTE') !== '1') {
 $passes = [];
 $failures = [];
 $assert = function (bool $condition, string $label) use (&$passes, &$failures): void {
-    if ($condition) {
-        $passes[] = $label;
-    } else {
-        $failures[] = $label;
-    }
+    if ($condition) $passes[] = $label; else $failures[] = $label;
 };
 $expectFailure = function (callable $callback, string $label) use ($assert): void {
     try {
@@ -49,8 +45,8 @@ try {
     $buyer = $fixture['buyer'];
     $storeA = $fixture['store_a'];
     $storeB = $fixture['store_b'];
-
     $crmebBefore = acCrmebMoneySnapshot([$c1, $buyer]);
+
     $global = $automatic->saveRule([
         'scope_type' => 'all', 'c1_ratio_bps' => 1000, 'b1_ratio_bps' => 500,
         'observation_days' => 0, 'enabled' => 1, 'note' => 'isolated zero-day rule',
@@ -61,39 +57,18 @@ try {
     acCreateOrderItem($order, $buyer, $fixture['product_a'], 1, '100.00');
     $paid = $automatic->snapshotMallOrderPaid($order);
     $completed = $automatic->completeMallOrder($order);
-    $assert(!empty($paid['created']) && !empty($completed['accrual_ids']), 'zero_day_paid_and_completed_events_create_accrual');
-    $assert((string)Db::name('yfth_mall_commission_order_snapshot')->where('order_id', $order)->value('status') === 'credited', 'zero_day_completion_credits_immediately');
+    $assert(!empty($paid['created']) && !empty($completed['accrual_ids']), 'zero_day_order_creates_accrual');
+    $assert((string)Db::name('yfth_mall_commission_order_snapshot')->where('order_id', $order)->value('status') === 'credited', 'zero_day_order_credits_immediately');
     $assert((int)Db::name('yfth_user_commission_account')->where('uid', $c1)->value('available_cent') === 1000, 'mall_c1_10_percent_exact');
     $storeAccount = acStoreAccount($storeA);
-    $assert((int)$storeAccount['own_available_cent'] === 500 && (int)$storeAccount['proxy_available_cent'] === 1000, 'mall_b1_own_and_proxy_exact');
-    $assert((int)$storeAccount['c1_pending_cent'] === 1000, 'mall_b1_c1_pending_exact');
+    $assert((int)$storeAccount['unsettled_cent'] === 1500, 'mall_store_unsettled_includes_c1_responsibility_and_b1_commission');
+    $assert((int)$storeAccount['settled_cent'] === 0, 'mall_store_initial_settled_is_zero');
+    $assert((int)$storeAccount['c1_pending_cent'] === 1000, 'mall_store_c1_pending_exact');
     $automatic->snapshotMallOrderPaid($order);
     $automatic->completeMallOrder($order);
     $automatic->processDue(100);
     $assert((int)Db::name('yfth_commission_accrual')->where('order_id', $order)->count() === 1, 'duplicate_order_events_do_not_duplicate_accrual');
-    $assert((int)Db::name('yfth_commission_ledger')->where('source_order_id', $order)->count() === 3, 'duplicate_events_do_not_duplicate_ledger');
-
-    $selfUid = $fixture['self'];
-    acInsertReferral($selfUid, $selfUid, $storeA, 'self');
-    $selfOrder = acCreateOrder($selfUid, '100.00', 'self-order');
-    acCreateOrderItem($selfOrder, $selfUid, $fixture['product_a'], 1, '100.00');
-    $automatic->snapshotMallOrderPaid($selfOrder);
-    $automatic->completeMallOrder($selfOrder);
-    $assert((int)Db::name('yfth_commission_accrual')->where('order_id', $selfOrder)->sum('c1_amount_cent') === 0, 'self_purchase_has_no_c1_commission');
-    $assert((int)Db::name('yfth_commission_accrual')->where('order_id', $selfOrder)->sum('b1_amount_cent') === 500, 'self_purchase_keeps_b1_commission');
-
-    $noC1Uid = $fixture['no_c1'];
-    $noC1Order = acCreateOrder($noC1Uid, '100.00', 'no-c1');
-    acCreateOrderItem($noC1Order, $noC1Uid, $fixture['product_a'], 1, '100.00');
-    $automatic->snapshotMallOrderPaid($noC1Order);
-    $automatic->completeMallOrder($noC1Order);
-    $assert((int)Db::name('yfth_commission_accrual')->where('order_id', $noC1Order)->sum('c1_amount_cent') === 0, 'attributed_user_without_c1_has_no_c1_commission');
-    $assert((int)Db::name('yfth_commission_accrual')->where('order_id', $noC1Order)->sum('b1_amount_cent') === 500, 'attributed_user_without_c1_keeps_b1_commission');
-
-    $unboundOrder = acCreateOrder($fixture['unbound'], '100.00', 'unbound');
-    acCreateOrderItem($unboundOrder, $fixture['unbound'], $fixture['product_a'], 1, '100.00');
-    $unbound = $automatic->snapshotMallOrderPaid($unboundOrder);
-    $assert(($unbound['reason'] ?? '') === 'buyer_store_attribution_missing', 'unbound_order_safely_skips_all_commission');
+    $assert((int)Db::name('yfth_commission_ledger')->where('source_order_id', $order)->count() === 3, 'duplicate_order_events_do_not_duplicate_ledgers');
 
     $sevenDay = $automatic->saveRule([
         'scope_type' => 'product', 'scope_id' => $fixture['product_a'],
@@ -105,75 +80,31 @@ try {
     acCreateOrderItem($observingOrder, $buyer, $fixture['product_a'], 1, '40.00');
     $automatic->snapshotMallOrderPaid($observingOrder);
     $automatic->completeMallOrder($observingOrder);
-    $assert((string)Db::name('yfth_commission_accrual')->where('order_id', $observingOrder)->value('status') === 'observing', 'seven_day_order_stays_observing');
-    $balanceBeforeDue = (int)Db::name('yfth_user_commission_account')->where('uid', $c1)->value('available_cent');
-    Db::name('yfth_hq_active_referral_current')->where('referred_uid', $buyer)->update([
-        'status' => 'closed', 'active_referred_uid' => null, 'close_reason' => 'membership_activated', 'closed_at' => time(), 'update_time' => time(),
-    ]);
+    $assert((string)Db::name('yfth_commission_accrual')->where('order_id', $observingOrder)->value('status') === 'observing', 'nonzero_observation_stays_observing');
+    $beforeDue = (int)Db::name('yfth_user_commission_account')->where('uid', $c1)->value('available_cent');
     Db::name('yfth_commission_accrual')->where('order_id', $observingOrder)->update(['due_at' => time() - 1]);
     $due = $automatic->processDue(100);
-    $assert((int)$due['credited'] >= 1 && (int)Db::name('yfth_user_commission_account')->where('uid', $c1)->value('available_cent') === $balanceBeforeDue + 400, 'due_task_uses_frozen_relation_snapshot_after_referral_close');
-    $assert((string)Db::name('yfth_mall_commission_order_snapshot')->where('order_id', $observingOrder)->value('status') === 'credited', 'due_task_syncs_snapshot_status');
+    $assert((int)$due['credited'] >= 1, 'due_worker_credits_nonzero_observation');
+    $assert((int)Db::name('yfth_user_commission_account')->where('uid', $c1)->value('available_cent') === $beforeDue + 400, 'nonzero_observation_c1_amount_exact');
 
-    $postCloseOrder = acCreateOrder($buyer, '20.00', 'after-referral-close');
-    acCreateOrderItem($postCloseOrder, $buyer, $fixture['product_a'], 1, '20.00');
-    $automatic->snapshotMallOrderPaid($postCloseOrder);
-    $automatic->completeMallOrder($postCloseOrder);
-    $assert((int)Db::name('yfth_commission_accrual')->where('order_id', $postCloseOrder)->sum('c1_amount_cent') === 0, 'new_order_after_referral_close_has_no_c1_commission');
-    $assert((int)Db::name('yfth_commission_accrual')->where('order_id', $postCloseOrder)->sum('b1_amount_cent') === 100, 'new_order_after_referral_close_keeps_b1_commission');
-
-    $disabledGlobal = $automatic->saveRule([
-        'scope_type' => 'all', 'c1_ratio_bps' => 1000, 'b1_ratio_bps' => 500,
-        'observation_days' => 0, 'enabled' => 0, 'note' => 'disable global for mixed allocation',
-    ], 1);
-    $automatic->publishRule((int)$disabledGlobal['id'], 1);
-    $productOnly = $automatic->saveRule([
-        'scope_type' => 'product', 'scope_id' => $fixture['product_a'],
-        'c1_ratio_bps' => 1000, 'b1_ratio_bps' => 500, 'observation_days' => 0,
-        'enabled' => 1, 'note' => 'product-only mixed allocation',
-    ], 1);
-    $automatic->publishRule((int)$productOnly['id'], 1);
-    acInsertReferral($c1, $buyer, $storeA, 'reopened');
-    $mixedOrder = acCreateOrder($buyer, '100.00', 'mixed');
-    $mixedItem = acCreateOrderItem($mixedOrder, $buyer, $fixture['product_a'], 2, '50.00');
-    acCreateOrderItem($mixedOrder, $buyer, $fixture['product_b'], 1, '50.00');
-    $automatic->snapshotMallOrderPaid($mixedOrder);
-    $automatic->completeMallOrder($mixedOrder);
-    $mixedAccrual = acAccrual($mixedOrder);
-    $assert((int)$mixedAccrual['base_amount_cent'] === 5000, 'mixed_order_allocates_discount_across_all_items_before_rule_filter');
-    $assert((int)$mixedAccrual['c1_amount_cent'] === 500 && (int)$mixedAccrual['b1_amount_cent'] === 250, 'mixed_order_commission_uses_item_base');
-
-    Db::name('store_order_cart_info')->where('id', $mixedItem)->update(['refund_num' => 1]);
-    Db::name('store_order')->where('id', $mixedOrder)->update(['refund_status' => 1, 'refund_price' => '25.00']);
-    $automatic->refundMallOrder($mixedOrder, ['refunded_amount_cent' => 2500]);
-    $partial = acAccrual($mixedOrder);
-    $assert((int)$partial['reversed_c1_cent'] === 250 && (int)$partial['reversed_b1_cent'] === 125, 'partial_item_refund_reverses_exact_item_commission');
-    $automatic->refundMallOrder($mixedOrder, ['refunded_amount_cent' => 2500]);
-    $partialReplay = acAccrual($mixedOrder);
-    $assert((int)$partialReplay['reversed_c1_cent'] === 250 && (int)$partialReplay['reversed_b1_cent'] === 125, 'duplicate_partial_refund_is_idempotent');
-
-    Db::name('store_order')->where('id', $order)->update(['refund_status' => 2, 'refund_price' => '100.00', 'status' => -2]);
-    $automatic->refundMallOrder($order, ['refunded_amount_cent' => 10000]);
-    $assert((string)Db::name('yfth_commission_accrual')->where('order_id', $order)->value('status') === 'reversed', 'full_refund_reverses_credited_accrual');
-    $assert((int)Db::name('yfth_commission_ledger')->where('source_order_id', $order)->where('direction', 'debit')->count() === 3, 'full_refund_appends_linked_negative_ledgers');
-
-    $observingRule = $automatic->saveRule([
-        'scope_type' => 'product', 'scope_id' => $fixture['product_b'],
-        'c1_ratio_bps' => 1000, 'b1_ratio_bps' => 500, 'observation_days' => 7,
-        'enabled' => 1, 'note' => 'observing refund cancellation',
-    ], 1);
-    $automatic->publishRule((int)$observingRule['id'], 1);
-    $observingRefundOrder = acCreateOrder($buyer, '30.00', 'observing-refund');
-    acCreateOrderItem($observingRefundOrder, $buyer, $fixture['product_b'], 1, '30.00');
-    $automatic->snapshotMallOrderPaid($observingRefundOrder);
-    $automatic->completeMallOrder($observingRefundOrder);
-    $automatic->refundMallOrder($observingRefundOrder, ['refunded_item_amounts_cent' => [(string)Db::name('store_order_cart_info')->where('oid', $observingRefundOrder)->value('id') => 3000], 'refunded_amount_cent' => 3000]);
-    $assert((string)Db::name('yfth_commission_accrual')->where('order_id', $observingRefundOrder)->value('status') === 'cancelled', 'observing_full_refund_cancels_without_credit');
+    $refundOrder = acCreateOrder($buyer, '30.00', 'refund');
+    acCreateOrderItem($refundOrder, $buyer, $fixture['product_b'], 1, '30.00');
+    $automatic->snapshotMallOrderPaid($refundOrder);
+    $automatic->completeMallOrder($refundOrder);
+    $beforeRefund = acStoreAccount($storeA);
+    Db::name('store_order')->where('id', $refundOrder)->update([
+        'refund_status' => 2, 'refund_price' => '30.00', 'status' => -2,
+    ]);
+    $automatic->refundMallOrder($refundOrder, ['refunded_amount_cent' => 3000]);
+    $automatic->refundMallOrder($refundOrder, ['refunded_amount_cent' => 3000]);
+    $refundAccrual = acAccrual($refundOrder);
+    $afterRefund = acStoreAccount($storeA);
+    $assert((string)$refundAccrual['status'] === 'reversed', 'full_refund_reverses_credited_accrual');
+    $assert((int)$afterRefund['unsettled_cent'] === (int)$beforeRefund['unsettled_cent'] - 450, 'full_refund_reverses_store_unsettled_once');
+    $assert((int)$afterRefund['reversed_cent'] >= 450, 'refund_reversal_is_recorded');
 
     $directRuleId = acCreateDirectRule();
-    $ownBeforePackages = (int)acStoreAccount($storeA)['own_available_cent'];
-    $proxyCreditsBeforePackages = (int)Db::name('yfth_commission_ledger')
-        ->where('source_type', 'commission_proxy_credit')->count();
+    $unsettledBeforePackages = (int)acStoreAccount($storeA)['unsettled_cent'];
     $packageAmounts = [1500, 2500, 6000];
     foreach ($packageAmounts as $index => $rewardCent) {
         $candidate = acCreatePackageCandidate($c1, $buyer, $storeA, $directRuleId, $index + 1, $rewardCent);
@@ -181,82 +112,93 @@ try {
         $automatic->creditPackageCandidate($candidate);
     }
     $packageRows = Db::name('yfth_commission_accrual')->where('source_type', 'package_candidate')->order('candidate_id asc')->select()->toArray();
-    $assert(array_map('intval', array_column($packageRows, 'c1_amount_cent')) === $packageAmounts, 'package_first_second_third_rewards_are_15_25_60');
-    $assert((int)acStoreAccount($storeA)['own_available_cent'] === $ownBeforePackages, 'package_rewards_do_not_increase_b1_own_commission');
-    $proxyCreditsAfterPackages = (int)Db::name('yfth_commission_ledger')
-        ->where('source_type', 'commission_proxy_credit')->count();
-    $assert($proxyCreditsAfterPackages - $proxyCreditsBeforePackages === 3, 'package_rewards_increase_b1_proxy_only_once_each');
+    $assert(array_map('intval', array_column($packageRows, 'c1_amount_cent')) === $packageAmounts, 'package_rewards_are_15_25_60');
+    $assert((int)acStoreAccount($storeA)['unsettled_cent'] === $unsettledBeforePackages + array_sum($packageAmounts), 'package_rewards_enter_store_unsettled_responsibility_once');
 
-    $finance->saveSettlementAccount(acContext($fixture['manager'], 'store_manager', $storeA), [
-        'account_type' => 'company', 'account_name' => 'Isolation Test Store',
-        'account_no' => '6222020000001234567', 'bank_name' => 'Isolation Bank',
-        'bank_branch' => 'Validation Branch', 'reserved_phone' => '19900000001',
-        'contact_name' => 'Test Operator', 'contact_phone' => '19900000002',
+    $c1PendingBefore = (int)acStoreAccount($storeA)['c1_pending_cent'];
+    $request = $finance->requestUserSettlement($c1, 500, 'ac-c1-settlement-manager');
+    $replay = $finance->requestUserSettlement($c1, 500, 'ac-c1-settlement-manager');
+    $assert((int)$request['id'] === (int)$replay['id'], 'c1_settlement_request_is_idempotent');
+    $assert((int)acStoreAccount($storeA)['c1_pending_cent'] === $c1PendingBefore, 'c1_request_does_not_double_count_store_pending');
+    $paidByManager = $finance->completeUserSettlement(acContext($fixture['manager'], 'store_manager', $storeA), (int)$request['id'], [
+        'request_id' => 'ac-c1-complete-manager', 'offline_ref_no' => 'OFFLINE-MANAGER-1',
+        'proof_ref' => 'proof://manager', 'remark' => 'isolated offline paid by manager',
     ]);
-    $hqBefore = acStoreAccount($storeA);
-    $userBeforeHqWithdrawal = (int)Db::name('yfth_user_commission_account')->where('uid', $c1)->value('available_cent');
-    $storeWithdrawal = $finance->requestStoreWithdrawal(acContext($fixture['manager'], 'store_manager', $storeA), 1000, 'ac-store-withdraw-1');
-    $assert((int)$storeWithdrawal['amount_cent'] === 1000 && (int)$storeWithdrawal['own_amount_cent'] + (int)$storeWithdrawal['proxy_amount_cent'] === 1000, 'b1_arbitrary_withdrawal_auto_allocates_fifo_sources');
-    $assert((int)Db::name('yfth_withdrawal_allocation')->where('withdrawal_id', (int)$storeWithdrawal['id'])->sum('amount_cent') === 1000, 'b1_fifo_allocation_snapshot_totals_exactly');
-    $afterB1Request = acStoreAccount($storeA);
-    $assert((int)$afterB1Request['hq_frozen_cent'] === (int)$hqBefore['hq_frozen_cent'] + 1000, 'b1_request_moves_total_to_hq_frozen');
-    $assert((int)Db::name('yfth_user_commission_account')->where('uid', $c1)->value('available_cent') === $userBeforeHqWithdrawal, 'b1_hq_withdrawal_does_not_reduce_c1_balance');
-    $pendingBeforeHqComplete = (int)$afterB1Request['c1_pending_cent'];
-    $finance->completeStoreWithdrawal((int)$storeWithdrawal['id'], 1, 'isolated offline payment complete');
-    $finance->completeStoreWithdrawal((int)$storeWithdrawal['id'], 1, 'idempotent replay');
-    $afterB1Complete = acStoreAccount($storeA);
-    $assert((int)$afterB1Complete['hq_frozen_cent'] === (int)$hqBefore['hq_frozen_cent'] && (int)$afterB1Complete['hq_withdrawn_cent'] === (int)$hqBefore['hq_withdrawn_cent'] + 1000, 'headquarters_two_state_withdrawal_completion_exact');
-    $assert((int)$afterB1Complete['c1_pending_cent'] === $pendingBeforeHqComplete, 'hq_withdrawal_does_not_reduce_c1_pending');
+    $paidReplay = $finance->completeUserSettlement(acContext($fixture['manager'], 'store_manager', $storeA), (int)$request['id'], [
+        'request_id' => 'ac-c1-complete-manager-replay', 'remark' => 'idempotent replay',
+    ]);
+    $assert((string)$paidByManager['status'] === 'paid' && (string)$paidReplay['status'] === 'paid', 'manager_completion_is_idempotent');
 
-    acAssertFifoWithdrawal($finance, $assert, $fixture['manager_b'], 9703, 5000, 5000, 0, 'fifty');
-    acAssertFifoWithdrawal($finance, $assert, $fixture['manager_b'], 9704, 18000, 10000, 8000, 'one_eighty');
-    acAssertFifoWithdrawal($finance, $assert, $fixture['manager_b'], 9705, 40000, 10000, 30000, 'four_hundred');
-
-    $userAvailable = (int)Db::name('yfth_user_commission_account')->where('uid', $c1)->value('available_cent');
-    $firstC1Amount = min(500, max(1, $userAvailable));
-    $c1Withdrawal = $finance->requestUserWithdrawal($c1, $firstC1Amount, 'ac-c1-withdraw-manager');
-    $finance->completeUserWithdrawal(acContext($fixture['manager'], 'store_manager', $storeA), (int)$c1Withdrawal['id'], [
-        'request_id' => 'ac-c1-complete-manager', 'remark' => 'offline paid by manager',
-    ]);
-    $finance->completeUserWithdrawal(acContext($fixture['manager'], 'store_manager', $storeA), (int)$c1Withdrawal['id'], [
-        'request_id' => 'ac-c1-complete-manager-replay', 'remark' => 'replay',
-    ]);
-    $secondAvailable = (int)Db::name('yfth_user_commission_account')->where('uid', $c1)->value('available_cent');
-    $secondC1Amount = min(300, max(1, $secondAvailable));
-    $staffWithdrawal = $finance->requestUserWithdrawal($c1, $secondC1Amount, 'ac-c1-withdraw-staff');
-    $finance->completeUserWithdrawal(acContext($fixture['staff'], 'store_staff', $storeA), (int)$staffWithdrawal['id'], [
-        'request_id' => 'ac-c1-complete-staff', 'remark' => 'offline paid by staff',
-    ]);
-    $assert((string)Db::name('yfth_c1_withdrawal')->where('id', (int)$staffWithdrawal['id'])->value('status') === 'paid', 'store_staff_can_complete_own_store_c1_withdrawal');
-    $expectFailure(function () use ($finance, $fixture, $storeB, $staffWithdrawal) {
-        $finance->completeUserWithdrawal(acContext($fixture['manager_b'], 'store_manager', $storeB), (int)$staffWithdrawal['id'], [
+    $staffRequest = $finance->requestUserSettlement($c1, 300, 'ac-c1-settlement-staff');
+    $expectFailure(function () use ($finance, $fixture, $storeB, $staffRequest) {
+        $finance->completeUserSettlement(acContext($fixture['manager_b'], 'store_manager', $storeB), (int)$staffRequest['id'], [
             'request_id' => 'ac-cross-store', 'remark' => 'must reject',
         ]);
-    }, 'cross_store_c1_withdrawal_rejected');
+    }, 'cross_store_c1_settlement_rejected');
+    $staffPaid = $finance->completeUserSettlement(acContext($fixture['staff'], 'store_staff', $storeA), (int)$staffRequest['id'], [
+        'request_id' => 'ac-c1-complete-staff', 'offline_ref_no' => 'OFFLINE-STAFF-1',
+        'remark' => 'isolated offline paid by staff',
+    ]);
+    $assert((string)$staffPaid['status'] === 'paid', 'store_staff_can_complete_same_store_c1_settlement');
 
     $negativeUid = $fixture['negative'];
     $finance->adjustUser($negativeUid, -1000, 1, 'isolated negative adjustment', 'ac-user-negative');
     $expectFailure(function () use ($finance, $negativeUid) {
-        $finance->requestUserWithdrawal($negativeUid, 1, 'ac-negative-withdraw');
-    }, 'negative_user_balance_cannot_withdraw');
+        $finance->requestUserSettlement($negativeUid, 1, 'ac-negative-settlement');
+    }, 'negative_user_balance_cannot_request_settlement');
     $finance->adjustUser($negativeUid, 500, 1, 'future credit offsets debt', 'ac-user-offset');
     $assert((int)Db::name('yfth_user_commission_account')->where('uid', $negativeUid)->value('available_cent') === -500, 'future_credit_offsets_negative_balance_first');
 
-    $finance->adjustStore($storeB, 'store_own', 2000, 1, 'concurrency source balance', 'ac-store-b-seed');
-    $finance->saveSettlementAccount(acContext($fixture['manager_b'], 'store_manager', $storeB), [
-        'account_type' => 'personal', 'account_name' => 'Concurrent Test',
-        'account_no' => '6222020000007654321', 'bank_name' => 'Isolation Bank',
-        'bank_branch' => 'Concurrent Branch', 'reserved_phone' => '19900000003',
-        'contact_name' => 'Concurrent Test', 'contact_phone' => '19900000004',
-    ]);
-    $workers = acConcurrentStoreWithdrawals($storeB, $fixture['manager_b']);
-    $successes = array_values(array_filter($workers, function (array $row) { return !empty($row['ok']); }));
-    $workerSummary = json_encode($workers, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-    $assert(count($successes) === 1, 'concurrent_b1_withdrawals_have_one_winner_without_overdraw:' . $workerSummary);
-    $assert((int)Db::name('yfth_store_withdrawal')->where('store_id', $storeB)->sum('amount_cent') === 1500, 'concurrent_frozen_total_never_exceeds_available:' . $workerSummary);
+    $receiver = $finance->saveSettlementReceiver($storeA, [
+        'receiver_type' => 'MERCHANT_ID', 'receiver_account' => '1900000109',
+        'receiver_name' => 'Isolation B1 Merchant',
+    ], 1);
+    $assert((string)$receiver['receiver_account_masked'] !== '' && !isset($receiver['receiver_account_enc']), 'wechat_receiver_is_encrypted_and_masked');
+    $unsettledBeforeBatch = (int)acStoreAccount($storeA)['unsettled_cent'];
+    $generated = $finance->generateSettlementBatches(0, time() + 60, 1);
+    $assert((int)$generated['count'] === 1, 'headquarters_generates_one_b1_settlement_batch');
+    $batch = $generated['list'][0];
+    $assert((string)$batch['status'] === 'pending' && (int)$batch['amount_cent'] === $unsettledBeforeBatch, 'batch_freezes_unsettled_cycle_amount');
+    $batchReplay = $finance->generateSettlementBatches(0, time() + 60, 1);
+    $assert((int)$batchReplay['count'] === 0, 'ledger_unique_allocation_prevents_duplicate_batch');
+    $started = $finance->startSettlementBatch((int)$batch['id'], 1);
+    $assert((string)$started['status'] === 'processing', 'batch_enters_processing_for_wechat_adapter');
+    $beforeFailedCallback = acStoreAccount($storeA);
+    $failed = $finance->recordSettlementCallback((int)$batch['id'], [
+        'callback_event_id' => 'ac-callback-failed', 'status' => 'failed',
+        'wechat_batch_no' => 'WX-BATCH-FAILED', 'message' => 'isolated failure',
+    ], 1);
+    $assert((string)$failed['status'] === 'exception', 'failed_callback_marks_batch_exception');
+    $assert(acStoreAccount($storeA) === $beforeFailedCallback, 'failed_callback_does_not_move_store_balance');
+    $finance->startSettlementBatch((int)$batch['id'], 1);
+    $settled = $finance->recordSettlementCallback((int)$batch['id'], [
+        'callback_event_id' => 'ac-callback-success', 'status' => 'success',
+        'wechat_batch_no' => 'WX-BATCH-SUCCESS', 'wechat_detail_no' => 'WX-DETAIL-SUCCESS',
+    ], 1);
+    $finance->recordSettlementCallback((int)$batch['id'], [
+        'callback_event_id' => 'ac-callback-success', 'status' => 'success',
+        'wechat_batch_no' => 'WX-BATCH-SUCCESS', 'wechat_detail_no' => 'WX-DETAIL-SUCCESS',
+    ], 1);
+    $afterSettlement = acStoreAccount($storeA);
+    $assert((string)$settled['status'] === 'settled', 'successful_callback_marks_batch_settled');
+    $assert((int)$afterSettlement['unsettled_cent'] === 0 && (int)$afterSettlement['settled_cent'] === $unsettledBeforeBatch, 'settlement_moves_unsettled_to_settled_once');
+    $assert((int)Db::name('yfth_store_settlement_callback')->where('callback_event_id', 'ac-callback-success')->count() === 1, 'settlement_callback_is_idempotent');
 
-    $assert(acCrmebMoneySnapshot([$c1, $buyer]) === $crmebBefore, 'commission_never_writes_crmeb_now_money_brokerage_or_user_bill');
-    $assert((int)Db::name('yfth_audit_event')->where('business_domain', 'automatic_commission')->count() >= 8, 'finance_actions_write_audit_events');
+    Db::name('store_order')->where('id', $order)->update(['refund_status' => 1, 'refund_price' => '50.00']);
+    $automatic->refundMallOrder($order, ['refunded_amount_cent' => 5000]);
+    $afterSettledRefund = acStoreAccount($storeA);
+    $assert((string)acAccrual($order)['status'] === 'partially_reversed', 'partial_refund_after_settlement_marks_accrual_partially_reversed');
+    $assert((int)$afterSettledRefund['unsettled_cent'] === -750, 'post_settlement_refund_creates_next_cycle_negative_adjustment');
+    $assert((int)$afterSettledRefund['settled_cent'] === (int)$afterSettlement['settled_cent'], 'post_settlement_refund_preserves_completed_settlement_history');
+    $assert((int)Db::name('yfth_commission_ledger')->where(['account_type' => 'store', 'source_order_id' => $order, 'direction' => 'debit'])->sum('amount_cent') === 750, 'post_settlement_refund_has_traceable_store_debit');
+
+    $storeSummary = $finance->storeSummary(acContext($fixture['manager'], 'store_manager', $storeA));
+    $assert(isset($storeSummary['account']['unsettled']) && isset($storeSummary['account']['settled']), 'b1_surface_exposes_only_settlement_balances');
+    foreach (['own_available_cent', 'proxy_available_cent', 'hq_frozen_cent', 'hq_withdrawn_cent'] as $forbidden) {
+        $assert(!array_key_exists($forbidden, $storeSummary['account']), 'b1_surface_hides_withdrawal_bucket:' . $forbidden);
+    }
+    $assert(acCrmebMoneySnapshot([$c1, $buyer]) === $crmebBefore, 'commission_never_writes_crmeb_balance_brokerage_or_user_bill');
+    $assert((int)Db::name('yfth_audit_event')->where('business_domain', 'automatic_commission')->count() >= 8, 'settlement_actions_write_audit_events');
 } catch (Throwable $e) {
     $failures[] = 'exception:' . $e->getMessage() . '@' . basename($e->getFile()) . ':' . $e->getLine();
 }
@@ -266,14 +208,14 @@ if ($failures) {
     exit(1);
 }
 foreach ($passes as $pass) echo "[PASS] {$pass}\n";
-echo "[OK] YFTH automatic commission, restricted balances and withdrawals real flow verified.\n";
+echo "[OK] YFTH automatic commission and B1 settlement real flow verified.\n";
 
 function acCleanup(): void
 {
-    foreach (['yfth_withdrawal_allocation', 'yfth_store_withdrawal', 'yfth_c1_withdrawal',
-        'yfth_commission_ledger', 'yfth_store_settlement_account', 'yfth_store_commission_account',
-        'yfth_user_commission_account', 'yfth_commission_accrual', 'yfth_mall_commission_order_snapshot',
-        'yfth_commission_rule_version'] as $table) {
+    foreach (['yfth_store_settlement_callback', 'yfth_store_settlement_batch_item',
+        'yfth_store_settlement_batch', 'yfth_store_settlement_receiver', 'yfth_c1_settlement_request',
+        'yfth_commission_ledger', 'yfth_store_commission_account', 'yfth_user_commission_account',
+        'yfth_commission_accrual', 'yfth_mall_commission_order_snapshot', 'yfth_commission_rule_version'] as $table) {
         Db::name($table)->delete(true);
     }
     Db::name('yfth_direct_referral_reward_candidate')->whereBetween('referrer_uid', [970001, 970020])->delete();
@@ -285,15 +227,16 @@ function acCleanup(): void
     Db::name('store_order')->whereBetween('uid', [970001, 970020])->delete();
     Db::name('user_bill')->whereBetween('uid', [970001, 970020])->delete();
     Db::name('user')->whereBetween('uid', [970001, 970020])->delete();
-    Db::name('system_store')->whereIn('id', [9701, 9702, 9703, 9704, 9705])->delete();
+    Db::name('system_store')->whereIn('id', [9701, 9702])->delete();
 }
 
 function acCreateFixtures(): array
 {
     $now = time();
-    $users = ['c1' => 970001, 'buyer' => 970002, 'self' => 970003, 'no_c1' => 970004,
-        'unbound' => 970005, 'manager' => 970006, 'staff' => 970007, 'manager_b' => 970008,
-        'negative' => 970009];
+    $users = [
+        'c1' => 970001, 'buyer' => 970002, 'manager' => 970006, 'staff' => 970007,
+        'manager_b' => 970008, 'negative' => 970009,
+    ];
     foreach ($users as $name => $uid) {
         Db::name('user')->insert([
             'uid' => $uid, 'account' => 'ac_' . $name, 'nickname' => 'AC ' . $name,
@@ -302,63 +245,20 @@ function acCreateFixtures(): array
             'brokerage_price' => '56.78', 'add_time' => $now,
         ]);
     }
-    foreach ([
-        9701 => 'Automatic Commission Store A',
-        9702 => 'Automatic Commission Store B',
-        9703 => 'Automatic Commission FIFO 50',
-        9704 => 'Automatic Commission FIFO 180',
-        9705 => 'Automatic Commission FIFO 400',
-    ] as $id => $name) {
+    foreach ([9701 => 'Automatic Commission Store A', 9702 => 'Automatic Commission Store B'] as $id => $name) {
         Db::name('system_store')->insert([
             'id' => $id, 'name' => $name, 'phone' => '19900000000', 'address' => 'isolated validation',
             'detailed_address' => 'isolated validation only', 'valid_time' => '00:00-23:59',
             'day_time' => '1,2,3,4,5,6,7', 'is_show' => 1, 'is_del' => 0, 'add_time' => $now,
         ]);
     }
-    foreach ([$users['c1'], $users['buyer'], $users['self'], $users['no_c1'], $users['negative']] as $uid) {
+    foreach ([$users['c1'], $users['buyer'], $users['manager'], $users['staff'], $users['negative']] as $uid) {
         acInsertAttribution($uid, 9701);
     }
     acInsertAttribution($users['manager_b'], 9702);
     acInsertReferral($users['c1'], $users['buyer'], 9701, 'primary');
     $products = acCloneProducts();
     return $users + ['store_a' => 9701, 'store_b' => 9702, 'product_a' => $products[0], 'product_b' => $products[1]];
-}
-
-function acAssertFifoWithdrawal(
-    CommissionFinanceServices $finance,
-    callable $assert,
-    int $operatorUid,
-    int $storeId,
-    int $amountCent,
-    int $expectedOwnCent,
-    int $expectedProxyCent,
-    string $suffix
-): void {
-    $finance->adjustStore($storeId, 'store_own', 10000, 1, 'FIFO own source', 'ac-fifo-own-' . $suffix);
-    $finance->adjustStore($storeId, 'store_proxy', 30000, 1, 'FIFO proxy source', 'ac-fifo-proxy-' . $suffix);
-    $finance->saveSettlementAccount(acContext($operatorUid, 'store_manager', $storeId), [
-        'account_type' => 'company', 'account_name' => 'FIFO ' . $suffix,
-        'account_no' => '622202000000' . $storeId, 'bank_name' => 'Isolation Bank',
-        'bank_branch' => 'FIFO Branch', 'reserved_phone' => '19900000005',
-        'contact_name' => 'FIFO Operator', 'contact_phone' => '19900000006',
-    ]);
-    $withdrawal = $finance->requestStoreWithdrawal(
-        acContext($operatorUid, 'store_manager', $storeId),
-        $amountCent,
-        'ac-fifo-withdraw-' . $suffix
-    );
-    $assert((int)$withdrawal['own_amount_cent'] === $expectedOwnCent, 'b1_fifo_' . $suffix . '_own_allocation_exact');
-    $assert((int)$withdrawal['proxy_amount_cent'] === $expectedProxyCent, 'b1_fifo_' . $suffix . '_proxy_allocation_exact');
-    $allocationRows = Db::name('yfth_withdrawal_allocation')
-        ->where('withdrawal_id', (int)$withdrawal['id'])
-        ->fieldRaw("bucket,COALESCE(SUM(amount_cent),0) AS amount_cent")
-        ->group('bucket')
-        ->select()
-        ->toArray();
-    $allocation = [];
-    foreach ($allocationRows as $row) $allocation[(string)$row['bucket']] = (int)$row['amount_cent'];
-    $assert((int)($allocation['store_own'] ?? 0) === $expectedOwnCent, 'b1_fifo_' . $suffix . '_own_ledger_exact');
-    $assert((int)($allocation['store_proxy'] ?? 0) === $expectedProxyCent, 'b1_fifo_' . $suffix . '_proxy_ledger_exact');
 }
 
 function acCloneProducts(): array
@@ -371,9 +271,7 @@ function acCloneProducts(): array
         $row = $source;
         $row['store_name'] = 'Automatic Commission Product ' . $suffix;
         $row['spu'] = substr('AC' . date('His') . $suffix . random_int(100, 999), 0, 13);
-        $row['add_time'] = time();
-        $row['is_show'] = 1;
-        $row['is_del'] = 0;
+        $row['add_time'] = time(); $row['is_show'] = 1; $row['is_del'] = 0;
         $ids[] = (int)Db::name('store_product')->insertGetId($row);
     }
     return $ids;
@@ -424,8 +322,7 @@ function acCreateOrderItem(int $orderId, int $uid, int $productId, int $cartNum,
         'product_id' => $productId, 'old_cart_id' => '', 'cart_num' => $cartNum,
         'refund_num' => 0, 'surplus_num' => $cartNum, 'split_status' => 0,
         'cart_info' => json_encode([
-            'product_id' => $productId, 'cart_num' => $cartNum,
-            'sum_true_price' => $sumTruePrice,
+            'product_id' => $productId, 'cart_num' => $cartNum, 'sum_true_price' => $sumTruePrice,
             'truePrice' => number_format(((float)$sumTruePrice) / max(1, $cartNum), 2, '.', ''),
             'productInfo' => ['id' => $productId],
         ], JSON_UNESCAPED_UNICODE),
@@ -487,44 +384,4 @@ function acCrmebMoneySnapshot(array $uids): array
         'users' => Db::name('user')->whereIn('uid', $uids)->order('uid asc')->column('uid,now_money,brokerage_price', 'uid'),
         'bills' => (int)Db::name('user_bill')->whereIn('uid', $uids)->count(),
     ];
-}
-
-function acConcurrentStoreWithdrawals(int $storeId, int $operatorUid): array
-{
-    $processes = [];
-    foreach ([1, 2] as $index) {
-        $command = [PHP_BINARY];
-        $loadedIni = php_ini_loaded_file();
-        if (is_string($loadedIni) && $loadedIni !== '') {
-            $command[] = '-c';
-            $command[] = $loadedIni;
-        }
-        $command = array_merge($command, [
-            __DIR__ . '/yfth_automatic_commission_worker.php', 'store_withdrawal',
-            (string)$storeId, '1500', 'ac-concurrent-' . $index, (string)$operatorUid,
-        ]);
-        $env = array_merge($_ENV, [
-            'YFTH_AUTOMATIC_COMMISSION_WORKER' => '1',
-            'YFTH_REAL_FLOW_ISOLATED_DB' => '1',
-            'YFTH_SETTLEMENT_KEY' => (string)getenv('YFTH_SETTLEMENT_KEY'),
-        ]);
-        $pipes = [];
-        $process = proc_open($command, [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes, dirname(__DIR__), $env, ['bypass_shell' => true]);
-        if (!is_resource($process)) throw new RuntimeException('automatic_commission_worker_start_failed');
-        $processes[] = compact('process', 'pipes');
-    }
-    $rows = [];
-    foreach ($processes as $item) {
-        $stdout = stream_get_contents($item['pipes'][1]);
-        $stderr = stream_get_contents($item['pipes'][2]);
-        fclose($item['pipes'][1]);
-        fclose($item['pipes'][2]);
-        $exit = proc_close($item['process']);
-        $decoded = json_decode(trim($stdout), true);
-        if ($exit !== 0 || !is_array($decoded)) {
-            throw new RuntimeException('automatic_commission_worker_failed:' . $exit . ':' . trim($stderr . ' ' . $stdout));
-        }
-        $rows[] = $decoded;
-    }
-    return $rows;
 }

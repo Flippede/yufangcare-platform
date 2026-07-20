@@ -51,8 +51,8 @@ Route::group(function () {
 Route::group(function () {
     Route::get('yfth/commission/summary', 'v1.yfth.CommissionAccountController/summary')->option(['real_name' => 'YFTH commission account summary']);
     Route::get('yfth/commission/ledger', 'v1.yfth.CommissionAccountController/ledger')->option(['real_name' => 'YFTH commission account ledger']);
-    Route::get('yfth/commission/withdrawal', 'v1.yfth.CommissionAccountController/withdrawals')->option(['real_name' => 'YFTH C1 withdrawal list']);
-    Route::post('yfth/commission/withdrawal', 'v1.yfth.CommissionAccountController/withdraw')->option(['real_name' => 'YFTH C1 withdrawal request']);
+    Route::get('yfth/commission/settlement', 'v1.yfth.CommissionAccountController/settlements')->option(['real_name' => 'YFTH C1 settlement list']);
+    Route::post('yfth/commission/settlement', 'v1.yfth.CommissionAccountController/settle')->option(['real_name' => 'YFTH C1 settlement request']);
 })->middleware(\app\http\middleware\AllowOriginMiddleware::class)
     ->middleware(\app\api\middleware\StationOpenMiddleware::class)
     ->middleware(\app\api\middleware\AuthTokenMiddleware::class)
@@ -109,12 +109,9 @@ Route::group(function () {
     Route::post('yfth/store_workbench/reward_settlement/candidate/:id/settle', 'v1.yfth.RewardSettlementStoreController/settle')->option(['real_name' => 'YFTH store reward candidate offline settlement']);
     Route::get('yfth/store_workbench/commission/summary', 'v1.yfth.CommissionStoreController/summary')->option(['real_name' => 'YFTH store commission account summary']);
     Route::get('yfth/store_workbench/commission/ledger', 'v1.yfth.CommissionStoreController/ledger')->option(['real_name' => 'YFTH store commission ledger']);
-    Route::get('yfth/store_workbench/commission/c1_withdrawal', 'v1.yfth.CommissionStoreController/c1Withdrawals')->option(['real_name' => 'YFTH store C1 withdrawal list']);
-    Route::post('yfth/store_workbench/commission/c1_withdrawal/:id/complete', 'v1.yfth.CommissionStoreController/completeC1Withdrawal')->option(['real_name' => 'YFTH store complete C1 offline withdrawal']);
-    Route::get('yfth/store_workbench/commission/settlement_account', 'v1.yfth.CommissionStoreController/settlementAccount')->option(['real_name' => 'YFTH store settlement account']);
-    Route::post('yfth/store_workbench/commission/settlement_account', 'v1.yfth.CommissionStoreController/saveSettlementAccount')->option(['real_name' => 'YFTH store settlement account save']);
-    Route::get('yfth/store_workbench/commission/withdrawal', 'v1.yfth.CommissionStoreController/withdrawals')->option(['real_name' => 'YFTH store headquarters withdrawal list']);
-    Route::post('yfth/store_workbench/commission/withdrawal', 'v1.yfth.CommissionStoreController/withdraw')->option(['real_name' => 'YFTH store headquarters withdrawal request']);
+    Route::get('yfth/store_workbench/commission/c1_settlement', 'v1.yfth.CommissionStoreController/c1Settlements')->option(['real_name' => 'YFTH store C1 settlement list']);
+    Route::post('yfth/store_workbench/commission/c1_settlement/:id/complete', 'v1.yfth.CommissionStoreController/completeC1Settlement')->option(['real_name' => 'YFTH store complete C1 offline settlement']);
+    Route::get('yfth/store_workbench/commission/settlement_batch', 'v1.yfth.CommissionStoreController/settlementBatches')->option(['real_name' => 'YFTH store settlement batch list']);
 })->middleware(\app\http\middleware\AllowOriginMiddleware::class)
     ->middleware(\app\api\middleware\StationOpenMiddleware::class)
     ->middleware(\app\api\middleware\AuthTokenMiddleware::class)

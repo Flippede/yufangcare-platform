@@ -86,20 +86,54 @@ class CommissionFinance extends AuthController
             (int)$this->adminId, (string)$data['reason'], (string)$data['request_id']));
     }
 
-    public function withdrawals(CommissionFinanceServices $services)
+    public function settlementBatches(CommissionFinanceServices $services)
     {
-        $this->auth('yfth/commission/withdrawal', 'GET');
-        return app('json')->success($services->headquartersWithdrawals($this->request->getMore([
+        $this->auth('yfth/commission/settlement_batch', 'GET');
+        return app('json')->success($services->headquartersSettlementBatches($this->request->getMore([
             ['status', ''], [['store_id', 'd'], 0], [['page', 'd'], 1], [['limit', 'd'], 20],
         ])));
     }
 
-    public function completeWithdrawal(CommissionFinanceServices $services, $id)
+    public function settlementReceiver(CommissionFinanceServices $services)
     {
-        $this->auth('yfth/commission/withdrawal/<id>/complete', 'POST');
-        return app('json')->success($services->completeStoreWithdrawal(
-            (int)$id, (int)$this->adminId, (string)$this->request->post('remark', '')
+        $this->auth('yfth/commission/settlement_batch', 'GET');
+        return app('json')->success($services->settlementReceiver((int)$this->request->get('store_id', 0)));
+    }
+
+    public function settlementReceiverSave(CommissionFinanceServices $services)
+    {
+        $this->auth('yfth/commission/settlement_batch', 'POST');
+        $data = $this->request->postMore([
+            [['store_id', 'd'], 0], ['receiver_type', 'MERCHANT_ID'], ['receiver_account', ''], ['receiver_name', ''],
+        ]);
+        return app('json')->success($services->saveSettlementReceiver(
+            (int)$data['store_id'], $data, (int)$this->adminId
         ));
+    }
+
+    public function settlementBatchGenerate(CommissionFinanceServices $services)
+    {
+        $this->auth('yfth/commission/settlement_batch', 'POST');
+        return app('json')->success($services->generateSettlementBatches(
+            (int)$this->request->post('period_start', 0),
+            (int)$this->request->post('period_end', 0),
+            (int)$this->adminId
+        ));
+    }
+
+    public function settlementBatchStart(CommissionFinanceServices $services, $id)
+    {
+        $this->auth('yfth/commission/settlement_batch', 'POST');
+        return app('json')->success($services->startSettlementBatch((int)$id, (int)$this->adminId));
+    }
+
+    public function settlementBatchCallback(CommissionFinanceServices $services, $id)
+    {
+        $this->auth('yfth/commission/settlement_batch', 'POST');
+        return app('json')->success($services->recordSettlementCallback((int)$id, $this->request->postMore([
+            ['callback_event_id', ''], ['status', ''], ['wechat_batch_no', ''],
+            ['wechat_detail_no', ''], ['message', ''],
+        ]), (int)$this->adminId));
     }
 
     public function retry(AutomaticCommissionServices $services)

@@ -92,7 +92,7 @@
 							<text class="asset-value">{{ userInfo.couponCount || 0 }}</text>
 							<text class="asset-label">优惠券</text>
 						</view>
-						<view class="asset-note">一个入口查看余额；商城支付与佣金提现仍按来源隔离</view>
+						<view class="asset-note">商城资产与御方通和推荐佣金分别记录，互不混用</view>
 					</view>
 					<view class="member-exclusive" v-if="isLogin">
 						<view class="section-title">会员专属</view>

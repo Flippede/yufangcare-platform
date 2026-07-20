@@ -424,12 +424,12 @@ export function getYfthCommissionLedger(data) {
 	return request.get('yfth/commission/ledger', data || {});
 }
 
-export function getYfthCommissionWithdrawals(data) {
-	return request.get('yfth/commission/withdrawal', data || {});
+export function getYfthCommissionSettlements(data) {
+	return request.get('yfth/commission/settlement', data || {});
 }
 
-export function requestYfthCommissionWithdrawal(data) {
-	return request.post('yfth/commission/withdrawal', data || {});
+export function requestYfthCommissionSettlement(data) {
+	return request.post('yfth/commission/settlement', data || {});
 }
 
 export function getYfthStoreCommissionSummary(data) {
@@ -440,27 +440,17 @@ export function getYfthStoreCommissionLedger(data) {
 	return request.get('yfth/store_workbench/commission/ledger', data || {});
 }
 
-export function getYfthStoreC1Withdrawals(data) {
-	return request.get('yfth/store_workbench/commission/c1_withdrawal', data || {});
+export function getYfthStoreC1Settlements(data) {
+	return request.get('yfth/store_workbench/commission/c1_settlement', data || {});
 }
 
-export function completeYfthStoreC1Withdrawal(id, data) {
+export function completeYfthStoreC1Settlement(id, data) {
 	const payload = splitYfthContext(data || {});
-	return request.post('yfth/store_workbench/commission/c1_withdrawal/' + id + '/complete' + payload.query, payload.body);
+	return request.post('yfth/store_workbench/commission/c1_settlement/' + id + '/complete' + payload.query, payload.body);
 }
 
-export function saveYfthStoreSettlementAccount(data) {
-	const payload = splitYfthContext(data || {});
-	return request.post('yfth/store_workbench/commission/settlement_account' + payload.query, payload.body);
-}
-
-export function getYfthStoreCommissionWithdrawals(data) {
-	return request.get('yfth/store_workbench/commission/withdrawal', data || {});
-}
-
-export function requestYfthStoreCommissionWithdrawal(data) {
-	const payload = splitYfthContext(data || {});
-	return request.post('yfth/store_workbench/commission/withdrawal' + payload.query, payload.body);
+export function getYfthStoreCommissionSettlementBatches(data) {
+	return request.get('yfth/store_workbench/commission/settlement_batch', data || {});
 }
 
 export function confirmYfthStoreRewardCandidate(id, data) {

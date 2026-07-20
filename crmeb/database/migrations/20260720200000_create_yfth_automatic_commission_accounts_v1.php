@@ -11,10 +11,12 @@ class CreateYfthAutomaticCommissionAccountsV1 extends Migrator
         'yfth_user_commission_account',
         'yfth_store_commission_account',
         'yfth_commission_ledger',
-        'yfth_c1_withdrawal',
-        'yfth_store_withdrawal',
-        'yfth_withdrawal_allocation',
-        'yfth_store_settlement_account',
+        'yfth_c1_settlement_request',
+        'yfth_store_settlement_receiver',
+        'yfth_store_settlement_batch',
+        'yfth_store_settlement_batch_item',
+        'yfth_store_settlement_return',
+        'yfth_store_settlement_callback',
     ];
 
     private const AUTHS = [
@@ -25,8 +27,8 @@ class CreateYfthAutomaticCommissionAccountsV1 extends Migrator
         'yfth-auto-commission-accrual-read',
         'yfth-auto-commission-ledger-read',
         'yfth-auto-commission-adjust',
-        'yfth-auto-commission-withdrawal-read',
-        'yfth-auto-commission-withdrawal-complete',
+        'yfth-auto-commission-settlement-read',
+        'yfth-auto-commission-settlement-write',
         'yfth-auto-commission-retry',
     ];
 
@@ -51,10 +53,12 @@ class CreateYfthAutomaticCommissionAccountsV1 extends Migrator
         $this->createUserAccount();
         $this->createStoreAccount();
         $this->createLedger();
-        $this->createC1Withdrawal();
-        $this->createStoreWithdrawal();
-        $this->createWithdrawalAllocation();
-        $this->createSettlementAccount();
+        $this->createC1SettlementRequest();
+        $this->createSettlementReceiver();
+        $this->createSettlementBatch();
+        $this->createSettlementBatchItem();
+        $this->createSettlementReturn();
+        $this->createSettlementCallback();
         $this->seedPermissions();
         $this->assertComplete();
     }
@@ -172,7 +176,7 @@ class CreateYfthAutomaticCommissionAccountsV1 extends Migrator
     private function createUserAccount(): void
     {
         $this->table('yfth_user_commission_account', ['signed' => false])
-            ->setEngine('InnoDB')->setComment('Withdraw-only YFTH user commission balance adapter')
+            ->setEngine('InnoDB')->setComment('C1 commission settlement balance projection')
             ->addColumn('uid', 'integer', ['signed' => false, 'default' => 0])
             ->addColumn('available_cent', 'biginteger', ['default' => 0])
             ->addColumn('frozen_cent', 'biginteger', ['default' => 0])
@@ -187,12 +191,10 @@ class CreateYfthAutomaticCommissionAccountsV1 extends Migrator
     private function createStoreAccount(): void
     {
         $this->table('yfth_store_commission_account', ['signed' => false])
-            ->setEngine('InnoDB')->setComment('B1 own commission and C1 proxy payable account projection')
+            ->setEngine('InnoDB')->setComment('B1 commission settlement account projection')
             ->addColumn('store_id', 'integer', ['signed' => false, 'default' => 0])
-            ->addColumn('own_available_cent', 'biginteger', ['default' => 0])
-            ->addColumn('proxy_available_cent', 'biginteger', ['default' => 0])
-            ->addColumn('hq_frozen_cent', 'biginteger', ['default' => 0])
-            ->addColumn('hq_withdrawn_cent', 'biginteger', ['default' => 0])
+            ->addColumn('unsettled_cent', 'biginteger', ['default' => 0])
+            ->addColumn('settled_cent', 'biginteger', ['default' => 0])
             ->addColumn('c1_pending_cent', 'biginteger', ['default' => 0])
             ->addColumn('c1_paid_cent', 'biginteger', ['default' => 0])
             ->addColumn('reversed_cent', 'biginteger', ['default' => 0])
@@ -218,7 +220,6 @@ class CreateYfthAutomaticCommissionAccountsV1 extends Migrator
             ->addColumn('available_after_cent', 'biginteger', ['default' => 0])
             ->addColumn('frozen_after_cent', 'biginteger', ['default' => 0])
             ->addColumn('withdrawn_after_cent', 'biginteger', ['default' => 0])
-            ->addColumn('remaining_withdrawable_cent', 'biginteger', ['default' => 0])
             ->addColumn('source_type', 'string', ['limit' => 40, 'default' => ''])
             ->addColumn('source_id', 'string', ['limit' => 64, 'default' => ''])
             ->addColumn('source_order_id', 'integer', ['signed' => false, 'default' => 0])
@@ -235,16 +236,16 @@ class CreateYfthAutomaticCommissionAccountsV1 extends Migrator
             ->addIndex(['ledger_no'], ['unique' => true, 'name' => 'uniq_yfth_commission_ledger_no'])
             ->addIndex(['source_unique_key'], ['unique' => true, 'name' => 'uniq_yfth_commission_ledger_source'])
             ->addIndex(['account_type', 'account_id', 'add_time'], ['name' => 'idx_yfth_commission_ledger_account'])
-            ->addIndex(['account_type', 'account_id', 'bucket', 'remaining_withdrawable_cent', 'id'], ['name' => 'idx_yfth_commission_ledger_fifo'])
+            ->addIndex(['account_type', 'account_id', 'bucket', 'id'], ['name' => 'idx_yfth_commission_ledger_bucket'])
             ->create();
         $this->forceAscii('yfth_commission_ledger', 'source_unique_key');
     }
 
-    private function createC1Withdrawal(): void
+    private function createC1SettlementRequest(): void
     {
-        $this->table('yfth_c1_withdrawal', ['signed' => false])
-            ->setEngine('InnoDB')->setComment('C1 withdrawal request paid offline by responsible B1')
-            ->addColumn('withdrawal_no', 'string', ['limit' => 64, 'default' => ''])
+        $this->table('yfth_c1_settlement_request', ['signed' => false])
+            ->setEngine('InnoDB')->setComment('C1 settlement request completed offline by responsible B1')
+            ->addColumn('settlement_no', 'string', ['limit' => 64, 'default' => ''])
             ->addColumn('uid', 'integer', ['signed' => false, 'default' => 0])
             ->addColumn('store_id', 'integer', ['signed' => false, 'default' => 0])
             ->addColumn('amount_cent', 'biginteger', ['signed' => false, 'default' => 0])
@@ -257,71 +258,120 @@ class CreateYfthAutomaticCommissionAccountsV1 extends Migrator
             ->addColumn('completed_at', 'integer', ['signed' => false, 'default' => 0])
             ->addColumn('add_time', 'integer', ['signed' => false, 'default' => 0])
             ->addColumn('update_time', 'integer', ['signed' => false, 'default' => 0])
-            ->addIndex(['withdrawal_no'], ['unique' => true, 'name' => 'uniq_yfth_c1_withdrawal_no'])
-            ->addIndex(['uid', 'request_id'], ['unique' => true, 'name' => 'uniq_yfth_c1_withdrawal_request'])
-            ->addIndex(['store_id', 'status', 'add_time'], ['name' => 'idx_yfth_c1_withdrawal_store'])
+            ->addIndex(['settlement_no'], ['unique' => true, 'name' => 'uniq_yfth_c1_settlement_no'])
+            ->addIndex(['uid', 'request_id'], ['unique' => true, 'name' => 'uniq_yfth_c1_settlement_request'])
+            ->addIndex(['store_id', 'status', 'add_time'], ['name' => 'idx_yfth_c1_settlement_store'])
             ->create();
     }
 
-    private function createStoreWithdrawal(): void
+    private function createSettlementReceiver(): void
     {
-        $this->table('yfth_store_withdrawal', ['signed' => false])
-            ->setEngine('InnoDB')->setComment('B1 withdrawal to headquarters settlement account')
-            ->addColumn('withdrawal_no', 'string', ['limit' => 64, 'default' => ''])
+        $this->table('yfth_store_settlement_receiver', ['signed' => false])
+            ->setEngine('InnoDB')->setComment('B1 WeChat profit-sharing receiver configuration')
             ->addColumn('store_id', 'integer', ['signed' => false, 'default' => 0])
-            ->addColumn('amount_cent', 'biginteger', ['signed' => false, 'default' => 0])
-            ->addColumn('own_amount_cent', 'biginteger', ['signed' => false, 'default' => 0])
-            ->addColumn('proxy_amount_cent', 'biginteger', ['signed' => false, 'default' => 0])
-            ->addColumn('status', 'string', ['limit' => 24, 'default' => 'reviewing'])
-            ->addColumn('settlement_account_id', 'integer', ['signed' => false, 'default' => 0])
-            ->addColumn('settlement_snapshot_json', 'text', ['null' => false])
-            ->addColumn('request_id', 'string', ['limit' => 64, 'default' => ''])
-            ->addColumn('operator_uid', 'integer', ['signed' => false, 'default' => 0])
-            ->addColumn('admin_uid', 'integer', ['signed' => false, 'default' => 0])
-            ->addColumn('remark', 'string', ['limit' => 255, 'default' => ''])
-            ->addColumn('completed_at', 'integer', ['signed' => false, 'default' => 0])
-            ->addColumn('add_time', 'integer', ['signed' => false, 'default' => 0])
-            ->addColumn('update_time', 'integer', ['signed' => false, 'default' => 0])
-            ->addIndex(['withdrawal_no'], ['unique' => true, 'name' => 'uniq_yfth_store_withdrawal_no'])
-            ->addIndex(['store_id', 'request_id'], ['unique' => true, 'name' => 'uniq_yfth_store_withdrawal_request'])
-            ->addIndex(['status', 'add_time'], ['name' => 'idx_yfth_store_withdrawal_status'])
-            ->create();
-    }
-
-    private function createWithdrawalAllocation(): void
-    {
-        $this->table('yfth_withdrawal_allocation', ['signed' => false])
-            ->setEngine('InnoDB')->setComment('Immutable FIFO source allocation for B1 withdrawals')
-            ->addColumn('withdrawal_id', 'integer', ['signed' => false, 'default' => 0])
-            ->addColumn('ledger_id', 'integer', ['signed' => false, 'default' => 0])
-            ->addColumn('bucket', 'string', ['limit' => 32, 'default' => 'store_own'])
-            ->addColumn('amount_cent', 'biginteger', ['signed' => false, 'default' => 0])
-            ->addColumn('add_time', 'integer', ['signed' => false, 'default' => 0])
-            ->addIndex(['withdrawal_id', 'ledger_id'], ['unique' => true, 'name' => 'uniq_yfth_withdrawal_allocation'])
-            ->addIndex(['ledger_id'], ['name' => 'idx_yfth_withdrawal_allocation_ledger'])
-            ->create();
-    }
-
-    private function createSettlementAccount(): void
-    {
-        $this->table('yfth_store_settlement_account', ['signed' => false])
-            ->setEngine('InnoDB')->setComment('Encrypted default B1 bank settlement account')
-            ->addColumn('store_id', 'integer', ['signed' => false, 'default' => 0])
-            ->addColumn('account_type', 'string', ['limit' => 24, 'default' => 'personal'])
-            ->addColumn('account_name_enc', 'text', ['null' => false])
-            ->addColumn('account_no_enc', 'text', ['null' => false])
-            ->addColumn('bank_name_enc', 'text', ['null' => false])
-            ->addColumn('bank_branch_enc', 'text', ['null' => false])
-            ->addColumn('reserved_phone_enc', 'text', ['null' => false])
-            ->addColumn('contact_name_enc', 'text', ['null' => false])
-            ->addColumn('contact_phone_enc', 'text', ['null' => false])
-            ->addColumn('account_no_masked', 'string', ['limit' => 64, 'default' => ''])
-            ->addColumn('is_default', 'boolean', ['signed' => false, 'default' => 1])
+            ->addColumn('receiver_type', 'string', ['limit' => 32, 'default' => 'MERCHANT_ID'])
+            ->addColumn('receiver_account_enc', 'text', ['null' => false])
+            ->addColumn('receiver_account_masked', 'string', ['limit' => 128, 'default' => ''])
+            ->addColumn('receiver_name_enc', 'text', ['null' => false])
             ->addColumn('status', 'string', ['limit' => 24, 'default' => 'active'])
             ->addColumn('operator_uid', 'integer', ['signed' => false, 'default' => 0])
             ->addColumn('add_time', 'integer', ['signed' => false, 'default' => 0])
             ->addColumn('update_time', 'integer', ['signed' => false, 'default' => 0])
-            ->addIndex(['store_id', 'is_default'], ['unique' => true, 'name' => 'uniq_yfth_store_settlement_default'])
+            ->addIndex(['store_id'], ['unique' => true, 'name' => 'uniq_yfth_store_settlement_receiver'])
+            ->create();
+    }
+
+    private function createSettlementBatch(): void
+    {
+        $this->table('yfth_store_settlement_batch', ['signed' => false])
+            ->setEngine('InnoDB')->setComment('Headquarters B1 settlement cycle batch')
+            ->addColumn('batch_no', 'string', ['limit' => 64, 'default' => ''])
+            ->addColumn('store_id', 'integer', ['signed' => false, 'default' => 0])
+            ->addColumn('period_start', 'integer', ['signed' => false, 'default' => 0])
+            ->addColumn('period_end', 'integer', ['signed' => false, 'default' => 0])
+            ->addColumn('amount_cent', 'biginteger', ['signed' => false, 'default' => 0])
+            ->addColumn('status', 'string', ['limit' => 24, 'default' => 'pending'])
+            ->addColumn('receiver_id', 'integer', ['signed' => false, 'default' => 0])
+            ->addColumn('receiver_type', 'string', ['limit' => 32, 'default' => ''])
+            ->addColumn('receiver_account_enc', 'text', ['null' => false])
+            ->addColumn('receiver_account_masked', 'string', ['limit' => 128, 'default' => ''])
+            ->addColumn('receiver_name_enc', 'text', ['null' => false])
+            ->addColumn('merchant_no_enc', 'text', ['null' => false])
+            ->addColumn('merchant_no_masked', 'string', ['limit' => 64, 'default' => ''])
+            ->addColumn('wechat_batch_no', 'string', ['limit' => 96, 'default' => ''])
+            ->addColumn('wechat_detail_no', 'string', ['limit' => 96, 'default' => ''])
+            ->addColumn('request_id', 'string', ['limit' => 64, 'default' => ''])
+            ->addColumn('admin_uid', 'integer', ['signed' => false, 'default' => 0])
+            ->addColumn('exception_reason', 'string', ['limit' => 255, 'default' => ''])
+            ->addColumn('processing_at', 'integer', ['signed' => false, 'default' => 0])
+            ->addColumn('settled_at', 'integer', ['signed' => false, 'default' => 0])
+            ->addColumn('callback_at', 'integer', ['signed' => false, 'default' => 0])
+            ->addColumn('add_time', 'integer', ['signed' => false, 'default' => 0])
+            ->addColumn('update_time', 'integer', ['signed' => false, 'default' => 0])
+            ->addIndex(['batch_no'], ['unique' => true, 'name' => 'uniq_yfth_store_settlement_batch_no'])
+            ->addIndex(['store_id', 'request_id'], ['unique' => true, 'name' => 'uniq_yfth_store_settlement_request'])
+            ->addIndex(['status', 'period_end'], ['name' => 'idx_yfth_store_settlement_status'])
+            ->create();
+    }
+
+    private function createSettlementBatchItem(): void
+    {
+        $this->table('yfth_store_settlement_batch_item', ['signed' => false])
+            ->setEngine('InnoDB')->setComment('Immutable ledger allocation to a settlement batch')
+            ->addColumn('batch_id', 'integer', ['signed' => false, 'default' => 0])
+            ->addColumn('ledger_id', 'integer', ['signed' => false, 'default' => 0])
+            ->addColumn('signed_amount_cent', 'biginteger', ['default' => 0])
+            ->addColumn('source_type', 'string', ['limit' => 40, 'default' => ''])
+            ->addColumn('source_id', 'string', ['limit' => 64, 'default' => ''])
+            ->addColumn('source_order_id', 'integer', ['signed' => false, 'default' => 0])
+            ->addColumn('add_time', 'integer', ['signed' => false, 'default' => 0])
+            ->addIndex(['ledger_id'], ['unique' => true, 'name' => 'uniq_yfth_store_settlement_ledger'])
+            ->addIndex(['batch_id', 'id'], ['name' => 'idx_yfth_store_settlement_batch_item'])
+            ->create();
+    }
+
+    private function createSettlementCallback(): void
+    {
+        $this->table('yfth_store_settlement_callback', ['signed' => false])
+            ->setEngine('InnoDB')->setComment('Idempotent WeChat profit-sharing callback facts')
+            ->addColumn('batch_id', 'integer', ['signed' => false, 'default' => 0])
+            ->addColumn('return_id', 'integer', ['signed' => false, 'default' => 0])
+            ->addColumn('callback_type', 'string', ['limit' => 24, 'default' => 'settlement'])
+            ->addColumn('callback_event_id', 'string', ['limit' => 96, 'default' => ''])
+            ->addColumn('callback_status', 'string', ['limit' => 24, 'default' => ''])
+            ->addColumn('callback_json', 'text', ['null' => false])
+            ->addColumn('add_time', 'integer', ['signed' => false, 'default' => 0])
+            ->addIndex(['callback_event_id'], ['unique' => true, 'name' => 'uniq_yfth_store_settlement_callback'])
+            ->addIndex(['batch_id', 'add_time'], ['name' => 'idx_yfth_store_settlement_callback_batch'])
+            ->addIndex(['return_id', 'add_time'], ['name' => 'idx_yfth_store_settlement_callback_return'])
+            ->create();
+    }
+
+    private function createSettlementReturn(): void
+    {
+        $this->table('yfth_store_settlement_return', ['signed' => false])
+            ->setEngine('InnoDB')->setComment('Reserved WeChat profit-sharing return facts')
+            ->addColumn('return_no', 'string', ['limit' => 64, 'default' => ''])
+            ->addColumn('batch_id', 'integer', ['signed' => false, 'default' => 0])
+            ->addColumn('store_id', 'integer', ['signed' => false, 'default' => 0])
+            ->addColumn('amount_cent', 'biginteger', ['signed' => false, 'default' => 0])
+            ->addColumn('status', 'string', ['limit' => 24, 'default' => 'pending'])
+            ->addColumn('request_id', 'string', ['limit' => 64, 'default' => ''])
+            ->addColumn('wechat_batch_no', 'string', ['limit' => 96, 'default' => ''])
+            ->addColumn('wechat_detail_no', 'string', ['limit' => 96, 'default' => ''])
+            ->addColumn('wechat_return_no', 'string', ['limit' => 96, 'default' => ''])
+            ->addColumn('reason', 'string', ['limit' => 255, 'default' => ''])
+            ->addColumn('callback_json', 'text', ['null' => false])
+            ->addColumn('admin_uid', 'integer', ['signed' => false, 'default' => 0])
+            ->addColumn('processing_at', 'integer', ['signed' => false, 'default' => 0])
+            ->addColumn('returned_at', 'integer', ['signed' => false, 'default' => 0])
+            ->addColumn('callback_at', 'integer', ['signed' => false, 'default' => 0])
+            ->addColumn('add_time', 'integer', ['signed' => false, 'default' => 0])
+            ->addColumn('update_time', 'integer', ['signed' => false, 'default' => 0])
+            ->addIndex(['return_no'], ['unique' => true, 'name' => 'uniq_yfth_store_settlement_return_no'])
+            ->addIndex(['request_id'], ['unique' => true, 'name' => 'uniq_yfth_store_settlement_return_request'])
+            ->addIndex(['batch_id', 'status'], ['name' => 'idx_yfth_store_settlement_return_batch'])
+            ->addIndex(['store_id', 'status', 'add_time'], ['name' => 'idx_yfth_store_settlement_return_store'])
             ->create();
     }
 
@@ -350,7 +400,7 @@ class CreateYfthAutomaticCommissionAccountsV1 extends Migrator
         $page = $this->menuByAuth(self::AUTHS[0]);
         if (!$page) {
             $this->insertMenu([
-                'pid' => (int)$root['id'], 'icon' => 'md-wallet', 'menu_name' => '佣金与提现',
+                'pid' => (int)$root['id'], 'icon' => 'md-wallet', 'menu_name' => '佣金与结算',
                 'module' => 'admin', 'controller' => 'v1.yfth.CommissionFinance', 'action' => 'index',
                 'api_url' => 'yfth/commission/account', 'methods' => 'GET', 'params' => '', 'sort' => 8,
                 'is_show' => 1, 'is_show_path' => 1, 'access' => 1,
@@ -367,8 +417,8 @@ class CreateYfthAutomaticCommissionAccountsV1 extends Migrator
             ['自动结算记录', 'yfth/commission/accrual', 'GET', self::AUTHS[4]],
             ['佣金流水查看', 'yfth/commission/ledger', 'GET', self::AUTHS[5]],
             ['佣金余额调整', 'yfth/commission/adjustment', 'POST', self::AUTHS[6]],
-            ['门店提现查看', 'yfth/commission/withdrawal', 'GET', self::AUTHS[7]],
-            ['门店提现完成', 'yfth/commission/withdrawal/<id>/complete', 'POST', self::AUTHS[8]],
+            ['结算批次查看', 'yfth/commission/settlement_batch', 'GET', self::AUTHS[7]],
+            ['结算批次处理', 'yfth/commission/settlement_batch', 'POST', self::AUTHS[8]],
             ['佣金到期补偿', 'yfth/commission/retry', 'POST', self::AUTHS[9]],
         ];
         foreach ($defs as $def) {
