@@ -328,8 +328,8 @@
 									{{ $t(`加入购物车`) }}
 								</button>
 							</form>
-							<form @submit="goBuy" class="buy bnts" :class="!storeInfo.cart_button ? 'virbnt' : ''">
-								<button class="buy bnts" :class="!storeInfo.cart_button ? 'virbnt' : ''" form-type="submit">
+							<form class="buy bnts" :class="!storeInfo.cart_button ? 'virbnt' : ''">
+								<button class="buy bnts" :class="!storeInfo.cart_button ? 'virbnt' : ''" @tap.stop="goBuy">
 									{{ $t(`立即购买`) }}
 								</button>
 							</form>
@@ -347,8 +347,8 @@
 							</form>
 						</view>
 						<view class="bnts acea-row" v-else-if="presale_pay_status === 2">
-							<form @submit="goBuy" class="bnts">
-								<button class="bnts" form-type="submit">{{ $t(`立即购买`) }}</button>
+							<form class="bnts">
+								<button class="bnts" @tap.stop="goBuy">{{ $t(`立即购买`) }}</button>
 							</form>
 						</view>
 					</view>
@@ -1450,9 +1450,12 @@ export default {
 			let that = this,
 				productSelect = that.productValue[this.attrValue];
 			const buyNow = news === true || that.purchaseMode === 1;
+			const hasSelectableAttributes = Array.isArray(that.attr.productAttr) && that.attr.productAttr.length > 0;
 			that.currentPage = false;
-			//打开属性
-			if (that.attrValue) {
+			// 无可选规格的商品使用默认 SKU 直接购买；有规格时仍先让用户确认选择。
+			if (!hasSelectableAttributes && that.isOpen === false) {
+				that.attr.cartAttr = false;
+			} else if (that.attrValue) {
 				//默认选中了属性，但是没有打开过属性弹窗还是自动打开让用户查看默认选中的属性
 				that.attr.cartAttr = !that.isOpen ? true : false;
 			} else {
@@ -1503,8 +1506,11 @@ export default {
 				})
 				.catch((err) => {
 					that.isOpen = false;
+					that.attr.cartAttr = false;
+					that.purchaseMode = 0;
+					const message = err && (err.msg || err.message) ? err.msg || err.message : String(err || that.$t(`操作失败，请稍后重试`));
 					return that.$util.Tips({
-						title: err
+						title: message
 					});
 				});
 		},

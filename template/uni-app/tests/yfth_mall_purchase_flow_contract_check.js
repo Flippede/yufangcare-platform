@@ -17,13 +17,16 @@ const baseCss = read('static/css/base.css');
 
 assertContains(detail, '<productWindow', 'crm_product_sku_window_is_mounted');
 assertContains(detail, '@submit="joinCart"', 'detail_has_add_to_cart_action');
-assertContains(detail, '@submit="goBuy"', 'detail_has_buy_now_action');
+assertContains(detail, '@tap.stop="goBuy"', 'detail_has_direct_touch_and_click_buy_now_action');
 assertContains(detail, ':iScart="1"', 'sku_window_has_confirm_action');
 assertContains(detail, '@goCat="goCat"', 'sku_window_confirm_uses_crmeb_cart_action');
 assertContains(detail, 'purchaseMode: 0', 'detail_tracks_cart_or_buy_intent_through_sku_window');
 assertContains(detail, 'const buyNow = news === true || that.purchaseMode === 1;', 'sku_confirmation_preserves_buy_now_intent');
+assertContains(detail, 'const hasSelectableAttributes = Array.isArray(that.attr.productAttr) && that.attr.productAttr.length > 0;', 'detail_detects_whether_sku_confirmation_is_needed');
+assertContains(detail, 'if (!hasSelectableAttributes && that.isOpen === false)', 'single_sku_buy_now_skips_redundant_confirmation');
 assertContains(detail, 'new: buyNow ? 1 : 0,', 'cart_add_receives_existing_crmeb_buy_now_flag');
 assertContains(detail, "url = '/pages/goods/order_confirm/index?new=1&cartId=' + res.data.cartId", 'buy_now_uses_crmeb_order_confirmation');
+assertContains(detail, 'err.msg || err.message', 'buy_now_failure_is_visible_to_the_user');
 assertContains(detail, "background-color: var(--view-bntColor, #c99b5a)", 'add_to_cart_has_theme_fallback');
 assertContains(detail, "background-color: var(--view-theme, #a4773f)", 'buy_now_has_theme_fallback');
 assertContains(detail, '暂无商品图文介绍', 'empty_product_description_is_explicit');
