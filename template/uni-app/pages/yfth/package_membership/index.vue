@@ -9,7 +9,8 @@
 			<view class="hero">
 				<view class="eyebrow">御方通和套餐会员</view>
 				<view class="title">{{ isMember ? '永久会员' : '尚未激活' }}</view>
-				<view class="sub" v-if="isMember">永久有效 · 归属门店 {{ member.store_id }}</view>
+				<view class="sub" v-if="isMember && Number(member.store_id)">永久有效 · 归属门店 {{ member.store_id }}</view>
+				<view class="sub" v-else-if="isMember">永久有效 · 当前未绑定门店，可重新扫门店码绑定</view>
 				<view class="sub" v-else>购买并成功激活后获得永久会员资格</view>
 			</view>
 
@@ -31,9 +32,12 @@
 
 			<view class="panel">
 				<view class="panel-title">{{ isMember ? '邀请非会员' : '接受一级邀请' }}</view>
-				<block v-if="isMember">
+				<block v-if="isMember && isBound">
 					<view class="muted">一次仅存在一个有效邀请入口，重新生成会使旧入口失效。</view>
 					<button class="primary wide" @click="issueInvite">生成新邀请码</button>
+				</block>
+				<block v-else-if="isMember">
+					<view class="muted">当前未绑定门店，请先扫描门店码完成重新绑定，再生成邀请。</view>
 				</block>
 				<block v-else>
 					<input v-model.trim="acceptToken" class="input" maxlength="64" placeholder="输入64位邀请码" />
@@ -77,7 +81,8 @@ export default {
 	},
 	computed: {
 		isMember() { return Boolean(this.profile.membership && this.profile.membership.is_member); },
-		member() { return (this.profile.membership && this.profile.membership.member) || {}; }
+		member() { return (this.profile.membership && this.profile.membership.member) || {}; },
+		isBound() { return Number(this.member.store_id || 0) > 0; }
 	},
 	onLoad(options) {
 		this.acceptToken = String((options && options.invite_token) || '');

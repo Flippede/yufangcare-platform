@@ -206,6 +206,11 @@ Route::group('yfth', function () {
         Route::get('referral/:id/events', 'v1.yfth.HqAuthorityRead/referralEvents')->option(['real_name' => 'Headquarters referral events']);
         Route::get('referral/:id', 'v1.yfth.HqAuthorityRead/referralDetail')->option(['real_name' => 'Headquarters referral detail']);
     })->option(['parent' => 'yfth', 'cate_name' => 'HQ Authority Read']);
+    Route::group('relationship_management', function () {
+        Route::get('user_hierarchy', 'v1.yfth.RelationshipManagement/userHierarchy')->option(['real_name' => 'Headquarters user relationship hierarchy']);
+        Route::get('store_hierarchy', 'v1.yfth.RelationshipManagement/storeHierarchy')->option(['real_name' => 'Headquarters store partner hierarchy']);
+        Route::post('user/:id/revoke_parent', 'v1.yfth.RelationshipManagement/revokeParent')->option(['real_name' => 'Headquarters revoke user parent relationship']);
+    })->option(['parent' => 'yfth', 'cate_name' => 'Relationship Management']);
     Route::group('package_membership', function () {
         Route::get('member', 'v1.yfth.PackageMembershipReferral/members')->option(['real_name' => 'Package permanent membership list']);
         Route::get('candidate', 'v1.yfth.PackageMembershipReferral/candidates')->option(['real_name' => 'Direct referral reward candidate list']);

@@ -14,6 +14,26 @@ class PackageMembershipReferralController
         return app('json')->success($services->me((int)$request->uid()));
     }
 
+    public function bindStoreFromQr(Request $request, PackageMembershipReferralServices $services)
+    {
+        foreach (['uid', 'source_type', 'source_id', 'source_unique_key'] as $field) {
+            if ($request->post($field, null) !== null) {
+                throw new ApiException('store_qr_binding_authority_field_forbidden');
+            }
+        }
+        $data = $request->postMore([
+            [['store_id', 'd'], 0],
+            ['idempotency_key', ''],
+            ['request_id', ''],
+        ]);
+        $data['idempotency_key'] = (string)$data['idempotency_key'] ?: (string)$request->header('Idempotency-Key', '');
+        return app('json')->success($services->bindStoreFromQr(
+            (int)$request->uid(),
+            (int)$data['store_id'],
+            $data
+        ));
+    }
+
     public function issueInvite(Request $request, PackageMembershipReferralServices $services)
     {
         return app('json')->success($services->issueInvite((int)$request->uid(), $request->postMore([

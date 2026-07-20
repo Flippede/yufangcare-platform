@@ -1,7 +1,94 @@
 <template>
-  <div class="hq-authority-readonly">
-    <el-alert title="本页只读展示 Stage 1A 权威归属与一级推荐关系，不提供绑定、变更或数据修复操作。" type="info" :closable="false" />
+  <div class="hq-authority-management">
+    <el-alert title="总部可按“C2 → C1 → 门店”查看用户上级。撤销上级后，该用户变为未绑定门店状态，可重新扫门店码绑定；本页不提供撤销门店功能。" type="info" :closable="false" />
     <el-tabs v-model="activeTab" @tab-click="loadCurrent">
+      <el-tab-pane label="用户关系层级" name="hierarchy">
+        <div class="toolbar">
+          <el-input v-model="hierarchyQuery.keyword" size="small" clearable placeholder="UID / 昵称 / 手机号" />
+          <el-input v-model="hierarchyQuery.store_id" size="small" clearable placeholder="门店 ID" />
+          <el-select v-model="hierarchyQuery.user_type" size="small" clearable placeholder="用户类型">
+            <el-option label="C1 会员" value="c1" />
+            <el-option label="C2 普通用户" value="c2" />
+            <el-option label="其他普通用户" value="ordinary" />
+          </el-select>
+          <el-select v-model="hierarchyQuery.binding_status" size="small" clearable placeholder="绑定状态">
+            <el-option label="已绑定门店" value="bound" />
+            <el-option label="未绑定门店" value="unbound" />
+          </el-select>
+          <el-button size="small" type="primary" icon="el-icon-search" @click="loadHierarchy(true)">查询</el-button>
+        </div>
+        <el-table v-loading="loading" :data="hierarchy" size="small" border>
+          <el-table-column prop="uid" label="UID" width="85" />
+          <el-table-column label="用户" min-width="170">
+            <template slot-scope="{ row }">
+              <div>{{ row.customer.nickname || '-' }}</div>
+              <small>{{ row.customer.phone_masked || '-' }}</small>
+            </template>
+          </el-table-column>
+          <el-table-column label="身份" width="125">
+            <template slot-scope="{ row }"><el-tag size="mini" :type="row.user_type === 'c1' ? 'success' : (row.user_type === 'c2' ? 'warning' : 'info')">{{ row.user_type_label }}</el-tag></template>
+          </el-table-column>
+          <el-table-column label="关系层级" min-width="290">
+            <template slot-scope="{ row }">
+              <div v-if="row.user_type === 'c2'" class="hierarchy-chain">
+                <span class="node current">C2 {{ row.uid }}</span><i class="el-icon-right" />
+                <span class="node">C1 {{ row.referrer_uid }} · {{ (row.referrer && row.referrer.nickname) || '-' }}</span><i class="el-icon-right" />
+                <span class="node store">{{ (row.store && row.store.name) || '未绑定门店' }}</span>
+              </div>
+              <div v-else class="hierarchy-chain">
+                <span class="node current">{{ row.user_type === 'c1' ? 'C1 会员' : '普通用户' }} {{ row.uid }}</span><i class="el-icon-right" />
+                <span class="node store">{{ (row.store && row.store.name) || '未绑定门店' }}</span>
+              </div>
+            </template>
+          </el-table-column>
+          <el-table-column prop="direct_parent_label" label="直接上级" min-width="150" />
+          <el-table-column label="绑定状态" width="125">
+            <template slot-scope="{ row }"><el-tag size="mini" :type="row.binding_status === 'bound' ? 'success' : 'info'">{{ row.binding_status_label }}</el-tag></template>
+          </el-table-column>
+          <el-table-column prop="active_child_count" label="下级数" width="75" />
+          <el-table-column label="操作" width="120" fixed="right">
+            <template slot-scope="{ row }">
+              <el-button v-if="canRevokeParent && row.can_revoke_parent" type="text" class="danger-action" @click="revokeParent(row)">撤销上级</el-button>
+              <el-tooltip v-else-if="canRevokeParent && row.revoke_block_reason" :content="row.revoke_block_reason" placement="left">
+                <span class="disabled-action">不可撤销</span>
+              </el-tooltip>
+              <span v-else>-</span>
+            </template>
+          </el-table-column>
+        </el-table>
+        <el-pagination class="pager" layout="total, prev, pager, next" :total="hierarchyTotal" :page-size="hierarchyQuery.limit" :current-page.sync="hierarchyQuery.page" @current-change="loadHierarchy" />
+      </el-tab-pane>
+
+      <el-tab-pane label="门店与合伙人" name="stores">
+        <div class="toolbar">
+          <el-input v-model="storeQuery.keyword" size="small" clearable placeholder="门店 ID / 名称" />
+          <el-select v-model="storeQuery.status" size="small" clearable placeholder="门店状态">
+            <el-option label="营业中" value="active" />
+            <el-option label="已停用" value="disabled" />
+          </el-select>
+          <el-button size="small" type="primary" icon="el-icon-search" @click="loadStores(true)">查询</el-button>
+        </div>
+        <el-table v-loading="loading" :data="stores" size="small" border>
+          <el-table-column prop="store_id" label="门店 ID" width="90" />
+          <el-table-column prop="store.name" label="门店" min-width="170" />
+          <el-table-column prop="store.district" label="地址" min-width="200" />
+          <el-table-column label="状态" width="90"><template slot-scope="{ row }"><el-tag size="mini" :type="row.status === 'active' ? 'success' : 'info'">{{ row.status_label }}</el-tag></template></el-table-column>
+          <el-table-column prop="partner_count" label="合伙人数" width="100" />
+          <el-table-column label="加盟该门店的合伙人" min-width="300">
+            <template slot-scope="{ row }">
+              <div v-if="row.partners.length" class="partner-list">
+                <div v-for="item in row.partners" :key="item.uid" class="partner-item">
+                  <strong>{{ item.uid }} · {{ item.partner.nickname || '-' }}</strong>
+                  <small>{{ item.partner.phone_masked || '-' }} · {{ item.role_labels.join(' / ') }}</small>
+                </div>
+              </div>
+              <span v-else class="muted">暂无有效加盟合伙人</span>
+            </template>
+          </el-table-column>
+        </el-table>
+        <el-pagination class="pager" layout="total, prev, pager, next" :total="storeTotal" :page-size="storeQuery.limit" :current-page.sync="storeQuery.page" @current-change="loadStores" />
+      </el-tab-pane>
+
       <el-tab-pane label="客户归属" name="attribution">
         <div class="toolbar">
           <el-input v-model="attributionQuery.uid" size="small" clearable placeholder="用户 UID" />
@@ -112,6 +199,9 @@ import {
   yfthHqAuthorityReferralDetail,
   yfthHqAuthorityReferralEvents,
   yfthHqAuthorityReferralList,
+  yfthRelationshipRevokeParent,
+  yfthRelationshipStoreHierarchy,
+  yfthRelationshipUserHierarchy,
 } from '@/api/yfth';
 const { createRequestGeneration } = require('./requestGeneration');
 
@@ -119,8 +209,14 @@ export default {
   name: 'YfthHqAuthorityRead',
   data() {
     return {
-      activeTab: 'attribution',
+      activeTab: 'hierarchy',
       loading: false,
+      hierarchyQuery: { keyword: '', store_id: '', user_type: '', binding_status: '', page: 1, limit: 20 },
+      hierarchy: [],
+      hierarchyTotal: 0,
+      storeQuery: { keyword: '', status: '', page: 1, limit: 20 },
+      stores: [],
+      storeTotal: 0,
       attributionQuery: { uid: '', store_id: '', status: '', page: 1, limit: 20 },
       attributionDates: [],
       attributions: [],
@@ -145,6 +241,9 @@ export default {
     },
     canAuditReferral() {
       return this.isSuperAdmin || (this.uniqueAuth || []).includes('yfth-hq-authority-referral-audit');
+    },
+    canRevokeParent() {
+      return this.isSuperAdmin || (this.uniqueAuth || []).includes('yfth-hq-relationship-parent-revoke');
     },
     detailFields() {
       if (!this.detail) return [];
@@ -184,7 +283,7 @@ export default {
     this.requestGeneration = createRequestGeneration();
   },
   mounted() {
-    this.loadAttributions(true);
+    this.loadHierarchy(true);
   },
   beforeDestroy() {
     this.requestGeneration.destroy();
@@ -194,8 +293,46 @@ export default {
     loadCurrent() {
       this.requestGeneration.invalidateAll();
       this.clearSensitiveState();
-      if (this.activeTab === 'attribution') this.loadAttributions();
+      if (this.activeTab === 'hierarchy') this.loadHierarchy();
+      else if (this.activeTab === 'stores') this.loadStores();
+      else if (this.activeTab === 'attribution') this.loadAttributions();
       else this.loadReferrals();
+    },
+    loadHierarchy(reset) {
+      if (reset === true) this.hierarchyQuery.page = 1;
+      const params = this.compactQuery(this.hierarchyQuery);
+      const identity = `hierarchy:${JSON.stringify(params)}`;
+      const ticket = this.requestGeneration.next('hierarchy-list', identity);
+      this.hierarchy = [];
+      this.hierarchyTotal = 0;
+      this.loading = true;
+      yfthRelationshipUserHierarchy(params).then((res) => {
+        if (!this.requestGeneration.isCurrent(ticket, identity)) return;
+        this.hierarchy = (res.data && res.data.list) || [];
+        this.hierarchyTotal = Number((res.data && res.data.count) || 0);
+      }).catch(() => {
+        if (this.requestGeneration.isCurrent(ticket, identity)) this.failClosed();
+      }).finally(() => {
+        if (this.requestGeneration.isCurrent(ticket, identity)) this.loading = false;
+      });
+    },
+    loadStores(reset) {
+      if (reset === true) this.storeQuery.page = 1;
+      const params = this.compactQuery(this.storeQuery);
+      const identity = `stores:${JSON.stringify(params)}`;
+      const ticket = this.requestGeneration.next('store-list', identity);
+      this.stores = [];
+      this.storeTotal = 0;
+      this.loading = true;
+      yfthRelationshipStoreHierarchy(params).then((res) => {
+        if (!this.requestGeneration.isCurrent(ticket, identity)) return;
+        this.stores = (res.data && res.data.list) || [];
+        this.storeTotal = Number((res.data && res.data.count) || 0);
+      }).catch(() => {
+        if (this.requestGeneration.isCurrent(ticket, identity)) this.failClosed();
+      }).finally(() => {
+        if (this.requestGeneration.isCurrent(ticket, identity)) this.loading = false;
+      });
     },
     loadAttributions(reset) {
       if (reset === true) this.attributionQuery.page = 1;
@@ -288,6 +425,44 @@ export default {
         if (this.requestGeneration.isCurrent(ticket, identity)) this.failClosed();
       });
     },
+    revokeParent(row) {
+      if (!this.canRevokeParent || !row.can_revoke_parent || !row.attribution_id) return;
+      const chain = row.user_type === 'c2'
+        ? `C2 ${row.uid} → C1 ${row.referrer_uid} → ${(row.store && row.store.name) || '门店'}`
+        : `${row.user_type === 'c1' ? 'C1 会员' : '用户'} ${row.uid} → ${(row.store && row.store.name) || '门店'}`;
+      this.$prompt(
+        `即将撤销：${chain}。撤销后该用户为“未绑定门店”，需重新扫门店码绑定。请填写撤销原因：`,
+        '撤销上级关系',
+        {
+          confirmButtonText: '确认撤销',
+          cancelButtonText: '取消',
+          inputPlaceholder: '必填，将记入审计日志',
+          inputValidator: (value) => {
+            const text = String(value || '').trim();
+            if (!text) return '请填写撤销原因';
+            if (text.length > 255) return '撤销原因不能超过 255 个字';
+            return true;
+          },
+          type: 'warning',
+        }
+      ).then(({ value }) => {
+        const nonce = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+        const requestId = `hq-parent-revoke:${row.attribution_id}:${nonce}`.slice(0, 64);
+        this.loading = true;
+        return yfthRelationshipRevokeParent(row.attribution_id, {
+          reason: String(value || '').trim(),
+          request_id: requestId,
+          idempotency_key: requestId,
+        }).then(() => {
+          this.$message.success('上级关系已撤销，用户当前未绑定门店');
+          this.loadHierarchy();
+        }).finally(() => {
+          this.loading = false;
+        });
+      }).catch((error) => {
+        if (error !== 'cancel' && error !== 'close') this.loadHierarchy();
+      });
+    },
     compactQuery(query) {
       return Object.keys(query).reduce((result, key) => {
         if (query[key] !== '' && query[key] !== null && query[key] !== undefined) result[key] = query[key];
@@ -310,6 +485,10 @@ export default {
     },
     clearSensitiveState() {
       this.loading = false;
+      this.hierarchy = [];
+      this.hierarchyTotal = 0;
+      this.stores = [];
+      this.storeTotal = 0;
       this.attributions = [];
       this.attributionTotal = 0;
       this.referrals = [];
@@ -334,12 +513,20 @@ export default {
 </script>
 
 <style scoped>
-.hq-authority-readonly { padding: 16px; }
+.hq-authority-management { padding: 16px; }
 .toolbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 14px 0 12px; }
 .toolbar .el-input, .toolbar .el-select { width: 150px; }
 .toolbar .el-date-editor { width: 260px; }
 .pager { margin-top: 14px; text-align: right; }
 .drawer-body { padding: 0 24px 24px; }
 .event-line { color: #606266; margin-top: 5px; }
+.hierarchy-chain { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
+.hierarchy-chain .node { padding: 3px 7px; border-radius: 4px; background: #f5f7fa; color: #606266; }
+.hierarchy-chain .current { background: #ecf5ff; color: #409eff; }
+.hierarchy-chain .store { background: #f0f9eb; color: #67c23a; }
+.partner-list { display: flex; flex-direction: column; gap: 8px; padding: 4px 0; }
+.partner-item { display: flex; flex-direction: column; }
+.danger-action { color: #f56c6c; }
+.disabled-action, .muted { color: #909399; font-size: 12px; }
 small { color: #909399; }
 </style>

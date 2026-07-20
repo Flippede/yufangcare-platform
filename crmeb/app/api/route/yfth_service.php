@@ -43,6 +43,7 @@ Route::group(function () {
 
 Route::group(function () {
     Route::get('yfth/package_membership/me', 'v1.yfth.PackageMembershipReferralController/me')->option(['real_name' => 'YFTH package membership status']);
+    Route::post('yfth/package_membership/store_qr_bind', 'v1.yfth.PackageMembershipReferralController/bindStoreFromQr')->option(['real_name' => 'YFTH customer scan store QR binding']);
     Route::post('yfth/package_membership/invite', 'v1.yfth.PackageMembershipReferralController/issueInvite')->option(['real_name' => 'YFTH direct referral invite issue']);
     Route::post('yfth/package_membership/invite/accept', 'v1.yfth.PackageMembershipReferralController/acceptInvite')->option(['real_name' => 'YFTH direct referral invite accept']);
     Route::get('yfth/package_membership/candidate', 'v1.yfth.PackageMembershipReferralController/candidates')->option(['real_name' => 'YFTH my reward candidates']);

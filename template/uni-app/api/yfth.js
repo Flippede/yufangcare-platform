@@ -388,6 +388,10 @@ export function getYfthPackageMembershipMe() {
 	return request.get('yfth/package_membership/me');
 }
 
+export function bindYfthStoreFromQr(data) {
+	return request.post('yfth/package_membership/store_qr_bind', data || {});
+}
+
 export function issueYfthDirectReferralInvite(data) {
 	return request.post('yfth/package_membership/invite', data || {});
 }
