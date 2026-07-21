@@ -21,7 +21,7 @@ const api = read('api/yfth.js');
 assertContains(pages, '"path": "package/list"', 'package_list_page_registered');
 assertContains(userCenter, 'goYfthPackagePurchase', 'user_center_has_package_purchase_entry');
 assertContains(userCenter, "url: '/pages/yfth/package/list'", 'user_center_opens_package_list');
-assertContains(membership, 'v-if="!isMember"', 'non_member_purchase_panel_exists');
+assertContains(membership, "isMember ? '再次购买康养套餐'", 'member_repeat_purchase_panel_exists');
 assertContains(membership, 'goPurchase()', 'membership_has_package_purchase_action');
 assertContains(membership, "url: '/pages/yfth/package/list'", 'membership_opens_package_list');
 assertContains(list, 'getYfthPackageList', 'package_list_uses_public_api');
@@ -32,12 +32,12 @@ assertContains(stores, "url: '/pages/yfth/package/agreement_confirm?id=' + this.
 assertContains(agreement, "url: '/pages/yfth/package/payment_confirm?id=' + this.id + '&store_id=' + this.storeId", 'agreement_opens_payment_confirmation');
 assertContains(payment, 'createYfthPackageIntent', 'payment_uses_existing_intent');
 assertContains(payment, 'createYfthPackageOrder', 'payment_uses_existing_crmeb_order');
-assertContains(detail, 'getYfthPackageSimulationContext', 'simulation_detail_loads_authoritative_store');
-assertContains(detail, '上级商家', 'simulation_detail_displays_authoritative_store');
-assertContains(payment, 'simulateYfthPackagePurchase', 'simulation_payment_uses_controlled_endpoint');
-assertContains(payment, '确认0.1元模拟购买', 'simulation_purchase_action_is_visible');
-assertContains(payment, 'v-if="!simulation"', 'simulation_does_not_mount_real_payment_component');
+assertContains(detail, '已是会员也可以再次购买', 'detail_explains_repeat_purchase');
+assertContains(payment, '确认并支付', 'formal_payment_action_is_visible');
+assertContains(payment, '<payment', 'formal_payment_component_is_mounted');
+assertContains(payment, '每笔订单分别生成套餐权益', 'repeat_purchase_creates_independent_benefits');
 assertContains(api, "request.get('yfth/package/list'", 'public_package_list_api_exists');
+if (api.includes('yfth/package/simulate')) failures.push('simulation_api_must_not_be_exposed');
 
 if (failures.length) {
   failures.forEach((failure) => console.error(`[FAIL] ${failure}`));

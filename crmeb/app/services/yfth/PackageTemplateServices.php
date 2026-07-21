@@ -13,9 +13,13 @@ use app\dao\yfth\YfthPackageRuleVersionDao;
 use app\dao\yfth\YfthPackageTemplateDao;
 use crmeb\exceptions\AdminException;
 use crmeb\exceptions\ApiException;
+use think\facade\Db;
 
 class PackageTemplateServices extends PackageBenefitBaseServices
 {
+    private const MANAGED_MEMBER_PACKAGE_CODE = 'YFTH-MEMBER-PACKAGE-V1';
+    private const MANAGED_MEMBER_PRODUCT_BARCODE = 'YFTHPKG9800';
+
     public function __construct(YfthPackageTemplateDao $dao)
     {
         $this->dao = $dao;
@@ -112,6 +116,7 @@ class PackageTemplateServices extends PackageBenefitBaseServices
                     'publish_time' => time(),
                     'update_time' => time(),
                 ]);
+                $this->syncManagedMemberPackageBinding((int)$data['template_id'], $objectId, (string)$data['package_price']);
             }
             $after = $id ? $ruleDao->get($id)->toArray() : array_merge($data, ['id' => $objectId]);
             if ($superseded) {
@@ -128,6 +133,73 @@ class PackageTemplateServices extends PackageBenefitBaseServices
             $this->recordPackageAudit('package_rule_version', (string)$objectId, $id ? 'update' : 'create', $before ? $before->toArray() : [], $after, $operatorUid, 'admin');
             return $result;
         });
+    }
+
+    /**
+     * The public member package uses one dedicated CRMEB SKU. Publishing a
+     * version updates that SKU and creates a new immutable binding snapshot so
+     * old purchases continue to retain their original price and rule version.
+     */
+    private function syncManagedMemberPackageBinding(int $templateId, int $ruleVersionId, string $price): void
+    {
+        $template = $this->requireRow($this->dao->get($templateId), 'package_template_not_found');
+        if ((string)$template['package_code'] !== self::MANAGED_MEMBER_PACKAGE_CODE) {
+            return;
+        }
+
+        $product = Db::name('store_product')->where('bar_code', self::MANAGED_MEMBER_PRODUCT_BARCODE)->lock(true)->find();
+        if (!$product) {
+            throw new AdminException('managed_member_package_product_missing_run_migration_first');
+        }
+        $sku = Db::name('store_product_attr_value')->where('product_id', (int)$product['id'])
+            ->where('type', 0)->where('is_show', 1)->order('is_default_select desc,id asc')->lock(true)->find();
+        if (!$sku || empty($sku['unique'])) {
+            throw new AdminException('managed_member_package_sku_missing_run_migration_first');
+        }
+
+        $price = number_format((float)$price, 2, '.', '');
+        Db::name('store_product')->where('id', (int)$product['id'])->update([
+            'price' => $price,
+            'ot_price' => $price,
+        ]);
+        Db::name('store_product_attr_value')->where('id', (int)$sku['id'])->update([
+            'price' => $price,
+            'ot_price' => $price,
+        ]);
+
+        Db::name('yfth_package_product_binding')->where('template_id', $templateId)
+            ->where('binding_status', 'active')->update([
+                'binding_status' => 'disabled',
+                'active_key' => null,
+                'update_time' => time(),
+            ]);
+        $where = [
+            'template_id' => $templateId,
+            'rule_version_id' => $ruleVersionId,
+            'product_id' => (int)$product['id'],
+            'product_attr_unique' => (string)$sku['unique'],
+        ];
+        $snapshot = json_encode([
+            'product_id' => (int)$product['id'],
+            'product_name' => (string)$product['store_name'],
+            'sku_unique' => (string)$sku['unique'],
+            'sku_name' => (string)$sku['suk'],
+            'sku_price' => $price,
+            'rule_version_id' => $ruleVersionId,
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        $binding = Db::name('yfth_package_product_binding')->where($where)->lock(true)->find();
+        $values = [
+            'sku_price_snapshot' => $price,
+            'product_snapshot' => $snapshot,
+            'binding_status' => 'active',
+            'active_key' => (int)$product['id'] . ':' . (string)$sku['unique'],
+            'update_time' => time(),
+        ];
+        if ($binding) {
+            Db::name('yfth_package_product_binding')->where('id', (int)$binding['id'])->update($values);
+        } else {
+            Db::name('yfth_package_product_binding')->insert(array_merge($where, $values, ['add_time' => time()]));
+        }
     }
 
     public function saveProductBinding(array $data, int $operatorUid = 0)

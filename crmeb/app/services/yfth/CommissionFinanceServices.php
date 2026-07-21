@@ -20,12 +20,39 @@ class CommissionFinanceServices
         $account = $this->userAccount($uid);
         $observingCent = (int)Db::name('yfth_commission_accrual')->where('c1_uid', $uid)
             ->where('status', 'observing')->sum('c1_amount_cent');
+        $packageRewards = Db::name('yfth_commission_accrual')->where('c1_uid', $uid)
+            ->where('source_type', 'package_activation')->order('id desc')->limit(20)->select()->toArray();
+        $packageRewards = array_map(function (array $row) {
+            $buyer = $this->row(Db::name('user')->where('uid', (int)$row['buyer_uid'])
+                ->field('nickname,phone,avatar')->find());
+            return [
+                'buyer' => [
+                    'nickname' => (string)($buyer['nickname'] ?? ''),
+                    'phone_masked' => $this->maskPhone((string)($buyer['phone'] ?? '')),
+                    'avatar' => (string)($buyer['avatar'] ?? ''),
+                ],
+                'ratio_bps' => (int)$row['c1_ratio_bps'],
+                'ratio_percent' => $this->ratioPercent((int)$row['c1_ratio_bps']),
+                'amount_cent' => (int)$row['c1_amount_cent'],
+                'amount' => $this->money((int)$row['c1_amount_cent']),
+                'status' => (string)$row['status'],
+                'package_sequence_no' => (int)($row['package_sequence_no'] ?? 0),
+                'due_at' => (int)$row['due_at'],
+                'add_time' => (int)$row['add_time'],
+            ];
+        }, $packageRewards);
         return [
             'account' => $this->moneyDto($account, ['available_cent', 'frozen_cent', 'withdrawn_cent']),
             'observing_cent' => $observingCent,
             'observing' => $this->money($observingCent),
+            'recent_package_rewards' => $packageRewards,
             'notice' => '御方通和推荐收益由责任门店线下结算，不进入商城余额或积分。',
         ];
+    }
+
+    private function ratioPercent(int $basisPoints): string
+    {
+        return rtrim(rtrim(number_format($basisPoints / 100, 2, '.', ''), '0'), '.');
     }
 
     public function userLedger(int $uid, array $where = []): array

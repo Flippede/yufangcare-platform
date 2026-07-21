@@ -12,8 +12,8 @@ class HqAcceptanceFixtureServices
     private const STORE_NAME = 'TEST 隔离测试 B1 门店';
     private const STORE_PHONE = '19999100000';
     private const SUBJECT_CREDIT_CODE = 'YFTHTESTB1SUBJECT01';
-    public const PACKAGE_CODE = 'YFTH-TEST-PACKAGE-V1';
-    public const SIMULATED_PACKAGE_PRICE = '0.10';
+    public const PACKAGE_CODE = 'YFTH-MEMBER-PACKAGE-V1';
+    public const MEMBER_PACKAGE_PRICE = '9800.00';
     private const PACKAGE_PURCHASE_NO = 'YFTH-TEST-PURCHASE-V1';
     private const PACKAGE_INSTANCE_NO = 'YFTH-TEST-INSTANCE-V1';
 
@@ -457,57 +457,13 @@ class HqAcceptanceFixtureServices
     private function ensurePackageRule(int $adminId): array
     {
         $template = Db::name('yfth_package_template')->where('package_code', self::PACKAGE_CODE)->find();
-        $templateData = [
-            'package_code' => self::PACKAGE_CODE,
-            'package_name' => '0.1元模拟购买套餐',
-            'package_title' => 'TEST 0.1元模拟购买套餐（不发起真实支付）',
-            'package_type' => 'health_package',
-            'base_price' => self::SIMULATED_PACKAGE_PRICE,
-            'currency' => 'CNY',
-            'benefit_months' => 10,
-            'service_summary' => self::MARKER . ' 仅用于受控模拟购买和会员流程验收。',
-            'agreement_title' => '0.1元模拟套餐购买协议',
-            'agreement_content' => self::MARKER . ' 本套餐不发起真实支付，不产生真实扣款。',
-            'status' => 'published',
-            'sort' => -1000,
-        ];
-        if ($template) {
-            $templateData['id'] = (int)$template['id'];
+        if (!$template) throw new AdminException('formal_member_package_missing_run_migration_first');
+        $rule = Db::name('yfth_package_rule_version')->where('template_id', (int)$template['id'])
+            ->where('status', 'published')->order('version_no desc,id desc')->find();
+        if (!$rule || (int)($rule['grants_permanent_membership'] ?? 0) !== 1) {
+            throw new AdminException('formal_member_package_rule_missing');
         }
-        $savedTemplate = app()->make(PackageTemplateServices::class)->saveTemplate($templateData, $adminId);
-        $templateId = $template ? (int)$template['id'] : (int)$savedTemplate->id;
-
-        $rule = Db::name('yfth_package_rule_version')->where('template_id', $templateId)
-            ->where('status', 'published')->find();
-        $ruleSnapshot = $rule ? json_decode((string)($rule['benefit_rule_snapshot'] ?? ''), true) : [];
-        $ruleReady = $rule
-            && number_format((float)$rule['package_price'], 2, '.', '') === self::SIMULATED_PACKAGE_PRICE
-            && (int)($rule['grants_permanent_membership'] ?? 0) === 1
-            && (string)($ruleSnapshot['test_marker'] ?? '') === self::MARKER
-            && !empty($ruleSnapshot['simulation_only']);
-        if (!$ruleReady) {
-            $version = (int)Db::name('yfth_package_rule_version')->where('template_id', $templateId)->max('version_no') + 1;
-            $savedRule = app()->make(PackageTemplateServices::class)->saveRuleVersion([
-                'template_id' => $templateId,
-                'version_no' => $version,
-                'rule_code' => 'YFTH-TEST-PACKAGE-RULE-V' . $version,
-                'status' => 'published',
-                'package_price' => self::SIMULATED_PACKAGE_PRICE,
-                'month_count' => 10,
-                'grants_permanent_membership' => 1,
-                'benefit_rule_snapshot' => [
-                    'test_marker' => self::MARKER,
-                    'simulation_only' => true,
-                    'real_payment_created' => false,
-                ],
-                'agreement_title' => '0.1元模拟套餐购买协议',
-                'agreement_content' => self::MARKER . ' 本套餐不发起真实支付，不产生真实扣款。',
-            ], $adminId);
-            $ruleId = (int)$savedRule->id;
-        } else {
-            $ruleId = (int)$rule['id'];
-        }
-        return [$templateId, $ruleId];
+        return [(int)$template['id'], (int)$rule['id']];
     }
 
     private function ensurePermanentMember(int $uid, int $storeId, int $templateId, int $ruleId): array
@@ -521,8 +477,8 @@ class HqAcceptanceFixtureServices
                 'store_id' => $storeId,
                 'template_id' => $templateId,
                 'rule_version_id' => $ruleId,
-                'expected_pay_price' => self::SIMULATED_PACKAGE_PRICE,
-                'order_pay_price' => self::SIMULATED_PACKAGE_PRICE,
+                'expected_pay_price' => self::MEMBER_PACKAGE_PRICE,
+                'order_pay_price' => self::MEMBER_PACKAGE_PRICE,
                 'payment_scene' => 'package_order',
                 'route_snapshot' => json_encode(['test_marker' => self::MARKER], JSON_UNESCAPED_UNICODE),
                 'validation_snapshot' => json_encode(['test_marker' => self::MARKER], JSON_UNESCAPED_UNICODE),
@@ -564,7 +520,7 @@ class HqAcceptanceFixtureServices
                 app()->make(PackageMembershipActivationCoordinator::class)->activateInTransaction(
                     $purchase,
                     [
-                        'order_pay_price' => (string)($purchase['order_pay_price'] ?? self::SIMULATED_PACKAGE_PRICE),
+                        'order_pay_price' => (string)($purchase['order_pay_price'] ?? self::MEMBER_PACKAGE_PRICE),
                         'currency' => 'CNY',
                         'paid_time' => time(),
                         'grants_permanent_membership' => 1,

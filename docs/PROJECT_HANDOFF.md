@@ -1,5 +1,15 @@
 # 项目交接文档
 
+## Current Fact Snapshot - 9800 Member Package And Repeat Purchase V1
+
+- Development branch: `codex/yfth-package-repeat-purchase-v1`; baseline: the latest `origin/main` after confirming every local and remote feature branch is already contained in main. Final feature/main/production commits must be read from Git after commit, fast-forward merge, push and deployment.
+- The former controlled `0.10` no-payment package entry is retired from the public API and mobile client. The public package is promoted to `YFTH-MEMBER-PACKAGE-V1` with an initial price of `9800.00` and uses the existing CRMEB product, SKU, order and payment flow.
+- Headquarters changes the package price by copying and publishing a new immutable rule version in `御方通和 -> 套餐与权益`. Publishing synchronizes the dedicated package product/SKU and creates a new binding snapshot; historical purchases keep their original price and rule version.
+- Permanent membership is idempotent but package purchases are repeatable. Existing members continue to see the purchase entry, and each successful paid order creates an independent purchase, package instance and benefit plan without replacing previous benefits.
+- The first active C1-to-C2 package conversion continues to use the frozen 15%/25%/60% sequence rule before the referral closes. C1's commission page now exposes the masked buyer, frozen percentage, amount and processing status without returning raw user IDs.
+- Actual local validation passed: PHP 7.4 syntax; package-benefit, package-membership/referral, automatic-commission and purchase-entry contracts; isolated MySQL Community 8.0.46 migration promotion/idempotency and immutable price-version synchronization; Admin, H5 and mp-weixin production builds; sensitive scan; and `git diff --check`.
+- Production deployment status must be read from the final Git and deployment record after the controlled merge and release. No real payment, SMS or WeChat operation is part of this change.
+
 ## Current Fact Snapshot - Automatic Commission Admin Entry Closure
 
 - The headquarters Admin entry is `御方通和康养服务 -> 佣金与结算`; it is separate from CRMEB legacy distribution, commission records and withdrawal pages.
@@ -37,6 +47,8 @@
 - Actual validation passed for PHP 7.4 syntax, focused contracts, isolated MySQL Community 8.0.46 migration run/targeted rollback/rerun, 0-day and nonzero observation flows, ordinary mall and package 15%/25%/60% commission, refund reversal, C1 same-store settlement by manager/staff, cross-store rejection, B1 batch state/callback idempotency, Admin/H5/mp-weixin builds, and CRMEB balance isolation. Next gate remains independent architecture review; do not merge main, run production migration/backfill, deploy production or invoke real WeChat profit sharing.
 
 ## Current Fact Snapshot - Controlled 0.1 Yuan Simulated Package Purchase V1
+
+> Retired by `9800 Member Package And Repeat Purchase V1`. This section is retained only as historical context; its mobile routes and no-payment purchase entry are no longer available.
 
 - A controlled simulation path is available only for the marked `YFTH-TEST-PACKAGE-V1` acceptance package while the dedicated `YFTH_SIMULATED_PACKAGE_PURCHASE_ENABLED` switch is enabled. The separate acceptance-fixture generation/reset switch can remain disabled. The package price is `0.10` yuan, but the flow does not create a CRMEB `store_order`, invoke WeChat payment, send SMS, or perform a real deduction.
 - A non-member must already have an authoritative active YFTH store attribution. The detail, agreement and confirmation pages display that server-resolved upstream merchant directly and do not accept a client-selected store. An unbound user, an existing permanent member, a disabled test switch, or a non-test package fails closed.

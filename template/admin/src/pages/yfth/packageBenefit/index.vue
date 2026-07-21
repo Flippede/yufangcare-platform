@@ -36,7 +36,7 @@
                   type="text"
                   icon="el-icon-document-copy"
                   @click="copyCurrentRule(scope.row)"
-                  >复制规则</el-button
+                  >修改价格/规则</el-button
                 >
               </template>
             </el-table-column>
@@ -197,6 +197,13 @@
     </el-dialog>
 
     <el-dialog :visible.sync="dialogs.rule" title="规则版本" width="640px">
+      <el-alert
+        title="发布新版本后，套餐专用商品与SKU价格会同步更新；历史订单仍保留原价格和规则快照。"
+        type="warning"
+        :closable="false"
+        show-icon
+        class="ivu-mb-16"
+      />
       <el-form label-width="120px">
         <el-form-item label="模板ID"><el-input v-model="forms.rule.template_id" /></el-form-item>
         <el-form-item label="版本号"
@@ -445,9 +452,10 @@ export default {
       });
     },
     copyCurrentRule(row) {
-      yfthPackageRuleCopy(row.current_rule.id).then(() => {
-        this.$message.success('已复制为新草稿版本');
-        this.loadTemplates();
+      yfthPackageRuleCopy(row.current_rule.id).then((res) => {
+        this.forms.rule = Object.assign({}, (res && res.data) || {}, { status: 'draft' });
+        this.dialogs.rule = true;
+        this.$message.success('已复制为新草稿，请修改价格或规则后发布');
       });
     },
     openBinding() {

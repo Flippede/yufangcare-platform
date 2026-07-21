@@ -14,9 +14,9 @@
 				<view class="sub" v-else>购买并成功激活后获得永久会员资格</view>
 			</view>
 
-			<view v-if="!isMember" class="panel purchase-panel">
-				<view class="panel-title">购买康养套餐</view>
-				<view class="muted">从已发布套餐中选择服务门店，确认协议后使用现有商城支付能力完成购买。</view>
+			<view class="panel purchase-panel">
+				<view class="panel-title">{{ isMember ? '再次购买康养套餐' : '购买康养套餐' }}</view>
+				<view class="muted">{{ isMember ? '永久会员仍可重复购买，每笔订单分别生成新的套餐权益。' : '从已发布套餐中选择服务门店，确认协议后使用现有商城支付能力完成购买。' }}</view>
 				<button class="primary wide" @click="goPurchase">查看可购买套餐</button>
 			</view>
 

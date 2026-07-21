@@ -65,14 +65,6 @@ export function getYfthPurchaseStatus(purchaseNo) {
 	return request.get('yfth/package/purchase/' + purchaseNo);
 }
 
-export function getYfthPackageSimulationContext(id) {
-	return request.get('yfth/package/simulation_context/' + id);
-}
-
-export function simulateYfthPackagePurchase(data) {
-	return request.post('yfth/package/simulate', data || {});
-}
-
 export function getYfthMyPackages(data) {
 	return request.get('yfth/package/my', data || {});
 }
