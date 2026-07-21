@@ -166,6 +166,25 @@ class HqUserRoleManagementServices
         return $this->grant($uid, $data, $adminId, $adminInfo);
     }
 
+    public function revokeMembership(int $uid, array $data, int $adminId, array $adminInfo): array
+    {
+        $this->assertHeadquarters($adminInfo);
+        $this->user($uid);
+        if (trim((string)($data['confirmation'] ?? '')) !== '确认解除会员') {
+            throw new ApiException('membership_revoke_confirmation_invalid');
+        }
+        $reason = $this->reason($data);
+        if (mb_strlen($reason) < 4) {
+            throw new ApiException('membership_revoke_reason_too_short');
+        }
+        return $this->membership->revokeByHeadquarters(
+            $uid,
+            $adminId,
+            $reason,
+            $this->requestId($data)
+        );
+    }
+
     public function revoke(int $roleId, array $data, int $adminId, array $adminInfo): array
     {
         $this->assertHeadquarters($adminInfo);

@@ -40,6 +40,10 @@ export function yfthUserMembershipGrant(uid, data) {
   return request({ url: `yfth/user_role/user/${uid}/membership/grant`, method: 'post', data });
 }
 
+export function yfthUserMembershipRevoke(uid, data) {
+  return request({ url: `yfth/user_role/user/${uid}/membership/revoke`, method: 'post', data });
+}
+
 export function yfthPartnerGrantOptions(params) {
   return request({ url: 'yfth/user_role/partner/grant_options', method: 'get', params });
 }

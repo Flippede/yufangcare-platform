@@ -59,6 +59,7 @@
         <template slot-scope="{ row }">
           <el-button type="text" @click="openDetail(row)">查看</el-button>
           <el-button v-if="!row.permanent_member" type="text" @click="openGrant(row, 'permanent_member')">授权会员</el-button>
+          <el-button v-else type="text" class="danger" @click="openMembershipRevoke(row)">解除会员</el-button>
           <el-button v-if="!(row.partner_identity && row.partner_identity.active)" type="text" @click="openPartnerGrant(row)">授予合伙人</el-button>
           <el-button type="text" @click="openGrant(row)">店长/店员</el-button>
           <el-button type="text" class="danger" @click="openClosure(row)">账号销户</el-button>
@@ -70,7 +71,7 @@
     <el-dialog title="用户经营身份" :visible.sync="detailVisible" width="720px">
       <div v-if="detail" class="detail-head"><b>{{ detail.nickname || detail.account || '-' }}</b><span>UID {{ detail.uid }}</span><span>{{ detail.phone_masked }}</span></div>
       <div v-if="detail" class="identity-summary">
-        <div><b>基础身份</b><el-tag size="mini">顾客</el-tag><el-tag v-if="detail.permanent_member" size="mini" type="success">永久会员</el-tag><span v-else class="muted">未授权永久会员</span><el-button v-if="!detail.permanent_member" type="primary" size="mini" @click="openGrant(detail, 'permanent_member')">总部授权永久会员</el-button></div>
+        <div><b>基础身份</b><el-tag size="mini">顾客</el-tag><el-tag v-if="detail.permanent_member" size="mini" type="success">永久会员</el-tag><span v-else class="muted">未授权永久会员</span><el-button v-if="!detail.permanent_member" type="primary" size="mini" @click="openGrant(detail, 'permanent_member')">总部授权永久会员</el-button><el-button v-else type="danger" plain size="mini" @click="openMembershipRevoke(detail)">解除永久会员</el-button></div>
         <div><b>招商职级</b><span v-if="!(detail.partner_identity && detail.partner_identity.active)" class="muted">尚未授予招商合伙人身份</span><template v-else><el-tag size="mini" type="warning">{{ detail.partner_identity.rank_name }}</el-tag><span v-if="detail.partner_identity.parent_uid">直属上级：{{ detail.partner_identity.parent_name || ('UID ' + detail.partner_identity.parent_uid) }} · {{ detail.partner_identity.parent_rank_name }}</span><span v-else>总部直属（无上级）</span></template><el-button v-if="!(detail.partner_identity && detail.partner_identity.active)" type="warning" size="mini" @click="openPartnerGrant(detail)">总部授予合伙人</el-button></div>
       </div>
       <el-table :data="detail ? storeStaffRoles(detail) : []" border size="small">
@@ -90,6 +91,19 @@
         <el-form-item label="操作原因"><el-input v-model.trim="grantForm.reason" type="textarea" :rows="3" maxlength="255" show-word-limit /></el-form-item>
       </el-form>
       <span slot="footer"><el-button @click="grantVisible = false">取消</el-button><el-button type="primary" :loading="saving" @click="grant">确认授予</el-button></span>
+    </el-dialog>
+
+    <el-dialog title="解除用户永久会员" :visible.sync="membershipRevokeVisible" width="560px" :close-on-click-modal="false">
+      <div class="membership-revoke-warning">
+        <i class="el-icon-warning" aria-hidden="true" />
+        <div><b>重要：解除后该用户立即失去永久会员和推广资格。</b><p>商城订单、套餐购买、已产生权益、门店归属、奖励和财务历史不会被删除或改写。</p></div>
+      </div>
+      <el-form label-width="110px" class="membership-revoke-form">
+        <el-form-item label="目标用户"><span>{{ selected ? `${selected.nickname || selected.account || '-'}（UID ${selected.uid}）` : '' }}</span></el-form-item>
+        <el-form-item label="操作原因"><el-input v-model.trim="membershipRevokeForm.reason" type="textarea" :rows="3" maxlength="255" show-word-limit placeholder="请填写不少于4个字的解除原因" /></el-form-item>
+        <el-form-item label="二次确认"><el-input v-model.trim="membershipRevokeForm.confirmation" placeholder="请输入：确认解除会员" @keyup.enter.native="revokeMembership" /><div class="form-tip danger">必须完整输入“确认解除会员”后才能执行。</div></el-form-item>
+      </el-form>
+      <span slot="footer"><el-button @click="membershipRevokeVisible = false">取消</el-button><el-button type="danger" :disabled="!membershipRevokeReady" :loading="membershipRevokeSaving" @click="revokeMembership">确认解除会员</el-button></span>
     </el-dialog>
 
     <el-dialog title="授予招商合伙人" :visible.sync="partnerGrantVisible" width="540px" :close-on-click-modal="false">
@@ -155,6 +169,7 @@ import {
   yfthAcceptanceFixtureReset,
   yfthPartnerGrantOptions,
   yfthUserMembershipGrant,
+  yfthUserMembershipRevoke,
   yfthUserPartnerGrant,
   yfthUserAccountClosure,
   yfthUserAccountClosurePreflight,
@@ -170,6 +185,7 @@ export default {
       loading: false, saving: false, fixtureSaving: false, list: [], total: 0, stores: [], roleOptions: [],
       query: { keyword: '', page: 1, limit: 20 }, detail: null, selected: null,
       detailVisible: false, grantVisible: false, grantPresetRole: '', partnerGrantVisible: false, closureVisible: false, closureSaving: false,
+      membershipRevokeVisible: false, membershipRevokeSaving: false, membershipRevokeForm: { confirmation: '', reason: '' },
       grantForm: { store_id: '', role_code: '', reason: '' },
       partnerGrantForm: { rank_code: '', parent_uid: '', reason: '' },
       partnerRankOptions: [], partnerParentOptions: [], partnerParentRequired: false, partnerParentRankName: '', partnerOptionsLoading: false,
@@ -184,6 +200,10 @@ export default {
     staffRoleOptions() { return this.roleOptions.filter((item) => ['store_manager', 'store_staff'].includes(item.value)); },
     grantRoleLabel() { return { permanent_member: '永久会员' }[this.grantPresetRole] || '经营身份'; },
     grantDialogTitle() { return this.grantPresetRole ? `授权${this.grantRoleLabel}` : '授权店长/店员'; },
+    membershipRevokeReady() {
+      return this.membershipRevokeForm.confirmation === '确认解除会员'
+        && String(this.membershipRevokeForm.reason || '').trim().length >= 4;
+    },
     closureReady() {
       return Boolean(this.closurePreflight && this.closurePreflight.can_close
         && this.closureForm.confirmation === this.closurePreflight.confirmation_phrase
@@ -259,6 +279,26 @@ export default {
     },
     openGrant(row, presetRole) {
       this.selected = row; this.grantPresetRole = presetRole || ''; this.grantForm = { store_id: '', role_code: presetRole || '', reason: '' }; this.grantVisible = true;
+    },
+    openMembershipRevoke(row) {
+      this.selected = row;
+      this.membershipRevokeForm = { confirmation: '', reason: '' };
+      this.membershipRevokeVisible = true;
+    },
+    revokeMembership() {
+      if (!this.membershipRevokeReady || !this.selected) return;
+      this.membershipRevokeSaving = true;
+      const data = {
+        confirmation: this.membershipRevokeForm.confirmation,
+        reason: this.membershipRevokeForm.reason,
+        request_id: `hq-membership-revoke-${Date.now()}`,
+      };
+      yfthUserMembershipRevoke(this.selected.uid, data).then(() => {
+        this.$message.success('该用户的永久会员资格已解除');
+        this.membershipRevokeVisible = false;
+        this.detailVisible = false;
+        return this.load();
+      }).finally(() => { this.membershipRevokeSaving = false; });
     },
     openPartnerGrant(row) {
       this.selected = row;
@@ -372,6 +412,11 @@ export default {
 .partner-grant-form .el-select { width: 100%; }
 .revoke-icon { margin-left: 6px; cursor: pointer; }
 .danger { color: #f56c6c; }
+.membership-revoke-warning { display: flex; gap: 12px; padding: 14px 16px; color: #c45656; background: #fef0f0; border: 1px solid #fbc4c4; }
+.membership-revoke-warning .el-icon-warning { flex: 0 0 auto; margin-top: 2px; font-size: 28px; }
+.membership-revoke-warning b { display: block; line-height: 1.5; }
+.membership-revoke-warning p { margin: 6px 0 0; color: #606266; line-height: 1.6; }
+.membership-revoke-form { margin-top: 18px; }
 .closure-summary { margin-top: 16px; }
 .closure-summary p { line-height: 1.7; }
 .closure-form { margin-top: 18px; }

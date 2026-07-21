@@ -60,15 +60,19 @@ class PackageMembershipServices extends YfthFoundationBaseServices
         if ($uid <= 0) {
             return [];
         }
-        $query = $this->dao->search([])->where('uid', $uid)->where('status', 'active');
+        $query = $this->dao->search([])->where('uid', $uid);
         if ($lockPersisted) {
             $query = $query->lock(true);
         }
         $member = $this->row($query->find());
-        if ($member) {
+        if ($member && (string)$member['status'] === 'active') {
             $member['authority_type'] = 'persisted';
             $member = $this->applyCurrentBindingStore($member);
             return $member;
+        }
+        // An explicit inactive current is authoritative and blocks legacy-package fallback.
+        if ($member) {
+            return [];
         }
         $legacy = $this->legacyPackageFactForUid($uid);
         if (!$legacy) {
@@ -134,8 +138,65 @@ class PackageMembershipServices extends YfthFoundationBaseServices
         $storeId = (int)$purchase['store_id'];
         $existing = $this->row($this->dao->search([])->where('uid', $uid)->lock(true)->find());
         if ($existing) {
-            if ((string)$existing['status'] !== 'active' || (int)$existing['store_id'] !== $storeId) {
+            if ((int)$existing['store_id'] !== $storeId) {
                 throw new ApiException('permanent_membership_authority_conflict');
+            }
+            if ((string)$existing['status'] !== 'active') {
+                // A retry of the already-revoked activation must not restore membership.
+                if ((int)$existing['source_package_instance_id'] === $instanceId) {
+                    return ['member' => $existing, 'created' => false, 'revoked' => true];
+                }
+                $amountCent = $this->moneyToCents($snapshot['order_pay_price'] ?? $purchase['order_pay_price'] ?? '0.00');
+                if ($amountCent <= 0 || $instanceId <= 0) {
+                    throw new ApiException('permanent_membership_package_snapshot_invalid');
+                }
+                $now = time();
+                $version = (int)$existing['authority_version'] + 1;
+                $this->dao->update((int)$existing['id'], [
+                    'source_package_instance_id' => $instanceId,
+                    'source_purchase_id' => (int)$purchase['id'],
+                    'source_rule_version_id' => (int)$purchase['rule_version_id'],
+                    'actual_paid_amount_cent' => $amountCent,
+                    'currency' => (string)($snapshot['currency'] ?? 'CNY'),
+                    'status' => 'active',
+                    'authority_version' => $version,
+                    'source_type' => $sourceType,
+                    'activated_at' => (int)($snapshot['paid_time'] ?? 0) ?: $now,
+                    'request_id' => substr($requestId, 0, 64),
+                    'update_time' => $now,
+                ]);
+                $reactivated = $this->row($this->dao->get((int)$existing['id']));
+                $this->eventDao->save([
+                    'event_no' => $this->makeNo('YFPME'),
+                    'membership_id' => (int)$reactivated['id'],
+                    'uid' => $uid,
+                    'store_id' => $storeId,
+                    'authority_version' => $version,
+                    'event_type' => 'membership_reactivated_by_package',
+                    'source_type' => $sourceType,
+                    'source_id' => (string)$instanceId,
+                    'source_unique_key' => hash('sha256', 'membership|' . $sourceType . '|package_instance|' . $instanceId),
+                    'actual_paid_amount_cent' => $amountCent,
+                    'operator_uid' => $uid,
+                    'operator_role_code' => 'customer',
+                    'request_id' => substr($requestId, 0, 64),
+                    'add_time' => $now,
+                ]);
+                $this->audit->record(
+                    self::DOMAIN,
+                    'permanent_membership',
+                    (string)$reactivated['id'],
+                    'membership_reactivated_by_package',
+                    $this->userDto($existing),
+                    $this->userDto($reactivated),
+                    $uid,
+                    'customer',
+                    $storeId,
+                    $sourceType,
+                    $requestId
+                );
+                $this->syncCustomerProjection($reactivated, $uid, 'customer', $sourceType, $requestId);
+                return ['member' => $reactivated, 'created' => true];
             }
             $this->syncCustomerProjection($existing, $uid, 'customer', $sourceType, $requestId);
             return ['member' => $existing, 'created' => false];
@@ -237,8 +298,64 @@ class PackageMembershipServices extends YfthFoundationBaseServices
             );
             $existing = $this->row($this->dao->search([])->where('uid', $uid)->lock(true)->find());
             if ($existing) {
-                if ((string)$existing['status'] !== 'active' || (int)$existing['store_id'] !== $storeId) {
+                if ((int)$existing['store_id'] !== $storeId) {
                     throw new ApiException('permanent_membership_authority_conflict');
+                }
+                if ((string)$existing['status'] !== 'active') {
+                    $now = time();
+                    $version = (int)$existing['authority_version'] + 1;
+                    $this->dao->update((int)$existing['id'], [
+                        'status' => 'active',
+                        'authority_version' => $version,
+                        'source_type' => $sourceType,
+                        'activated_at' => $now,
+                        'request_id' => substr($requestId, 0, 64),
+                        'update_time' => $now,
+                    ]);
+                    $reactivated = $this->row($this->dao->get((int)$existing['id']));
+                    $this->eventDao->save([
+                        'event_no' => $this->makeNo('YFPME'),
+                        'membership_id' => (int)$reactivated['id'],
+                        'uid' => $uid,
+                        'store_id' => $storeId,
+                        'authority_version' => $version,
+                        'event_type' => 'membership_regranted_by_headquarters',
+                        'source_type' => $sourceType,
+                        'source_id' => (string)$uid,
+                        'source_unique_key' => hash('sha256', 'membership|headquarters_regrant|' . $requestId),
+                        'actual_paid_amount_cent' => (int)$reactivated['actual_paid_amount_cent'],
+                        'operator_uid' => $operatorUid,
+                        'operator_role_code' => 'headquarters_admin',
+                        'request_id' => substr($requestId, 0, 64),
+                        'add_time' => $now,
+                    ]);
+                    $this->audit->record(
+                        self::DOMAIN,
+                        'permanent_membership',
+                        (string)$reactivated['id'],
+                        'membership_regranted_by_headquarters',
+                        $this->userDto($existing),
+                        $this->userDto($reactivated),
+                        $operatorUid,
+                        'headquarters_admin',
+                        $storeId,
+                        $reason,
+                        $requestId
+                    );
+                    $projection = $this->syncCustomerProjection(
+                        $reactivated,
+                        $operatorUid,
+                        'headquarters_admin',
+                        $reason,
+                        $requestId
+                    );
+                    return [
+                        'member' => $this->userDto($reactivated),
+                        'created' => true,
+                        'idempotent' => false,
+                        'attribution' => $attribution['after'],
+                        'customer_projection' => $projection,
+                    ];
                 }
                 $projection = $this->syncCustomerProjection(
                     $existing,
@@ -323,6 +440,104 @@ class PackageMembershipServices extends YfthFoundationBaseServices
                 'idempotent' => false,
                 'attribution' => $attribution['after'],
                 'customer_projection' => $projection,
+            ];
+        });
+    }
+
+    public function revokeByHeadquarters(
+        int $uid,
+        int $operatorUid,
+        string $reason,
+        string $requestId
+    ): array {
+        $reason = trim($reason);
+        $requestId = trim($requestId);
+        if ($uid <= 0 || $operatorUid <= 0 || $reason === '' || $requestId === '') {
+            throw new ApiException('headquarters_membership_revoke_invalid');
+        }
+
+        return Db::transaction(function () use ($uid, $operatorUid, $reason, $requestId) {
+            $existing = $this->row($this->dao->search([])->where('uid', $uid)->lock(true)->find());
+            if ($existing && (string)$existing['status'] !== 'active') {
+                return [
+                    'member' => $this->userDto($existing),
+                    'changed' => false,
+                    'idempotent' => true,
+                ];
+            }
+
+            $legacy = $existing ? [] : $this->legacyPackageFactForUid($uid);
+            if (!$existing && !$legacy) {
+                return ['member' => null, 'changed' => false, 'idempotent' => true];
+            }
+
+            $now = time();
+            if ($existing) {
+                $before = $existing;
+                $version = (int)$existing['authority_version'] + 1;
+                $this->dao->update((int)$existing['id'], [
+                    'status' => 'disabled',
+                    'authority_version' => $version,
+                    'source_type' => 'headquarters_membership_revoke',
+                    'request_id' => substr($requestId, 0, 64),
+                    'update_time' => $now,
+                ]);
+                $member = $this->row($this->dao->get((int)$existing['id']));
+            } else {
+                $before = [];
+                $version = 1;
+                $member = $this->dao->save([
+                    'membership_no' => $this->makeNo('YFPM'),
+                    'uid' => $uid,
+                    'store_id' => (int)$legacy['store_id'],
+                    'source_package_instance_id' => (int)$legacy['instance_id'],
+                    'source_purchase_id' => (int)$legacy['purchase_id'],
+                    'source_rule_version_id' => (int)($legacy['rule_version_id'] ?? 0),
+                    'actual_paid_amount_cent' => $this->moneyToCents($legacy['order_pay_price']),
+                    'currency' => 'CNY',
+                    'status' => 'disabled',
+                    'authority_version' => $version,
+                    'source_type' => 'headquarters_membership_revoke',
+                    'activated_at' => (int)$legacy['activated_at'],
+                    'request_id' => substr($requestId, 0, 64),
+                    'add_time' => $now,
+                    'update_time' => $now,
+                ])->toArray();
+            }
+
+            $this->eventDao->save([
+                'event_no' => $this->makeNo('YFPME'),
+                'membership_id' => (int)$member['id'],
+                'uid' => $uid,
+                'store_id' => (int)$member['store_id'],
+                'authority_version' => $version,
+                'event_type' => 'membership_revoked_by_headquarters',
+                'source_type' => 'headquarters_membership_revoke',
+                'source_id' => (string)$uid,
+                'source_unique_key' => hash('sha256', 'membership|headquarters_revoke|' . $requestId),
+                'actual_paid_amount_cent' => (int)$member['actual_paid_amount_cent'],
+                'operator_uid' => $operatorUid,
+                'operator_role_code' => 'headquarters_admin',
+                'request_id' => substr($requestId, 0, 64),
+                'add_time' => $now,
+            ]);
+            $this->audit->record(
+                self::DOMAIN,
+                'permanent_membership',
+                (string)$member['id'],
+                'membership_revoked_by_headquarters',
+                $before ? $this->userDto($before) : [],
+                $this->userDto($member),
+                $operatorUid,
+                'headquarters_admin',
+                (int)$member['store_id'],
+                $reason,
+                $requestId
+            );
+            return [
+                'member' => $this->userDto($member),
+                'changed' => true,
+                'idempotent' => false,
             ];
         });
     }

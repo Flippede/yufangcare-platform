@@ -71,7 +71,7 @@ try {
     $assert((string)$search['list'][0]['phone_masked'] === '139****7001', 'admin_dto_masks_phone');
     $assert((string)$search['list'][0]['mall_balance'] === '123.45' && (string)$search['list'][0]['mall_integral'] === '678', 'headquarters_dto_reads_crmeb_assets');
 
-    $grantA = $service->grant($uid, ['store_id' => $storeA, 'role_code' => 'franchisee', 'reason' => 'isolated grant A', 'request_id' => 'role-grant-a'], 1, $hq);
+    $grantA = $service->grant($uid, ['store_id' => $storeA, 'role_code' => 'store_manager', 'reason' => 'isolated grant A', 'request_id' => 'role-grant-a'], 1, $hq);
     $grantB = $service->grant($uid, ['store_id' => $storeB, 'role_code' => 'store_manager', 'reason' => 'isolated grant B', 'request_id' => 'role-grant-b'], 1, $hq);
     $grantStaff = $service->grant($uid, ['store_id' => $storeA, 'role_code' => 'store_staff', 'reason' => 'isolated grant staff', 'request_id' => 'role-grant-staff'], 1, $hq);
     $assert($grantA['changed'] && $grantB['changed'] && $grantStaff['changed'], 'headquarters_grants_three_store_roles');
@@ -79,7 +79,7 @@ try {
     $assert($membershipBefore === (int)Db::name('yfth_permanent_membership')->where('uid', $uid)->count(), 'operating_role_grants_do_not_create_membership');
     $summaries = $service->summaries([$uid], $hq);
     $assert(count($summaries[$uid]['store_roles'] ?? []) === 3, 'native_user_list_receives_yfth_role_summary');
-    $replay = $service->grant($uid, ['store_id' => $storeA, 'role_code' => 'franchisee', 'reason' => 'isolated replay', 'request_id' => 'role-grant-a-replay'], 1, $hq);
+    $replay = $service->grant($uid, ['store_id' => $storeA, 'role_code' => 'store_manager', 'reason' => 'isolated replay', 'request_id' => 'role-grant-a-replay'], 1, $hq);
     $assert(!$replay['changed'] && $replay['idempotent'], 'duplicate_grant_is_idempotent');
 
     $expect(function () use ($service, $uid, $storeA, $storeAdmin) {
@@ -111,6 +111,36 @@ try {
     $expect(function () use ($service, $uid, $storeA, $storeAdmin) {
         $service->grant($uid, ['store_id' => $storeA, 'role_code' => 'permanent_member', 'reason' => 'forbidden membership escalation'], 9709, $storeAdmin);
     }, 'headquarter_permission_required', 'store_admin_cannot_grant_membership');
+
+    $expect(function () use ($service, $uid, $hq) {
+        $service->revokeMembership($uid, ['confirmation' => '解除会员', 'reason' => 'invalid confirmation'], 1, $hq);
+    }, 'membership_revoke_confirmation_invalid', 'membership_revoke_requires_exact_confirmation');
+    $expect(function () use ($service, $uid, $storeAdmin) {
+        $service->revokeMembership($uid, ['confirmation' => '确认解除会员', 'reason' => 'forbidden revoke'], 9709, $storeAdmin);
+    }, 'headquarter_permission_required', 'store_admin_cannot_revoke_membership');
+    $membershipRevoked = $service->revokeMembership($uid, [
+        'confirmation' => '确认解除会员',
+        'reason' => 'isolated membership revoke',
+        'request_id' => 'membership-revoke-a',
+    ], 1, $hq);
+    $assert($membershipRevoked['changed'] && !$membershipRevoked['idempotent'], 'headquarters_revokes_permanent_membership');
+    $assert((int)Db::name('yfth_permanent_membership')->where('uid', $uid)->where('status', 'disabled')->count() === 1, 'membership_current_is_explicitly_disabled');
+    $assert(!app()->make(\app\services\yfth\PackageMembershipServices::class)->effectiveMembership($uid)['is_member'], 'disabled_membership_is_not_effective');
+    $assert((int)Db::name('yfth_permanent_membership_event')->where('uid', $uid)->where('event_type', 'membership_revoked_by_headquarters')->count() === 1, 'membership_revoke_event_written');
+    $assert((int)Db::name('yfth_hq_customer_attribution_current')->where('uid', $uid)->where('store_id', $storeA)->where('status', 'active')->count() === 1, 'membership_revoke_preserves_store_attribution');
+    $membershipRevokeReplay = $service->revokeMembership($uid, [
+        'confirmation' => '确认解除会员',
+        'reason' => 'isolated membership replay',
+        'request_id' => 'membership-revoke-replay',
+    ], 1, $hq);
+    $assert(!$membershipRevokeReplay['changed'] && $membershipRevokeReplay['idempotent'], 'duplicate_membership_revoke_is_idempotent');
+    $membershipRegrant = $service->grantMembership($uid, [
+        'store_id' => $storeA,
+        'reason' => 'isolated membership regrant',
+        'request_id' => 'membership-regrant-a',
+    ], 1, $hq);
+    $assert($membershipRegrant['changed'] && !$membershipRegrant['idempotent'], 'headquarters_can_regrant_revoked_membership');
+    $assert((int)Db::name('yfth_permanent_membership')->where('uid', $uid)->where('status', 'active')->count() === 1, 'membership_regrant_reactivates_single_authority');
 
     $revoked = $service->revoke((int)$grantStaff['role']['id'], ['reason' => 'isolated revoke', 'request_id' => 'role-revoke-staff'], 1, $hq);
     $assert($revoked['changed'] && (string)$revoked['role']['status'] === 'disabled', 'headquarters_revokes_store_role');

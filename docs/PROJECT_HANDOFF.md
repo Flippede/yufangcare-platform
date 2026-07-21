@@ -1,5 +1,13 @@
 # 项目交接文档
 
+## Current Fact Snapshot - Headquarters Membership Revocation
+
+- Headquarters can revoke an effective permanent-membership qualification from `御方通和 -> 用户经营身份`. The action is shown only for current members and requires a reason of at least four characters plus the exact confirmation phrase `确认解除会员`.
+- Revocation writes an explicit disabled membership current, an immutable `membership_revoked_by_headquarters` event and a reliable headquarters audit record in one transaction. An explicit disabled current takes precedence over legacy package-activation fallback, so revoked users immediately lose permanent-member and referral-code eligibility.
+- The action does not delete or rewrite CRMEB orders, package purchases, package instances, benefit fulfilment, store attribution, reward or financial history. A retry is idempotent; headquarters can deliberately regrant the qualification, and a genuinely new paid package activation can reactivate it while a retry of the previously revoked activation cannot.
+- The endpoint has a separate hidden API permission under the existing user-role page; store staff and store managers remain unable to invoke it. Local validation covers PHP 7.4 syntax, a focused contract, isolated MySQL Community 8.0.46 headquarters/rejection/idempotency/regrant flow, targeted permission run/rollback/rerun, Admin production build, sensitive scan and `git diff --check`.
+- The repository still contains an older duplicate migration version number that prevents an unqualified full `migrate:run` scan; the new permission migration itself was validated and must be applied as a targeted forward production change. Final Git, production deployment and branch-cleanup facts must be read after merge and release.
+
 ## Current Fact Snapshot - Configurable Homepage Featured Product Image
 
 - The red-box image in the customer homepage `商城商品` card can now be replaced from `御方通和 -> 首页配置 -> 商城商品图` through the existing CRMEB attachment library.
