@@ -7,6 +7,22 @@
       <el-form label-width="110px" size="small" class="header-form">
         <el-form-item label="首页标题"><el-input v-model="config.header.title" maxlength="32" show-word-limit /></el-form-item>
         <el-form-item label="搜索提示"><el-input v-model="config.header.search_placeholder" maxlength="40" show-word-limit /></el-form-item>
+        <el-form-item label="商城商品图">
+          <div class="featured-image-field">
+            <div class="featured-image-preview">
+              <img v-if="featuredImagePreview" :src="featuredImagePreview" alt="商城商品展示图" />
+              <span v-else>暂无图片</span>
+            </div>
+            <div class="featured-image-actions">
+              <el-input v-model="config.featured_product_image" placeholder="留空时使用 CRMEB 商品主图" />
+              <div>
+                <el-button type="primary" plain @click="openImagePicker">从图片库选择</el-button>
+                <el-button v-if="config.featured_product_image" type="text" @click="config.featured_product_image = ''">恢复商品主图</el-button>
+              </div>
+              <div class="field-tip">只替换首页红框区域图片，不修改商品详情、SKU、库存、订单和支付。</div>
+            </div>
+          </div>
+        </el-form-item>
       </el-form>
     </el-card>
 
@@ -36,11 +52,16 @@
     </el-card>
 
     <div class="action-bar"><el-button type="primary" :loading="saving" @click="save">保存首页内容配置</el-button><el-button @click="load">重置</el-button></div>
+
+    <el-dialog :visible.sync="imagePickerVisible" width="950px" title="选择商城商品展示图" :close-on-click-modal="false">
+      <upload-pictures v-if="imagePickerVisible" isChoice="单选" @getPic="selectFeaturedImage" />
+    </el-dialog>
   </div>
 </template>
 
 <script>
 import { yfthHomepageConfig, yfthHomepageSave } from '@/api/yfth';
+import uploadPictures from '@/components/uploadPictures';
 
 const TargetEditor = {
   props: ['row', 'categories', 'products', 'packages'],
@@ -67,9 +88,19 @@ const ContentEditor = {
 
 export default {
   name: 'YfthHomepageConfig',
-  components: { TargetEditor, ContentEditor },
+  components: { TargetEditor, ContentEditor, uploadPictures },
   data() {
-    return { saving: false, config: { enabled: 1, header: {}, quick_entries: [], sections: [] }, options: { categories: [], products: [], packages: [] } };
+    return {
+      saving: false,
+      imagePickerVisible: false,
+      config: { enabled: 1, featured_product_image: '', header: {}, quick_entries: [], sections: [] },
+      options: { categories: [], products: [], packages: [], featured_product: {} },
+    };
+  },
+  computed: {
+    featuredImagePreview() {
+      return this.config.featured_product_image || (this.options.featured_product && this.options.featured_product.image) || '';
+    },
   },
   mounted() { this.load(); },
   methods: {
@@ -85,6 +116,13 @@ export default {
     addSection() {
       this.config.sections.push({ title: '新内容区', image_url: '', content_type: 'product', target_type: 'category', target_path: '', category_id: 0, product_ids: [], package_id: 0, display_limit: 6, visible: 1, sort: this.config.sections.length + 1 });
     },
+    openImagePicker() {
+      this.imagePickerVisible = true;
+    },
+    selectFeaturedImage(image) {
+      this.config.featured_product_image = image && (image.att_dir || image.satt_dir) ? (image.att_dir || image.satt_dir) : '';
+      this.imagePickerVisible = false;
+    },
     save() {
       this.saving = true;
       yfthHomepageSave(this.config).then(() => this.$message.success('首页内容配置已保存')).finally(() => { this.saving = false; });
@@ -97,6 +135,12 @@ export default {
 .config-card { margin-top: 16px; }
 .card-header { display: flex; align-items: center; justify-content: space-between; }
 .header-form { max-width: 620px; }
+.featured-image-field { display: flex; gap: 16px; align-items: flex-start; }
+.featured-image-preview { width: 112px; height: 112px; flex: 0 0 112px; border: 1px solid #e4e7ed; border-radius: 6px; background: #f7f8fa; display: flex; align-items: center; justify-content: center; color: #909399; overflow: hidden; }
+.featured-image-preview img { width: 100%; height: 100%; object-fit: cover; }
+.featured-image-actions { flex: 1; min-width: 0; }
+.featured-image-actions > div { margin-top: 8px; }
+.field-tip { color: #909399; line-height: 1.5; }
 .action-bar { padding: 20px 0 36px; }
 .compact-editor > * { width: 100%; margin-bottom: 7px; }
 </style>

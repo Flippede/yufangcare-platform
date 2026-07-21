@@ -1,5 +1,12 @@
 # 项目交接文档
 
+## Current Fact Snapshot - Configurable Homepage Featured Product Image
+
+- The red-box image in the customer homepage `商城商品` card can now be replaced from `御方通和 -> 首页配置 -> 商城商品图` through the existing CRMEB attachment library.
+- This setting only overrides the homepage presentation image. The bound CRMEB product, SKU, stock, product detail, cart, order and payment flow are unchanged, and no production product ID is hardcoded.
+- Clearing the setting safely restores the real CRMEB product main image. Existing homepage configurations without the new field remain compatible and use the product image automatically.
+- Validation completed locally: PHP 7.4 syntax, custom-homepage contract, Admin production build, sensitive scan and `git diff --check`. Final main/origin main and production deployment status must be read from Git and the deployment marker after merge and release.
+
 ## Current Fact Snapshot - 9800 Member Package And Repeat Purchase V1
 
 - Development branch: `codex/yfth-package-repeat-purchase-v1`; baseline: the latest `origin/main` after confirming every local and remote feature branch is already contained in main. Final feature/main/production commits must be read from Git after commit, fast-forward merge, push and deployment.

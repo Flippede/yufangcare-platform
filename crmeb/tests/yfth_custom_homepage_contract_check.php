@@ -47,7 +47,9 @@ foreach ([
     'real_product_lookup' => "Db::name('store_product')",
     'real_package_lookup' => "Db::name('yfth_package_template')",
     'no_hardcoded_product_id' => "product_ids' => []",
-    'homepage_featured_product' => "'featured_product' => \$this->featuredProduct()",
+    'homepage_featured_product' => "'featured_product' => \$featuredProduct",
+    'homepage_featured_image_override' => "\$config['featured_product_image'] !== ''",
+    'homepage_featured_image_fallback' => "'featured_product_image' => ''",
     'purchasable_product_stock' => "->where('stock', '>', 0)",
     'category_title_fallback' => 'categoryIdForTitle(',
     'category_title_normalization' => "str_replace(['产品区', ' '], '', \$title)",
@@ -94,7 +96,7 @@ foreach (["Array.isArray(cahceValue)", "homepageState === 'error'", '首页内�
         exit(1);
     }
 }
-foreach (['快捷入口', '双列内容卡片', '真实 CRMEB 商品/分类/套餐绑定'] as $needle) {
+foreach (['快捷入口', '双列内容卡片', '真实 CRMEB 商品/分类/套餐绑定', '商城商品图', '从图片库选择', '恢复商品主图'] as $needle) {
     if (strpos($adminHome, $needle) === false) {
         fwrite(STDERR, "missing_admin_surface:$needle\n");
         exit(1);

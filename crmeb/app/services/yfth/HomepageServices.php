@@ -46,11 +46,16 @@ class HomepageServices
         }
         unset($section);
 
+        $featuredProduct = $this->featuredProduct();
+        if ($featuredProduct && $config['featured_product_image'] !== '') {
+            $featuredProduct['image'] = $this->fileUrl($config['featured_product_image']);
+        }
+
         return [
             'enabled' => (bool)$config['enabled'],
             'version' => $config['version'],
             'header' => $config['header'],
-            'featured_product' => $this->featuredProduct(),
+            'featured_product' => $featuredProduct,
             'quick_entries' => array_values(array_filter($config['quick_entries'], static function ($entry) {
                 return !empty($entry['visible']);
             })),
@@ -86,6 +91,7 @@ class HomepageServices
                 ->order('sort desc,id desc')
                 ->select()
                 ->toArray(),
+            'featured_product' => $this->featuredProduct(),
         ];
     }
 
@@ -176,6 +182,7 @@ class HomepageServices
         return [
             'enabled' => 1,
             'version' => 0,
+            'featured_product_image' => '',
             'header' => ['title' => '御方通和', 'search_placeholder' => '搜索调养好物'],
             'quick_entries' => $quickEntries,
             'sections' => $sections,
@@ -189,6 +196,10 @@ class HomepageServices
         $config = [
             'enabled' => empty($payload['enabled']) ? 0 : 1,
             'version' => (int)($payload['version'] ?? $defaults['version']),
+            'featured_product_image' => $this->text(
+                $payload['featured_product_image'] ?? $defaults['featured_product_image'],
+                500
+            ),
             'header' => [
                 'title' => $this->text($header['title'] ?? $defaults['header']['title'], 32),
                 'search_placeholder' => $this->text($header['search_placeholder'] ?? $defaults['header']['search_placeholder'], 40),
@@ -374,6 +385,7 @@ class HomepageServices
             'version' => (int)($config['version'] ?? 0),
             'quick_entry_count' => count($config['quick_entries'] ?? []),
             'section_count' => count($config['sections'] ?? []),
+            'featured_product_image_configured' => empty($config['featured_product_image']) ? 0 : 1,
         ];
     }
 
