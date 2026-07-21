@@ -85,12 +85,17 @@
     <el-dialog :title="grantDialogTitle" :visible.sync="grantVisible" width="480px">
       <el-form label-width="90px">
         <el-form-item label="用户"><span>{{ selected ? `${selected.nickname || selected.account}（UID ${selected.uid}）` : '' }}</span></el-form-item>
-        <el-form-item label="门店"><el-select v-model="grantForm.store_id" filterable placeholder="选择启用门店"><el-option v-for="store in stores" :key="store.id" :label="store.name" :value="store.id" /></el-select></el-form-item>
+        <el-form-item label="门店">
+          <el-select v-model="grantForm.store_id" filterable placeholder="选择启用门店" :disabled="membershipGrantStoreLocked">
+            <el-option v-for="store in stores" :key="store.id" :label="store.name" :value="store.id" />
+          </el-select>
+          <div v-if="membershipGrantStoreLocked" class="form-tip">该用户已有永久门店归属，重新授予会员只能沿用 {{ membershipGrantStoreName }}，不能跨店改绑。</div>
+        </el-form-item>
         <el-form-item v-if="!grantPresetRole" label="经营身份"><el-select v-model="grantForm.role_code" placeholder="选择身份"><el-option v-for="role in staffRoleOptions" :key="role.value" :label="role.label" :value="role.value" /></el-select></el-form-item>
         <el-form-item v-else label="授权类型"><el-tag>{{ grantRoleLabel }}</el-tag><div v-if="grantPresetRole === 'permanent_member'" class="form-tip">永久会员一经授权不提供普通撤销；同时建立该会员的永久门店归属。</div></el-form-item>
-        <el-form-item label="操作原因"><el-input v-model.trim="grantForm.reason" type="textarea" :rows="3" maxlength="255" show-word-limit /></el-form-item>
+        <el-form-item label="操作原因"><el-input v-model.trim="grantForm.reason" type="textarea" :rows="3" maxlength="255" show-word-limit placeholder="请填写本次授权原因" /></el-form-item>
       </el-form>
-      <span slot="footer"><el-button @click="grantVisible = false">取消</el-button><el-button type="primary" :loading="saving" @click="grant">确认授予</el-button></span>
+      <span slot="footer"><el-button @click="grantVisible = false">取消</el-button><el-button type="primary" :disabled="!grantReady" :loading="saving" @click="grant">确认授予</el-button></span>
     </el-dialog>
 
     <el-dialog title="解除用户永久会员" :visible.sync="membershipRevokeVisible" width="560px" :close-on-click-modal="false">
@@ -200,6 +205,20 @@ export default {
     staffRoleOptions() { return this.roleOptions.filter((item) => ['store_manager', 'store_staff'].includes(item.value)); },
     grantRoleLabel() { return { permanent_member: '永久会员' }[this.grantPresetRole] || '经营身份'; },
     grantDialogTitle() { return this.grantPresetRole ? `授权${this.grantRoleLabel}` : '授权店长/店员'; },
+    membershipGrantStoreLocked() {
+      const attribution = (this.selected && this.selected.attribution) || {};
+      return this.grantPresetRole === 'permanent_member'
+        && attribution.status === 'active'
+        && Number(attribution.store_id || 0) > 0;
+    },
+    membershipGrantStoreName() {
+      const attribution = (this.selected && this.selected.attribution) || {};
+      return attribution.store_name || `门店 ${attribution.store_id || '-'}`;
+    },
+    grantReady() {
+      return Boolean(this.selected && this.grantForm.store_id && this.grantForm.role_code
+        && String(this.grantForm.reason || '').trim());
+    },
     membershipRevokeReady() {
       return this.membershipRevokeForm.confirmation === '确认解除会员'
         && String(this.membershipRevokeForm.reason || '').trim().length >= 4;
@@ -278,7 +297,13 @@ export default {
       yfthUserRoleDetail(row.uid).then((res) => { this.detail = res.data || null; this.detailVisible = true; });
     },
     openGrant(row, presetRole) {
-      this.selected = row; this.grantPresetRole = presetRole || ''; this.grantForm = { store_id: '', role_code: presetRole || '', reason: '' }; this.grantVisible = true;
+      this.selected = row;
+      this.grantPresetRole = presetRole || '';
+      const attribution = row.attribution || {};
+      const attributedStoreId = presetRole === 'permanent_member'
+        && attribution.status === 'active' ? Number(attribution.store_id || 0) : 0;
+      this.grantForm = { store_id: attributedStoreId || '', role_code: presetRole || '', reason: '' };
+      this.grantVisible = true;
     },
     openMembershipRevoke(row) {
       this.selected = row;
@@ -368,13 +393,34 @@ export default {
       }).finally(() => { this.closureSaving = false; });
     },
     grant() {
-      if (!this.grantForm.store_id || !this.grantForm.role_code || !this.grantForm.reason) return this.$message.warning('请选择门店、身份并填写原因');
+      if (!this.grantReady) return this.$message.warning('请选择门店、身份并填写原因');
       this.saving = true;
-      const data = { ...this.grantForm, request_id: `hq-role-grant-${Date.now()}` };
+      const data = {
+        ...this.grantForm,
+        reason: String(this.grantForm.reason || '').trim(),
+        request_id: `${this.grantPresetRole === 'permanent_member' ? 'hq-membership-grant' : 'hq-role-grant'}-${Date.now()}`,
+      };
       const request = this.grantPresetRole === 'permanent_member'
         ? yfthUserMembershipGrant(this.selected.uid, data)
         : yfthUserRoleGrant(this.selected.uid, data);
-      request.then(() => { this.$message.success(`${this.grantRoleLabel}已授予`); this.grantVisible = false; this.load(); })
+      request.then((res) => {
+        const result = res.data || {};
+        this.$message.success(result.idempotent ? `${this.grantRoleLabel}已存在，无需重复授予` : `${this.grantRoleLabel}已授予`);
+        this.grantVisible = false;
+        this.detailVisible = false;
+        return this.load();
+      }).catch((error) => {
+        const code = String((error && (error.msg || error.message)) || '');
+        const messages = {
+          attribution_store_conflict: '该用户已永久归属其他门店，不能跨店授予会员。请沿用页面锁定的归属门店。',
+          permanent_membership_authority_conflict: '该用户的永久会员归属与所选门店冲突，授权未执行。',
+          user_not_found: '目标用户不存在或已注销，请刷新列表后重试。',
+        };
+        return this.$alert(messages[code] || code || '授权失败，请刷新页面后重试。', '永久会员授权未完成', {
+          type: 'error',
+          confirmButtonText: '知道了',
+        });
+      })
         .finally(() => { this.saving = false; });
     },
     storeStaffRoles(detail) { return (detail.store_roles || []).filter((item) => item.role_code !== 'franchisee'); },

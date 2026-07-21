@@ -71,6 +71,10 @@ $assert(strpos($service, 'grantByHeadquarters') !== false, 'headquarters_can_gra
 $assert(strpos($membershipAuthority, 'membership_granted_by_headquarters') !== false, 'membership_grant_is_evented_and_audited');
 $assert(strpos($membershipGrantMigration, 'source_package_instance_id` INT UNSIGNED NULL') !== false, 'manual_membership_has_explicit_nullable_package_source');
 $assert(strpos($controller . $route, 'yfth/user_role/user/<uid>/membership/grant') !== false, 'dedicated_membership_grant_route_exists');
+$adminUserRole = file_get_contents(__DIR__ . '/../../template/admin/src/pages/yfth/userRole/index.vue');
+$assert(strpos($adminUserRole, 'membershipGrantStoreLocked') !== false, 'membership_grant_reuses_existing_attribution_store');
+$assert(strpos($adminUserRole, ':disabled="!grantReady"') !== false, 'membership_grant_submit_requires_complete_form');
+$assert(strpos($adminUserRole, '永久会员授权未完成') !== false, 'membership_grant_failure_is_visible_to_operator');
 $assert(strpos($adminPage, 'yfthUserMembershipGrant') !== false, 'admin_membership_button_uses_dedicated_api');
 foreach (['yfth-user-role-membership-grant', 'yfth-user-debug-purge-preflight', 'yfth-user-debug-purge-execute'] as $auth) {
     $assert(strpos($membershipLegacyMigration, $auth) !== false, 'legacy_permission_source_exists:' . $auth);
