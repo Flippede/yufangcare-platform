@@ -28,12 +28,15 @@ $checks = [
     'me_uses_single_authority' => strpos($source[$files[1]], 'relationshipAuthority') === false
         && strpos($source[$files[1]], 'authority->resolve($uid)') !== false,
     'admin_dto_uses_single_authority' => strpos($source[$files[2]], 'relationshipAuthority->resolve($uid)') !== false,
-    'package_dto_separates_purchase_attribution' => strpos($source[$files[3]], "'purchase_attribution'") !== false,
+    'package_dto_exposes_single_purchase_store' => strpos($source[$files[3]], "'purchase_store'") !== false
+        && strpos($source[$files[3]], "'purchase_attribution'") === false,
     'package_dto_has_current_relationship' => strpos($source[$files[3]], "'current_relationship'") !== false,
     'business_role_cannot_issue_member_code' => strpos($source[$files[3]], 'business_role_uses_store_acquisition_code') !== false,
     'referral_page_redirects_to_store_code' => strpos($source[$files[4]], '/pages/yfth/store_acquisition/code') !== false,
-    'package_pages_use_purchase_attribution' => strpos($source[$files[5]], 'profile.purchase_attribution') !== false
-        && strpos($source[$files[6]], 'profile.purchase_attribution') !== false,
+    'package_pages_use_single_purchase_store' => strpos($source[$files[5]], 'profile.purchase_store') !== false
+        && strpos($source[$files[6]], 'profile.purchase_store') !== false
+        && strpos($source[$files[5]], 'profile.purchase_attribution') === false
+        && strpos($source[$files[6]], 'profile.purchase_attribution') === false,
 ];
 
 $failed = false;

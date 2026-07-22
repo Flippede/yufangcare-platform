@@ -56,6 +56,35 @@ class UserRelationshipAuthorityServices
         return $this->customerRelationship($uid);
     }
 
+    public function purchaseStore(int $uid): array
+    {
+        $relationship = $this->resolve($uid);
+        $storeId = (int)($relationship['store_id'] ?? 0);
+        $status = (string)($relationship['attribution_status'] ?? '');
+        if ($storeId <= 0 || $status !== 'active') {
+            return [];
+        }
+
+        return [
+            'store_id' => $storeId,
+            'store_name' => (string)($relationship['store_name'] ?? ''),
+            'relationship_type' => (string)($relationship['relationship_type'] ?? ''),
+            'source_type' => (string)($relationship['source_type'] ?? ''),
+        ];
+    }
+
+    public function requirePurchaseStore(int $uid, int $requestedStoreId = 0): array
+    {
+        $store = $this->purchaseStore($uid);
+        if (!$store) {
+            throw new ApiException('package_purchase_authoritative_store_required');
+        }
+        if ($requestedStoreId > 0 && $requestedStoreId !== (int)$store['store_id']) {
+            throw new ApiException('package_purchase_cross_store_forbidden');
+        }
+        return $store;
+    }
+
     private function partnerRelationship(array $partner): array
     {
         $uid = (int)$partner['uid'];

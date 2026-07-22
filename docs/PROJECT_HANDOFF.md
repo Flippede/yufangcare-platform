@@ -1704,6 +1704,12 @@ The store-acquisition facts below remain historical and stable. Its debug-purge 
 - Headquarters store-role grants no longer leave `我的归属`, the promotion profile, and the headquarters user DTO reading an older customer-attribution store as the current business relationship.
 - For a store manager or staff member, the current store comes from `yfth_user_store_role`; the single upstream comes from the approved store's franchise application and `yfth_franchise_recruit_source`, with active partner/store binding as a controlled fallback.
 - Store operators use the existing store-acquisition QR flow. The permanent-member direct-referral endpoint rejects store operators, preventing two conflicting current promotion codes.
-- Package purchase still uses its immutable customer purchase-attribution authority, now exposed as `purchase_attribution`; it is no longer presented as the user's current business upstream.
+- At that closure point package purchase still used the immutable customer purchase-attribution projection. This read contract is superseded by the 2026-07-22 unified `purchase_store` authority snapshot above; historical rows remain immutable audit facts only.
 - Existing customer attribution/referral events remain immutable financial and audit history. They are not deleted or rewritten and are no longer used as the current business-role display source.
 - This change was developed on `codex/yfth-authoritative-upstream-unification-fix`; production deployment status is recorded after verification and release.
+# Current Fact Snapshot - Package Purchase Uses Unified Authoritative Store (2026-07-22)
+
+- Package detail, payment confirmation, and server-side purchase intent now read one `purchase_store` resolved by `UserRelationshipAuthorityServices`.
+- Store operators use their active headquarters-granted store role; ordinary customers use their active QR/referral attribution. The obsolete package-page `purchase_attribution` read contract has been removed.
+- Historical attribution and referral rows remain immutable for reward, audit, and transaction history, but they can no longer override the current store used for a new package purchase.
+- Cross-store purchase requests remain fail-closed on the server. This change does not alter orders, payment, package activation, or historical reward snapshots.

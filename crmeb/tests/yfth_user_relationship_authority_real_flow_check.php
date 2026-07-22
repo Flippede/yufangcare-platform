@@ -22,6 +22,7 @@ try {
     packageMembershipReferralBootTestApp();
     $uid = 981001;
     $partnerUid = 981002;
+    $customerUid = 981003;
     $oldStoreId = 9811;
     $roleStoreId = 9812;
     $now = time();
@@ -30,12 +31,12 @@ try {
     }
     Db::name('yfth_user_store_role')->where('uid', $uid)->delete();
     Db::name('yfth_partner_profile')->whereIn('uid', [$uid, $partnerUid])->delete();
-    Db::name('yfth_hq_customer_attribution_event')->where('uid', $uid)->delete();
-    Db::name('yfth_hq_customer_attribution_current')->where('uid', $uid)->delete();
-    Db::name('user')->whereIn('uid', [$uid, $partnerUid])->delete();
+    Db::name('yfth_hq_customer_attribution_event')->whereIn('uid', [$uid, $customerUid])->delete();
+    Db::name('yfth_hq_customer_attribution_current')->whereIn('uid', [$uid, $customerUid])->delete();
+    Db::name('user')->whereIn('uid', [$uid, $partnerUid, $customerUid])->delete();
     Db::name('system_store')->whereIn('id', [$oldStoreId, $roleStoreId])->delete();
 
-    foreach ([$uid => 'Authority Manager', $partnerUid => 'County Upstream'] as $id => $name) {
+    foreach ([$uid => 'Authority Manager', $partnerUid => 'County Upstream', $customerUid => 'Scanned Customer'] as $id => $name) {
         Db::name('user')->insert(['uid' => $id, 'account' => 'authority_' . $id, 'nickname' => $name,
             'phone' => '139' . substr((string)$id, -8), 'status' => 1, 'user_type' => 'wechat',
             'uniqid' => 'authority-' . $id, 'add_time' => $now]);
@@ -82,6 +83,23 @@ try {
         'permission_scope' => '{}', 'start_time' => $now, 'active_key' => $uid . ':' . $roleStoreId . ':store_manager',
         'add_time' => $now, 'update_time' => $now,
     ]);
+    $customerAttributionId = (int)Db::name('yfth_hq_customer_attribution_current')->insertGetId([
+        'uid' => $customerUid, 'store_id' => $oldStoreId, 'status' => 'active',
+        'status_reason_code' => '', 'authority_version' => 1,
+        'source_type' => 'store_qr_binding', 'source_id' => '981003', 'bound_at' => $now,
+        'paused_at' => 0, 'closed_at' => 0, 'close_reason' => '', 'add_time' => $now, 'update_time' => $now,
+    ]);
+    Db::name('yfth_hq_customer_attribution_event')->insert([
+        'event_no' => 'AUTH-EVENT-' . $customerUid, 'attribution_current_id' => $customerAttributionId,
+        'uid' => $customerUid, 'authority_version' => 1, 'event_type' => 'attribution_created',
+        'before_store_id' => 0, 'after_store_id' => $oldStoreId, 'before_status' => 'unassigned',
+        'after_status' => 'active', 'before_status_reason_code' => 'initial_placeholder',
+        'after_status_reason_code' => '', 'source_type' => 'store_qr_binding', 'source_id' => '981003',
+        'source_unique_key' => hash('sha256', 'authority-customer-' . $customerUid),
+        'operator_uid' => $customerUid, 'operator_role_code' => 'customer',
+        'reason' => 'isolated customer validation', 'request_id' => 'authority-customer-' . $customerUid,
+        'add_time' => $now,
+    ]);
 
     $resolved = app()->make(UserRelationshipAuthorityServices::class)->resolve($uid);
     $assert((string)$resolved['relationship_type'] === 'business_role', 'business_role_is_current_authority');
@@ -94,6 +112,25 @@ try {
     $profile = app()->make(PackageMembershipReferralServices::class)->me($uid);
     $assert((string)$profile['promotion']['code_type'] === 'store_acquisition'
         && (int)$profile['promotion']['store_id'] === $roleStoreId, 'promotion_profile_uses_store_acquisition_authority');
+    $assert((int)$profile['purchase_store']['store_id'] === $roleStoreId,
+        'package_profile_uses_same_authoritative_store');
+    $assert(app()->make(PackageMembershipReferralServices::class)
+        ->requireAuthoritativeStoreForPurchase($uid, $roleStoreId) === $roleStoreId,
+        'package_intent_uses_same_authoritative_store');
+    try {
+        app()->make(PackageMembershipReferralServices::class)
+            ->requireAuthoritativeStoreForPurchase($uid, $oldStoreId);
+        $assert(false, 'old_customer_store_cannot_override_business_store');
+    } catch (Throwable $e) {
+        $assert(strpos($e->getMessage(), 'package_purchase_cross_store_forbidden') !== false,
+            'old_customer_store_cannot_override_business_store');
+    }
+    $customerProfile = app()->make(PackageMembershipReferralServices::class)->me($customerUid);
+    $assert((int)$customerProfile['purchase_store']['store_id'] === $oldStoreId,
+        'scanned_customer_package_profile_uses_bound_store');
+    $assert(app()->make(PackageMembershipReferralServices::class)
+        ->requireAuthoritativeStoreForPurchase($customerUid, $oldStoreId) === $oldStoreId,
+        'scanned_customer_package_intent_uses_bound_store');
 } catch (Throwable $e) {
     $failures[] = $e->getMessage();
     fwrite(STDERR, '[FAIL] unexpected:' . $e->getMessage() . PHP_EOL);

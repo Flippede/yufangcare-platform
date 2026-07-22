@@ -51,6 +51,7 @@ class PackageMembershipReferralServices extends YfthFoundationBaseServices
     {
         $membership = $this->membership->effectiveMembership($uid);
         $relationship = $this->relationshipAuthority->resolve($uid);
+        $purchaseStore = $this->relationshipAuthority->purchaseStore($uid);
         $attribution = $this->row($this->attributionDao->getOne(['uid' => $uid]));
         if ($attribution) {
             $this->consistency->assertAttribution($attribution);
@@ -68,10 +69,7 @@ class PackageMembershipReferralServices extends YfthFoundationBaseServices
         $store = $store ? (is_array($store) ? $store : $store->toArray()) : [];
         return [
             'membership' => $membership,
-            'purchase_attribution' => $attribution ? [
-                'store_id' => (int)$attribution['store_id'],
-                'status' => (string)$attribution['status'],
-            ] : null,
+            'purchase_store' => $purchaseStore ?: null,
             'current_relationship' => $relationship,
             'direct_referral' => $referral ? [
                 'store_id' => (int)$referral['store_id'],
@@ -440,30 +438,18 @@ class PackageMembershipReferralServices extends YfthFoundationBaseServices
 
     public function requireAuthoritativeStoreForPurchase(int $uid, int $requestedStoreId = 0): int
     {
-        $attribution = $this->row($this->attributionDao->getOne(['uid' => $uid]));
-        if (!$attribution) {
-            throw new ApiException('package_purchase_authoritative_store_required');
-        }
-        $this->consistency->assertAttribution($attribution);
-        $status = (string)$attribution['status'];
-        if ($status !== 'active') {
-            throw new ApiException('package_purchase_authoritative_store_required');
-        }
-        $storeId = (int)$attribution['store_id'];
-        if ($storeId <= 0) {
-            throw new ApiException('package_purchase_authoritative_store_required');
-        }
-        if ($requestedStoreId > 0 && $requestedStoreId !== $storeId) {
-            throw new ApiException('package_purchase_cross_store_forbidden');
-        }
-        $relation = $this->row($this->referralDao->search([])->where('referred_uid', $uid)->order('id desc')->find());
-        if ($relation) {
-            $this->consistency->assertReferral($relation);
-            if ((string)$relation['status'] === 'paused') {
-                throw new ApiException('package_purchase_referral_paused');
-            }
-            if ((int)$relation['store_id'] !== $storeId) {
-                throw new ApiException('package_purchase_referral_store_inconsistent');
+        $purchaseStore = $this->relationshipAuthority->requirePurchaseStore($uid, $requestedStoreId);
+        $storeId = (int)$purchaseStore['store_id'];
+        if ((string)$purchaseStore['relationship_type'] === 'customer_attribution') {
+            $relation = $this->row($this->referralDao->search([])->where('referred_uid', $uid)->order('id desc')->find());
+            if ($relation) {
+                $this->consistency->assertReferral($relation);
+                if ((string)$relation['status'] === 'paused') {
+                    throw new ApiException('package_purchase_referral_paused');
+                }
+                if ((int)$relation['store_id'] !== $storeId) {
+                    throw new ApiException('package_purchase_referral_store_inconsistent');
+                }
             }
         }
         return $storeId;

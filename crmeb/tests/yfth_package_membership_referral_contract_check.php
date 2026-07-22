@@ -17,6 +17,7 @@ $files = [
     'app/services/yfth/PackageMembershipGrantPolicy.php',
     'app/services/yfth/PackageMembershipReferralMigrationHealthServices.php',
     'app/services/yfth/PackageMembershipReferralServices.php',
+    'app/services/yfth/UserRelationshipAuthorityServices.php',
     'app/services/yfth/PackageMembershipActivationCoordinator.php',
     'app/services/yfth/PackageMembershipReferralQualificationPolicy.php',
     'app/services/yfth/DirectReferralRewardServices.php',
@@ -87,12 +88,14 @@ foreach ([
     'direct_referral_referred_user_must_be_non_member',
     'assignFirstWithLockedCurrentsInTransaction',
     'createWithLockedCurrentsInTransaction',
-    'package_purchase_cross_store_forbidden',
     'package_must_grant_permanent_membership',
     "['franchisee', 'store_manager']",
 ] as $needle) {
     $assert(strpos($referral, $needle) !== false, 'referral_service_contains:' . $needle);
 }
+$relationshipAuthority = (string)file_get_contents($root . '/app/services/yfth/UserRelationshipAuthorityServices.php');
+$assert(strpos($relationshipAuthority, 'package_purchase_cross_store_forbidden') !== false,
+    'purchase_authority_rejects_cross_store');
 $acceptReferredLock = strpos($referral, '$lockedCurrents = $this->attribution->lockCurrents([$uid]);');
 $acceptOwnerLock = strpos($referral, '$lockedCurrents += $this->attribution->lockCurrents([$ownerUid]);');
 $acceptMember = strpos($referral, '$this->membership->assertEffectiveActive($ownerUid, $storeId, true);');
