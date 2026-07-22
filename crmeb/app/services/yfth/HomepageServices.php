@@ -327,7 +327,28 @@ class HomepageServices
             return [];
         }
         $item['image'] = $this->fileUrl($item['image'] ?? '');
+        $item['target'] = $this->featuredProductTarget((int)$item['id']);
         return $item;
+    }
+
+    private function featuredProductTarget(int $productId): array
+    {
+        $binding = Db::name('yfth_package_product_binding')->alias('binding')
+            ->join('yfth_package_template template', 'template.id = binding.template_id')
+            ->join('yfth_package_rule_version rule', 'rule.id = binding.rule_version_id')
+            ->where('binding.product_id', $productId)
+            ->where('binding.binding_status', 'active')
+            ->where('template.status', 'published')
+            ->where('rule.status', 'published')
+            ->whereColumn('template.current_rule_version_id', 'binding.rule_version_id')
+            ->field('binding.template_id')
+            ->order('binding.id desc')
+            ->find();
+
+        if ($binding && (int)$binding['template_id'] > 0) {
+            return ['type' => 'package_detail', 'id' => (int)$binding['template_id']];
+        }
+        return ['type' => 'product', 'id' => $productId];
     }
 
     private function packages(int $packageId, int $limit): array

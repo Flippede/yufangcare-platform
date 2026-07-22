@@ -16,6 +16,7 @@ const detail = read('pages/yfth/package/detail.vue');
 const agreement = read('pages/yfth/package/agreement_confirm.vue');
 const payment = read('pages/yfth/package/payment_confirm.vue');
 const api = read('api/yfth.js');
+const homepage = read('pages/index/components/yfthCustomHome.vue');
 
 assertContains(pages, '"path": "package/list"', 'package_list_page_registered');
 assertContains(userCenter, 'goYfthPackagePurchase', 'user_center_has_package_purchase_entry');
@@ -39,6 +40,8 @@ assertContains(payment, '确认并支付', 'formal_payment_action_is_visible');
 assertContains(payment, '<payment', 'formal_payment_component_is_mounted');
 assertContains(payment, '每笔订单分别生成套餐权益', 'repeat_purchase_creates_independent_benefits');
 assertContains(api, "request.get('yfth/package/list'", 'public_package_list_api_exists');
+assertContains(homepage, 'this.featuredProduct.target ||', 'homepage_featured_package_uses_authoritative_target');
+assertContains(homepage, "title: '页面打开失败，请稍后重试'", 'homepage_route_failure_is_visible');
 if (pages.includes('package/store_select')) failures.push('legacy_store_selection_page_must_be_removed');
 if (api.includes('yfth/package/service_stores')) failures.push('legacy_public_store_list_api_must_be_removed');
 if (api.includes('yfth/package/simulate')) failures.push('simulation_api_must_not_be_exposed');

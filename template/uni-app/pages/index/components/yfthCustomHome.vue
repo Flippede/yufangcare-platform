@@ -85,7 +85,7 @@ export default {
       uni.navigateTo({ url: '/pages/goods/goods_list/index' });
     },
     openFeaturedProduct() {
-      this.go({ type: 'product', id: this.featuredProduct.id });
+      this.go(this.featuredProduct.target || { type: 'product', id: this.featuredProduct.id });
     },
     openItem(section, item) {
       if (this.isPackage(section)) {
@@ -102,7 +102,14 @@ export default {
       if (target.type === 'package_list') url = '/pages/yfth/package/list';
       if (target.type === 'package_detail' && target.id) url = `/pages/yfth/package/detail?id=${target.id}`;
       if (target.type === 'path' && /^\/pages\//.test(target.path || '')) url = target.path;
-      if (url) uni.navigateTo({ url });
+      if (!url) {
+        this.$util.Tips({ title: '当前入口尚未配置' });
+        return;
+      }
+      uni.navigateTo({
+        url,
+        fail: () => this.$util.Tips({ title: '页面打开失败，请稍后重试' }),
+      });
     },
     onFooter() {},
   },
