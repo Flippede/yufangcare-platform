@@ -55,7 +55,9 @@ try {
         'store_role_membership_backfill_is_role_scoped_and_fails_closed_on_store_conflicts');
     $assert(strpos($storeRoleMembershipBackfill, 'grantForStoreRoleInTransaction') !== false
         && strpos($storeRoleMembershipBackfill, "->addOption('execute'") !== false
-        && strpos($storeRoleMembershipBackfill, "->addOption('operator-uid'") !== false,
+        && strpos($storeRoleMembershipBackfill, "->addOption('operator-uid'") !== false
+        && strpos($storeRoleMembershipBackfill, 'if ($effective)') !== false
+        && strpos($storeRoleMembershipBackfill, "\$effective['is_member']") === false,
         'store_role_membership_backfill_reuses_authoritative_service_and_is_dry_run_by_default');
     $assert(strpos($service, 'public function applyByCustomer') !== false
         && strpos($service, 'public function approveForStore') !== false

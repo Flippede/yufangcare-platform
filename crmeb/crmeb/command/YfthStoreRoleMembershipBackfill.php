@@ -66,7 +66,7 @@ class YfthStoreRoleMembershipBackfill extends Command
                 continue;
             }
             $effective = $memberships->effectiveMembershipAuthority((int)$uid);
-            if (!empty($effective['is_member'])) {
+            if ($effective) {
                 $result['already_active']++;
                 continue;
             }
