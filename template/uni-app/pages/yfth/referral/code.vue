@@ -121,6 +121,12 @@ export default {
 			this.loading = true; this.error = '';
 			getYfthPackageMembershipMe().then((res) => {
 				this.profile = res.data || {};
+				if (this.promotion.code_type === 'store_acquisition') {
+					const role = encodeURIComponent(this.promotion.role_code || 'store_staff');
+					const store = Number(this.promotion.store_id || 0);
+					uni.redirectTo({ url: `/pages/yfth/store_acquisition/code?role_code=${role}&store_id=${store}` });
+					return;
+				}
 				if (this.isMember) return Promise.all([this.issue(), this.loadReferrals(true)]);
 			}).catch((err) => { this.error = (err && (err.msg || err.message)) || '推广资格读取失败'; })
 				.finally(() => { this.loading = false; });

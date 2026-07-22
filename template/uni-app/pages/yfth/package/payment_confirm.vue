@@ -40,7 +40,7 @@ export default {
 			this.storeReady = false; this.storeError = '';
 			return getYfthPackageMembershipMe().then((res) => {
 				const profile = (res && res.data) || {};
-				const attribution = profile.attribution || {};
+				const attribution = profile.purchase_attribution || {};
 				const promotion = profile.promotion || {};
 				const storeId = Number(promotion.store_id || attribution.store_id || 0);
 				if (attribution.status !== 'active' || storeId < 1) throw new Error('当前账号尚未绑定归属门店，请先扫描门店获客码完成绑定');

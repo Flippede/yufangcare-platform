@@ -1698,3 +1698,12 @@ The store-acquisition facts below remain historical and stable. Its debug-purge 
 - CRMEB 分销入口增加 YFTH 订单隔离守卫；统一奖励服务不写 `now_money`、积分、CRMEB 佣金或用户账单。
 - 验证：PHP 7.4.33 lint；MySQL 8.0.46 严格模式迁移 up/down/up/duplicate up；106 + 104 + 33 项契约测试；18 项开店/额度真实服务流；39 项 C2 商城支付与 C1/店铺收益真实流。详见 `docs/YFTH_PARTNER_REWARD_UNIFICATION_V1.md`。
 - 未执行：生产数据库写入、部署、主分支合并。生产发布必须另行审批。
+# Current Fact Snapshot - Authoritative User Upstream Relationship Fix
+
+- The customer-facing current relationship now has one read authority: active partner identity, then active store manager/staff role, then customer attribution for ordinary customers.
+- Headquarters store-role grants no longer leave `我的归属`, the promotion profile, and the headquarters user DTO reading an older customer-attribution store as the current business relationship.
+- For a store manager or staff member, the current store comes from `yfth_user_store_role`; the single upstream comes from the approved store's franchise application and `yfth_franchise_recruit_source`, with active partner/store binding as a controlled fallback.
+- Store operators use the existing store-acquisition QR flow. The permanent-member direct-referral endpoint rejects store operators, preventing two conflicting current promotion codes.
+- Package purchase still uses its immutable customer purchase-attribution authority, now exposed as `purchase_attribution`; it is no longer presented as the user's current business upstream.
+- Existing customer attribution/referral events remain immutable financial and audit history. They are not deleted or rewritten and are no longer used as the current business-role display source.
+- This change was developed on `codex/yfth-authoritative-upstream-unification-fix`; production deployment status is recorded after verification and release.

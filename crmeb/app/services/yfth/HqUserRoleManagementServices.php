@@ -30,6 +30,7 @@ class HqUserRoleManagementServices
     private $identities;
     private $audit;
     private $adminScope;
+    private $relationshipAuthority;
 
     public function __construct(
         UserDao $users,
@@ -39,7 +40,8 @@ class HqUserRoleManagementServices
         PackageMembershipServices $membership,
         UserIdentityServices $identities,
         AuditEventServices $audit,
-        AdminStoreContextServices $adminScope
+        AdminStoreContextServices $adminScope,
+        UserRelationshipAuthorityServices $relationshipAuthority
     ) {
         $this->users = $users;
         $this->roles = $roles;
@@ -49,6 +51,7 @@ class HqUserRoleManagementServices
         $this->identities = $identities;
         $this->audit = $audit;
         $this->adminScope = $adminScope;
+        $this->relationshipAuthority = $relationshipAuthority;
     }
 
     public function users(array $filters, array $adminInfo): array
@@ -246,13 +249,7 @@ class HqUserRoleManagementServices
                 ->where('p.uid', (int)$partnerRelation['parent_uid'])
                 ->field('p.uid,p.rank_code,p.status,u.nickname,u.account')->find() ?: [])
             : [];
-        $attribution = Db::name('yfth_hq_customer_attribution_current')->where('uid', $uid)->find() ?: [];
-        $referral = Db::name('yfth_hq_active_referral_current')->where('referred_uid', $uid)->find() ?: [];
-        $attributionStore = !empty($attribution['store_id']) ? $this->storeName((int)$attribution['store_id']) : '';
-        $referrer = !empty($referral['referrer_uid'])
-            ? $this->users->get((int)$referral['referrer_uid'], ['uid', 'nickname', 'account'])
-            : null;
-        $referrer = $referrer ? (is_array($referrer) ? $referrer : $referrer->toArray()) : [];
+        $relationship = $this->relationshipAuthority->resolve($uid);
         $auditEvents = [];
         if ($includeHistory && $roleRows) {
             $auditEvents = Db::name('yfth_audit_event')
@@ -274,17 +271,18 @@ class HqUserRoleManagementServices
             'membership' => $membership['is_member'] ? $membership['member'] : null,
             'mall_balance' => (string)($user['now_money'] ?? '0.00'),
             'mall_integral' => (string)($user['integral'] ?? '0'),
+            'current_relationship' => $relationship,
             'attribution' => [
-                'status' => (string)($attribution['status'] ?? 'unassigned'),
-                'store_id' => (int)($attribution['store_id'] ?? 0),
-                'store_name' => $attributionStore,
-                'source_type' => (string)($attribution['source_type'] ?? ''),
+                'status' => (string)($relationship['attribution_status'] ?? 'unassigned'),
+                'store_id' => (int)($relationship['store_id'] ?? 0),
+                'store_name' => (string)($relationship['store_name'] ?? ($relationship['store']['name'] ?? '')),
+                'source_type' => (string)($relationship['source_type'] ?? ''),
             ],
             'referral' => [
-                'status' => (string)($referral['status'] ?? 'none'),
-                'store_id' => (int)($referral['store_id'] ?? 0),
-                'store_name' => !empty($referral['store_id']) ? $this->storeName((int)$referral['store_id']) : '',
-                'referrer_name' => (string)($referrer['nickname'] ?? $referrer['account'] ?? ''),
+                'status' => !empty($relationship['upstream']) ? 'active' : 'none',
+                'store_id' => (int)($relationship['store_id'] ?? 0),
+                'store_name' => (string)($relationship['store_name'] ?? ($relationship['store']['name'] ?? '')),
+                'referrer_name' => (string)($relationship['upstream']['display_name'] ?? ''),
             ],
             'identities' => $this->identities->listUserIdentities($uid),
             'store_roles' => $roles,

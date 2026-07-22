@@ -21,6 +21,7 @@ class PackageMembershipReferralServices extends YfthFoundationBaseServices
     private $runner;
     private $consistency;
     private $audit;
+    private $relationshipAuthority;
 
     public function __construct(
         YfthDirectReferralInviteDao $dao,
@@ -31,7 +32,8 @@ class PackageMembershipReferralServices extends YfthFoundationBaseServices
         YfthHqActiveReferralCurrentDao $referralDao,
         HqAuthorityOperationRunner $runner,
         HqAuthorityConsistencyValidator $consistency,
-        AuditEventServices $audit
+        AuditEventServices $audit,
+        UserRelationshipAuthorityServices $relationshipAuthority
     ) {
         $this->dao = $dao;
         $this->membership = $membership;
@@ -42,11 +44,13 @@ class PackageMembershipReferralServices extends YfthFoundationBaseServices
         $this->runner = $runner;
         $this->consistency = $consistency;
         $this->audit = $audit;
+        $this->relationshipAuthority = $relationshipAuthority;
     }
 
     public function me(int $uid): array
     {
         $membership = $this->membership->effectiveMembership($uid);
+        $relationship = $this->relationshipAuthority->resolve($uid);
         $attribution = $this->row($this->attributionDao->getOne(['uid' => $uid]));
         if ($attribution) {
             $this->consistency->assertAttribution($attribution);
@@ -56,15 +60,19 @@ class PackageMembershipReferralServices extends YfthFoundationBaseServices
             $this->consistency->assertReferral($referral);
         }
         $invite = $this->row($this->dao->getOne(['active_key' => (string)$uid]));
-        $storeId = (int)($attribution['store_id'] ?? $membership['member']['store_id'] ?? 0);
+        $businessPromotion = (string)($relationship['promotion_code_type'] ?? '') === 'store_acquisition';
+        $storeId = $businessPromotion
+            ? (int)($relationship['store_id'] ?? 0)
+            : (int)($attribution['store_id'] ?? $membership['member']['store_id'] ?? 0);
         $store = $storeId > 0 ? app()->make(\app\services\system\store\SystemStoreServices::class)->get($storeId, ['id', 'name']) : null;
         $store = $store ? (is_array($store) ? $store : $store->toArray()) : [];
         return [
             'membership' => $membership,
-            'attribution' => $attribution ? [
+            'purchase_attribution' => $attribution ? [
                 'store_id' => (int)$attribution['store_id'],
                 'status' => (string)$attribution['status'],
             ] : null,
+            'current_relationship' => $relationship,
             'direct_referral' => $referral ? [
                 'store_id' => (int)$referral['store_id'],
                 'status' => (string)$referral['status'],
@@ -76,7 +84,9 @@ class PackageMembershipReferralServices extends YfthFoundationBaseServices
                 'expires_at' => (int)$invite['expires_at'],
             ] : null,
             'promotion' => [
-                'eligible' => (bool)$membership['is_member'],
+                'eligible' => $businessPromotion || (bool)$membership['is_member'],
+                'code_type' => $businessPromotion ? 'store_acquisition' : 'direct_referral',
+                'role_code' => (string)($relationship['role_code'] ?? ''),
                 'store_id' => $storeId,
                 'store_name' => (string)($store['name'] ?? ''),
                 'invited_count' => (int)$this->referralDao->search([])->where('referrer_uid', $uid)->count(),
@@ -246,6 +256,9 @@ class PackageMembershipReferralServices extends YfthFoundationBaseServices
 
     public function issueInvite(int $uid, array $data): array
     {
+        if ((string)($this->relationshipAuthority->resolve($uid)['promotion_code_type'] ?? '') === 'store_acquisition') {
+            throw new ApiException('business_role_uses_store_acquisition_code');
+        }
         $requestId = $this->requestId($data);
         return Db::transaction(function () use ($uid, $requestId) {
             $lockedCurrents = $this->attribution->lockCurrents([$uid]);

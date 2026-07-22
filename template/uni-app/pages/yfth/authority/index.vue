@@ -17,7 +17,7 @@
 				<view class="status-head">
 					<view>
 						<view class="label">当前状态</view>
-						<view class="status-title">{{ data.attribution_status_label || '暂未归属' }}</view>
+						<view class="status-title">{{ data.relationship_type_label || data.attribution_status_label || '暂未归属' }}</view>
 					</view>
 					<view :class="['badge', data.attribution_status || 'unassigned']">{{ data.attribution_status || 'unassigned' }}</view>
 				</view>
@@ -34,9 +34,13 @@
 			</view>
 
 			<view class="info-card">
-				<view class="info-row">
+				<view class="info-row" v-if="data.relationship_type === 'customer_attribution'">
 					<text>一级推荐关系</text>
 					<text class="value">{{ data.has_active_referral ? '存在有效关系' : '当前无有效关系' }}</text>
+				</view>
+				<view class="info-row" v-if="data.upstream">
+					<text>唯一上级</text>
+					<text class="value">{{ data.upstream.rank_name }} · {{ data.upstream.display_name }}</text>
 				</view>
 				<view class="info-row" v-if="data.bound_at">
 					<text>归属形成时间</text>

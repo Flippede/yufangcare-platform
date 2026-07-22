@@ -57,7 +57,7 @@ export default {
 			this.storeError = '';
 			return getYfthPackageMembershipMe().then((res) => {
 				const profile = (res && res.data) || {};
-				const attribution = profile.attribution || {};
+				const attribution = profile.purchase_attribution || {};
 				const promotion = profile.promotion || {};
 				const storeId = Number(promotion.store_id || attribution.store_id || 0);
 				if (attribution.status !== 'active' || storeId < 1) {

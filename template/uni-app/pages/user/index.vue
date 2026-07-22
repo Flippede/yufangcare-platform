@@ -96,7 +96,7 @@
 					</view>
 					<view class="member-exclusive" v-if="isLogin">
 						<view class="section-title">会员专属</view>
-						<view v-if="isYfthPermanentMember" class="exclusive-grid">
+						<view v-if="isYfthPermanentMember || isYfthStoreOperator" class="exclusive-grid">
 							<view @click="goYfthReferralCode"><text class="exclusive-icon">码</text><text>我的推广码</text></view>
 							<view @click="goYfthAttribution"><text class="exclusive-icon">归</text><text>我的归属</text></view>
 							<view @click="goYfthPackageMembership"><text class="exclusive-icon">会</text><text>套餐会员</text></view>
@@ -272,6 +272,9 @@ export default {
 		},
 		isYfthPermanentMember() {
 			return Boolean(this.yfthMembershipProfile.membership && this.yfthMembershipProfile.membership.is_member);
+		},
+		isYfthStoreOperator() {
+			return ['store_manager', 'store_staff'].includes(String((this.yfthCurrentContext || {}).role_code || ''));
 		},
 		yfthUnifiedBalance() {
 			return (Number(this.userInfo.now_money || 0) + Number(this.yfthCommissionProfile.account && this.yfthCommissionProfile.account.available || 0)).toFixed(2);
@@ -840,6 +843,11 @@ export default {
 
 		goYfthReferralCode() {
 			if (!this.isLogin) { toLogin(); return; }
+			if (this.isYfthStoreOperator) {
+				const context = this.yfthCurrentContext || {};
+				uni.navigateTo({ url: `/pages/yfth/store_acquisition/code?role_code=${encodeURIComponent(context.role_code)}&store_id=${Number(context.store_id || 0)}` });
+				return;
+			}
 			if (!this.isYfthPermanentMember) { this.goYfthPackagePurchase(); return; }
 			uni.navigateTo({ url: '/pages/yfth/referral/code' });
 		},
