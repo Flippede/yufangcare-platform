@@ -32,17 +32,19 @@ import { resolveYfthStoreAcquisitionCode, acceptYfthStoreAcquisitionCode } from 
 const PENDING_KEY = 'yfth_pending_store_acquisition';
 
 export default {
-	data() { return { token: '', state: 'loading', error: '', preview: {}, result: {}, submitting: false, redirecting: false, successTimer: null }; },
+	data() { return { token: '', state: 'loading', error: '', preview: {}, result: {}, resolving: false, submitting: false, redirecting: false, successTimer: null }; },
 	computed: { ...mapGetters(['isLogin']) },
 	onLoad(options) {
 		this.token = String((options && options.acquisition_token) || uni.getStorageSync(PENDING_KEY) || '').trim().toLowerCase();
 		if (!/^[a-f0-9]{64}$/.test(this.token)) { this.state = 'error'; this.error = '门店专属码无效或已损坏'; return; }
 		uni.setStorageSync(PENDING_KEY, this.token);
 	},
-	onShow() { if (/^[a-f0-9]{64}$/.test(this.token) && !this.submitting && this.state !== 'success') this.resolve(); },
+	onShow() { if (/^[a-f0-9]{64}$/.test(this.token) && !this.resolving && !this.submitting && !this.redirecting && this.state !== 'success') this.resolve(); },
 	onUnload() { if (this.successTimer) clearTimeout(this.successTimer); },
 	methods: {
 		resolve() {
+			if (this.resolving || this.submitting || this.redirecting || this.state === 'success') return;
+			this.resolving = true;
 			this.state = 'loading'; this.error = '';
 			resolveYfthStoreAcquisitionCode(this.token).then((res) => {
 				this.preview = res.data || {};
@@ -50,7 +52,8 @@ export default {
 				if (!this.isLogin) { this.state = 'login'; if (!this.redirecting) this.login(); return; }
 				this.state = 'confirm';
 				this.$nextTick(() => this.accept());
-			}).catch((err) => { this.state = 'error'; this.error = (err && (err.msg || err.message)) || '门店专属码不可用'; });
+			}).catch((err) => { this.state = 'error'; this.error = (err && (err.msg || err.message)) || '门店专属码不可用'; })
+				.finally(() => { this.resolving = false; });
 		},
 		login() { this.redirecting = true; this.state = 'login'; toLogin(); setTimeout(() => { this.redirecting = false; }, 1200); },
 		accept() {

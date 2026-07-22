@@ -30,6 +30,8 @@ import {
 import store from '@/store';
 import Cache from '@/utils/cache';
 
+const YFTH_PENDING_STORE_ACQUISITION = 'yfth_pending_store_acquisition';
+
 class AuthWechat {
 
 	constructor() {
@@ -258,13 +260,18 @@ class AuthWechat {
 		// 	url = url + '&'
 		// }
 		const redirect_uri = encodeURIComponent(location.href);
-		const state = Cache.get('login_back_url') || '/pages/user/index';
+		const acquisitionToken = String(uni.getStorageSync(YFTH_PENDING_STORE_ACQUISITION) || '').trim().toLowerCase();
+		const loginBackUrl = String(Cache.get('login_back_url') || '/pages/user/index');
+		const state = /^[a-f0-9]{64}$/.test(acquisitionToken)
+			? 'yfth_store_acquisition'
+			: loginBackUrl.slice(0, 120);
+		const encodedState = encodeURIComponent(state);
 		// uni.setStorageSync(STATE_KEY, state);
 		uni.removeStorageSync(BACK_URL);
 		if (snsapiBase === 'snsapi_base') {
-			return `https://open.weixin.qq.com/connect/oauth2/authorize?appid=${appId}&redirect_uri=${redirect_uri}&response_type=code&scope=snsapi_base&state=${state}&connect_redirect=1#wechat_redirect`;
+			return `https://open.weixin.qq.com/connect/oauth2/authorize?appid=${appId}&redirect_uri=${redirect_uri}&response_type=code&scope=snsapi_base&state=${encodedState}&connect_redirect=1#wechat_redirect`;
 		} else {
-			return `https://open.weixin.qq.com/connect/oauth2/authorize?appid=${appId}&redirect_uri=${redirect_uri}&response_type=code&scope=snsapi_userinfo&state=${state}&connect_redirect=1#wechat_redirect`;
+			return `https://open.weixin.qq.com/connect/oauth2/authorize?appid=${appId}&redirect_uri=${redirect_uri}&response_type=code&scope=snsapi_userinfo&state=${encodedState}&connect_redirect=1#wechat_redirect`;
 		}
 
 	}

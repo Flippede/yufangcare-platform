@@ -30,9 +30,28 @@ import Routine from '@/libs/routine';
 
 const LOGIN_BACK_URL = 'login_back_url';
 const YFTH_PENDING_STORE_ACQUISITION = 'yfth_pending_store_acquisition';
+const WECHAT_LOGIN_PATH = '/pages/users/wechat_login/index';
+
+function pendingStoreAcquisitionToken() {
+	return String(uni.getStorageSync(YFTH_PENDING_STORE_ACQUISITION) || '').trim().toLowerCase();
+}
+
+function hasPendingStoreAcquisition() {
+	return /^[a-f0-9]{64}$/.test(pendingStoreAcquisitionToken());
+}
+
+// A scanned deep link must enter the login document directly. Lazy-loading this
+// page from the H5 accept route can leave older WeChat webviews on uni-app's
+// async-page retry screen even though the API and static files are healthy.
+function openWechatAcquisitionLogin() {
+	const target = `${WECHAT_LOGIN_PATH}?yfth_flow=store_acquisition`;
+	if (location.pathname === WECHAT_LOGIN_PATH) return true;
+	location.replace(target);
+	return true;
+}
 
 export function resolveLoginBackUrl(fallback = '/pages/index/index') {
-	const acquisitionToken = String(uni.getStorageSync(YFTH_PENDING_STORE_ACQUISITION) || '').trim().toLowerCase();
+	const acquisitionToken = pendingStoreAcquisitionToken();
 	if (/^[a-f0-9]{64}$/.test(acquisitionToken)) {
 		Cache.clear(LOGIN_BACK_URL);
 		return `/pages/yfth/store_acquisition/accept?acquisition_token=${acquisitionToken}`;
@@ -85,8 +104,12 @@ function _toLogin(push, pathLogin) {
 	}
 	// #ifdef H5
 	if (isWeixin()) {
+		if (hasPendingStoreAcquisition()) {
+			openWechatAcquisitionLogin();
+			return;
+		}
 		uni.navigateTo({
-			url: '/pages/users/wechat_login/index',
+			url: WECHAT_LOGIN_PATH,
 		});
 
 	} else {
