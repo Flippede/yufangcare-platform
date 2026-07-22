@@ -844,7 +844,6 @@ export default {
 				uni.navigateTo({ url: `/pages/yfth/store_acquisition/code?role_code=${encodeURIComponent(context.role_code)}&store_id=${Number(context.store_id || 0)}` });
 				return;
 			}
-			if (!this.isYfthPermanentMember) { this.goYfthPackagePurchase(); return; }
 			uni.navigateTo({ url: '/pages/yfth/referral/code' });
 		},
 

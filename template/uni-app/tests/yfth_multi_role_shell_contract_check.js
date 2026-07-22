@@ -38,6 +38,12 @@ assert(userPage.includes('onShow: function') && userPage.includes('this.loadYfth
 assert(userPage.includes('resetYfthBusinessEntry'), 'user center must reset business entry before async identity loading');
 assert(userPage.includes('yfthBusinessIdentityRequestSeq'), 'user center must guard identity requests with a sequence');
 assert(userPage.includes('requestUid') && userPage.includes('currentUid'), 'user center must prevent stale identity requests from writing after user switch');
+assert(userPage.includes("uni.navigateTo({ url: '/pages/yfth/referral/code' });"), 'customer identity-code entry must open the shared identity/referral code page');
+assert(!userPage.includes('if (!this.isYfthPermanentMember) { this.goYfthPackagePurchase(); return; }'), 'ordinary customers must not be redirected from their identity code to package purchase');
+
+const referralCodePage = read('pages/yfth/referral/code.vue');
+assert(referralCodePage.includes('v-if="!isMember"') && referralCodePage.includes('我的身份码'), 'ordinary customers must render the identity-code panel');
+assert(referralCodePage.includes('return this.issueIdentity();'), 'ordinary customers must issue an identity code instead of a referral invite');
 
 const context = read('libs/yfthContext.js');
 const cache = read('utils/cache.js');
