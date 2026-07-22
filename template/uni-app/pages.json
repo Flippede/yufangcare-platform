@@ -79,12 +79,6 @@
 					}
 				},
 				{
-					"path": "package/store_select",
-					"style": {
-						"navigationBarTitleText": "选择服务门店"
-					}
-				},
-				{
 					"path": "package/agreement_confirm",
 					"style": {
 						"navigationBarTitleText": "确认协议"

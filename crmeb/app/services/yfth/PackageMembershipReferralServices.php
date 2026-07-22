@@ -425,22 +425,22 @@ class PackageMembershipReferralServices extends YfthFoundationBaseServices
         return $this->userAcceptResultDto($result);
     }
 
-    public function resolveAuthoritativeStoreForPurchase(int $uid, int $requestedStoreId): int
+    public function requireAuthoritativeStoreForPurchase(int $uid, int $requestedStoreId = 0): int
     {
         $attribution = $this->row($this->attributionDao->getOne(['uid' => $uid]));
         if (!$attribution) {
-            return $requestedStoreId;
+            throw new ApiException('package_purchase_authoritative_store_required');
         }
         $this->consistency->assertAttribution($attribution);
         $status = (string)$attribution['status'];
-        if ($status === 'unassigned' && (int)$attribution['authority_version'] === 0) {
-            return $requestedStoreId;
-        }
         if ($status !== 'active') {
-            throw new ApiException('package_purchase_attribution_unavailable');
+            throw new ApiException('package_purchase_authoritative_store_required');
         }
         $storeId = (int)$attribution['store_id'];
-        if ($storeId <= 0 || ($requestedStoreId > 0 && $requestedStoreId !== $storeId)) {
+        if ($storeId <= 0) {
+            throw new ApiException('package_purchase_authoritative_store_required');
+        }
+        if ($requestedStoreId > 0 && $requestedStoreId !== $storeId) {
             throw new ApiException('package_purchase_cross_store_forbidden');
         }
         $relation = $this->row($this->referralDao->search([])->where('referred_uid', $uid)->order('id desc')->find());

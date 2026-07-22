@@ -25,7 +25,7 @@
 			<view class="btn-wrapper">
 				<!-- #ifdef H5 -->
 				<button hover-class="none" @click="wechatLogin" class="bg-theme btn1">{{$t(`微信登录`)}}</button>
-				<button hover-class="none" @click="accountLogin" class="account-switch">切换账号</button>
+				<button hover-class="none" @click="accountLogin" class="account-switch">切换手机号/账号登录</button>
 				<!-- #endif -->
 				<!-- #ifdef MP -->
 				<template v-if="configData.wechat_auth_switch">
@@ -35,7 +35,8 @@
 						{{$t(`授权登录`)}}
 					</button>
 				</template>
-				<button hover-class="none" @click="accountLogin" class="account-switch">切换账号</button>
+				<button v-else class="bg-theme btn1" @click="getAuthLogin">{{$t(`微信登录`)}}</button>
+				<button hover-class="none" @click="accountLogin" class="account-switch">切换手机号/账号登录</button>
 				<!-- #endif -->
 				<view class="account-login-hint">支持手机号验证码和账号密码登录</view>
 				<!-- #ifdef MP -->
@@ -132,7 +133,7 @@
 				inAnimation: false,
 				colorStatus: uni.getStorageSync('color_status'),
 				mp_is_new: this.$Cache.get('MP_VERSION_ISNEW') || false,
-				configData: Cache.get('BASIC_CONFIG'),
+				configData: Cache.get('BASIC_CONFIG') || {},
 				bindPhone: false,
 				postLoginUrl: ''
 			};
@@ -144,6 +145,7 @@
 			privacyAgreementPopup
 		},
 		onLoad(options) {
+			this.options = options || {};
 			if (uni.getUserProfile) {
 				this.canUseGetUserProfile = true
 			}

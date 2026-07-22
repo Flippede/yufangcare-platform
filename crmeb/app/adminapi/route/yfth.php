@@ -231,6 +231,7 @@ Route::group('yfth', function () {
         Route::post('user/:uid/membership/grant', 'v1.yfth.HqUserRole/grantMembership')->option(['real_name' => '总部授予用户永久会员']);
         Route::post('user/:uid/membership/revoke', 'v1.yfth.HqUserRole/revokeMembership')->option(['real_name' => '总部解除用户永久会员']);
         Route::post('user/:uid/partner/grant', 'v1.yfth.HqUserRole/grantPartner')->option(['real_name' => '总部授予用户招商合伙人身份']);
+        Route::post('user/:uid/partner/revoke', 'v1.yfth.HqUserRole/revokePartner')->option(['real_name' => '总部撤销用户招商合伙人身份']);
         Route::get('user/:uid/closure/preflight', 'v1.yfth.HqUserRole/closurePreflight')->option(['real_name' => '总部用户销户预检']);
         Route::delete('user/:uid/closure', 'v1.yfth.HqUserRole/closure')->option(['real_name' => '总部代办用户销户']);
         Route::post('role/:id/revoke', 'v1.yfth.HqUserRole/revoke')->option(['real_name' => '总部撤销用户经营身份']);

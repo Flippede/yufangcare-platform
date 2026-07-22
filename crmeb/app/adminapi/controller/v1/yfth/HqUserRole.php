@@ -83,6 +83,16 @@ class HqUserRole extends AuthController
         ]), (int)$this->adminId, $this->adminInfo ?: []));
     }
 
+    public function revokePartner(FranchisePartnerServices $services, $uid)
+    {
+        $this->auth('yfth/user_role/user/<uid>/partner/revoke', 'POST');
+        return app('json')->success($services->adminRevokePartner((int)$uid, $this->request->postMore([
+            ['confirmation', ''],
+            ['reason', ''],
+            ['request_id', ''],
+        ]), (int)$this->adminId, $this->adminInfo ?: []));
+    }
+
     public function revoke(HqUserRoleManagementServices $services, $id)
     {
         $this->auth('yfth/user_role/role/<id>/revoke', 'POST');

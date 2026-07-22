@@ -137,7 +137,8 @@ $packageTemplate = (string)file_get_contents($root . '/app/services/yfth/Package
 $packagePurchase = (string)file_get_contents($root . '/app/services/yfth/PackagePurchaseServices.php');
 $packageActivation = (string)file_get_contents($root . '/app/services/yfth/PackageActivationServices.php');
 $assert(strpos($packageTemplate, 'grants_permanent_membership') !== false, 'package_rule_versions_membership_grant');
-$assert(strpos($packagePurchase, 'resolveAuthoritativeStoreForPurchase') !== false, 'purchase_resolves_authoritative_store');
+$assert(strpos($packagePurchase, 'requireAuthoritativeStoreForPurchase') !== false, 'purchase_requires_authoritative_store');
+$assert(strpos($packagePurchase, 'resolveAuthoritativeStoreForPurchase') === false, 'legacy_client_store_fallback_removed');
 $assert(strpos($packagePurchase, 'assertMembershipGrantRule') !== false, 'every_package_purchase_requires_membership_grant');
 $assert(strpos($packageTemplate, 'published_package_rule_must_grant_permanent_membership') !== false, 'published_package_rule_requires_membership_grant');
 $assert(strpos($packageTemplate, 'supersedeCurrentPublishedRule') !== false, 'package_price_rules_support_immutable_version_rollover');

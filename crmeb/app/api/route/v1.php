@@ -383,7 +383,6 @@ Route::group(function () {
     Route::group(function () {
         Route::get('yfth/package/list', 'v1.yfth.PackageBenefitController/packageList')->option(['real_name' => '御方通和套餐公开列表']);
         Route::get('yfth/package/detail/:id', 'v1.yfth.PackageBenefitController/packageDetail')->option(['real_name' => '御方通和套餐公开详情']);
-        Route::get('yfth/package/service_stores/:id', 'v1.yfth.PackageBenefitController/serviceStores')->option(['real_name' => '御方通和套餐服务门店']);
         Route::get('yfth/package/rule_preview/:id', 'v1.yfth.PackageBenefitController/rulePreview')->option(['real_name' => '御方通和套餐规则预览']);
     })->option(['mark' => 'yfth_package_public', 'mark_name' => '御方通和套餐公开接口']);
 

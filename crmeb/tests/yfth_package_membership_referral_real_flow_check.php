@@ -242,9 +242,12 @@ try {
     $assert($duplicateRejected, 'existing_active_referral_is_rejected');
     $assert((int)Db::name('yfth_hq_active_referral_current')->where('referred_uid', 920002)->count() === 1, 'existing_referral_rejection_creates_no_duplicate');
     $expect(function () use ($referral, $storeB) {
-        $referral->resolveAuthoritativeStoreForPurchase(920002, $storeB);
+        $referral->requireAuthoritativeStoreForPurchase(920002, $storeB);
     }, 'package_purchase_cross_store_forbidden', 'cross_store_package_purchase_rejected');
-    $assert($referral->resolveAuthoritativeStoreForPurchase(920002, $storeA) === $storeA, 'same_store_package_purchase_allowed');
+    $assert($referral->requireAuthoritativeStoreForPurchase(920002, $storeA) === $storeA, 'same_store_package_purchase_allowed');
+    $expect(function () use ($referral) {
+        $referral->requireAuthoritativeStoreForPurchase(920099);
+    }, 'package_purchase_authoritative_store_required', 'unbound_package_purchase_requires_store_qr_binding');
 
     $result1 = pmrActivate($coordinator, 920002, $storeA, 991002, 992002, '123.45');
     $assert(!empty($result1['membership_created']), 'c2_activation_creates_membership');

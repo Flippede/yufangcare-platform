@@ -41,10 +41,6 @@ export function getYfthPackageDetail(id) {
 	return request.get('yfth/package/detail/' + id, {}, { noAuth: true });
 }
 
-export function getYfthPackageStores(id) {
-	return request.get('yfth/package/service_stores/' + id, {}, { noAuth: true });
-}
-
 export function getYfthPackageRulePreview(id, data) {
 	return request.get('yfth/package/rule_preview/' + id, data || {}, { noAuth: true });
 }

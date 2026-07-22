@@ -353,6 +353,85 @@ class FranchisePartnerServices extends YfthFoundationBaseServices
         });
     }
 
+    public function adminRevokePartner(int $uid, array $data, int $adminId, array $adminInfo): array
+    {
+        $this->assertHeadquarters($adminInfo);
+        $reason = $this->requiredReason($data);
+        if (trim((string)($data['confirmation'] ?? '')) !== '确认撤销合伙人') {
+            throw new ApiException('partner_revoke_confirmation_invalid');
+        }
+
+        return Db::transaction(function () use ($uid, $adminId, $reason) {
+            $before = Db::name('yfth_partner_profile')->where('uid', $uid)->lock(true)->find();
+            if (!$before) {
+                throw new ApiException('partner_not_found');
+            }
+            if ((string)$before['status'] !== 'active') {
+                return ['partner' => $this->partnerDto($before), 'idempotent' => true];
+            }
+
+            $activeChildren = Db::name('yfth_partner_relation')
+                ->where(['parent_uid' => $uid, 'status' => 'active'])->field('id')->lock(true)->select()->toArray();
+            if ($activeChildren) {
+                throw new ApiException('partner_active_children_must_be_reassigned');
+            }
+
+            $now = time();
+            $relationBefore = Db::name('yfth_partner_relation')
+                ->where('active_key', 'partner:' . $uid)->lock(true)->find() ?: [];
+            if ($relationBefore) {
+                Db::name('yfth_partner_relation')->where('id', (int)$relationBefore['id'])->update([
+                    'status' => 'closed',
+                    'end_time' => $now,
+                    'reason' => $reason,
+                    'operator_uid' => $adminId,
+                    'active_key' => null,
+                    'update_time' => $now,
+                ]);
+            }
+
+            $after = $before;
+            $after['status'] = 'exited';
+            $after['qualification_status'] = 'terminated';
+            $after['active_key'] = null;
+            $after['valid_to'] = $now;
+            $after['end_time'] = $now;
+            $after['update_time'] = $now;
+            Db::name('yfth_partner_profile')->where('id', (int)$before['id'])->update([
+                'status' => $after['status'],
+                'qualification_status' => $after['qualification_status'],
+                'active_key' => null,
+                'valid_to' => $now,
+                'end_time' => $now,
+                'update_time' => $now,
+            ]);
+            Db::name('yfth_partner_rank_event')->insert([
+                'partner_uid' => $uid,
+                'from_rank' => (string)$before['rank_code'],
+                'to_rank' => '',
+                'action' => 'headquarters_revoke',
+                'rule_version_id' => (int)($this->activeRule()['id'] ?? 0),
+                'reason' => $reason,
+                'evidence_snapshot' => $this->json(['relation_id' => (int)($relationBefore['id'] ?? 0)]),
+                'operator_uid' => $adminId,
+                'create_time' => $now,
+            ]);
+            $this->recordAudit('partner_profile', (int)$before['id'], 'headquarters_revoke', $before, $after, $adminId, (int)$before['primary_store_id'], $reason);
+            if ($relationBefore) {
+                $relationAfter = $relationBefore;
+                $relationAfter['status'] = 'closed';
+                $relationAfter['end_time'] = $now;
+                $relationAfter['reason'] = $reason;
+                $relationAfter['operator_uid'] = $adminId;
+                $relationAfter['active_key'] = null;
+                $relationAfter['update_time'] = $now;
+                $this->recordAudit('partner_relation', (int)$relationBefore['id'], 'headquarters_revoke', $relationBefore, $relationAfter, $adminId, 0, $reason);
+            }
+
+            return ['partner' => $this->partnerDto($after), 'idempotent' => false];
+        });
+    }
+
     public function adminChangeRank(int $uid, array $data, int $adminId, array $adminInfo): array
     {
         $this->assertHeadquarters($adminInfo);

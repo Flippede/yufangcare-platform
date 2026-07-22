@@ -240,7 +240,6 @@ foreach ([
     "yfth/package/agreement/:purchaseNo",
     "yfth/package/list",
     "yfth/package/detail/:id",
-    "yfth/package/service_stores/:id",
     "yfth/package/rule_preview/:id",
 ] as $route) {
     $assertContains($apiRoutes, $route, "Missing mobile/API route: {$route}");
@@ -304,7 +303,6 @@ foreach ([
 foreach ([
     'pages/yfth',
     'package/detail',
-    'package/store_select',
     'package/agreement_confirm',
     'package/payment_confirm',
     'package/payment_result',
@@ -315,6 +313,9 @@ foreach ([
 ] as $page) {
     $assertContains($pagesJson, $page, "Missing uni-app package page registration: {$page}");
 }
+$assertNotContains($apiRoutes, 'yfth/package/service_stores/:id', 'Legacy public package store list route must be removed');
+$assertNotContains($pagesJson, 'package/store_select', 'Legacy client-selected package store page must be removed');
+$assertNotContains($mobileApi, 'getYfthPackageStores', 'Legacy public package store API client must be removed');
 
 foreach ([
     'docs/YFTH_PACKAGE_BENEFIT_ARCHITECTURE.md',

@@ -33,15 +33,25 @@ const pages = read('pages.json');
   ['mode-switch', 'login mode switch'],
 	['protocol-check', 'stable protocol selection control'],
 	['@tap="toggleProtocol"', 'protocol text and control interaction'],
+	['切换微信登录', 'return switch from phone/account login to WeChat login'],
+	['switchWechatLogin()', 'WeChat return action'],
+	["url: '/pages/users/wechat_login/index'", 'WeChat login destination'],
   ['copyRight && copyRight.copyrightContext', 'safe copyright storage access'],
 ].forEach(([needle, label]) => requireText(login, needle, label));
 
 [
-	['切换账号', 'visible account switch below WeChat login'],
+	['切换手机号/账号登录', 'visible phone/account switch below WeChat login'],
 	['@click="accountLogin"', 'account switch interaction'],
 	["url: '/pages/users/login/index'", 'shared phone and account login destination'],
 	['支持手机号验证码和账号密码登录', 'login method explanation'],
+	['this.options = options || {};', 'OAuth query options preserved'],
 ].forEach(([needle, label]) => requireText(wechatLogin, needle, label));
+
+const loginLibrary = read('libs/login.js');
+[
+	['if (isWeixin())', 'WeChat browser always receives WeChat-first login'],
+	["url: '/pages/users/wechat_login/index'", 'mini program WeChat-first login'],
+].forEach(([needle, label]) => requireText(loginLibrary, needle, label));
 
 [
   ['document.addEventListener("touchmove"', 'global touchmove listener'],

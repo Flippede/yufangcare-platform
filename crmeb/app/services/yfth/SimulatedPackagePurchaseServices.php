@@ -30,7 +30,7 @@ class SimulatedPackagePurchaseServices extends PackageBenefitBaseServices
         [$template, $rule] = $this->simulationDefinition($templateId);
         $membership = app()->make(PackageMembershipServices::class)->effectiveMembership($uid);
         $storeId = app()->make(PackageMembershipReferralServices::class)
-            ->resolveAuthoritativeStoreForPurchase($uid, 0);
+            ->requireAuthoritativeStoreForPurchase($uid);
         if ($storeId <= 0 && !empty($membership['member']['store_id'])) {
             $storeId = (int)$membership['member']['store_id'];
         }

@@ -24,11 +24,6 @@ class PackageBenefitController
         return app('json')->success($services->publicDetail((int)$id));
     }
 
-    public function serviceStores(PackagePurchaseServices $services, $id)
-    {
-        return app('json')->success($services->serviceStores((int)$id));
-    }
-
     public function rulePreview(Request $request, PackageTemplateServices $services, $id)
     {
         $data = $request->getMore([[['rule_version_id', 'd'], 0]]);

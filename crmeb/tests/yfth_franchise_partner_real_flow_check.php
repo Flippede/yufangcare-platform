@@ -200,6 +200,20 @@ try {
         ], 1, $hq);
     }, 'partner_parent_rank_invalid', 'parent_change_rejects_non_adjacent_rank');
     $assert((int)Db::name('yfth_partner_rank_event')->whereIn('partner_uid', array_values($manualRankUids))->where('action', 'headquarters_grant')->count() === 5, 'manual_grants_write_rank_events');
+    $expect(function () use ($partner, $manualRankUids, $hq) {
+        $partner->adminRevokePartner($manualRankUids['platform_director'], [
+            'confirmation' => '确认撤销合伙人', 'reason' => 'active child must be reassigned first',
+        ], 1, $hq);
+    }, 'partner_active_children_must_be_reassigned', 'partner_with_active_children_cannot_be_revoked');
+    $countyRevoke = $partner->adminRevokePartner($manualRankUids['county_partner'], [
+        'confirmation' => '确认撤销合伙人', 'reason' => 'isolated county revoke',
+    ], 1, $hq);
+    $countyRevokeAgain = $partner->adminRevokePartner($manualRankUids['county_partner'], [
+        'confirmation' => '确认撤销合伙人', 'reason' => 'isolated county revoke replay',
+    ], 1, $hq);
+    $assert((string)$countyRevoke['partner']['status'] === 'exited' && !$countyRevoke['idempotent'] && $countyRevokeAgain['idempotent'], 'leaf_partner_revoke_is_idempotent');
+    $assert((int)Db::name('yfth_partner_relation')->where('partner_uid', $manualRankUids['county_partner'])->where('status', 'active')->count() === 0, 'partner_revoke_closes_active_parent_relation');
+    $assert((int)Db::name('yfth_partner_rank_event')->where('partner_uid', $manualRankUids['county_partner'])->where('action', 'headquarters_revoke')->count() === 1, 'partner_revoke_writes_rank_event');
     $captured = $partner->captureRecruitSource($applicationId, $applicantUid, $token);
     $capturedChain = json_decode((string)$captured['chain_snapshot'], true) ?: [];
     $assert((string)$captured['source_type'] === 'partner_invite' && (int)$captured['direct_partner_uid'] === $rankUids['county_partner'], 'partner_qr_captures_direct_source');

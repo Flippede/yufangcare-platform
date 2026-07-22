@@ -64,6 +64,10 @@
 				<view v-if="current == 0" @tap="switchMode(1)">{{ $t(`快速登录`) }}</view>
 				<view v-if="current == 1" @tap="switchMode(0)">{{ $t(`账号登录`) }}</view>
 			</view>
+			<view v-if="showWechatSwitch" class="wechat-switch" @tap="switchWechatLogin">
+				<text class="iconfont icon-s-weixindenglu1"></text>
+				<text>切换微信登录</text>
+			</view>
 			<!-- #endif -->
 			<!-- #ifdef APP-PLUS -->
 			<view class="appLogin" v-if="!appLoginStatus && !appleLoginStatus">
@@ -116,7 +120,7 @@ import { loginH5, loginMobile, registerVerify, register, getCodeApi, getUserInfo
 import attrs, { required, alpha_num, chs_phone } from '@/utils/validate';
 import { getLogo } from '@/api/public';
 // import cookie from "@/utils/store/cookie";
-import { VUE_APP_API_URL } from '@/utils';
+import { VUE_APP_API_URL, isWeixin } from '@/utils';
 import { resolveLoginBackUrl } from '@/libs/login.js';
 // #ifdef APP-PLUS
 import { wechatAppAuth } from '@/api/api.js';
@@ -154,6 +158,7 @@ export default {
 			keyLock: true,
 			loginLoading: false,
 			captchaType: 'clickWord',
+			showWechatSwitch: false,
 		};
 	},
 	watch: {
@@ -174,6 +179,12 @@ export default {
 	},
 	onLoad() {
 		let self = this;
+		// #ifdef H5
+		this.showWechatSwitch = isWeixin();
+		// #endif
+		// #ifdef MP
+		this.showWechatSwitch = true;
+		// #endif
 		uni.getSystemInfo({
 			success: (res) => {
 				if (res.platform.toLowerCase() == 'ios' && this.getSystem(res.system)) {
@@ -191,6 +202,11 @@ export default {
 		this.getLogoImage();
 	},
 	methods: {
+		switchWechatLogin() {
+			uni.redirectTo({
+				url: '/pages/users/wechat_login/index'
+			});
+		},
 		toggleProtocol() {
 			this.$set(this, 'protocol', !this.protocol);
 		},
@@ -1031,6 +1047,26 @@ page {
 .login-wrapper .whiteBg .tips {
 	margin: 24rpx 0 0;
 	color: #9b6a2c;
+}
+
+.login-wrapper .whiteBg .wechat-switch {
+	min-height: 76rpx;
+	margin-top: 20rpx;
+	border: 1rpx solid #dbc49e;
+	border-radius: 12rpx;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 12rpx;
+	color: #765127;
+	font-size: 26rpx;
+	background: #fbf6ed;
+	cursor: pointer;
+}
+
+.login-wrapper .whiteBg .wechat-switch .iconfont {
+	font-size: 34rpx;
+	color: #2f9b51;
 }
 
 .login-wrapper .protocol {

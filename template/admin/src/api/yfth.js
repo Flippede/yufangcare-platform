@@ -52,6 +52,10 @@ export function yfthUserPartnerGrant(uid, data) {
   return request({ url: `yfth/user_role/user/${uid}/partner/grant`, method: 'post', data });
 }
 
+export function yfthUserPartnerRevoke(uid, data) {
+  return request({ url: `yfth/user_role/user/${uid}/partner/revoke`, method: 'post', data });
+}
+
 export function yfthUserAccountClosurePreflight(uid) {
   return request({ url: `yfth/user_role/user/${uid}/closure/preflight`, method: 'get' });
 }

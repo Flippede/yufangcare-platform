@@ -78,14 +78,13 @@ function _toLogin(push, pathLogin) {
 	// #ifdef H5
 	path = location.pathname + location.search;
 	// #endif
-	const BASIC_CONFIG = Cache.get('BASIC_CONFIG')
 	if (!pathLogin)
 		pathLogin = '/pages/users/login/index'
 	if (path !== pathLogin) {
 		Cache.set(LOGIN_BACK_URL, path);
 	}
 	// #ifdef H5
-	if (isWeixin() && BASIC_CONFIG.wechat_status) {
+	if (isWeixin()) {
 		uni.navigateTo({
 			url: '/pages/users/wechat_login/index',
 		});
@@ -98,14 +97,8 @@ function _toLogin(push, pathLogin) {
 	// #endif
 
 	// #ifdef MP
-	let url
-	if (!BASIC_CONFIG.wechat_auth_switch) {
-		url = '/pages/users/binding_phone/index?pageType=0'
-	} else {
-		url = '/pages/users/wechat_login/index'
-	}
 	uni.navigateTo({
-		url
+		url: '/pages/users/wechat_login/index'
 	})
 	// #endif
 

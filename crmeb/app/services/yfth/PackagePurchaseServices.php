@@ -9,7 +9,6 @@ use app\dao\yfth\YfthPackagePurchaseBenefitSnapshotDao;
 use app\dao\yfth\YfthPackagePurchaseDao;
 use app\dao\yfth\YfthPackagePurchaseIntentDao;
 use app\dao\yfth\YfthPackagePurchaseSnapshotDao;
-use app\dao\yfth\YfthStoreCapabilityDao;
 use app\services\order\StoreCartServices;
 use app\services\order\StoreOrderCartInfoServices;
 use app\services\order\StoreOrderCreateServices;
@@ -889,36 +888,6 @@ class PackagePurchaseServices extends PackageBenefitBaseServices
         return $this->requireRow($agreement, 'agreement_snapshot_not_found');
     }
 
-    public function serviceStores(int $templateId): array
-    {
-        /** @var PackageTemplateServices $templateServices */
-        $templateServices = app()->make(PackageTemplateServices::class);
-        $templateServices->requirePublishedTemplate($templateId);
-
-        /** @var YfthStoreCapabilityDao $capabilityDao */
-        $capabilityDao = app()->make(YfthStoreCapabilityDao::class);
-        $rows = $capabilityDao->selectList([
-            'capability_code' => 'package_sale',
-            'status' => 'active',
-        ], '*', 0, 0, 'store_id asc,id desc', [], false)->toArray();
-
-        $stores = [];
-        foreach ($rows as $row) {
-            $storeId = (int)$row['store_id'];
-            if (isset($stores[$storeId])) {
-                continue;
-            }
-            try {
-                $store = app()->make(StoreAccessServices::class)->assertStoreActive($storeId);
-                $this->assertStoreReadyForPackage($storeId);
-                $stores[$storeId] = $store;
-            } catch (\Throwable $e) {
-                continue;
-            }
-        }
-        return array_values($stores);
-    }
-
     public function validatePurchaseRequest(int $uid, array $data): array
     {
         if ($uid <= 0) {
@@ -932,7 +901,7 @@ class PackagePurchaseServices extends PackageBenefitBaseServices
         }
 
         $templateId = (int)($data['template_id'] ?? 0);
-        $storeId = app()->make(PackageMembershipReferralServices::class)->resolveAuthoritativeStoreForPurchase(
+        $storeId = app()->make(PackageMembershipReferralServices::class)->requireAuthoritativeStoreForPurchase(
             $uid,
             (int)($data['store_id'] ?? 0)
         );
