@@ -89,7 +89,7 @@ foreach ([
     'assignFirstWithLockedCurrentsInTransaction',
     'createWithLockedCurrentsInTransaction',
     'package_must_grant_permanent_membership',
-    "['franchisee', 'store_manager']",
+    "['store_manager', 'store_staff']",
 ] as $needle) {
     $assert(strpos($referral, $needle) !== false, 'referral_service_contains:' . $needle);
 }

@@ -1,5 +1,16 @@
 # 项目交接文档
 
+## Current Fact Snapshot - Offline Membership And Store QR V1
+
+- 本轮冻结唯一身份层级：总部、平台董事、大区总监、省级合伙人、地级合伙人、县级合伙人、门店店长/店员、永久会员/普通用户；运行态不再创建或授权“加盟商”身份。
+- 总部批准开店后，申请人只成为该门店店长并自动获得永久会员资格；新门店归属招商来源合伙人，申请人不会被升级为合伙人。
+- 合伙人二维码只记录加盟申请来源；店长/店员二维码只绑定顾客到当前门店，不创建 C1 推荐关系；普通永久会员二维码才建立 C1 -> C2 一级推荐；普通非会员展示同一载体的身份码。
+- 线下会员有两条受控入口：顾客向权威归属门店申请后由本店店长/店员审批，或本店店长/店员扫描顾客身份码直接开通。跨店、未归属、无有效门店角色和重复开通均由服务端拒绝或幂等返回。
+- 普通顾客存在有效 C1 推荐时，线下开通先按既有 15%/25%/60% 规则冻结并生成奖励，再关闭 C1 -> C2 关系；无 C1 时只激活会员，不产生该阶梯奖励。门店经营人员不会因为经营身份被当作 C1。
+- 已停用旧会员绑定、付款确认、确认码和客户确认写入口；历史数据只读保留。新增正向迁移把遗留 active `franchisee` 角色转换为店长或停用重复角色，并清空合伙人档案的旧角色链接。
+- 本地验证已通过：PHP 7.4 语法、相关契约、MySQL Community 8.0.46 真实 HTTP 会员流程、五级合伙人与开店真实流程、定向 migration up/down-record/up、Admin/H5/mp-weixin 生产构建、敏感信息边界及 `git diff --check`。仓库既有两个历史 migration 使用同一版本号，完整无条件 runner 仍会在到达本迁移前失败，因此发布使用本迁移的定向正向执行并核对记录。
+- 当前尚未执行生产部署、真实支付、短信或微信小程序上传；最终 main、origin/main、生产 migration 和部署状态应以本轮提交、合并和发布后的真实结果为准。
+
 ## Current Fact Snapshot - Headquarters Five-Level Partner Identity Controls
 
 - Headquarters manages the full partner hierarchy from `御方通和 -> 用户经营身份`: platform director, regional director, province partner, prefecture partner and county partner.

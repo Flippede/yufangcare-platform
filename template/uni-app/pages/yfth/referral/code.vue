@@ -9,8 +9,13 @@
 				<view class="subtitle">邀请非会员加入同一归属门店</view>
 			</view>
 			<view v-if="!isMember" class="panel empty-panel">
-				<view class="panel-title">购买套餐后获得推广资格</view>
-				<view class="muted">套餐支付并成功激活后，将获得永久会员资格和一级邀请能力。</view>
+				<view class="panel-title">我的身份码</view>
+				<view class="muted">向所属门店店长或店员出示此码，可核验账号并办理线下会员开通。本码不具备推广能力。</view>
+				<view v-if="identity.token" class="qr-wrap">
+					<zb-code ref="identityQrcode" cid="yfth-identity-qr" :val="identity.token" :size="390" :onval="true" :loadMake="true" foreground="#7b572c" @result="onIdentityQrReady" />
+				</view>
+				<view v-else class="qr-placeholder">身份码生成中</view>
+				<view class="actions"><button @click="issueIdentity">刷新身份码</button><button @click="saveIdentityQr">保存身份码</button></view>
 				<button class="primary" @click="goPackage">查看康养套餐</button>
 			</view>
 			<block v-else>
@@ -71,7 +76,7 @@
 </template>
 
 <script>
-import { getYfthPackageMembershipMe, getYfthDirectReferrals, issueYfthDirectReferralInvite } from '@/api/yfth.js';
+import { generateYfthPermanentMembershipIdentityCode, getYfthPackageMembershipMe, getYfthDirectReferrals, issueYfthDirectReferralInvite } from '@/api/yfth.js';
 import zbCode from '@/components/zb-code/zb-code.vue';
 import { YFTH_HEADQUARTERS_HOME_ROUTE, yfthReferralAcceptRoute } from '@/libs/yfthReferralNavigation.js';
 
@@ -83,6 +88,8 @@ export default {
 			error: '',
 			profile: {},
 			invite: {},
+			identity: {},
+			identityQrImage: '',
 			issuing: false,
 			qrImage: '',
 			referrals: [],
@@ -128,6 +135,7 @@ export default {
 					return;
 				}
 				if (this.isMember) return Promise.all([this.issue(), this.loadReferrals(true)]);
+				return this.issueIdentity();
 			}).catch((err) => { this.error = (err && (err.msg || err.message)) || '推广资格读取失败'; })
 				.finally(() => { this.loading = false; });
 		},
@@ -139,6 +147,13 @@ export default {
 				this.profile.promotion = { ...this.promotion, store_id: this.invite.store_id, store_name: this.invite.store_name, invited_count: this.invite.invited_count };
 			}).catch((err) => { this.error = (err && (err.msg || err.message)) || '推广码生成失败'; })
 				.finally(() => { this.issuing = false; });
+		},
+		issueIdentity() {
+			return generateYfthPermanentMembershipIdentityCode().then((res) => {
+				this.identity = (res && res.data) || {};
+			}).catch((err) => {
+				this.error = (err && (err.msg || err.message)) || '身份码生成失败';
+			});
 		},
 		loadReferrals(reset) {
 			if (this.referralsLoading) return Promise.resolve();
@@ -170,6 +185,18 @@ export default {
 		displayInitial(name) { return String(name || '用').slice(0, 1); },
 		copyLink() { if (this.inviteLink) uni.setClipboardData({ data: this.inviteLink }); },
 		onQrReady(value) { this.qrImage = String(value || ''); },
+		onIdentityQrReady(value) { this.identityQrImage = String(value || ''); },
+		saveIdentityQr() {
+			if (!this.identityQrImage) return uni.showToast({ title: '身份码尚未生成', icon: 'none' });
+			// #ifdef H5
+			const anchor = document.createElement('a'); anchor.href = this.identityQrImage; anchor.download = `御方通和身份码-${Date.now()}.png`;
+			document.body.appendChild(anchor); anchor.click(); document.body.removeChild(anchor);
+			return;
+			// #endif
+			// #ifndef H5
+			if (this.$refs.identityQrcode && this.$refs.identityQrcode._saveCode) this.$refs.identityQrcode._saveCode();
+			// #endif
+		},
 		saveQr() {
 			if (!this.qrImage) return uni.showToast({ title: '二维码尚未生成', icon: 'none' });
 			// #ifdef H5

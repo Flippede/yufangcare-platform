@@ -74,12 +74,15 @@
 // #ifdef H5
 import jsQR from 'jsqr';
 // #endif
+import { activateYfthStorePermanentMembershipIdentity } from '@/api/yfth.js';
+import { currentContext } from '@/libs/yfthContext.js';
 import { yfthReferralAcceptRoute } from '@/libs/yfthReferralNavigation.js';
 
 export default {
 	data() {
 		return {
 			input: '',
+			mode: 'referral',
 			inputVisible: false,
 			cameraActive: false,
 			cameraPending: true,
@@ -108,7 +111,8 @@ export default {
 			return !this.cameraPending && !this.cameraActive;
 		}
 	},
-	onLoad() {
+	onLoad(options) {
+		this.mode = options && options.mode === 'membership_activation' ? 'membership_activation' : 'referral';
 		const system = uni.getSystemInfoSync ? uni.getSystemInfoSync() : {};
 		this.safeTop = Number((system.safeAreaInsets && system.safeAreaInsets.top) || system.statusBarHeight || 20);
 		this.safeBottom = Number((system.safeAreaInsets && system.safeAreaInsets.bottom) || 0);
@@ -265,6 +269,30 @@ export default {
 		},
 		submitInput() { this.consume(this.input); },
 		consume(value) {
+			if (this.mode === 'membership_activation') {
+				const token = this.extractIdentityToken(value);
+				if (!token) return this.toast('不是有效的御方通和用户身份码');
+				this.stopCamera();
+				this.nativeScannerOpened = false;
+				const context = currentContext();
+				activateYfthStorePermanentMembershipIdentity({
+					role_code: context.role_code,
+					store_id: context.store_id,
+					identity_token: token,
+					idempotency_key: 'store_identity_activation_' + Date.now()
+				}).then(() => {
+					uni.showModal({
+						title: '会员开通成功',
+						content: '该顾客已开通永久会员。',
+						showCancel: false,
+						success: () => this.goBack()
+					});
+				}).catch(() => {
+					this.nativeScannerOpened = false;
+					this.scan();
+				});
+				return;
+			}
 			const target = this.extractTarget(value);
 			if (!target.token) return this.toast('不是有效的御方通和推广码、门店码或邀请链接');
 			this.stopCamera();
@@ -272,6 +300,13 @@ export default {
 				? `/pages/yfth/store_acquisition/accept?acquisition_token=${target.token}`
 				: yfthReferralAcceptRoute(target.token);
 			uni.navigateTo({ url });
+		},
+		extractIdentityToken(value) {
+			let text = String(value || '').trim();
+			try { text = decodeURIComponent(text); } catch (e) {}
+			if (/^yfthpm_[A-Za-z0-9_-]{24,128}$/.test(text)) return text;
+			const match = text.match(/[?&](?:identity_token|token)=((?:yfthpm_)?[A-Za-z0-9_-]{24,128})(?:&|$)/);
+			return match ? match[1] : '';
 		},
 		extractTarget(value) {
 			let text = String(value || '').trim();

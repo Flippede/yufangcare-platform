@@ -5,13 +5,13 @@
 			<view class="desc">查看推荐进度与总部确认的只读奖励台账</view>
 		</view>
 		<view class="grid">
-			<view class="tile" @click="go('/pages/yfth/referral/code?scene=package_5980')">
-				<view class="tile-title">5980套餐推荐</view>
+			<view class="tile" @click="go('/pages/yfth/referral/code')">
+				<view class="tile-title">会员推广码</view>
 				<view class="tile-desc">生成与查看C端推荐码</view>
 			</view>
 			<view class="tile" @click="go('/pages/yfth/referral/code?scene=franchise_opening')">
-				<view class="tile-title">加盟开店推荐</view>
-				<view class="tile-desc">加盟商门店推荐码</view>
+				<view class="tile-title">招商开店申请</view>
+				<view class="tile-desc">合伙人招商申请入口</view>
 			</view>
 			<view class="tile" @click="go('/pages/yfth/referral/candidates')">
 				<view class="tile-title">推荐进度</view>

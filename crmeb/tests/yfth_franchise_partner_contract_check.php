@@ -89,7 +89,8 @@ $assert($contains($opening, "'first_purchase', 'name' => 'First purchase proof',
 $assert($contains($opening, "->where('id', \$profileId)->lock(true)->find()"), 'formal_store_creation_profile_lock');
 $assert($contains($opening, 'franchise_store_create_acceptance_not_passed'), 'formal_store_after_acceptance');
 $assert($contains($opening, 'franchise_identity_store_not_bound'), 'identity_after_store_binding');
-$assert($contains($opening, "['county_partner', 'store_manager', 'all']") && !$contains($opening, "['county_partner', 'franchisee', 'store_manager', 'all']"), 'formal_opening_never_grants_new_franchisee_role');
+$assert($contains($opening, "\$roles = ['store_manager']") && !$contains($opening, "['county_partner', 'store_manager', 'all']"), 'formal_opening_grants_store_manager_only');
+$assert($contains($service, 'opening_store_attributed') && !$contains($service, 'activatePartnerIdentityGrant($application'), 'opening_store_is_attributed_to_recruiter_without_promoting_applicant');
 $assert($contains($unificationMigration, 'yfth_partner_store_binding') && $contains($unificationMigration, 'yfth_partner_opening_quota_award'), 'partner_store_ownership_and_opening_quota_are_explicit');
 
 $assert($contains($migration, "\$this->quote('franchisee')"), 'legacy_franchisee_backfill_present');
@@ -100,7 +101,9 @@ $assert($contains($fixture, 'yfth_stg_b1_franchisee'), 'legacy_test_account_reus
 foreach (['yfth_stg_partner_prefecture', 'yfth_stg_partner_province', 'yfth_stg_partner_regional', 'yfth_stg_partner_platform'] as $account) {
     $assert($contains($fixture, $account), 'fixture_partner_account:' . $account);
 }
-$assert($contains($fixture, "\$data['legacy_franchisee_role_id'] = \$legacyRoleId"), 'fixture_links_legacy_role_to_county_profile');
+$assert($contains($fixture, "\$data['legacy_franchisee_role_id'] = 0")
+    && !$contains($fixture, "\$data['legacy_franchisee_role_id'] = \$legacyRoleId"),
+    'fixture_does_not_link_partner_to_removed_franchisee_role');
 
 foreach (['sourceCorrect', 'rewardSettle', 'rulePublish', 'parentChange', 'promotionList', 'promotionReview'] as $method) {
     $assert($contains($adminController, $method), 'admin_controller:' . $method);

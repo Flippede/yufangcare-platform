@@ -87,7 +87,7 @@ class AdminStoreContextServices extends YfthFoundationBaseServices
             if ($roleCode === 'store_staff') {
                 $context['is_store_staff'] = true;
             }
-            if (in_array($roleCode, ['store_manager', 'franchisee'], true)) {
+            if ($roleCode === 'store_manager') {
                 $context['is_store_manager'] = true;
             }
             $permissionScope[] = $this->jsonDecode((string)($row['permission_scope'] ?? ''));
@@ -133,10 +133,10 @@ class AdminStoreContextServices extends YfthFoundationBaseServices
         }
 
         $roles = $context['store_scope_roles'][$storeId] ?? [];
-        if (in_array('store_staff', $roles, true) && !array_intersect($roles, ['store_manager', 'franchisee'])) {
+        if (in_array('store_staff', $roles, true) && !in_array('store_manager', $roles, true)) {
             throw new AdminException('store_staff_cannot_configure_service_appointment');
         }
-        if (array_intersect($roles, ['store_manager', 'franchisee'])) {
+        if (in_array('store_manager', $roles, true)) {
             return;
         }
         if ($context['is_store_staff']) {
@@ -269,7 +269,7 @@ class AdminStoreContextServices extends YfthFoundationBaseServices
             'operator_uid' => $operatorUid,
             'is_super_admin' => false,
             'is_headquarter_admin' => false,
-            'is_store_manager' => in_array($roleCode, ['store_manager', 'franchisee'], true),
+            'is_store_manager' => $roleCode === 'store_manager',
             'is_store_staff' => $roleCode === 'store_staff',
             'store_ids' => $storeIds,
             'store_role_codes' => $roleCode === '' ? [] : [$roleCode],

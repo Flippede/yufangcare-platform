@@ -75,7 +75,7 @@ Route::group(function () {
 Route::group(function () {
     Route::post('yfth/permanent_membership/identity_code', 'v1.yfth.PermanentMembershipController/identityCode')->option(['real_name' => 'YFTH permanent membership customer identity code']);
     Route::get('yfth/permanent_membership/me', 'v1.yfth.PermanentMembershipController/me')->option(['real_name' => 'YFTH my permanent membership']);
-    Route::post('yfth/permanent_membership/confirm', 'v1.yfth.PermanentMembershipController/confirm')->option(['real_name' => 'YFTH permanent membership customer confirmation']);
+    Route::post('yfth/permanent_membership/apply', 'v1.yfth.PermanentMembershipController/apply')->option(['real_name' => 'YFTH offline membership application']);
 })->middleware(\app\http\middleware\AllowOriginMiddleware::class)
     ->middleware(\app\api\middleware\StationOpenMiddleware::class)
     ->middleware(\app\api\middleware\AuthTokenMiddleware::class)
@@ -103,10 +103,9 @@ Route::group(function () {
     Route::post('yfth/store_workbench/monthly_benefit/pickup/:id/confirm', 'v1.yfth.StoreWorkbenchController/monthlyBenefitPickupConfirm')->option(['real_name' => 'YFTH store workbench monthly benefit pickup confirm']);
     Route::get('yfth/store_workbench/permanent_membership', 'v1.yfth.PermanentMembershipStoreController/index')->option(['real_name' => 'YFTH store permanent membership enrollments']);
     Route::get('yfth/store_workbench/permanent_membership/:id', 'v1.yfth.PermanentMembershipStoreController/detail')->option(['real_name' => 'YFTH store permanent membership enrollment detail']);
-    Route::post('yfth/store_workbench/permanent_membership', 'v1.yfth.PermanentMembershipStoreController/create')->option(['real_name' => 'YFTH store permanent membership enrollment create']);
-    Route::post('yfth/store_workbench/permanent_membership/:id/bind', 'v1.yfth.PermanentMembershipStoreController/bind')->option(['real_name' => 'YFTH store permanent membership bind customer']);
-    Route::post('yfth/store_workbench/permanent_membership/:id/payment', 'v1.yfth.PermanentMembershipStoreController/payment')->option(['real_name' => 'YFTH store permanent membership offline payment confirm']);
-    Route::post('yfth/store_workbench/permanent_membership/:id/confirmation_code', 'v1.yfth.PermanentMembershipStoreController/confirmationCode')->option(['real_name' => 'YFTH store permanent membership confirmation code']);
+    Route::post('yfth/store_workbench/permanent_membership/:id/approve', 'v1.yfth.PermanentMembershipStoreController/approve')->option(['real_name' => 'YFTH store approve offline membership']);
+    Route::post('yfth/store_workbench/permanent_membership/:id/reject', 'v1.yfth.PermanentMembershipStoreController/reject')->option(['real_name' => 'YFTH store reject offline membership']);
+    Route::post('yfth/store_workbench/permanent_membership/activate_identity', 'v1.yfth.PermanentMembershipStoreController/activateIdentity')->option(['real_name' => 'YFTH store activate membership by identity code']);
     Route::get('yfth/store_workbench/package_membership/member', 'v1.yfth.PackageMembershipReferralStoreController/members')->option(['real_name' => 'YFTH store permanent memberships']);
     Route::get('yfth/store_workbench/package_membership/candidate', 'v1.yfth.PackageMembershipReferralStoreController/candidates')->option(['real_name' => 'YFTH store reward candidates']);
     Route::get('yfth/store_workbench/reward_settlement/candidate', 'v1.yfth.RewardSettlementStoreController/candidates')->option(['real_name' => 'YFTH store reward settlement candidates']);

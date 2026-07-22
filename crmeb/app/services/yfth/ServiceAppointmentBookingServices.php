@@ -892,7 +892,7 @@ class ServiceAppointmentBookingServices extends ServiceAppointmentBaseServices
             return;
         }
         $roles = $context['store_scope_roles'][$storeId] ?? [];
-        if (array_intersect($roles, ['store_manager', 'franchisee'])) {
+        if (in_array('store_manager', $roles, true)) {
             return;
         }
         if (in_array('store_staff', $roles, true) || ($context['is_store_staff'] ?? false)) {

@@ -16,8 +16,8 @@ use think\facade\Db;
 class FranchiseCustomerServices extends YfthFoundationBaseServices
 {
     private const DOMAIN = 'yfth_franchise_customer';
-    private const STORE_ROLES = ['franchisee', 'store_manager', 'store_staff'];
-    private const STORE_READ_ROLES = ['franchisee', 'store_manager', 'store_staff', 'county_partner', 'prefecture_partner', 'province_partner', 'regional_director', 'platform_director'];
+    private const STORE_ROLES = ['store_manager', 'store_staff'];
+    private const STORE_READ_ROLES = ['store_manager', 'store_staff', 'county_partner', 'prefecture_partner', 'province_partner', 'regional_director', 'platform_director'];
     private const CUSTOMER_STATUSES = ['potential', 'leads', 'registered', 'purchased', 'serving', 'repeat', 'lost'];
     private const TRUSTED_ATTRIBUTION_SOURCES = ['order', 'appointment', 'writeoff'];
     private const AUTHORITY_PROJECTION_SOURCES = ['direct_referral', 'permanent_membership', 'permanent_attribution', 'store_acquisition'];

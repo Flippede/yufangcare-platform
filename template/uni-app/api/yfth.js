@@ -504,9 +504,8 @@ function splitYfthContext(data) {
 
 export function generateYfthPermanentMembershipIdentityCode() { return request.post('yfth/permanent_membership/identity_code', {}); }
 export function getYfthPermanentMembershipMe() { return request.get('yfth/permanent_membership/me'); }
-export function confirmYfthPermanentMembership(data) { return request.post('yfth/permanent_membership/confirm', data || {}); }
+export function applyYfthPermanentMembership(data) { return request.post('yfth/permanent_membership/apply', data || {}); }
 export function getYfthStorePermanentMemberships(data) { return request.get('yfth/store_workbench/permanent_membership', data || {}); }
-export function createYfthStorePermanentMembership(data) { const payload = splitYfthContext(data || {}); return request.post('yfth/store_workbench/permanent_membership' + payload.query, payload.body); }
-export function bindYfthStorePermanentMembership(id, data) { const payload = splitYfthContext(data || {}); return request.post('yfth/store_workbench/permanent_membership/' + id + '/bind' + payload.query, payload.body); }
-export function payYfthStorePermanentMembership(id, data) { const payload = splitYfthContext(data || {}); return request.post('yfth/store_workbench/permanent_membership/' + id + '/payment' + payload.query, payload.body); }
-export function codeYfthStorePermanentMembership(id, data) { const payload = splitYfthContext(data || {}); return request.post('yfth/store_workbench/permanent_membership/' + id + '/confirmation_code' + payload.query, payload.body); }
+export function approveYfthStorePermanentMembership(id, data) { const payload = splitYfthContext(data || {}); return request.post('yfth/store_workbench/permanent_membership/' + id + '/approve' + payload.query, payload.body); }
+export function rejectYfthStorePermanentMembership(id, data) { const payload = splitYfthContext(data || {}); return request.post('yfth/store_workbench/permanent_membership/' + id + '/reject' + payload.query, payload.body); }
+export function activateYfthStorePermanentMembershipIdentity(data) { const payload = splitYfthContext(data || {}); return request.post('yfth/store_workbench/permanent_membership/activate_identity' + payload.query, payload.body); }

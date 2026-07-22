@@ -138,7 +138,7 @@ class FranchisePartner extends AuthController
     {
         $this->auth('yfth/franchise_partner/opening/complete', 'POST');
         return app('json')->success($services->adminGrantIdentity($this->request->postMore([
-            [['application_id', 'd'], 0], ['role_code', 'county_partner'], ['reason', ''],
+            [['application_id', 'd'], 0], ['role_code', 'store_manager'], ['reason', ''],
         ]), (int)$this->adminId, $this->adminInfo ?: []));
     }
 

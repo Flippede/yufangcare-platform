@@ -18,7 +18,6 @@ class YfthConstants
             'family_member' => 'Family member',
             'member_5980' => '5980 member',
             'franchise_applicant' => 'Franchise applicant',
-            'franchisee' => 'Franchisee',
             'store_manager' => 'Store manager',
             'store_staff' => 'Store staff',
             'service_mentor' => 'Service mentor',
@@ -34,7 +33,7 @@ class YfthConstants
 
     public static function storeRoles(): array
     {
-        return ['franchisee', 'store_manager', 'store_staff'];
+        return ['store_manager', 'store_staff'];
     }
 
     public static function globalRoles(): array

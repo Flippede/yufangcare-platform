@@ -613,7 +613,7 @@ class ServiceAppointmentWriteoffServices extends ServiceAppointmentBaseServices
         $context = app()->make(AdminStoreContextServices::class)->resolve($adminInfo);
         $storeIds = [];
         foreach ((array)($context['store_scope_roles'] ?? []) as $storeId => $roles) {
-            if (array_intersect((array)$roles, ['store_manager', 'franchisee', 'store_staff'])) {
+            if (array_intersect((array)$roles, ['store_manager', 'store_staff'])) {
                 $storeIds[] = (int)$storeId;
             }
         }
@@ -712,7 +712,7 @@ class ServiceAppointmentWriteoffServices extends ServiceAppointmentBaseServices
             throw new AdminException('store_id_required');
         }
         $roles = $context['store_scope_roles'][$storeId] ?? [];
-        if (array_intersect($roles, ['store_manager', 'franchisee', 'store_staff'])) {
+        if (array_intersect($roles, ['store_manager', 'store_staff'])) {
             return (string)($roles[0] ?? $context['primary_role_code'] ?? 'store_staff');
         }
         if ($context['is_headquarter_admin'] && !$allowHeadquarter) {

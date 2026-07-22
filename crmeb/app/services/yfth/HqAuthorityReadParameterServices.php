@@ -13,7 +13,7 @@ class HqAuthorityReadParameterServices
     private const ATTRIBUTION_STATUSES = ['active', 'paused', 'unassigned', 'closed'];
     private const REFERRAL_STATUSES = ['active', 'paused', 'closed', 'invalid'];
     private const STORE_STATUSES = ['active', 'paused'];
-    private const STORE_ROLES = ['franchisee', 'store_manager', 'store_staff', 'service_mentor', 'customer'];
+    private const STORE_ROLES = ['store_manager', 'store_staff', 'service_mentor', 'customer'];
 
     public function positiveId($value, string $name): int
     {

@@ -41,7 +41,7 @@ class CommissionFinance extends AuthController
         if ((int)$data['uid'] > 0) return app('json')->success($services->userSummary((int)$data['uid']));
         if ((int)$data['store_id'] > 0) {
             return app('json')->success($services->storeSummary([
-                'uid' => 0, 'role_code' => 'franchisee', 'store_id' => (int)$data['store_id'],
+                'uid' => 0, 'role_code' => 'store_manager', 'store_id' => (int)$data['store_id'],
             ]));
         }
         return app('json')->success(['user_or_store_required' => true]);

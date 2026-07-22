@@ -51,7 +51,7 @@ try {
     foreach (['yfth_hq_customer_attribution_current', 'yfth_hq_active_referral_current', 'yfth_permanent_membership'] as $table) {
         $assert(strpos($service, $table) !== false, 'hierarchy_uses_authority:' . $table);
     }
-    $assert(strpos($service, "['franchisee', 'store_manager']") !== false, 'store_hierarchy_uses_active_partner_grants');
+    $assert(strpos($service, "where('role_code', 'store_manager')") !== false, 'store_hierarchy_uses_active_manager_grants');
     $assert(strpos($service, 'relationship_revoke_has_active_children') !== false, 'parent_revoke_is_bottom_up');
     $assert(strpos($service, 'invalidateWithLockedCurrentsInTransaction') !== false
         && strpos($service, 'unassignForRebindingWithLockedCurrentInTransaction') !== false,

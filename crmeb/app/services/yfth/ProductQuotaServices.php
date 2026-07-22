@@ -17,7 +17,7 @@ class ProductQuotaServices extends YfthFoundationBaseServices
     private const DEFAULT_QUOTA_TYPE = 'return_goods';
     private const ACCOUNT_STATUSES = ['active', 'frozen', 'closed'];
     private const GRANT_STATUSES = ['draft', 'confirmed', 'rejected', 'reversed'];
-    private const USER_READ_ROLES = ['franchisee', 'store_manager', 'county_partner', 'prefecture_partner', 'province_partner', 'regional_director', 'platform_director'];
+    private const USER_READ_ROLES = ['store_manager', 'county_partner', 'prefecture_partner', 'province_partner', 'regional_director', 'platform_director'];
     private const USER_FORBIDDEN_FIELDS = [
         'amount',
         'amount_cent',

@@ -281,11 +281,17 @@ class AutomaticCommissionServices
     public function consumePackageActivation(array $payload): array
     {
         return Db::transaction(function () use ($payload) {
-            $instanceId = (int)($payload['instance_id'] ?? 0);
-            if ($instanceId <= 0) {
+            $activationType = (string)($payload['activation_type'] ?? 'package_instance');
+            $activationId = $activationType === 'offline_enrollment'
+                ? (int)($payload['enrollment_id'] ?? 0)
+                : (int)($payload['instance_id'] ?? 0);
+            if (!in_array($activationType, ['package_instance', 'offline_enrollment'], true) || $activationId <= 0) {
                 throw new ApiException('package_activation_commission_payload_invalid');
             }
-            $sourceKey = hash('sha256', 'package_activation|package_instance|' . $instanceId);
+            $sourceType = $activationType === 'offline_enrollment'
+                ? 'offline_membership_activation'
+                : 'package_activation';
+            $sourceKey = hash('sha256', 'package_activation|' . $activationType . '|' . $activationId);
             // Idempotency must be checked before looking at the current referral.
             // The membership transition closes that relation after the first write,
             // so a payment/activation retry must still return the original fact.
@@ -314,8 +320,8 @@ class AutomaticCommissionServices
                     if ($ratio <= 0) return ['ignored' => true, 'reason' => 'package_sequence_not_rewarded'];
                     $sequenceKey = $referrerUid . ':' . $sequence;
                     $row = [
-                    'accrual_no' => $this->makeNo('YFCA'), 'source_type' => 'package_activation',
-                    'source_id' => (string)$instanceId, 'source_unique_key' => $sourceKey,
+                    'accrual_no' => $this->makeNo('YFCA'), 'source_type' => $sourceType,
+                    'source_id' => (string)$activationId, 'source_unique_key' => $sourceKey,
                     'candidate_id' => 0, 'order_id' => (int)($payload['order_id'] ?? 0), 'product_id' => 0, 'category_id' => 0,
                     'c1_uid' => $referrerUid, 'buyer_uid' => $buyerUid, 'store_id' => $storeId,
                     'base_amount_cent' => $amountCent, 'c1_ratio_bps' => $ratio, 'b1_ratio_bps' => 0,

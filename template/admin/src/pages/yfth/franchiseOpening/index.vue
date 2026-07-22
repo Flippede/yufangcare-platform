@@ -139,9 +139,8 @@
           <el-button type="warning" @click="createFormalStore">验收通过后创建正式门店</el-button>
         </el-form>
         <h4>正式开店授权</h4>
-        <el-alert title="验收通过并绑定正式门店后，才可授予加盟商身份。授权会同步创建县级合伙人档案、下属门店和开店业绩；可选择是否兼任店长。" type="info" :closable="false" show-icon />
-        <el-button type="success" @click="grantIdentity('county_partner')">授予加盟商身份</el-button>
-        <el-button type="success" @click="grantIdentity('all')">授予加盟商并兼任店长</el-button>
+        <el-alert title="验收通过并绑定正式门店后，申请人将成为该门店店长并自动开通永久会员。招商来源及上级合伙人关系保持不变。" type="info" :closable="false" show-icon />
+        <el-button type="success" @click="grantIdentity('store_manager')">确认开店并授予店长</el-button>
       </div>
     </el-drawer>
   </div>
@@ -303,8 +302,7 @@ export default {
         role_code: roleCode,
         reason: 'final_opening_confirmation',
       }).then((res) => {
-        const partner = res.data && res.data.partner;
-        this.$message.success(partner ? '加盟商身份已授予，并已同步合伙人档案和下属门店' : '加盟商身份已授予');
+        this.$message.success('店长身份和永久会员已授予，招商上级关系已同步');
       });
     },
   },

@@ -21,6 +21,8 @@ class HqAuthoritySourceCanonicalizer
         'store_acquisition_code',
         'headquarters_parent_revoke',
         'store_qr_binding',
+        'store_role_grant',
+        'offline_membership_activation',
     ])
     {
         if (!$allowedSourceTypes) {

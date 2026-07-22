@@ -14,18 +14,17 @@ use think\facade\Db;
 
 class PermanentMembershipServices extends YfthFoundationBaseServices
 {
-    public const AMOUNT_CENTS = 980000;
     public const STATUS_DRAFT = 'draft';
     public const STATUS_PENDING_CONFIRMATION = 'pending_customer_confirmation';
+    public const STATUS_PENDING_STORE_REVIEW = 'pending_store_review';
+    public const STATUS_REJECTED = 'rejected';
     public const STATUS_ACTIVATED = 'activated';
     public const STATUS_CANCELLED = 'cancelled';
     public const SCENE_CUSTOMER_IDENTITY = 'customer_identity';
-    public const SCENE_MEMBERSHIP_CONFIRMATION = 'membership_confirmation';
     private const CODE_ISSUED = 'issued';
     private const CODE_USED = 'used';
     private const CODE_REPLACED = 'replaced';
     private const IDENTITY_TTL = 300;
-    private const CONFIRMATION_TTL = 900;
     private const DOMAIN = 'yfth_permanent_membership';
 
     private $membershipDao;
@@ -71,166 +70,192 @@ class PermanentMembershipServices extends YfthFoundationBaseServices
         });
     }
 
-    public function createForStore(Request $request, array $data): array
+    public function applyByCustomer(int $uid, array $data): array
     {
-        $context = $this->storeContext($request);
-        return $this->createEnrollment((int)$context['store_id'], (int)$context['uid'], 'store_user', (string)$context['role_code'], $data);
-    }
-
-    public function createForAdmin(int $storeId, int $adminId, array $adminInfo, array $data): array
-    {
-        app()->make(AdminStoreContextServices::class)->assertHeadquarterScope($adminInfo);
-        app()->make(StoreAccessServices::class)->assertStoreActive($storeId);
-        return $this->createEnrollment($storeId, $adminId, 'admin', 'headquarter_operator', $data);
-    }
-
-    public function bindForStore(Request $request, int $enrollmentId, string $token, array $data): array
-    {
-        $context = $this->storeContext($request);
-        return $this->bindCustomer($enrollmentId, (int)$context['store_id'], (int)$context['uid'], (string)$context['role_code'], $token, $data);
-    }
-
-    public function bindForAdmin(int $enrollmentId, string $token, int $adminId, array $adminInfo, array $data): array
-    {
-        app()->make(AdminStoreContextServices::class)->assertHeadquarterScope($adminInfo);
-        $row = $this->requireEnrollment($enrollmentId);
-        return $this->bindCustomer($enrollmentId, (int)$row['store_id'], $adminId, 'headquarter_operator', $token, $data);
-    }
-
-    public function confirmPaymentForStore(Request $request, int $enrollmentId, array $data): array
-    {
-        $context = $this->storeContext($request);
-        return $this->confirmPayment($enrollmentId, (int)$context['store_id'], (int)$context['uid'], (string)$context['role_code'], $data);
-    }
-
-    public function confirmPaymentForAdmin(int $enrollmentId, int $adminId, array $adminInfo, array $data): array
-    {
-        app()->make(AdminStoreContextServices::class)->assertHeadquarterScope($adminInfo);
-        $row = $this->requireEnrollment($enrollmentId);
-        return $this->confirmPayment($enrollmentId, (int)$row['store_id'], $adminId, 'headquarter_operator', $data);
-    }
-
-    public function confirmationCodeForStore(Request $request, int $enrollmentId): array
-    {
-        $context = $this->storeContext($request);
-        return $this->generateConfirmationCode($enrollmentId, (int)$context['store_id'], (int)$context['uid'], (string)$context['role_code']);
-    }
-
-    public function confirmationCodeForAdmin(int $enrollmentId, int $adminId, array $adminInfo): array
-    {
-        app()->make(AdminStoreContextServices::class)->assertHeadquarterScope($adminInfo);
-        $row = $this->requireEnrollment($enrollmentId);
-        return $this->generateConfirmationCode($enrollmentId, (int)$row['store_id'], $adminId, 'headquarter_operator');
-    }
-
-    public function confirmByCustomer(int $uid, string $token, array $data): array
-    {
-        $token = trim($token);
-        if ($token === '') throw new ApiException('membership_confirmation_code_required');
-        $key = $this->idempotencyKey($data);
-        $codeSnapshot = $this->row($this->codeDao->getOne(['token_hash' => $this->hashToken($token)]));
-        if (!$codeSnapshot || (string)$codeSnapshot['scene'] !== self::SCENE_MEMBERSHIP_CONFIRMATION) {
-            throw new ApiException('membership_confirmation_code_invalid');
+        $this->assertUser($uid);
+        if (app()->make(PackageMembershipServices::class)->effectiveMembership($uid)['is_member']) {
+            throw new ApiException('permanent_membership_already_exists');
         }
-        $enrollmentId = (int)$codeSnapshot['enrollment_id'];
-        $mutation = $this->mutation($enrollmentId, $uid, 'customer', $key, 'customer_membership_confirmation');
-        return $this->runner->run('permanent_membership_activate', $mutation, [
-            'enrollment_id' => $enrollmentId,
-            'target_uid' => $uid,
-            'confirmation_code_hash' => $this->hashToken($token),
-        ], 'enrollment:' . $enrollmentId, function () use ($uid, $token, $enrollmentId, $mutation) {
-            $enrollment = $this->lockEnrollment($enrollmentId);
-            if ((int)$enrollment['target_uid'] !== $uid) throw new ApiException('membership_confirmation_customer_mismatch');
-            if ((string)$enrollment['status'] === self::STATUS_ACTIVATED) {
-                throw new ApiException('membership_confirmation_code_used');
-            }
-            if ((string)$enrollment['status'] !== self::STATUS_PENDING_CONFIRMATION
-                || (string)$enrollment['payment_status'] !== 'confirmed'
-                || (int)$enrollment['payment_confirmed_at'] <= 0) {
-                throw new ApiException('membership_enrollment_not_ready');
-            }
-
-            $code = $this->lockCode($token);
-            $this->assertCode($code, self::SCENE_MEMBERSHIP_CONFIRMATION, $enrollmentId, $uid, (int)$enrollment['store_id']);
-            $existing = $this->membershipForUid($uid, true);
+        $requestedStoreId = (int)($data['store_id'] ?? 0);
+        $storeId = app()->make(PackageMembershipReferralServices::class)
+            ->requireAuthoritativeStoreForPurchase($uid, $requestedStoreId);
+        $amountCents = $this->currentPackageAmountCents();
+        $key = $this->idempotencyKey($data);
+        return Db::transaction(function () use ($uid, $storeId, $amountCents, $key) {
+            $existing = $this->row($this->dao->search([])
+                ->where('target_uid', $uid)
+                ->whereIn('status', [self::STATUS_PENDING_STORE_REVIEW, self::STATUS_DRAFT])
+                ->lock(true)->order('id desc')->find());
             if ($existing) {
-                if ((int)$existing['enrollment_id'] !== $enrollmentId) throw new ApiException('permanent_membership_already_exists');
-                return $this->activationResult($enrollment, $existing, false);
+                return $this->customerEnrollmentDto($existing);
             }
-
-            $lockContext = $this->referral->membershipLockContext($uid);
-            $lockedCurrents = (array)$lockContext['locked_currents'];
-            $attribution = $this->attribution->assignFirstWithLockedCurrentsInTransaction(
-                $uid,
-                (int)$enrollment['store_id'],
-                $mutation,
-                $lockedCurrents
-            );
-            $referral = $this->referral->closeForMembershipWithLockedCurrentsInTransaction(
-                $uid,
-                (int)$enrollment['store_id'],
-                $mutation,
-                $lockContext,
-                $lockedCurrents
-            );
             $now = time();
-            try {
-                $member = $this->membershipDao->save([
-                    'membership_no' => $this->makeNo('YPM'), 'uid' => $uid,
-                    'store_id' => (int)$enrollment['store_id'], 'enrollment_id' => $enrollmentId,
-                    'status' => 'active', 'amount_cents' => self::AMOUNT_CENTS, 'authority_version' => 1,
-                    'source_type' => HqAuthoritySourceCanonicalizer::PERMANENT_MEMBERSHIP_SOURCE,
-                    'source_id' => (string)$enrollmentId, 'activated_at' => $now,
-                    'request_id' => $mutation->requestId(), 'add_time' => $now, 'update_time' => $now,
-                ])->toArray();
-            } catch (\Throwable $e) {
-                if ($this->isUniqueConflict($e)) throw new ApiException('permanent_membership_unique_conflict');
-                throw $e;
+            $row = $this->dao->save([
+                'enrollment_no' => $this->makeNo('YPE'),
+                'store_id' => $storeId,
+                'target_uid' => $uid,
+                'status' => self::STATUS_PENDING_STORE_REVIEW,
+                'amount_cents' => $amountCents,
+                'payment_status' => 'offline_pending',
+                'target_bound_at' => $now,
+                'payment_confirmed_at' => 0,
+                'activated_member_id' => 0,
+                'activated_at' => 0,
+                'created_by_type' => 'customer_application',
+                'created_by_id' => $uid,
+                'created_by_role' => 'customer',
+                'active_target_key' => 'uid:' . $uid,
+                'request_id' => substr(hash('sha256', $key), 0, 64),
+                'add_time' => $now,
+                'update_time' => $now,
+            ])->toArray();
+            $this->audit->recordSafely(
+                self::DOMAIN,
+                'membership_enrollment',
+                (string)$row['id'],
+                'customer_apply',
+                [],
+                $this->operatorEnrollmentDto($row),
+                $uid,
+                'customer',
+                $storeId,
+                'offline_membership_application',
+                $row['request_id']
+            );
+            return $this->customerEnrollmentDto($row);
+        });
+    }
+
+    public function approveForStore(Request $request, int $enrollmentId, array $data): array
+    {
+        $context = $this->storeContext($request);
+        return Db::transaction(function () use ($context, $enrollmentId, $data) {
+            return $this->activateOfflineEnrollment(
+                $enrollmentId,
+                (int)$context['store_id'],
+                (int)$context['uid'],
+                (string)$context['role_code'],
+                $this->idempotencyKey($data)
+            );
+        });
+    }
+
+    public function rejectForStore(Request $request, int $enrollmentId, array $data): array
+    {
+        $context = $this->storeContext($request);
+        $reason = trim((string)($data['reason'] ?? ''));
+        if ($reason === '') {
+            throw new ApiException('membership_reject_reason_required');
+        }
+        return Db::transaction(function () use ($context, $enrollmentId, $reason, $data) {
+            $row = $this->lockEnrollment($enrollmentId);
+            $this->assertEnrollmentStore($row, (int)$context['store_id']);
+            if ((string)$row['status'] === self::STATUS_REJECTED) {
+                return $this->operatorEnrollmentDto($row);
             }
-            $this->eventDao->save([
-                'event_no' => $this->makeNo('YME'), 'membership_id' => (int)$member['id'],
-                'membership_no' => (string)$member['membership_no'], 'uid' => $uid,
-                'store_id' => (int)$member['store_id'], 'authority_version' => 1,
-                'event_type' => 'membership_activated', 'source_type' => HqAuthoritySourceCanonicalizer::PERMANENT_MEMBERSHIP_SOURCE,
-                'source_id' => (string)$enrollmentId, 'operator_uid' => $uid,
-                'operator_role_code' => 'customer', 'request_id' => $mutation->requestId(), 'add_time' => $now,
-            ]);
-            $this->candidateDao->save([
-                'candidate_no' => $this->makeNo('YRC'), 'business_type' => 'permanent_membership_activated',
-                'membership_id' => (int)$member['id'], 'enrollment_id' => $enrollmentId,
-                'store_id' => (int)$member['store_id'], 'target_uid' => $uid,
-                'source_type' => HqAuthoritySourceCanonicalizer::PERMANENT_MEMBERSHIP_SOURCE,
-                'source_id' => (string)$enrollmentId, 'status' => 'pending',
-                'unique_key' => 'membership:' . (int)$member['id'], 'add_time' => $now, 'update_time' => $now,
-            ]);
+            if ((string)$row['status'] !== self::STATUS_PENDING_STORE_REVIEW) {
+                throw new ApiException('membership_application_status_invalid');
+            }
+            $update = [
+                'status' => self::STATUS_REJECTED,
+                'payment_status' => 'rejected',
+                'active_target_key' => null,
+                'request_id' => substr(hash('sha256', $this->idempotencyKey($data)), 0, 64),
+                'update_time' => time(),
+            ];
+            $this->dao->update($enrollmentId, $update);
+            $after = array_merge($row, $update);
+            $this->audit->recordSafely(
+                self::DOMAIN,
+                'membership_enrollment',
+                (string)$enrollmentId,
+                'store_reject',
+                $this->operatorEnrollmentDto($row),
+                $this->operatorEnrollmentDto($after),
+                (int)$context['uid'],
+                (string)$context['role_code'],
+                (int)$context['store_id'],
+                mb_substr($reason, 0, 255),
+                $update['request_id']
+            );
+            return $this->operatorEnrollmentDto($after);
+        });
+    }
+
+    public function activateIdentityForStore(Request $request, string $token, array $data): array
+    {
+        $context = $this->storeContext($request);
+        $token = trim($token);
+        if ($token === '') {
+            throw new ApiException('customer_identity_code_required');
+        }
+        return Db::transaction(function () use ($context, $token, $data) {
+            $code = $this->lockCode($token);
+            $this->assertCode($code, self::SCENE_CUSTOMER_IDENTITY, 0, (int)($code['target_uid'] ?? 0), 0);
+            $uid = (int)$code['target_uid'];
+            $this->assertUser($uid);
+            $storeId = (int)$context['store_id'];
+            $this->assertAuthoritativeStore($uid, $storeId);
+            if (app()->make(PackageMembershipServices::class)->effectiveMembership($uid)['is_member']) {
+                throw new ApiException('permanent_membership_already_exists');
+            }
+            $existing = $this->row($this->dao->search([])
+                ->where('target_uid', $uid)
+                ->whereIn('status', [self::STATUS_PENDING_STORE_REVIEW, self::STATUS_DRAFT])
+                ->lock(true)->order('id desc')->find());
+            if (!$existing) {
+                $now = time();
+                $amountCents = $this->currentPackageAmountCents();
+                $existing = $this->dao->save([
+                    'enrollment_no' => $this->makeNo('YPE'),
+                    'store_id' => $storeId,
+                    'target_uid' => $uid,
+                    'status' => self::STATUS_PENDING_STORE_REVIEW,
+                    'amount_cents' => $amountCents,
+                    'payment_status' => 'offline_pending',
+                    'target_bound_at' => $now,
+                    'payment_confirmed_at' => 0,
+                    'activated_member_id' => 0,
+                    'activated_at' => 0,
+                    'created_by_type' => 'store_identity_scan',
+                    'created_by_id' => (int)$context['uid'],
+                    'created_by_role' => (string)$context['role_code'],
+                    'active_target_key' => 'uid:' . $uid,
+                    'request_id' => substr(hash('sha256', $this->idempotencyKey($data)), 0, 64),
+                    'add_time' => $now,
+                    'update_time' => $now,
+                ])->toArray();
+            }
             $this->codeDao->update((int)$code['id'], [
-                'status' => self::CODE_USED, 'used_by_uid' => $uid, 'used_by_role' => 'customer',
-                'used_time' => $now, 'active_key' => null, 'request_id' => $mutation->requestId(), 'update_time' => $now,
+                'status' => self::CODE_USED,
+                'store_id' => $storeId,
+                'used_by_uid' => (int)$context['uid'],
+                'used_by_role' => (string)$context['role_code'],
+                'used_time' => time(),
+                'active_key' => null,
+                'update_time' => time(),
             ]);
-            $this->dao->update($enrollmentId, [
-                'status' => self::STATUS_ACTIVATED, 'activated_member_id' => (int)$member['id'],
-                'activated_at' => $now, 'request_id' => $mutation->requestId(), 'update_time' => $now,
-            ]);
-            $after = array_merge($enrollment, ['status' => self::STATUS_ACTIVATED, 'activated_member_id' => (int)$member['id'], 'activated_at' => $now]);
-            $this->audit->recordSafely(self::DOMAIN, 'permanent_membership', (string)$member['id'], 'activate', [], [
-                'membership_id' => (int)$member['id'], 'uid' => $uid, 'store_id' => (int)$member['store_id'],
-                'attribution_changed' => (bool)($attribution['changed'] ?? false),
-                'referral_closed' => (bool)($referral['changed'] ?? false),
-            ], $uid, 'customer', (int)$member['store_id'], 'customer_confirmed_offline_membership', $mutation->requestId());
-            return $this->activationResult($after, $member, true);
+            return $this->activateOfflineEnrollment(
+                (int)$existing['id'],
+                $storeId,
+                (int)$context['uid'],
+                (string)$context['role_code'],
+                $this->idempotencyKey($data)
+            );
         });
     }
 
     public function me(int $uid): array
     {
-        $member = $this->membershipForUid($uid, false);
+        $effective = app()->make(PackageMembershipServices::class)->effectiveMembership($uid);
         $pending = $this->row($this->dao->search([])->where('target_uid', $uid)
-            ->where('status', self::STATUS_PENDING_CONFIRMATION)->order('id desc')->find());
+            ->whereIn('status', [self::STATUS_PENDING_STORE_REVIEW, self::STATUS_PENDING_CONFIRMATION])
+            ->order('id desc')->find());
         return [
-            'membership' => $member ? $this->memberDto($member) : null,
+            'membership' => !empty($effective['is_member']) ? (array)$effective['member'] : null,
             'pending_enrollment' => $pending ? $this->customerEnrollmentDto($pending) : null,
-            'is_permanent_member' => (bool)$member,
-            'has_referral_qualification' => (bool)$member,
+            'is_permanent_member' => (bool)($effective['is_member'] ?? false),
+            'has_referral_qualification' => (bool)($effective['is_member'] ?? false),
         ];
     }
 
@@ -274,85 +299,134 @@ class PermanentMembershipServices extends YfthFoundationBaseServices
         return $this->operatorEnrollmentDto($this->requireEnrollment($id));
     }
 
-    private function createEnrollment(int $storeId, int $operatorId, string $operatorType, string $role, array $data): array
-    {
-        app()->make(StoreAccessServices::class)->assertStoreActive($storeId);
-        $key = $this->idempotencyKey($data);
-        $mutation = $this->mutation($storeId, max(1, $operatorId), $role, $key, 'offline_membership_enrollment_create');
-        return $this->runner->run('permanent_membership_enrollment_create', $mutation, ['store_id' => $storeId, 'operator_type' => $operatorType], 'store:' . $storeId, function () use ($storeId, $operatorId, $operatorType, $role, $mutation) {
-            $now = time();
-            $row = $this->dao->save([
-                'enrollment_no' => $this->makeNo('YPE'), 'store_id' => $storeId, 'target_uid' => 0,
-                'status' => self::STATUS_DRAFT, 'amount_cents' => self::AMOUNT_CENTS,
-                'payment_status' => 'pending', 'target_bound_at' => 0, 'payment_confirmed_at' => 0,
-                'activated_member_id' => 0, 'activated_at' => 0, 'created_by_type' => $operatorType,
-                'created_by_id' => $operatorId, 'created_by_role' => $role, 'active_target_key' => null,
-                'request_id' => $mutation->requestId(), 'add_time' => $now, 'update_time' => $now,
-            ])->toArray();
-            $this->audit->recordSafely(self::DOMAIN, 'membership_enrollment', (string)$row['id'], 'create', [], $this->operatorEnrollmentDto($row), $operatorId, $role, $storeId, 'offline_membership_enrollment_create', $mutation->requestId());
-            return $this->operatorEnrollmentDto($row);
-        });
+    private function activateOfflineEnrollment(
+        int $enrollmentId,
+        int $storeId,
+        int $operatorUid,
+        string $operatorRole,
+        string $idempotencyKey
+    ): array {
+        $row = $this->lockEnrollment($enrollmentId);
+        $this->assertEnrollmentStore($row, $storeId);
+        if ((string)$row['status'] === self::STATUS_ACTIVATED) {
+            return [
+                'changed' => false,
+                'idempotent' => true,
+                'enrollment' => $this->operatorEnrollmentDto($row),
+            ];
+        }
+        if (!in_array((string)$row['status'], [self::STATUS_PENDING_STORE_REVIEW, self::STATUS_DRAFT], true)
+            || (int)$row['target_uid'] <= 0) {
+            throw new ApiException('membership_application_status_invalid');
+        }
+        $uid = (int)$row['target_uid'];
+        $amountCents = (int)$row['amount_cents'];
+        if ($amountCents <= 0) {
+            throw new ApiException('membership_application_price_snapshot_invalid');
+        }
+        $this->assertAuthoritativeStore($uid, $storeId);
+        if (app()->make(PackageMembershipServices::class)->effectiveMembership($uid)['is_member']) {
+            throw new ApiException('permanent_membership_already_exists');
+        }
+
+        $requestId = 'offline-membership-' . substr(hash('sha256', $idempotencyKey), 0, 40);
+        $referral = app()->make(HqActiveReferralServices::class);
+        $lockContext = $referral->membershipLockContext($uid);
+        $lockedCurrents = (array)$lockContext['locked_currents'];
+        $current = (array)$lockedCurrents[$uid];
+        if ((string)$current['status'] !== 'active' || (int)$current['store_id'] !== $storeId) {
+            throw new ApiException('offline_membership_store_attribution_mismatch');
+        }
+        $source = HqAuthoritySource::fromTrusted('offline_membership_activation', $enrollmentId);
+        $mutation = new HqAuthorityMutation(
+            $source,
+            $operatorUid,
+            $operatorRole,
+            'offline_membership_activated',
+            $requestId,
+            $idempotencyKey
+        );
+
+        $commission = [];
+        if ((int)$lockContext['relation_id'] > 0) {
+            $payload = [
+                'activation_type' => 'offline_enrollment',
+                'enrollment_id' => $enrollmentId,
+                'instance_id' => 0,
+                'order_id' => 0,
+                'amount_cent' => $amountCents,
+                'relation' => [
+                    'id' => (int)$lockContext['relation_id'],
+                    'referrer_uid' => (int)$lockContext['referrer_uid'],
+                    'referred_uid' => $uid,
+                    'store_id' => $storeId,
+                ],
+            ];
+            $commission = app()->make(AutomaticCommissionServices::class)->consumePackageActivation($payload);
+            $referral->closeForMembershipWithLockedCurrentsInTransaction(
+                $uid,
+                $storeId,
+                $mutation,
+                $lockContext,
+                $lockedCurrents
+            );
+        }
+
+        $membership = app()->make(PackageMembershipServices::class)->grantOfflineInTransaction(
+            $uid,
+            $storeId,
+            $enrollmentId,
+            $amountCents,
+            $operatorUid,
+            $operatorRole,
+            $requestId
+        );
+        $membershipId = (int)Db::name('yfth_permanent_membership')->where('uid', $uid)->value('id');
+        $now = time();
+        $update = [
+            'status' => self::STATUS_ACTIVATED,
+            'payment_status' => 'offline_confirmed',
+            'payment_confirmed_at' => $now,
+            'activated_member_id' => $membershipId,
+            'activated_at' => $now,
+            'active_target_key' => null,
+            'request_id' => $requestId,
+            'update_time' => $now,
+        ];
+        $this->dao->update($enrollmentId, $update);
+        $after = array_merge($row, $update);
+        $this->audit->recordSafely(
+            self::DOMAIN,
+            'membership_enrollment',
+            (string)$enrollmentId,
+            'store_activate',
+            $this->operatorEnrollmentDto($row),
+            $this->operatorEnrollmentDto($after),
+            $operatorUid,
+            $operatorRole,
+            $storeId,
+            'offline_membership_activated',
+            $requestId
+        );
+        return [
+            'changed' => true,
+            'idempotent' => false,
+            'membership' => (array)$membership['member'],
+            'commission' => $commission,
+            'enrollment' => $this->operatorEnrollmentDto($after),
+        ];
     }
 
-    private function bindCustomer(int $id, int $storeId, int $operatorId, string $role, string $token, array $data): array
+    private function assertAuthoritativeStore(int $uid, int $storeId): void
     {
-        $token = trim($token);
-        if ($token === '') throw new ApiException('customer_identity_code_required');
-        $key = $this->idempotencyKey($data);
-        $mutation = $this->mutation($id, max(1, $operatorId), $role, $key, 'customer_identity_code_bind');
-        return $this->runner->run('permanent_membership_customer_bind', $mutation, ['enrollment_id' => $id, 'store_id' => $storeId, 'identity_code_hash' => $this->hashToken($token)], 'enrollment:' . $id, function () use ($id, $storeId, $operatorId, $role, $token, $mutation) {
-            $row = $this->lockEnrollment($id);
-            $this->assertEnrollmentStore($row, $storeId);
-            if ((int)$row['target_uid'] > 0) return $this->operatorEnrollmentDto($row);
-            if ((string)$row['status'] !== self::STATUS_DRAFT) throw new ApiException('membership_enrollment_bind_status_invalid');
-            $code = $this->lockCode($token);
-            $this->assertCode($code, self::SCENE_CUSTOMER_IDENTITY, 0, (int)$code['target_uid'], 0);
-            $targetUid = (int)$code['target_uid'];
-            $this->assertUser($targetUid);
-            if ($this->membershipForUid($targetUid, true)) throw new ApiException('permanent_membership_already_exists');
-            $now = time();
-            try {
-                $this->dao->update($id, ['target_uid' => $targetUid, 'target_bound_at' => $now, 'active_target_key' => 'uid:' . $targetUid, 'request_id' => $mutation->requestId(), 'update_time' => $now]);
-            } catch (\Throwable $e) {
-                if ($this->isUniqueConflict($e)) throw new ApiException('membership_customer_already_bound');
-                throw $e;
-            }
-            $this->codeDao->update((int)$code['id'], ['status' => self::CODE_USED, 'store_id' => $storeId, 'used_by_uid' => $operatorId, 'used_by_role' => $role, 'used_time' => $now, 'active_key' => null, 'request_id' => $mutation->requestId(), 'update_time' => $now]);
-            $after = array_merge($row, ['target_uid' => $targetUid, 'target_bound_at' => $now, 'active_target_key' => 'uid:' . $targetUid]);
-            $this->audit->recordSafely(self::DOMAIN, 'membership_enrollment', (string)$id, 'bind_customer', $row, $after, $operatorId, $role, $storeId, 'customer_identity_code_bind', $mutation->requestId());
-            return $this->operatorEnrollmentDto($after);
-        });
-    }
-
-    private function confirmPayment(int $id, int $storeId, int $operatorId, string $role, array $data): array
-    {
-        $key = $this->idempotencyKey($data);
-        $mutation = $this->mutation($id, max(1, $operatorId), $role, $key, 'offline_payment_9800_confirmed');
-        return $this->runner->run('permanent_membership_payment_confirm', $mutation, ['enrollment_id' => $id, 'store_id' => $storeId, 'amount_cents' => self::AMOUNT_CENTS], 'enrollment:' . $id, function () use ($id, $storeId, $operatorId, $role, $mutation) {
-            $row = $this->lockEnrollment($id);
-            $this->assertEnrollmentStore($row, $storeId);
-            if ((string)$row['payment_status'] === 'confirmed') return $this->operatorEnrollmentDto($row);
-            if ((string)$row['status'] !== self::STATUS_DRAFT || (int)$row['target_uid'] <= 0) throw new ApiException('membership_customer_not_bound');
-            $now = time();
-            $update = ['payment_status' => 'confirmed', 'payment_confirmed_at' => $now, 'status' => self::STATUS_PENDING_CONFIRMATION, 'request_id' => $mutation->requestId(), 'update_time' => $now];
-            $this->dao->update($id, $update);
-            $after = array_merge($row, $update);
-            $this->audit->recordSafely(self::DOMAIN, 'membership_enrollment', (string)$id, 'confirm_offline_payment', $row, $after, $operatorId, $role, $storeId, 'offline_payment_9800_confirmed', $mutation->requestId());
-            return $this->operatorEnrollmentDto($after);
-        });
-    }
-
-    private function generateConfirmationCode(int $id, int $storeId, int $operatorId, string $role): array
-    {
-        return Db::transaction(function () use ($id, $storeId, $operatorId, $role) {
-            $row = $this->lockEnrollment($id);
-            $this->assertEnrollmentStore($row, $storeId);
-            if ((string)$row['status'] !== self::STATUS_PENDING_CONFIRMATION || (string)$row['payment_status'] !== 'confirmed' || (int)$row['target_uid'] <= 0) {
-                throw new ApiException('membership_enrollment_not_ready');
-            }
-            $this->invalidateCodes(self::SCENE_MEMBERSHIP_CONFIRMATION, $id, (int)$row['target_uid']);
-            return $this->issueCode(self::SCENE_MEMBERSHIP_CONFIRMATION, $id, (int)$row['target_uid'], $storeId, $operatorId, $role, self::CONFIRMATION_TTL);
-        });
+        try {
+            $store = app()->make(UserRelationshipAuthorityServices::class)->requirePurchaseStore($uid, $storeId);
+        } catch (\Throwable $e) {
+            throw new ApiException('offline_membership_store_attribution_mismatch');
+        }
+        if ((int)($store['store_id'] ?? 0) !== $storeId) {
+            throw new ApiException('offline_membership_store_attribution_mismatch');
+        }
     }
 
     private function issueCode(string $scene, int $enrollmentId, int $targetUid, int $storeId, int $issuer, string $role, int $ttl): array
@@ -375,6 +449,21 @@ class PermanentMembershipServices extends YfthFoundationBaseServices
             }
         }
         throw new ApiException('business_dynamic_code_generation_failed');
+    }
+
+    private function currentPackageAmountCents(): int
+    {
+        $rule = app()->make(PackageTemplateServices::class)->managedMemberRule();
+        $price = trim((string)($rule['package_price'] ?? ''));
+        if ($price === '' || !preg_match('/^\d+(?:\.\d{1,2})?$/', $price)) {
+            throw new ApiException('managed_member_package_price_invalid');
+        }
+        [$whole, $decimal] = array_pad(explode('.', $price, 2), 2, '');
+        $amountCents = ((int)$whole * 100) + (int)str_pad(substr($decimal, 0, 2), 2, '0');
+        if ($amountCents <= 0) {
+            throw new ApiException('managed_member_package_price_invalid');
+        }
+        return $amountCents;
     }
 
     private function invalidateCodes(string $scene, int $enrollmentId, int $targetUid): void
@@ -413,7 +502,7 @@ class PermanentMembershipServices extends YfthFoundationBaseServices
     private function storeContext(Request $request): array
     {
         $context = app()->make(CurrentBusinessContextServices::class)->fromRequest($request);
-        if (!in_array((string)$context['role_code'], ['franchisee', 'store_manager'], true)) throw new ApiException('membership_store_operator_forbidden');
+        if (!in_array((string)$context['role_code'], ['store_manager', 'store_staff'], true)) throw new ApiException('membership_store_operator_forbidden');
         return $context;
     }
 

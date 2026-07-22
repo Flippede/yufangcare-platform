@@ -1,7 +1,7 @@
 <template>
 	<view class="page">
-		<view class="title">当前最高经营身份</view>
-		<view class="desc">系统按加盟商、店长、店员、顾客的顺序进入最高有效身份；多门店时仅切换门店。</view>
+		<view class="title">当前经营身份</view>
+		<view class="desc">系统自动进入最高有效经营身份；同一身份管理多家门店时仅选择当前门店。</view>
 		<view v-if="loading" class="empty">正在读取身份...</view>
 		<view v-else>
 			<view v-for="item in businessGroups" :key="item.role_code" :class="['card', switching ? 'disabled' : '']" @click="choose(item)">

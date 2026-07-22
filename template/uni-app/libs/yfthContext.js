@@ -5,14 +5,13 @@ import { getYfthContext, getYfthIdentities } from '@/api/yfth.js';
 export const YFTH_ROLE_LABELS = {
 	customer: '顾客',
 	member_5980: '5980会员',
-	franchisee: '招商合伙人',
 	store_manager: '店长',
 	store_staff: '店员',
 	service_mentor: '服务导师',
 	county_partner: '县级招商合伙人',
 	prefecture_partner: '地市级招商合伙人',
 	province_partner: '省级招商合伙人',
-	regional_director: '区域董事',
+	regional_director: '大区总监',
 	platform_director: '平台董事'
 };
 
@@ -25,7 +24,7 @@ export const YFTH_ROLE_NAVS = {
 		{ title: '购物车', url: '/pages/order_addcart/order_addcart', type: 'switchTab' },
 		{ title: '我的', url: '/pages/user/index', type: 'switchTab' }
 	],
-	franchisee: [
+	partner_workbench: [
 		{ title: '工作台', pane: 'dashboard' },
 		{ title: '门店', pane: 'stores' },
 		{ title: '客户', pane: 'customers' },
@@ -59,7 +58,7 @@ export const YFTH_ROLE_NAVS = {
 	]
 };
 
-PARTNER_ROLES.forEach((role) => { YFTH_ROLE_NAVS[role] = YFTH_ROLE_NAVS.franchisee; });
+PARTNER_ROLES.forEach((role) => { YFTH_ROLE_NAVS[role] = YFTH_ROLE_NAVS.partner_workbench; });
 
 const CONTEXT_KEY = 'YFTH_CURRENT_CONTEXT';
 const ROLE_KEY = 'YFTH_CURRENT_ROLE';
@@ -68,7 +67,6 @@ const BUSINESS_SURFACE_KEY = 'YFTH_BUSINESS_SURFACE';
 const BUSINESS_SURFACE_TTL = 2 * 60 * 60;
 
 export const YFTH_ROLE_PRIORITY = {
-	franchisee: 400,
 	county_partner: 450,
 	prefecture_partner: 460,
 	province_partner: 470,
@@ -89,11 +87,11 @@ export function roleNav(roleCode) {
 }
 
 export function isBusinessRole(roleCode) {
-	return ['franchisee', 'store_manager', 'store_staff', 'service_mentor'].concat(PARTNER_ROLES).indexOf(roleCode) !== -1;
+	return ['store_manager', 'store_staff', 'service_mentor'].concat(PARTNER_ROLES).indexOf(roleCode) !== -1;
 }
 
 export function roleRequiresStore(roleCode) {
-	return ['franchisee', 'store_manager', 'store_staff'].concat(PARTNER_ROLES).indexOf(roleCode) !== -1;
+	return ['store_manager', 'store_staff'].concat(PARTNER_ROLES).indexOf(roleCode) !== -1;
 }
 
 export function currentContext() {

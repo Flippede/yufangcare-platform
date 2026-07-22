@@ -100,7 +100,7 @@ $assert(strpos($controller . $route . $adminApi, 'closure/preflight') !== false,
 $assert(strpos($userController . $userRoutes . $userApi, 'user_cancel/preflight') !== false, 'self_closure_preflight_wired');
 $assert(strpos($userRoutes, "Route::post('user_cancel'") !== false && strpos($userRoutes, "Route::get('user_cancel',") === false, 'self_closure_is_confirmed_post_not_legacy_get');
 $assert(strpos($cancellationPage, '账号注销协议') !== false && strpos($cancellationPage, '确认注销') !== false, 'self_closure_page_exposes_formal_confirmation');
-foreach (['franchisee', 'store_manager', 'store_staff'] as $roleCode) {
+foreach (['store_manager', 'store_staff'] as $roleCode) {
     $assert(strpos($service, "'{$roleCode}'") !== false, 'supported_store_role:' . $roleCode);
 }
 foreach (['assertApiAuthForAdmin', 'yfth/user_role/user', 'yfth/user_role/user/<uid>/grant', 'yfth/user_role/role/<id>/revoke'] as $needle) {
@@ -138,7 +138,7 @@ $assert(strpos($adminPage, '永久会员、门店岗位和招商合伙人是三�
     'admin_page_separates_membership_and_partner_identity');
 $assert(strpos($adminPage, '操作原因') !== false, 'admin_page_requires_reason');
 
-foreach (['now_money', 'integral', 'couponCount', '商城资产与御方通和推荐奖励独立核算'] as $needle) {
+foreach (['now_money', 'integral', 'couponCount', '商城资产与御方通和推荐佣金分别记录'] as $needle) {
     $assert(strpos($userPage, $needle) !== false, 'user_assets_contains:' . $needle);
 }
 $assert(strpos($userPage, 'goYfthReferralCode') !== false, 'permanent_member_referral_entry_exists');
@@ -201,8 +201,8 @@ $assert(strpos($pageFooter, 'isYfthBusinessMallBrowsing') !== false
 	&& strpos($pageFooter, 'isYfthBusinessUserCenterBrowsing') !== false
     && strpos($pageFooter, 'this.businessNavs = roleNav(context.role_code)') !== false,
 	'business_surface_footer_uses_current_business_role_navigation');
-$assert(strpos($pageFooter, 'item.action === businessActiveAction') !== false
-	&& strpos($pageFooter, "this.businessActiveAction = userCenterBrowsing ? 'user_center' : 'mall'") !== false
+$assert(strpos($pageFooter, 'item.action === this.businessActiveAction') !== false
+	&& strpos($pageFooter, "this.businessActiveAction = userCenterBrowsing ? 'user_center' : (mallBrowsing ? 'mall' : '')") !== false
     && strpos($pageFooter, "business-footer-item") !== false,
 	'business_mall_and_user_center_are_parallel_active_navigation_items');
 $assert(strpos($pageFooter, '/pages/yfth/workbench/index?pane=') !== false
@@ -218,7 +218,7 @@ $assert(substr_count($customerNavBlock, '{ title:') === 4
 	&& strpos($customerNavBlock, "title: '购物车'") !== false
 	&& strpos($customerNavBlock, "title: '我的'") !== false,
 	'customer_navigation_contract_is_fixed_to_four_tabs');
-foreach (['franchisee', 'store_manager', 'store_staff', 'service_mentor'] as $roleCode) {
+foreach (['store_manager', 'store_staff', 'service_mentor'] as $roleCode) {
 	$pattern = '/' . preg_quote($roleCode, '/') . ': \[(.*?)\n\t\]/s';
 	$assert(preg_match($pattern, $contextLibrary, $matches) === 1, 'business_navigation_block_exists:' . $roleCode);
 	$block = $matches[1] ?? '';
@@ -226,6 +226,8 @@ foreach (['franchisee', 'store_manager', 'store_staff', 'service_mentor'] as $ro
 	$assert(strpos($block, "action: 'mall'") !== false && strpos($block, "action: 'user_center'") !== false,
 		'business_navigation_keeps_parallel_mall_and_user_center:' . $roleCode);
 }
+$assert(strpos($contextLibrary, 'PARTNER_ROLES.forEach((role) => { YFTH_ROLE_NAVS[role] = YFTH_ROLE_NAVS.partner_workbench; });') !== false,
+	'partner_roles_share_the_partner_workbench_navigation');
 $assert(strpos($customHomepage, '<pageFooter :configData="footerConfigData"') !== false,
     'custom_home_always_mounts_business_aware_footer');
 $assert(strpos($storeAcquisitionService, "private const ROLES = ['store_manager', 'store_staff']") !== false, 'acquisition_code_role_boundary');
@@ -258,7 +260,7 @@ foreach ([$loginPage, $wechatLoginPage, $bindingPhonePage] as $loginSurface) {
     $assert(strpos($loginSurface, 'resolveLoginBackUrl') !== false, 'login_surface_resumes_pending_store_acquisition');
 }
 $assert(strpos($wechatLoginPage, 'finishLoginNavigation') !== false && strpos($bindingPhonePage, 'postLoginUrl') !== false, 'new_wechat_user_resumes_store_acquisition_after_profile');
-$assert(strpos($wechatLoginPage, '切换账号') !== false && strpos($wechatLoginPage, "url: '/pages/users/login/index'") !== false, 'wechat_login_exposes_phone_and_account_switch');
+$assert(strpos($wechatLoginPage, 'accountLogin()') !== false && strpos($wechatLoginPage, "url: '/pages/users/login/index'") !== false, 'wechat_login_exposes_phone_and_account_switch');
 $assert(strpos($storeAcquisitionAcceptPage, 'this.$nextTick(() => this.accept())') !== false, 'acquisition_accepts_automatically_after_login');
 $assert(strpos($storeAcquisitionAcceptPage, "uni.reLaunch({ url: '/pages/index/index' })") !== false, 'acquisition_success_returns_to_mall_home');
 $assert(strpos($scanPage, 'acquisition_token') !== false && strpos($scanPage, '/pages/yfth/store_acquisition/accept') !== false, 'scanner_recognizes_store_acquisition_qr');

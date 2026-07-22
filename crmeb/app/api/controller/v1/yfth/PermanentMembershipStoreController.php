@@ -17,25 +17,28 @@ class PermanentMembershipStoreController
         return app('json')->success($services->storeDetail($request, (int)$id));
     }
 
-    public function create(Request $request, PermanentMembershipServices $services)
+    public function approve(Request $request, PermanentMembershipServices $services, $id)
     {
-        return app('json')->success($services->createForStore($request, $this->writePayload($request)));
+        return app('json')->success($services->approveForStore($request, (int)$id, $this->writePayload($request)));
     }
 
-    public function bind(Request $request, PermanentMembershipServices $services, $id)
+    public function reject(Request $request, PermanentMembershipServices $services, $id)
+    {
+        return app('json')->success($services->rejectForStore(
+            $request,
+            (int)$id,
+            $this->writePayload($request, [['reason', '']])
+        ));
+    }
+
+    public function activateIdentity(Request $request, PermanentMembershipServices $services)
     {
         $data = $this->writePayload($request, [['identity_token', '']]);
-        return app('json')->success($services->bindForStore($request, (int)$id, (string)$data['identity_token'], $data));
-    }
-
-    public function payment(Request $request, PermanentMembershipServices $services, $id)
-    {
-        return app('json')->success($services->confirmPaymentForStore($request, (int)$id, $this->writePayload($request)));
-    }
-
-    public function confirmationCode(Request $request, PermanentMembershipServices $services, $id)
-    {
-        return app('json')->success($services->confirmationCodeForStore($request, (int)$id));
+        return app('json')->success($services->activateIdentityForStore(
+            $request,
+            (string)$data['identity_token'],
+            $data
+        ));
     }
 
     private function writePayload(Request $request, array $extra = []): array

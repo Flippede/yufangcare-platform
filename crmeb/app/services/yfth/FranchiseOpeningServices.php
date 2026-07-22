@@ -653,13 +653,11 @@ class FranchiseOpeningServices extends YfthFoundationBaseServices
     {
         $this->assertHeadquarterAdmin($adminInfo);
         $applicationId = (int)($data['application_id'] ?? 0);
-        $role = trim((string)($data['role_code'] ?? 'county_partner'));
-        if (!in_array($role, ['county_partner', 'store_manager', 'all'], true)) {
+        $role = trim((string)($data['role_code'] ?? 'store_manager'));
+        if ($role !== '' && $role !== 'store_manager') {
             throw new ApiException('franchise_identity_grant_role_invalid');
         }
-        // Partner ownership is mandatory and independent from the optional manager permission.
-        $grantManager = in_array($role, ['store_manager', 'all'], true);
-        $roles = $grantManager ? ['store_manager'] : [];
+        $roles = ['store_manager'];
         $result = Db::transaction(function () use ($applicationId, $roles, $adminId, $data) {
             $application = $this->lockApplication($applicationId);
             $this->ensurePreparationTasks($applicationId);
@@ -685,7 +683,7 @@ class FranchiseOpeningServices extends YfthFoundationBaseServices
             }
             app()->make(StoreAccessServices::class)->assertStoreActive($storeId);
 
-            $grants = [$this->activatePartnerIdentityGrant($application, $acceptance, $storeId, $adminId, trim((string)($data['reason'] ?? '')))];
+            $grants = [];
             foreach ($roles as $currentRole) {
                 $grants[] = $this->activateStoreRoleGrant($application, $acceptance, $storeId, $currentRole, $adminId, trim((string)($data['reason'] ?? '')));
             }
@@ -712,28 +710,6 @@ class FranchiseOpeningServices extends YfthFoundationBaseServices
         return $result;
     }
 
-    private function activatePartnerIdentityGrant(array $application, array $acceptance, int $storeId, int $adminId, string $reason): array
-    {
-        $uid = (int)$application['applicant_uid'];
-        $grantDao = app()->make(YfthFranchiseIdentityGrantDao::class);
-        $activeKey = $uid . ':' . $storeId . ':county_partner';
-        $existing = $this->rowArray($grantDao->getOne(['active_key' => $activeKey]));
-        if ($existing && (string)$existing['status'] === 'active') return $existing;
-        $now = time();
-        $row = [
-            'application_id' => (int)$application['id'], 'target_uid' => $uid,
-            'store_id' => $storeId, 'acceptance_id' => (int)$acceptance['id'],
-            'role_code' => 'county_partner', 'store_role_id' => 0, 'status' => 'active',
-            'grant_time' => $now, 'revoke_time' => 0, 'grant_uid' => $adminId, 'revoke_uid' => 0,
-            'reason' => $reason ?: 'formal_franchise_opening', 'active_key' => $activeKey,
-            'create_time' => $now, 'update_time' => $now,
-        ];
-        $saved = $grantDao->save($row);
-        $row['id'] = (int)$saved->id;
-        $this->audit('franchise_identity_grant', (int)$row['id'], 'partner_grant', [], $row, $adminId, 'headquarter_operator', $storeId, $row['reason']);
-        return $row;
-    }
-
     private function activateStoreRoleGrant(array $application, array $acceptance, int $storeId, string $roleCode, int $adminId, string $reason): array
     {
         $uid = (int)$application['applicant_uid'];
@@ -758,6 +734,13 @@ class FranchiseOpeningServices extends YfthFoundationBaseServices
             ]);
         }
         $storeRole = $this->rowArray($storeRole);
+        app()->make(PackageMembershipServices::class)->grantForStoreRoleInTransaction(
+            $uid,
+            $storeId,
+            (int)$storeRole['id'],
+            $adminId,
+            'franchise_opening:' . (int)$application['id'] . ':' . $roleCode
+        );
         $now = time();
         $grant = $grantDao->save([
             'application_id' => (int)$application['id'],

@@ -178,7 +178,7 @@ class RelationshipManagementServices
         $storeIds = array_map('intval', array_column($rows, 'id'));
         $grants = $storeIds ? Db::name('yfth_franchise_identity_grant')
             ->whereIn('store_id', $storeIds)->where('status', 'active')
-            ->whereIn('role_code', ['franchisee', 'store_manager'])
+            ->where('role_code', 'store_manager')
             ->field('id,target_uid,store_id,role_code,grant_time')->order('id asc')->select()->toArray() : [];
         $users = $this->read->userMap(array_column($grants, 'target_uid'));
         $partnersByStore = [];
@@ -196,7 +196,7 @@ class RelationshipManagementServices
             }
             $role = (string)$grant['role_code'];
             $partnersByStore[$storeId][$uid]['roles'][] = $role;
-            $partnersByStore[$storeId][$uid]['role_labels'][] = $role === 'franchisee' ? '加盟合伙人' : '店长';
+            $partnersByStore[$storeId][$uid]['role_labels'][] = '店长';
         }
         $list = array_map(function (array $row) use ($partnersByStore) {
             $storeId = (int)$row['id'];

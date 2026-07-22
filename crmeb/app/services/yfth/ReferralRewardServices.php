@@ -1062,7 +1062,7 @@ class ReferralRewardServices extends YfthFoundationBaseServices
         }
         $context = app()->make(CurrentBusinessContextServices::class)->fromRequest($request);
         $roleCode = (string)($context['role_code'] ?? '');
-        if (!in_array($roleCode, ['franchisee', 'store_manager'], true)) {
+        if ($roleCode !== 'store_manager') {
             throw new ApiException('franchise_referral_role_required');
         }
         $storeId = (int)($context['store_id'] ?? 0);

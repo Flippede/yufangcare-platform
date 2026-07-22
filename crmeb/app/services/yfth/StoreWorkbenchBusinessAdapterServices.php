@@ -11,8 +11,8 @@ use crmeb\exceptions\ApiException;
 
 class StoreWorkbenchBusinessAdapterServices extends YfthFoundationBaseServices
 {
-    private const STORE_ROLES = ['franchisee', 'store_manager', 'store_staff'];
-    private const STORE_OPERATE_ROLES = ['franchisee', 'store_manager'];
+    private const STORE_ROLES = ['store_manager', 'store_staff'];
+    private const STORE_OPERATE_ROLES = ['store_manager'];
 
     public function overview(Request $request): array
     {

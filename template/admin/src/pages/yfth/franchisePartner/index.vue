@@ -223,7 +223,7 @@ export default {
     openRule() { const source = this.rules.find((item) => item.status === 'published') || this.rules[0] || {}; const map = {}; this.rankOptions.forEach((rank) => { const current = (source.rank_rules || []).find((item) => item.rank_code === rank.value) || {}; map[rank.value] = { reward_per_bottle: current.reward_per_bottle || '0.00' }; }); this.ruleForm = { order_amount: source.order_amount || '89100.00', bottle_count: Number(source.bottle_count || 440), platform_dividend_bps: Number(source.platform_dividend_bps || 100), rank_rules: map, reason: '' }; this.ruleVisible = true; },
     saveRule() { if (!this.ruleForm.reason) return this.$message.warning('必须填写规则变更原因'); yfthPartnerRuleSave(this.ruleForm).then(() => { this.$message.success('规则草稿已保存'); this.ruleVisible = false; this.loadRules(); }); },
     publishRule(row) { this.$prompt('请输入发布原因', '发布规则').then(({ value }) => yfthPartnerRulePublish(row.id, { reason: value })).then(() => { this.$message.success('新规则已发布，历史快照不会重算'); this.loadRules(); }); },
-    sourceName(value) { return { franchise_opening: '正式开店', legacy_franchisee_migration: '历史加盟商兼容迁移' }[value] || value || '-'; },
+    sourceName(value) { return { franchise_opening: '正式开店', legacy_franchisee_migration: '历史身份迁移' }[value] || value || '-'; },
   },
 };
 </script>

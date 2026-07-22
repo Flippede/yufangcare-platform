@@ -86,7 +86,7 @@ $assert($contains($migration, 'DELETE FROM `') && $contains($migration, 'system_
 $assert($contains($service, "private const DOMAIN = 'yfth_product_quota'"), 'service_uses_product_quota_domain');
 $assert($contains($service, 'AdminStoreContextServices::class') && $contains($service, 'assertHeadquarterScope'), 'service_requires_headquarter_scope_for_writes');
 $assert($contains($service, 'CurrentBusinessContextServices::class'), 'service_uses_current_business_context_for_user_reads');
-$assert($contains($service, "['franchisee', 'store_manager', 'county_partner', 'prefecture_partner', 'province_partner', 'regional_director', 'platform_director']"), 'service_user_read_roles_include_bound_partner_ranks');
+$assert($contains($service, "['store_manager', 'county_partner', 'prefecture_partner', 'province_partner', 'regional_director', 'platform_director']"), 'service_user_read_roles_include_bound_partner_ranks');
 $assert($contains($service, 'product_quota_store_required'), 'service_requires_store_context');
 $assert($contains($service, 'assertUserReadonlyPayload'), 'service_rejects_user_forbidden_query_fields');
 $assert($contains($apiController, 'source_id') && $contains($service, 'product_quota_user_field_forbidden'), 'user_api_rejects_sensitive_fields');
@@ -167,7 +167,7 @@ foreach ([
 $assert($contains($quotaIndex, 'getYfthProductQuotaSummary') && $contains($quotaIndex, 'getYfthProductQuotaAccounts'), 'quota_index_uses_real_api');
 $assert($contains($quotaLedger, 'getYfthProductQuotaLedger'), 'quota_ledger_uses_real_api');
 $assert($contains($quotaDetail, 'getYfthProductQuotaAccountDetail'), 'quota_detail_uses_real_api');
-$assert($contains($workbench, 'goProductQuota') && $contains($workbench, 'canReadProductQuota'), 'workbench_links_franchisee_manager_quota_page');
+$assert($contains($workbench, 'goProductQuota') && $contains($workbench, 'canReadProductQuota'), 'workbench_links_manager_and_partner_quota_page');
 
 $userSensitiveFields = [
     'operator_uid',

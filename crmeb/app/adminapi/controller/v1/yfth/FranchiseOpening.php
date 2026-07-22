@@ -147,7 +147,7 @@ class FranchiseOpening extends AuthController
         $this->assertAdminApiAuth('yfth/franchise_opening/identity_grant', 'POST');
         return app('json')->success($services->adminGrantIdentity($this->request->postMore([
             [['application_id', 'd'], 0],
-            ['role_code', 'county_partner'],
+            ['role_code', 'store_manager'],
             ['reason', ''],
         ]), (int)$this->adminId, $this->adminInfo ?: []));
     }

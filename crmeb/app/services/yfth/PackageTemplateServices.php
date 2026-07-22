@@ -63,6 +63,25 @@ class PackageTemplateServices extends PackageBenefitBaseServices
         return $detail;
     }
 
+    public function managedMemberRule(): array
+    {
+        $template = $this->dao->search([])
+            ->where('package_code', self::MANAGED_MEMBER_PACKAGE_CODE)
+            ->where('status', 'published')
+            ->order('id desc')
+            ->find();
+        $template = $this->requireRow($template, 'managed_member_package_not_published');
+        $rule = $this->currentRule((int)$template['id']);
+        if ((int)($rule['grants_permanent_membership'] ?? 0) !== 1) {
+            throw new ApiException('managed_member_package_rule_invalid');
+        }
+        return [
+            'template_id' => (int)$template['id'],
+            'rule_version_id' => (int)$rule['id'],
+            'package_price' => $this->normalizeMoney($rule['package_price'] ?? '0.00'),
+        ];
+    }
+
     public function rulePreview(int $templateId, int $ruleVersionId = 0): array
     {
         $template = $this->requirePublishedTemplate($templateId);

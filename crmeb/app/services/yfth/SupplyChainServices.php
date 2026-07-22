@@ -18,8 +18,8 @@ use think\facade\Db;
 class SupplyChainServices extends YfthFoundationBaseServices
 {
     private const DOMAIN = 'yfth_supply_chain';
-    private const STORE_READ_ROLES = ['franchisee', 'store_manager', 'store_staff', 'county_partner', 'prefecture_partner', 'province_partner', 'regional_director', 'platform_director'];
-    private const STORE_WRITE_ROLES = ['franchisee', 'store_manager', 'county_partner', 'prefecture_partner', 'province_partner', 'regional_director', 'platform_director'];
+    private const STORE_READ_ROLES = ['store_manager', 'store_staff', 'county_partner', 'prefecture_partner', 'province_partner', 'regional_director', 'platform_director'];
+    private const STORE_WRITE_ROLES = ['store_manager', 'county_partner', 'prefecture_partner', 'province_partner', 'regional_director', 'platform_director'];
     private const CATALOG_STATUSES = ['active', 'disabled'];
     private const ORDER_STATUSES = ['submitted', 'approved', 'rejected', 'shipped', 'stocked', 'cancelled'];
 

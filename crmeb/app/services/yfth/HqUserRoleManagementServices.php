@@ -13,7 +13,6 @@ class HqUserRoleManagementServices
     private const DOMAIN = 'yfth_user_role_management';
     private const MEMBERSHIP_ROLE = 'permanent_member';
     private const ROLE_NAMES = [
-        'franchisee' => '县级合伙人（兼容门店权限）',
         'store_manager' => '店长',
         'store_staff' => '店员',
     ];
@@ -133,7 +132,15 @@ class HqUserRoleManagementServices
                 ->where('uid', $uid)->where('store_id', $storeId)->where('role_code', $roleCode)
                 ->where('status', YfthConstants::STATUS_ACTIVE)->lock(true)->find());
             if ($existing) {
-                return ['changed' => false, 'idempotent' => true, 'role' => $this->roleDto($existing)];
+                $membership = $this->membership->grantForStoreRoleInTransaction(
+                    $uid, $storeId, (int)$existing['id'], $adminId, $requestId
+                );
+                return [
+                    'changed' => false,
+                    'idempotent' => true,
+                    'role' => $this->roleDto($existing),
+                    'membership' => $membership,
+                ];
             }
             $saved = $this->roleServices->saveRole([
                 'uid' => $uid,
@@ -146,6 +153,9 @@ class HqUserRoleManagementServices
                 'creator_uid' => $adminId,
             ]);
             $role = $this->roleRow($saved);
+            $membership = $this->membership->grantForStoreRoleInTransaction(
+                $uid, $storeId, (int)$role['id'], $adminId, $requestId
+            );
             $this->audit->record(
                 self::DOMAIN,
                 'user_store_role',
@@ -159,7 +169,12 @@ class HqUserRoleManagementServices
                 $reason,
                 $requestId
             );
-            return ['changed' => true, 'idempotent' => false, 'role' => $this->roleDto($role)];
+            return [
+                'changed' => true,
+                'idempotent' => false,
+                'role' => $this->roleDto($role),
+                'membership' => $membership,
+            ];
         });
     }
 
@@ -237,9 +252,6 @@ class HqUserRoleManagementServices
         $roles = array_map(function ($row) {
             return $this->roleDto($row);
         }, $roleRows);
-        $franchiseeStores = array_values(array_filter($roles, function ($role) {
-            return (string)$role['role_code'] === 'franchisee' && (string)$role['status'] === YfthConstants::STATUS_ACTIVE;
-        }));
         $partner = Db::name('yfth_partner_profile')->where('uid', $uid)->find() ?: [];
         $partnerRelation = $partner
             ? (Db::name('yfth_partner_relation')->where('active_key', 'partner:' . $uid)->find() ?: [])
@@ -286,10 +298,6 @@ class HqUserRoleManagementServices
             ],
             'identities' => $this->identities->listUserIdentities($uid),
             'store_roles' => $roles,
-            'franchisee_identity' => [
-                'active' => count($franchiseeStores) > 0,
-                'stores' => $franchiseeStores,
-            ],
             'partner_identity' => $partner ? [
                 'active' => (string)$partner['status'] === 'active',
                 'rank_code' => (string)$partner['rank_code'],

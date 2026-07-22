@@ -444,6 +444,203 @@ class PackageMembershipServices extends YfthFoundationBaseServices
         });
     }
 
+    /**
+     * Activate the authoritative membership after a store accepts an offline
+     * application or scans the customer's identity code. The amount is the
+     * immutable package-rule snapshot captured when the application started.
+     */
+    public function grantOfflineInTransaction(
+        int $uid,
+        int $storeId,
+        int $enrollmentId,
+        int $amountCent,
+        int $operatorUid,
+        string $operatorRole,
+        string $requestId
+    ): array {
+        if ($uid <= 0 || $storeId <= 0 || $enrollmentId <= 0 || $amountCent <= 0
+            || $operatorUid <= 0 || $requestId === '') {
+            throw new ApiException('offline_membership_activation_invalid');
+        }
+        return $this->grantTrustedInTransaction(
+            $uid,
+            $storeId,
+            'offline_membership_activation',
+            (string)$enrollmentId,
+            $enrollmentId,
+            $amountCent,
+            $operatorUid,
+            $operatorRole,
+            $requestId
+        );
+    }
+
+    /** Store managers and staff are members by definition, without a fake sale. */
+    public function grantForStoreRoleInTransaction(
+        int $uid,
+        int $storeId,
+        int $storeRoleId,
+        int $operatorUid,
+        string $requestId
+    ): array {
+        if ($uid <= 0 || $storeId <= 0 || $storeRoleId <= 0 || $operatorUid <= 0 || $requestId === '') {
+            throw new ApiException('store_role_membership_grant_invalid');
+        }
+        $referral = app()->make(HqActiveReferralServices::class);
+        $lockContext = $referral->membershipLockContext($uid);
+        $lockedCurrents = (array)$lockContext['locked_currents'];
+        $source = HqAuthoritySource::fromTrusted('store_role_grant', $storeRoleId);
+        $mutation = new HqAuthorityMutation(
+            $source,
+            $operatorUid,
+            'headquarters_admin',
+            'store_role_granted',
+            $requestId,
+            'store-role-membership:' . $storeRoleId
+        );
+
+        if ((int)$lockContext['relation_id'] > 0) {
+            $relation = Db::name('yfth_hq_active_referral_current')
+                ->where('id', (int)$lockContext['relation_id'])->lock(true)->find();
+            if ($relation) {
+                $referral->invalidateWithLockedCurrentsInTransaction(
+                    (int)$relation['id'],
+                    (int)$relation['relation_version'],
+                    'store_role_granted',
+                    $mutation,
+                    $lockedCurrents
+                );
+            }
+        }
+
+        $current = (array)$lockedCurrents[$uid];
+        if (in_array((string)$current['status'], ['active', 'paused'], true)) {
+            $unassigned = $this->attribution->unassignForRebindingWithLockedCurrentInTransaction(
+                $uid,
+                (int)$current['authority_version'],
+                $mutation,
+                $current
+            );
+            $lockedCurrents[$uid] = (array)$unassigned['after'];
+        }
+        $membership = $this->grantTrustedInTransaction(
+            $uid,
+            $storeId,
+            'store_role_grant',
+            (string)$storeRoleId,
+            null,
+            0,
+            $operatorUid,
+            'headquarters_admin',
+            $requestId,
+            false
+        );
+        $membership['attribution'] = (array)$lockedCurrents[$uid];
+        return $membership;
+    }
+
+    private function grantTrustedInTransaction(
+        int $uid,
+        int $storeId,
+        string $sourceType,
+        string $sourceId,
+        ?int $enrollmentId,
+        int $amountCent,
+        int $operatorUid,
+        string $operatorRole,
+        string $requestId,
+        bool $syncCustomerProjection = true
+    ): array {
+        $existing = $this->row($this->dao->search([])->where('uid', $uid)->lock(true)->find());
+        $now = time();
+        $sourceUniqueKey = hash('sha256', 'membership|' . $sourceType . '|' . $sourceId);
+        if ($existing && (string)$existing['status'] === 'active'
+            && (int)$existing['store_id'] === $storeId) {
+            if ($syncCustomerProjection) {
+                $this->syncCustomerProjection($existing, $operatorUid, $operatorRole, $sourceType, $requestId);
+            }
+            return ['member' => $this->userDto($existing), 'created' => false, 'idempotent' => true];
+        }
+
+        if ($existing) {
+            $version = (int)$existing['authority_version'] + 1;
+            $update = [
+                'store_id' => $storeId,
+                'enrollment_id' => $enrollmentId,
+                'actual_paid_amount_cent' => $amountCent,
+                'amount_cents' => $amountCent,
+                'status' => 'active',
+                'authority_version' => $version,
+                'source_type' => $sourceType,
+                'source_id' => $sourceId,
+                'activated_at' => $now,
+                'request_id' => substr($requestId, 0, 64),
+                'update_time' => $now,
+            ];
+            $this->dao->update((int)$existing['id'], $update);
+            $member = array_merge($existing, $update);
+            $eventType = 'membership_reactivated_by_' . $sourceType;
+        } else {
+            $version = 1;
+            $member = $this->dao->save([
+                'membership_no' => $this->makeNo('YFPM'),
+                'uid' => $uid,
+                'store_id' => $storeId,
+                'source_package_instance_id' => null,
+                'source_purchase_id' => 0,
+                'source_rule_version_id' => 0,
+                'actual_paid_amount_cent' => $amountCent,
+                'currency' => 'CNY',
+                'enrollment_id' => $enrollmentId,
+                'amount_cents' => $amountCent,
+                'status' => 'active',
+                'authority_version' => 1,
+                'source_type' => $sourceType,
+                'source_id' => $sourceId,
+                'activated_at' => $now,
+                'request_id' => substr($requestId, 0, 64),
+                'add_time' => $now,
+                'update_time' => $now,
+            ])->toArray();
+            $eventType = 'membership_activated_by_' . $sourceType;
+        }
+
+        $this->eventDao->save([
+            'event_no' => $this->makeNo('YFPME'),
+            'membership_id' => (int)$member['id'],
+            'membership_no' => (string)$member['membership_no'],
+            'uid' => $uid,
+            'store_id' => $storeId,
+            'authority_version' => $version,
+            'event_type' => substr($eventType, 0, 48),
+            'source_type' => $sourceType,
+            'source_id' => $sourceId,
+            'source_unique_key' => $sourceUniqueKey,
+            'actual_paid_amount_cent' => $amountCent,
+            'operator_uid' => $operatorUid,
+            'operator_role_code' => $operatorRole,
+            'request_id' => substr($requestId, 0, 64),
+            'add_time' => $now,
+        ]);
+        $this->audit->recordSafely(
+            self::DOMAIN,
+            'permanent_membership',
+            (string)$member['id'],
+            $eventType,
+            $existing ? $this->userDto($existing) : [],
+            $this->userDto($member),
+            $operatorUid,
+            $operatorRole,
+            $storeId,
+            $sourceType,
+            $requestId
+        );
+        if ($syncCustomerProjection) {
+            $this->syncCustomerProjection($member, $operatorUid, $operatorRole, $sourceType, $requestId);
+        }
+        return ['member' => $this->userDto($member), 'created' => true, 'idempotent' => false];
+    }
+
     public function revokeByHeadquarters(
         int $uid,
         int $operatorUid,

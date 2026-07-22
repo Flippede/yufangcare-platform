@@ -2,7 +2,6 @@
 
 use app\services\yfth\FranchisePartnerServices;
 use app\services\yfth\HqAcceptanceFixtureServices;
-use app\services\yfth\UserStoreRoleServices;
 use app\Request;
 use think\facade\Config;
 use think\facade\Db;
@@ -70,7 +69,7 @@ try {
     $assert(count($profiles) === 5, 'five_real_partner_profiles');
     $assert((int)Db::name('yfth_partner_relation')->whereIn('partner_uid', array_values($rankUids))->where('status', 'active')->count() === 4, 'four_active_hierarchy_edges');
     $countyProfile = Db::name('yfth_partner_profile')->where('uid', $rankUids['county_partner'])->find();
-    $assert((int)($countyProfile['legacy_franchisee_role_id'] ?? 0) > 0, 'legacy_franchisee_compatibility_preserved');
+    $assert((int)($countyProfile['legacy_franchisee_role_id'] ?? 0) === 0, 'county_partner_has_no_legacy_store_role');
 
     $rule = Db::name('yfth_partner_rule_version')->where('rule_no', 'YFTH-PARTNER-V1')->find();
     Db::transaction(function () use ($rule) {
@@ -236,58 +235,36 @@ try {
         ], 1, $hq);
     }, 'partner_relation_cycle_forbidden', 'hierarchy_cycle_rejected');
 
-    $role = app()->make(UserStoreRoleServices::class)->saveRole([
-        'uid' => $applicantUid,
-        'store_id' => $storeId,
-        'role_code' => 'franchisee',
-        'permission_scope' => ['source' => 'partner_real_flow'],
-        'status' => 'active',
-        'creator_uid' => 1,
-    ]);
-    $legacyRoleId = (int)$role->id;
+    $openingStore = Db::name('system_store')->where('id', $storeId)->find();
+    unset($openingStore['id']);
+    $openingStore['name'] = 'TEST opened store ' . $suffix;
+    $openingStore['phone'] = '195' . str_pad(substr($suffix, -8), 8, '0', STR_PAD_LEFT);
+    $openingStore['add_time'] = time();
+    $openingStoreId = (int)Db::name('system_store')->insertGetId($openingStore);
+    $legacyRoleId = 0;
     $assetFields = 'uid,now_money,integral,brokerage_price';
     $assetBefore = Db::name('user')->whereIn('uid', array_merge([$applicantUid], array_values($rankUids)))->field($assetFields)->order('uid asc')->select()->toArray();
     $application = Db::name('yfth_franchise_application')->where('id', $applicationId)->find();
-    $opened = Db::transaction(function () use ($partner, $application, $storeId, $legacyRoleId) {
-        return $partner->finalizeOpeningInTransaction($application, $storeId, $legacyRoleId, 1);
+    $opened = Db::transaction(function () use ($partner, $application, $openingStoreId, $legacyRoleId) {
+        return $partner->finalizeOpeningInTransaction($application, $openingStoreId, $legacyRoleId, 1);
     });
-    $assert((string)$opened['partner']['rank_code'] === 'county_partner' && (int)$opened['partner']['primary_store_id'] === $storeId, 'opening_grants_county_partner_bound_to_store');
+    $assert((int)$opened['partner']['uid'] === $rankUids['county_partner'], 'opening_keeps_existing_county_partner_as_sponsor');
+    $assert((int)Db::name('yfth_partner_profile')->where('uid', $applicantUid)->count() === 0, 'opening_does_not_turn_manager_applicant_into_partner');
+    $assert((int)Db::name('yfth_partner_store_binding')->where([
+        'partner_uid' => $rankUids['county_partner'], 'store_id' => $openingStoreId, 'status' => 'active',
+    ])->count() === 1, 'opened_store_is_bound_to_recruiting_county_partner');
     $assert((int)Db::name('yfth_partner_opening_performance')->where('application_id', $applicationId)->count() === 1, 'one_opening_performance');
-    $candidates = Db::name('yfth_partner_reward_candidate')->where('application_id', $applicationId)->order('chain_position asc')->select()->toArray();
-    $amounts = array_column($candidates, 'amount', 'rank_code');
-    $assert($amounts === [
-        'county_partner' => '17600.00',
-        'prefecture_partner' => '7480.00',
-        'province_partner' => '4400.00',
-        'regional_director' => '3520.00',
-        'platform_director' => '2200.00',
-    ], 'five_rank_reward_candidates_match_snapshots');
-    $assert(count($candidates) === 5, 'only_real_active_chain_members_receive_candidates');
+    $assert((int)Db::name('yfth_partner_reward_candidate')->where('application_id', $applicationId)->count() === 0,
+        'opening_does_not_reintroduce_hierarchy_cash_candidates');
+    $assert((int)Db::name('yfth_reward_event')->where('id', (int)$opened['reward_event_id'])
+        ->where('event_type', 'partner_store_opened')->count() === 1, 'opening_enqueues_unified_partner_reward_event');
 
-    Db::transaction(function () use ($partner, $application, $storeId, $legacyRoleId) {
-        $partner->finalizeOpeningInTransaction($application, $storeId, $legacyRoleId, 1);
+    Db::transaction(function () use ($partner, $application, $openingStoreId, $legacyRoleId) {
+        $partner->finalizeOpeningInTransaction($application, $openingStoreId, $legacyRoleId, 1);
     });
     $assert((int)Db::name('yfth_partner_opening_performance')->where('application_id', $applicationId)->count() === 1, 'duplicate_opening_keeps_one_performance');
-    $assert((int)Db::name('yfth_partner_reward_candidate')->where('application_id', $applicationId)->count() === 5, 'duplicate_opening_keeps_five_candidates');
-
-    $countyCandidate = $candidates[0];
-    $confirmed = $partner->adminRewardTransition((int)$countyCandidate['id'], 'confirm', ['reason' => 'offline review passed'], 1, $hq);
-    $confirmedAgain = $partner->adminRewardTransition((int)$countyCandidate['id'], 'confirm', ['reason' => 'idempotent confirm'], 1, $hq);
-    $assert((string)$confirmed['candidate']['status'] === 'confirmed' && $confirmedAgain['idempotent'] === true, 'reward_confirmation_is_idempotent');
-    $settled = $partner->adminSettleReward((int)$countyCandidate['id'], [
-        'reason' => 'offline settlement recorded', 'evidence' => 'TEST-OFFLINE-RECEIPT',
-    ], 1, $hq);
-    $settledAgain = $partner->adminSettleReward((int)$countyCandidate['id'], [
-        'reason' => 'idempotent settlement', 'evidence' => 'TEST-OFFLINE-RECEIPT',
-    ], 1, $hq);
-    $assert((string)$settled['candidate']['status'] === 'settled' && $settledAgain['idempotent'] === true, 'offline_settlement_is_idempotent');
-    $cancelCandidate = $candidates[1];
-    $partner->adminRewardTransition((int)$cancelCandidate['id'], 'cancel', ['reason' => 'cancelled test candidate'], 1, $hq);
-    $expect(function () use ($partner, $cancelCandidate, $hq) {
-        $partner->adminSettleReward((int)$cancelCandidate['id'], [
-            'reason' => 'cancelled must not settle', 'evidence' => 'TEST-INVALID',
-        ], 1, $hq);
-    }, 'partner_reward_settle_status_invalid', 'cancelled_reward_cannot_settle');
+    $assert((int)Db::name('yfth_reward_event')->where('event_type', 'partner_store_opened')
+        ->where('source_id', (string)$applicationId)->count() === 1, 'duplicate_opening_keeps_one_reward_event');
 
     if (!Request::hasMacro('uid')) {
         Request::macro('uid', function () {

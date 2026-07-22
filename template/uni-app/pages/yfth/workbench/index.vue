@@ -202,7 +202,7 @@
 			</view>
 
 			<view v-else class="empty">
-				当前身份不是门店经营身份，或尚未选择具体授权门店。请切换到加盟商、店长或店员并选择门店。
+				当前身份不是门店经营身份，或尚未选择具体授权门店。请确认店长、店员或招商合伙人身份及门店授权。
 			</view>
 		</block>
 
@@ -283,13 +283,13 @@ export default {
 			return roleNav(this.context.role_code);
 		},
 		storeRoleReady() {
-			return (['franchisee', 'store_manager', 'store_staff'].indexOf(this.context.role_code) !== -1 || this.isPartnerRole) && Number(this.context.store_id) > 0;
+			return (['store_manager', 'store_staff'].indexOf(this.context.role_code) !== -1 || this.isPartnerRole) && Number(this.context.store_id) > 0;
 		},
 		canReadProductQuota() {
-			return ['franchisee', 'store_manager'].indexOf(this.context.role_code) !== -1 || this.isPartnerRole;
+			return this.context.role_code === 'store_manager' || this.isPartnerRole;
 		},
 		canReadPackageMembership() {
-			return ['franchisee', 'store_manager'].indexOf(this.context.role_code) !== -1;
+			return ['store_manager', 'store_staff'].indexOf(this.context.role_code) !== -1;
 		},
 		canPurchaseInventory() {
 			return this.context.role_code === 'store_manager' || this.isPartnerRole;
@@ -298,7 +298,7 @@ export default {
 			return ['store_manager', 'store_staff'].indexOf(this.context.role_code) !== -1;
 		},
 		canReadCustomerAttribution() {
-			return ['franchisee', 'store_manager'].indexOf(this.context.role_code) !== -1;
+			return this.context.role_code === 'store_manager';
 		},
 		storeIdentities() {
 			const role = this.context.role_code;
@@ -317,7 +317,7 @@ export default {
 			const metrics = this.overview.metrics || {};
 			return [
 				{ key: 'today_appointments', title: '今日预约', value: metrics.today_appointments || 0, desc: '当前门店今日服务预约', pane: 'appointments' },
-				{ key: 'pending_confirm', title: '待确认', value: metrics.pending_confirm || 0, desc: '需要店长或加盟商处理', pane: 'appointments' },
+				{ key: 'pending_confirm', title: '待确认', value: metrics.pending_confirm || 0, desc: '需要店长处理', pane: 'appointments' },
 				{ key: 'confirmed_waiting_arrival', title: '待到店', value: metrics.confirmed_waiting_arrival || 0, desc: '已确认等待用户到店', pane: 'writeoff' },
 				{ key: 'today_writeoffs', title: '今日核销', value: metrics.today_writeoffs || 0, desc: '今日服务权益核销记录', pane: 'writeoff' },
 				{ key: 'today_store_orders', title: '今日支付订单', value: metrics.today_store_orders || 0, desc: '门店今日已支付主订单', pane: 'orders' },
@@ -333,7 +333,7 @@ export default {
 		businessTools() {
 			const tools = [];
 			tools.push({ key: 'commission', icon: '账', title: '佣金与结算', desc: '未结算、已结算、C1申请与结算明细' });
-			if (this.context.role_code === 'franchisee' || this.isPartnerRole) {
+			if (this.isPartnerRole) {
 				tools.push({ key: 'partner', icon: '招', title: '招商合伙人工作台', desc: '申请二维码、团队、业绩、职级与招商收益' });
 			}
 			if (this.canPurchaseInventory) {

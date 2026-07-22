@@ -7,7 +7,7 @@ use crmeb\exceptions\ApiException;
 
 class HqAuthorityStoreReadServices
 {
-    private const ROLES = ['franchisee', 'store_manager'];
+    private const ROLES = ['store_manager'];
     private $read;
     private $dto;
     private $context;

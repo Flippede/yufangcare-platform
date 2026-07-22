@@ -1,6 +1,6 @@
 <template>
 	<view class="page">
-		<view class="hero"><view class="eyebrow">总部统一商城</view><view class="title">永久会员</view><view class="sub">固定 9800 元线下办理，需本人最终确认</view></view>
+		<view class="hero"><view class="eyebrow">总部统一商城</view><view class="title">永久会员</view><view class="sub">线下购买，线上申请或由所属门店扫码开通</view></view>
 		<view class="card">
 			<view class="card-title">我的会员状态</view>
 			<view v-if="info.is_permanent_member" class="active">已开通 · 永久有效</view>
@@ -9,30 +9,22 @@
 			<view class="line">一级推荐资格：{{ info.has_referral_qualification ? '已具备' : '未具备' }}</view>
 		</view>
 		<view class="card">
-			<view class="card-title">顾客身份码</view>
-			<view class="muted">办理人员扫码后才能绑定当前登录账号。刷新会立即替换旧码。</view>
-			<button class="primary" @click="identityCode">生成 / 刷新身份码</button>
-			<textarea v-if="identity.token" v-model="identity.token" readonly class="token" />
-			<view v-if="identity.expire_time" class="muted">有效至 {{ formatTime(identity.expire_time) }}</view>
-		</view>
-		<view class="card">
-			<view class="card-title">本人确认开通</view>
-			<view v-if="info.pending_enrollment" class="pending">办理号 {{ info.pending_enrollment.enrollment_no }} · ￥9800.00</view>
-			<input v-model="confirmationToken" class="input" placeholder="扫描或粘贴会员确认码" />
-			<button class="primary" :disabled="submitting" @click="confirm">确认开通永久会员</button>
+			<view class="card-title">身份码 / 推广码</view>
+			<view class="muted">普通用户显示身份码，永久会员显示一级推广码。</view>
+			<button class="primary" @click="goCode">查看我的码</button>
+			<view v-if="info.pending_enrollment" class="pending">申请 {{ info.pending_enrollment.enrollment_no }} · {{ statusLabel(info.pending_enrollment.status) }}</view>
 		</view>
 	</view>
 </template>
 <script>
-import { confirmYfthPermanentMembership, generateYfthPermanentMembershipIdentityCode, getYfthPermanentMembershipMe } from '@/api/yfth.js';
+import { getYfthPermanentMembershipMe } from '@/api/yfth.js';
 export default {
-	data() { return { info: {}, identity: {}, confirmationToken: '', submitting: false }; },
+	data() { return { info: {} }; },
 	onShow() { this.load(); },
 	methods: {
 		load() { getYfthPermanentMembershipMe().then(res => { this.info = res.data || {}; }); },
-		identityCode() { generateYfthPermanentMembershipIdentityCode().then(res => { this.identity = res.data || {}; }); },
-		confirm() { const token = String(this.confirmationToken || '').trim(); if (!token) return uni.showToast({ title: '请先扫描确认码', icon: 'none' }); this.submitting = true; confirmYfthPermanentMembership({ confirmation_token: token, idempotency_key: 'pm_confirm_' + Date.now() }).then(() => { uni.showToast({ title: '永久会员已开通' }); this.confirmationToken = ''; this.load(); }).finally(() => { this.submitting = false; }); },
-		formatTime(value) { const d = new Date(Number(value || 0) * 1000); return Number(value) ? d.toLocaleString() : '-'; },
+		goCode() { uni.navigateTo({ url: '/pages/yfth/referral/code' }); },
+		statusLabel(status) { return { pending_store_review: '等待所属门店审核', rejected: '已拒绝', activated: '已开通' }[status] || status; }
 	}
 };
 </script>

@@ -701,7 +701,7 @@ class MonthlyBenefitFulfillmentServices extends PackageBenefitBaseServices
     {
         $context = app()->make(CurrentBusinessContextServices::class)->fromRequest($request);
         $roleCode = (string)($context['role_code'] ?? '');
-        if (!in_array($roleCode, ['franchisee', 'store_manager', 'store_staff'], true)) {
+        if (!in_array($roleCode, ['store_manager', 'store_staff'], true)) {
             throw new ApiException('store_workbench_role_forbidden');
         }
         $storeId = (int)($context['store_id'] ?? 0);

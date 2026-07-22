@@ -72,8 +72,8 @@ $assert($contains($migration, "->table('yfth_inventory_alert_rule')->drop()") ||
 
 $assert($contains($service, 'CurrentBusinessContextServices::class'), 'service_uses_current_business_context');
 $assert($contains($service, 'AdminStoreContextServices::class'), 'service_uses_admin_store_context');
-$assert($contains($service, "STORE_WRITE_ROLES = ['franchisee', 'store_manager']"), 'service_staff_not_in_write_roles');
-$assert($contains($service, "STORE_READ_ROLES = ['franchisee', 'store_manager', 'store_staff']"), 'service_staff_read_allowed');
+$assert($contains($service, "STORE_WRITE_ROLES = ['store_manager', 'county_partner', 'prefecture_partner', 'province_partner', 'regional_director', 'platform_director']"), 'service_staff_not_in_write_roles');
+$assert($contains($service, "STORE_READ_ROLES = ['store_manager', 'store_staff', 'county_partner', 'prefecture_partner', 'province_partner', 'regional_director', 'platform_director']"), 'service_staff_read_allowed');
 $assert($contains($service, 'supply_purchase_store_field_forbidden'), 'service_rejects_client_store_fields_on_create');
 $assert($contains($service, 'supply_receipt_store_field_forbidden'), 'service_rejects_client_store_fields_on_receipt');
 $assert($contains($service, '$query->where(\'store_id\', $storeId)') || $contains($service, "['store_id' => (int)\$scope['store_id']"), 'service_filters_store_queries_by_resolved_store');
@@ -111,7 +111,7 @@ $assert($contains($adminApi, 'yfthSupplyCatalogSave'), 'admin_api_has_catalog_sa
 $assert($contains($adminApi, 'yfthPurchaseOrderShip'), 'admin_api_has_ship');
 $assert($contains($adminPage, 'yfthSupplyCatalogList') && $contains($adminPage, 'yfthPurchaseOrderAudit'), 'admin_page_uses_real_api');
 $assert($contains($purchasePage, 'createYfthPurchaseOrder') && $contains($purchasePage, 'receiveYfthPurchaseOrder'), 'purchase_page_uses_real_api');
-$assert($contains($purchasePage, "context.role_code !== 'store_manager'") && $contains($purchasePage, '仅店长可进入采购中心'), 'purchase_page_rejects_non_manager_roles');
+$assert($contains($purchasePage, "context.role_code !== 'store_manager'") && $contains($purchasePage, '仅店长或店铺归属合伙人可进入采购中心'), 'purchase_page_rejects_unbound_roles');
 $assert($contains($purchasePage, 'v-if="accessGranted"') && $contains($purchasePage, 'window.location.replace(target)'), 'purchase_page_hides_content_and_redirects_h5_until_manager_verified');
 $assert($contains($inventoryPage, 'getYfthInventory') && $contains($inventoryPage, 'getYfthInventoryLedger'), 'inventory_page_uses_real_api');
 

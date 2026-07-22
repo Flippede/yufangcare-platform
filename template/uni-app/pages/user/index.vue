@@ -96,15 +96,11 @@
 					</view>
 					<view class="member-exclusive" v-if="isLogin">
 						<view class="section-title">会员专属</view>
-						<view v-if="isYfthPermanentMember || isYfthStoreOperator" class="exclusive-grid">
-							<view @click="goYfthReferralCode"><text class="exclusive-icon">码</text><text>我的推广码</text></view>
+						<view class="exclusive-grid">
+							<view @click="goYfthReferralCode"><text class="exclusive-icon">码</text><text>{{ isYfthPermanentMember || isYfthStoreOperator ? '我的推广码' : '我的身份码' }}</text></view>
 							<view @click="goYfthAttribution"><text class="exclusive-icon">归</text><text>我的归属</text></view>
 							<view @click="goYfthPackageMembership"><text class="exclusive-icon">会</text><text>套餐会员</text></view>
 							<view @click="goYfthRewards"><text class="exclusive-icon">奖</text><text>我的奖励</text></view>
-						</view>
-						<view v-else class="membership-prompt" @click="goYfthPackagePurchase">
-							<view><text class="prompt-title">购买套餐后获得推广资格</text><text class="prompt-copy">激活永久会员，使用一级邀请与奖励查询</text></view>
-							<text class="prompt-arrow">›</text>
 						</view>
 					</view>
 					<view class="order-wrapper">

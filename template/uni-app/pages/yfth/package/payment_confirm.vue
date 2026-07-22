@@ -5,28 +5,18 @@
 			<view class="row"><text>价格</text><text>¥{{ price }}</text></view>
 			<view class="row"><text>权益周期</text><text>{{ monthCount }}个月</text></view>
 			<view class="row"><text>归属门店</text><text>{{ storeName || (storeId ? ('门店 ' + storeId) : '读取中') }}</text></view>
-			<view v-if="orderSn" class="row"><text>订单号</text><text>{{ orderSn }}</text></view>
-			<view class="notice">已是永久会员仍可再次购买，每笔订单分别生成套餐权益。</view>
+			<view class="notice">本套餐在线提交申请、线下完成购买。所属门店店长或店员确认后，系统开通永久会员并按现有规则处理推荐奖励。</view>
 			<view v-if="storeError" class="error">{{ storeError }}</view>
 		</view>
-		<button class="btn" :disabled="submitting || !storeReady" @click="createOrderAndPay">{{ submitting ? '处理中' : (storeReady ? '确认并支付' : '等待归属门店') }}</button>
-		<payment :payMode="payMode" :pay_close="payClose" @onChangeFun="onPayChange" :order_id="orderSn" :totalPrice="price"></payment>
+		<button class="btn" :disabled="submitting || !storeReady" @click="submitApplication">{{ submitting ? '提交中' : (storeReady ? '确认并申请' : '等待归属门店') }}</button>
 	</view>
 </template>
 
 <script>
-import payment from '@/components/payment';
-import { createYfthPackageIntent, createYfthPackageOrder, getYfthPackageDetail, getYfthPackageMembershipMe, getYfthPackageRulePreview } from '@/api/yfth.js';
+import { applyYfthPermanentMembership, getYfthPackageDetail, getYfthPackageMembershipMe, getYfthPackageRulePreview } from '@/api/yfth.js';
 export default {
-	components: { payment },
 	data() {
-		return { id: 0, storeId: 0, storeName: '', storeReady: false, storeError: '', detail: {}, preview: { rule: {} }, intentNo: '', purchaseNo: '', orderSn: '', submitting: false, payClose: false,
-			payMode: [
-				{ name: '微信支付', icon: 'icon-weixin2', value: 'weixin', title: '微信安全支付', payStatus: true },
-				{ name: '支付宝支付', icon: 'icon-zhifubao', value: 'alipay', title: '支付宝安全支付', payStatus: true },
-				{ name: '余额支付', icon: 'icon-yuezhifu', value: 'yue', title: '可用余额', number: 0, payStatus: true }
-			]
-		};
+		return { id: 0, storeId: 0, storeName: '', storeReady: false, storeError: '', detail: {}, preview: { rule: {} }, submitting: false };
 	},
 	computed: { price() { return this.preview.rule.package_price || '0.00'; }, monthCount() { return this.preview.rule.month_count || 0; } },
 	onLoad(options) {
@@ -50,19 +40,21 @@ export default {
 				this.storeError = (err && (err.msg || err.message)) || '归属门店读取失败';
 			});
 		},
-		createOrderAndPay() {
+		submitApplication() {
 			if (this.submitting || !this.storeReady) return;
 			this.submitting = true;
-			createYfthPackageIntent({ template_id: this.id, store_id: this.storeId, source: 'mobile' })
-				.then((res) => { this.intentNo = res.data.intent_no; return createYfthPackageOrder({ intent_no: this.intentNo, pay_type: 'weixin', shipping_type: 2, source: 'mobile' }); })
-				.then((res) => { const data = res.data || {}; this.purchaseNo = data.purchase ? data.purchase.purchase_no : ''; this.orderSn = data.order ? data.order.order_id : ''; this.payClose = true; })
-				.catch((err) => this.$util.Tips({ title: (err && (err.msg || err.message)) || String(err || '订单创建失败') }))
+			applyYfthPermanentMembership({
+				store_id: this.storeId,
+				idempotency_key: `offline_membership_apply_${this.id}_${Date.now()}`
+			}).then(() => {
+				uni.showModal({
+					title: '申请已提交',
+					content: '请联系归属门店线下办理，店长或店员确认后自动开通会员。',
+					showCancel: false,
+					success: () => uni.redirectTo({ url: '/pages/yfth/permanent_membership/index' })
+				});
+			}).catch((err) => this.$util.Tips({ title: (err && (err.msg || err.message)) || String(err || '申请提交失败') }))
 				.finally(() => { this.submitting = false; });
-		},
-		onPayChange(e) {
-			if (e.action === 'payClose') this.payClose = false;
-			if (e.action === 'pay_complete') { this.payClose = false; uni.redirectTo({ url: '/pages/yfth/package/payment_result?purchase_no=' + this.purchaseNo }); }
-			if (e.action === 'pay_fail') { this.payClose = false; uni.navigateTo({ url: '/pages/yfth/package/payment_result?purchase_no=' + this.purchaseNo }); }
 		}
 	}
 };

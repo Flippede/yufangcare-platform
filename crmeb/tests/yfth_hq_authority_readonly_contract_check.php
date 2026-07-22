@@ -86,7 +86,7 @@ try {
         $assert(strpos($readService, $dao) !== false, 'readonly_core_uses_dao:' . $dao);
     }
     $assert(strpos($storeService, 'CurrentBusinessContextServices') !== false, 'store_scope_uses_current_business_context');
-    $assert(strpos($storeService, "['franchisee', 'store_manager']") !== false, 'store_staff_is_not_allowed_role');
+    $assert(strpos($storeService, "ROLES = ['store_manager']") !== false, 'store_staff_is_not_allowed_role');
     $assert(strpos($adminService . $auditService, 'assertHeadquarterScope') !== false, 'admin_services_assert_headquarters_scope');
     $assert(strpos($adminController, 'assertApiAuthForAdmin') !== false, 'admin_controller_asserts_api_permission');
     $assert(strpos($dto, 'phone_masked') !== false && strpos($dto, 'maskPhone') !== false, 'dto_reuses_phone_masking');
@@ -139,7 +139,7 @@ try {
         $assert(strpos($adminPage, '>' . $forbidden . '<') === false, 'admin_page_has_no_write_button:' . $forbidden);
     }
     $assert(strpos($uniUser, 'getYfthMyHqAuthority') !== false, 'uni_user_page_uses_real_api');
-    $assert(strpos($uniStore, "['franchisee', 'store_manager']") !== false, 'uni_store_page_role_gate');
+    $assert(strpos($uniStore, "context.role_code !== 'store_manager'") !== false, 'uni_store_page_role_gate');
     $assert(strpos($uniStore, 'getYfthStoreCustomerAttributions') !== false, 'uni_store_page_uses_real_api');
     $assert(strpos($adminPage, 'requestGeneration') !== false && strpos($adminPage, 'failClosed') !== false, 'admin_page_stale_state_guard');
     $assert(strpos($uniStore, 'requestGeneration') !== false && strpos($uniStore, 'contextKey') !== false, 'uni_store_context_generation_guard');

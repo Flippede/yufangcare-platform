@@ -69,7 +69,7 @@ $assertContains($menuMigration, 'yfth-foundation-index', 'Missing admin menu per
 $assertContains($menuMigration, 'upsertMenu', 'Menu seed must be idempotent');
 $assertContains($menuMigration, "'pid' => \$rootId", 'Foundation page must be parented under YFTH root');
 $assertContains($menuMigration, "'pid' => \$pid", 'API permissions must be parented under the page menu');
-$assertContains($constants, "return ['franchisee', 'store_manager', 'store_staff'];", 'franchisee must be a store-scoped role');
+$assertContains($constants, "return ['store_manager', 'store_staff'];", 'only_manager_and_staff_are_store_scoped_roles');
 $assertContains($constants, "'payment' =>", 'Store subject roles must include payment');
 $assertContains($constants, "'fulfillment' =>", 'Store subject roles must include fulfillment');
 $assertContains($constants, "'headquarter_purchase' =>", 'Payment scenes must include HQ procurement');

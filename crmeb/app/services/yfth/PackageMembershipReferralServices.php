@@ -162,7 +162,7 @@ class PackageMembershipReferralServices extends YfthFoundationBaseServices
         $automaticRows = Db::name('yfth_commission_accrual')
             ->where('c1_uid', $uid)
             ->whereIn('buyer_uid', $referredUids)
-            ->whereIn('source_type', ['package_activation', 'mall_order_item'])
+            ->whereIn('source_type', ['package_activation', 'offline_membership_activation', 'mall_order_item'])
             ->field('buyer_uid,status,SUM(GREATEST(c1_amount_cent - reversed_c1_cent, 0)) AS amount_cent,COUNT(*) AS accrual_count')
             ->group('buyer_uid,status')
             ->select()
@@ -474,7 +474,7 @@ class PackageMembershipReferralServices extends YfthFoundationBaseServices
     public function storeContext(Request $request): array
     {
         $context = app()->make(CurrentBusinessContextServices::class)->fromRequest($request);
-        if (!in_array((string)$context['role_code'], ['franchisee', 'store_manager'], true) || (int)$context['store_id'] <= 0) {
+        if (!in_array((string)$context['role_code'], ['store_manager', 'store_staff'], true) || (int)$context['store_id'] <= 0) {
             throw new ApiException('package_membership_store_read_forbidden');
         }
         return $context;

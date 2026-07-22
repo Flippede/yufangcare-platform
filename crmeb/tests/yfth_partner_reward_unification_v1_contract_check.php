@@ -32,7 +32,8 @@ foreach (['yfth_partner_store_binding', 'yfth_partner_store_binding_event', 'yft
 }
 $assert($has($migration, 'canonical_key') && $has($migration, "['unique' => true"), 'canonical_events_are_unique');
 $assert($has($migration, 'backfillPartnerBindings') && $has($migration, 'duplicate_store_owner'), 'legacy_backfill_has_exception_report');
-$assert($has($opening, "['county_partner', 'store_manager', 'all']") && !$has($opening, "['county_partner', 'franchisee', 'store_manager', 'all']"), 'no_new_franchisee_grant');
+$assert($has($opening, "\$roles = ['store_manager']") && !$has($opening, "['county_partner', 'store_manager', 'all']"), 'formal_opening_grants_store_manager_only');
+$assert($has($partner, 'opening_store_attributed') && !$has($partner, 'activatePartnerIdentityGrant($application'), 'opening_applicant_is_not_promoted_to_partner');
 $assert($has($partner, 'ensurePartnerStoreBinding') && $has($partner, 'qualification_status'), 'partner_qualification_and_store_binding');
 $assert($has($partner, 'V1 deliberately creates no hierarchy cash candidate'), 'no_multilevel_opening_cash_reward');
 $assert($has($orchestrator, '$ratios = [1 => 2000, 2 => 3000, 3 => 5000]'), 'opening_quota_20_30_50');

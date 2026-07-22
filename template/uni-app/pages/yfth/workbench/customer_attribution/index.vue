@@ -104,7 +104,7 @@ export default {
 			const ticket = this.requestGeneration.next('context', requestedIdentity);
 			resolveYfthContext(cached.role_code || 'customer', cached.store_id || 0).then((context) => {
 				if (!this.requestGeneration.isCurrent(ticket, requestedIdentity)) return;
-				if (['franchisee', 'store_manager'].indexOf(context.role_code) === -1 || !Number(context.store_id)) {
+				if (context.role_code !== 'store_manager' || !Number(context.store_id)) {
 					throw new Error('当前身份无权查看客户归属');
 				}
 				this.requestGeneration.invalidateAll();

@@ -298,7 +298,7 @@ class FranchisePartnerServices extends YfthFoundationBaseServices
                 'primary_store_id' => 0,
                 'source_type' => 'headquarters_grant',
                 'source_id' => $adminId,
-                'legacy_franchisee_role_id' => (int)($before['legacy_franchisee_role_id'] ?? 0),
+                'legacy_franchisee_role_id' => 0,
                 'status' => 'active',
                 'qualification_status' => 'effective',
                 'valid_from' => $now,
@@ -923,61 +923,13 @@ class FranchisePartnerServices extends YfthFoundationBaseServices
     public function finalizeOpeningInTransaction(array $application, int $storeId, int $legacyRoleId, int $adminId): array
     {
         $applicationId = (int)$application['id'];
-        $uid = (int)$application['applicant_uid'];
         $source = $this->freezeRecruitSource($applicationId, $adminId);
-        $profile = Db::name('yfth_partner_profile')->where('uid', $uid)->lock(true)->find();
-        if ($profile && (string)$profile['status'] === 'active') {
-            if ((int)$profile['primary_store_id'] !== $storeId && (int)$profile['source_id'] === $applicationId) {
-                throw new ApiException('partner_opening_store_conflict');
-            }
-            if ($legacyRoleId > 0 && (int)$profile['legacy_franchisee_role_id'] <= 0) {
-                Db::name('yfth_partner_profile')->where('id', (int)$profile['id'])->update([
-                    'legacy_franchisee_role_id' => $legacyRoleId,
-                    'update_time' => time(),
-                ]);
-                $profile['legacy_franchisee_role_id'] = $legacyRoleId;
-            }
-        } else {
-            $now = time();
-            $data = [
-                'uid' => $uid, 'rank_code' => 'county_partner', 'primary_store_id' => $storeId,
-                'source_type' => 'franchise_opening', 'source_id' => $applicationId,
-                'legacy_franchisee_role_id' => $legacyRoleId, 'status' => 'active',
-                'qualification_status' => 'effective', 'valid_from' => $now, 'valid_to' => 0,
-                'start_time' => $now, 'end_time' => 0, 'active_key' => 'partner:' . $uid,
-                'create_time' => $now, 'update_time' => $now,
-            ];
-            if ($profile) {
-                Db::name('yfth_partner_profile')->where('id', (int)$profile['id'])->update($data);
-                $profile = array_merge($profile, $data);
-            } else {
-                $data['id'] = (int)Db::name('yfth_partner_profile')->insertGetId($data);
-                $profile = $data;
-            }
-            Db::name('yfth_partner_rank_event')->insert([
-                'partner_uid' => $uid, 'from_rank' => '', 'to_rank' => 'county_partner', 'action' => 'opening_grant',
-                'rule_version_id' => (int)($this->activeRule()['id'] ?? 0), 'reason' => 'formal_franchise_opening',
-                'evidence_snapshot' => $this->json(['application_id' => $applicationId, 'store_id' => $storeId, 'legacy_role_id' => $legacyRoleId]),
-                'operator_uid' => $adminId, 'create_time' => $now,
-            ]);
-        }
-        $binding = $this->ensurePartnerStoreBinding($uid, $storeId, $applicationId, $adminId);
         $parentUid = (int)($source['direct_partner_uid'] ?? 0);
+        $profile = [];
+        $binding = [];
         if ($parentUid > 0) {
-            $this->profile($parentUid, true);
-            if ($this->wouldCreateCycle($uid, $parentUid)) {
-                throw new ApiException('partner_relation_cycle_detected');
-            }
-            $activeKey = 'partner:' . $uid;
-            $relation = Db::name('yfth_partner_relation')->where('active_key', $activeKey)->find();
-            if (!$relation) {
-                $now = time();
-                Db::name('yfth_partner_relation')->insert([
-                    'partner_uid' => $uid, 'parent_uid' => $parentUid, 'source_application_id' => $applicationId,
-                    'status' => 'active', 'start_time' => $now, 'end_time' => 0, 'reason' => 'formal_franchise_opening',
-                    'operator_uid' => $adminId, 'active_key' => $activeKey, 'create_time' => $now, 'update_time' => $now,
-                ]);
-            }
+            $profile = $this->profile($parentUid, true);
+            $binding = $this->ensurePartnerStoreBinding($parentUid, $storeId, $applicationId, $adminId);
         }
         $performance = $this->ensurePerformanceAndRewards($application, $storeId, $source, $adminId);
         $payment = Db::name('yfth_franchise_payment_proof')->where('application_id', $applicationId)
@@ -987,14 +939,18 @@ class FranchisePartnerServices extends YfthFoundationBaseServices
             'partner_store_opened', 'franchise_application', (string)$applicationId,
             [
                 'application_id' => $applicationId, 'performance_id' => (int)$performance['id'],
-                'store_id' => $storeId, 'applicant_uid' => $uid,
+                'store_id' => $storeId, 'applicant_uid' => (int)$application['applicant_uid'],
                 'direct_partner_uid' => (int)($source['direct_partner_uid'] ?? 0),
                 'fee_amount_cent' => $feeCent, 'payment_proof_id' => (int)($payment['id'] ?? 0),
             ]
         );
-        $this->recordAudit('partner_profile', (int)$profile['id'], 'opening_county_partner_grant', [], $profile, $adminId, $storeId, 'formal_franchise_opening');
+        $this->recordAudit('franchise_application', $applicationId, 'opening_store_attributed', [], [
+            'store_id' => $storeId,
+            'manager_uid' => (int)$application['applicant_uid'],
+            'direct_partner_uid' => $parentUid,
+        ], $adminId, $storeId, 'formal_franchise_opening');
         return [
-            'partner' => $this->partnerDto($profile), 'store_binding' => $binding,
+            'partner' => $profile ? $this->partnerDto($profile) : null, 'store_binding' => $binding ?: null,
             'performance' => $performance, 'reward_event_id' => (int)$event['event']['id'],
         ];
     }
@@ -1281,7 +1237,6 @@ class FranchisePartnerServices extends YfthFoundationBaseServices
             'valid_from' => (int)($row['valid_from'] ?? $row['start_time'] ?? 0),
             'valid_to' => (int)($row['valid_to'] ?? 0),
             'source_type' => (string)($row['source_type'] ?? ''), 'source_id' => (int)($row['source_id'] ?? 0),
-            'legacy_compatible' => (int)($row['legacy_franchisee_role_id'] ?? 0) > 0,
         ];
     }
 

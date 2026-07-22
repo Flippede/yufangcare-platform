@@ -130,10 +130,6 @@ Route::group('yfth', function () {
         Route::get('enrollment', 'v1.yfth.PermanentMembership/index')->option(['real_name' => 'Permanent membership enrollment list']);
         Route::get('enrollment/:id', 'v1.yfth.PermanentMembership/detail')->option(['real_name' => 'Permanent membership enrollment detail']);
         Route::get('member', 'v1.yfth.PermanentMembership/members')->option(['real_name' => 'Permanent membership list']);
-        Route::post('enrollment', 'v1.yfth.PermanentMembership/create')->option(['real_name' => 'Permanent membership enrollment create']);
-        Route::post('enrollment/:id/bind', 'v1.yfth.PermanentMembership/bind')->option(['real_name' => 'Permanent membership customer bind']);
-        Route::post('enrollment/:id/payment', 'v1.yfth.PermanentMembership/payment')->option(['real_name' => 'Permanent membership offline payment confirm']);
-        Route::post('enrollment/:id/confirmation_code', 'v1.yfth.PermanentMembership/confirmationCode')->option(['real_name' => 'Permanent membership confirmation code']);
     })->option(['parent' => 'yfth', 'cate_name' => 'Permanent Membership']);
     Route::group('reward_governance', function () {
         Route::get('event', 'v1.yfth.RewardGovernance/eventList')->option(['real_name' => 'Unified reward event queue']);

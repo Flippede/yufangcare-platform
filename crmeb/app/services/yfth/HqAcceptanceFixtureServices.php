@@ -18,7 +18,7 @@ class HqAcceptanceFixtureServices
     private const PACKAGE_INSTANCE_NO = 'YFTH-TEST-INSTANCE-V1';
 
     private const ACCOUNTS = [
-        'franchisee_uid' => ['account' => 'yfth_stg_b1_franchisee', 'phone' => '19999100001', 'nickname' => 'TEST B1 县级合伙人', 'role' => 'franchisee'],
+        'franchisee_uid' => ['account' => 'yfth_stg_b1_franchisee', 'phone' => '19999100001', 'nickname' => 'TEST B1 县级合伙人', 'role' => 'county_partner'],
         'manager_uid' => ['account' => 'yfth_stg_b1_manager', 'phone' => '19999100002', 'nickname' => 'TEST B1 店长', 'role' => 'store_manager'],
         'staff_uid' => ['account' => 'yfth_stg_b1_staff', 'phone' => '19999100003', 'nickname' => 'TEST B1 店员', 'role' => 'store_staff'],
         'member_uid' => ['account' => 'yfth_stg_c1_member', 'phone' => '19999100004', 'nickname' => 'TEST C1 永久会员', 'role' => 'customer'],
@@ -98,7 +98,6 @@ class HqAcceptanceFixtureServices
             foreach (['franchisee_uid', 'manager_uid', 'staff_uid'] as $field) {
                 $account = self::ACCOUNTS[$field];
                 if ($field === 'franchisee_uid') {
-                    $this->ensureLegacyPartnerCompatibilityRole((int)$users[$field], $storeId, $adminId);
                     continue;
                 }
                 $this->roles->grant((int)$users[$field], [
@@ -242,10 +241,6 @@ class HqAcceptanceFixtureServices
                     ->where('store_id', (int)$fixture['store_id'])
                     ->where('status', 'active')->select()->toArray();
                 foreach ($rows as $role) {
-                    if ((string)$role['role_code'] === 'franchisee') {
-                        $this->disableFixtureCompatibilityRole($role, $reason, $adminId);
-                        continue;
-                    }
                     if (!in_array((string)$role['role_code'], YfthConstants::storeRoles(), true)) {
                         continue;
                     }
@@ -869,12 +864,6 @@ class HqAcceptanceFixtureServices
         ];
         $now = time();
         $ruleId = (int)Db::name('yfth_partner_rule_version')->where('status', 'published')->order('version_no desc')->value('id');
-        $legacyRoleId = (int)Db::name('yfth_user_store_role')->where([
-            'uid' => $countyUid,
-            'store_id' => $storeId,
-            'role_code' => 'franchisee',
-            'status' => 'active',
-        ])->value('id');
         foreach ($chain as $node) {
             $uid = (int)$uids[$node['rank']];
             $profile = Db::name('yfth_partner_profile')->where('uid', $uid)->find();
@@ -885,7 +874,7 @@ class HqAcceptanceFixtureServices
                 'active_key' => 'partner:' . $uid, 'update_time' => $now,
             ];
             if ($node['rank'] === 'county_partner') {
-                $data['legacy_franchisee_role_id'] = $legacyRoleId;
+                $data['legacy_franchisee_role_id'] = 0;
             }
             if ($profile) {
                 Db::name('yfth_partner_profile')->where('id', (int)$profile['id'])->update($data);
@@ -918,60 +907,6 @@ class HqAcceptanceFixtureServices
                 }
             }
         }
-    }
-
-    private function ensureLegacyPartnerCompatibilityRole(int $uid, int $storeId, int $adminId): void
-    {
-        $existing = Db::name('yfth_user_store_role')->where([
-            'uid' => $uid, 'store_id' => $storeId, 'role_code' => 'franchisee', 'status' => 'active',
-        ])->find();
-        if ($existing) {
-            return;
-        }
-        app()->make(UserStoreRoleServices::class)->saveRole([
-            'uid' => $uid,
-            'store_id' => $storeId,
-            'role_code' => 'franchisee',
-            'permission_scope' => ['source' => 'acceptance_fixture_partner_compatibility'],
-            'status' => YfthConstants::STATUS_ACTIVE,
-            'start_time' => time(),
-            'end_time' => 0,
-            'inviter_uid' => 0,
-            'creator_uid' => $adminId,
-        ]);
-    }
-
-    private function disableFixtureCompatibilityRole(array $role, string $reason, int $adminId): void
-    {
-        $uid = (int)($role['uid'] ?? 0);
-        $owned = $uid > 0 && (string)Db::name('user')->where('uid', $uid)->value('mark') === self::MARKER;
-        if (!$owned || (string)($role['role_code'] ?? '') !== 'franchisee') {
-            throw new AdminException('acceptance_fixture_legacy_role_not_owned');
-        }
-        $after = $role;
-        $after['status'] = 'disabled';
-        $after['active_key'] = null;
-        $after['end_time'] = time();
-        $after['update_time'] = time();
-        Db::name('yfth_user_store_role')->where('id', (int)$role['id'])->update([
-            'status' => 'disabled',
-            'active_key' => null,
-            'end_time' => $after['end_time'],
-            'update_time' => $after['update_time'],
-        ]);
-        $this->audit->recordSafely(
-            'yfth_acceptance_fixture',
-            'legacy_franchisee_compatibility_role',
-            (string)$role['id'],
-            'fixture_disable',
-            $role,
-            $after,
-            $adminId,
-            'headquarters_admin',
-            (int)$role['store_id'],
-            $reason,
-            'fixture-legacy-role-disable-' . (int)$role['id']
-        );
     }
 
     private function enabled(): bool
