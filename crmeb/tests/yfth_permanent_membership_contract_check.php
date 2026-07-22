@@ -14,6 +14,8 @@ try {
     $migration = $read('database/migrations/20260715100000_create_yfth_permanent_membership_tables.php');
     $service = $read('app/services/yfth/PermanentMembershipServices.php');
     $membershipService = $read('app/services/yfth/PackageMembershipServices.php');
+    $console = $read('config/console.php');
+    $storeRoleMembershipBackfill = $read('crmeb/command/YfthStoreRoleMembershipBackfill.php');
     $user = $read('app/api/controller/v1/yfth/PermanentMembershipController.php');
     $store = $read('app/api/controller/v1/yfth/PermanentMembershipStoreController.php');
     $admin = $read('app/adminapi/controller/v1/yfth/PermanentMembership.php');
@@ -46,6 +48,15 @@ try {
     foreach (["addColumn('amount", "addColumn('rate", "addColumn('sequence", "addColumn('commission", "addColumn('settlement"] as $forbidden) $assert(stripos($candidate, $forbidden) === false, 'candidate_has_no_' . preg_replace('/\W+/', '_', $forbidden));
     foreach (['target_uid', 'phone', 'mobile'] as $forbidden) $assert(strpos($user, "['{$forbidden}'") === false && strpos($store, "['{$forbidden}'") === false, 'client_cannot_submit_' . $forbidden);
     $assert(strpos($service, "['store_manager', 'store_staff']") !== false, 'store_membership_activation_roles_are_manager_and_staff_only');
+    $assert(strpos($console, "'yfth:store-role-membership-backfill'") !== false,
+        'store_role_membership_backfill_command_is_registered');
+    $assert(strpos($storeRoleMembershipBackfill, "['store_manager', 'store_staff']") !== false
+        && strpos($storeRoleMembershipBackfill, "count(\$storeIds) !== 1") !== false,
+        'store_role_membership_backfill_is_role_scoped_and_fails_closed_on_store_conflicts');
+    $assert(strpos($storeRoleMembershipBackfill, 'grantForStoreRoleInTransaction') !== false
+        && strpos($storeRoleMembershipBackfill, "->addOption('execute'") !== false
+        && strpos($storeRoleMembershipBackfill, "->addOption('operator-uid'") !== false,
+        'store_role_membership_backfill_reuses_authoritative_service_and_is_dry_run_by_default');
     $assert(strpos($service, 'public function applyByCustomer') !== false
         && strpos($service, 'public function approveForStore') !== false
         && strpos($service, 'public function activateIdentityForStore') !== false,

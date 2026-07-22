@@ -1,5 +1,11 @@
 # 项目交接文档
 
+## Current Fact Snapshot - Store Role Membership Historical Backfill
+
+- 店长和店员自动具备永久会员资格的规则已覆盖新增授权与历史有效角色；历史数据通过 `yfth:store-role-membership-backfill` 受控补齐。
+- 回填命令默认只读，执行时必须提供总部操作人 UID，并复用现有权威会员服务，不直接写会员状态。
+- 同一用户存在多个不同门店的有效角色时 fail closed；已有会员资格幂等跳过。最终生产执行数量以本轮部署后的真实命令输出为准。
+
 ## Current Fact Snapshot - Offline Membership And Store QR V1
 
 - 本轮冻结唯一身份层级：总部、平台董事、大区总监、省级合伙人、地级合伙人、县级合伙人、门店店长/店员、永久会员/普通用户；运行态不再创建或授权“加盟商”身份。
