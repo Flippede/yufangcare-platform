@@ -1143,8 +1143,10 @@ class PackagePurchaseServices extends PackageBenefitBaseServices
         /** @var StoreOrderCreateServices $createServices */
         $createServices = app()->make(StoreOrderCreateServices::class);
         $payType = trim((string)($data['pay_type'] ?? 'weixin')) ?: 'weixin';
-        $realName = trim((string)($data['real_name'] ?? ($user['real_name'] ?? '')));
-        $phone = trim((string)($data['phone'] ?? ($user['phone'] ?? '')));
+        // The package product carries virtual entitlements. CRMEB still owns the order and
+        // payment, but there is no consignee and no delivery contact for this order.
+        $recipientName = '';
+        $recipientPhone = '';
         try {
             $order = $createServices->createOrder(
                 $uid,
@@ -1160,8 +1162,8 @@ class PackagePurchaseServices extends PackageBenefitBaseServices
                 0,
                 0,
                 $shippingType,
-                $realName,
-                $phone,
+                $recipientName,
+                $recipientPhone,
                 (int)$validation['store']['store_id'],
                 true,
                 0,

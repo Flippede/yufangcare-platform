@@ -165,6 +165,8 @@ $assertNotContains($activation, 'BenefitTemplateServices::class', 'Activation mu
 $assertContains($purchase, 'headquarterMallPaymentContext', 'Package purchase must use headquarters mall payment context');
 $assertContains($purchase, "'seller_scope' => 'headquarter_mall'", 'Package seller must be the headquarters mall');
 $assertContains($purchase, "'route_type' => 'crmeb_headquarter_checkout'", 'Package payment must reuse CRMEB headquarters checkout');
+$assertContains($purchase, "\$recipientName = '';", 'Virtual package order must not require a consignee name');
+$assertContains($purchase, "\$recipientPhone = '';", 'Virtual package order must not require a delivery phone');
 $assertNotContains($purchase, "store_capability_missing:' . \$capability", 'Attributed B1 store capability must not gate headquarters online package checkout');
 $assertNotContains($purchase, "store_subject_role_missing:' . \$role", 'Attributed B1 subject roles must not gate headquarters online package checkout');
 $assertContains($purchase, 'createIntent', 'Purchase service must create package purchase intents');

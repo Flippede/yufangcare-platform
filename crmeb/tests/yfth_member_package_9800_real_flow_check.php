@@ -25,6 +25,7 @@ $app = new class() extends App {
 };
 $app->initialize();
 require_once dirname(__DIR__) . '/database/migrations/20260721100000_promote_yfth_member_package_9800.php';
+require_once dirname(__DIR__) . '/database/migrations/20260722110000_repair_yfth_member_package_virtual_checkout.php';
 
 $failures = [];
 $passes = [];
@@ -50,6 +51,10 @@ try {
     $migration->setAdapter(AdapterFactory::instance()->getWrapper('prefix', $raw));
     $migration->up();
     $migration->up();
+    $virtualRepair = new RepairYfthMemberPackageVirtualCheckout(20260722110000);
+    $virtualRepair->setAdapter(AdapterFactory::instance()->getWrapper('prefix', $raw));
+    $virtualRepair->up();
+    $virtualRepair->up();
 
     $template = Db::name('yfth_package_template')->where('package_code', 'YFTH-MEMBER-PACKAGE-V1')->find();
     $rule = $template ? Db::name('yfth_package_rule_version')->where('id', (int)$template['current_rule_version_id'])->find() : [];
@@ -61,7 +66,9 @@ try {
     $assert((bool)$template && (string)$template['base_price'] === '9800.00', 'template_promoted_to_9800');
     $assert((bool)$rule && (string)$rule['package_price'] === '9800.00' && (int)$rule['grants_permanent_membership'] === 1, 'published_member_rule_9800');
     $assert((bool)$product && (string)$product['price'] === '9800.00' && (int)$product['is_show'] === 1, 'dedicated_crmeb_product_visible');
+    $assert((int)$product['is_virtual'] === 1 && (int)$product['virtual_type'] === 1, 'member_package_uses_virtual_checkout_without_recipient');
     $assert((bool)$sku && (string)$sku['price'] === '9800.00', 'dedicated_sku_9800');
+    $assert((int)$sku['is_virtual'] === 1, 'member_package_sku_is_virtual');
     $assert((bool)$binding && (string)$binding['sku_price_snapshot'] === '9800.00', 'active_binding_snapshot_9800');
 
     /** @var \app\services\yfth\PackageTemplateServices $service */
@@ -77,6 +84,7 @@ try {
     $assert((string)$oldRule['package_price'] === '9800.00' && (string)$oldRule['status'] === 'superseded', 'historical_rule_price_immutable');
     $assert((string)Db::name('store_product')->where('id', (int)$product['id'])->value('price') === '9888.00', 'managed_product_price_synced');
     $assert((string)Db::name('store_product_attr_value')->where('id', (int)$sku['id'])->value('price') === '9888.00', 'managed_sku_price_synced');
+    $assert((int)Db::name('store_product')->where('id', (int)$product['id'])->value('virtual_type') === 1, 'admin_price_publish_preserves_virtual_checkout');
     $assert((bool)$newBinding && (string)$newBinding['sku_price_snapshot'] === '9888.00', 'new_binding_snapshot_synced');
 
     $source = (string)file_get_contents(dirname(__DIR__) . '/app/services/yfth/PackagePurchaseServices.php');

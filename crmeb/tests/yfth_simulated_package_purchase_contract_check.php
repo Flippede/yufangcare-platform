@@ -17,6 +17,7 @@ $notContains = function (string $source, string $needle, string $label) use (&$f
 };
 
 $migration = $read('database/migrations/20260721100000_promote_yfth_member_package_9800.php');
+$virtualRepairMigration = $read('database/migrations/20260722110000_repair_yfth_member_package_virtual_checkout.php');
 $templateService = $read('app/services/yfth/PackageTemplateServices.php');
 $routes = $read('app/api/route/v1.php');
 $detail = $read('template/uni-app/pages/yfth/package/detail.vue');
@@ -29,8 +30,12 @@ foreach (['YFTH-MEMBER-PACKAGE-V1', "PRICE = '9800.00'", 'YFTHPKG9800',
     $contains($migration, $needle, 'formal_package_migration_missing_' . $needle);
 }
 foreach (['syncManagedMemberPackageBinding', 'MANAGED_MEMBER_PRODUCT_BARCODE',
-          'sku_price_snapshot', 'product_snapshot'] as $needle) {
+          'sku_price_snapshot', 'product_snapshot', "'virtual_type' => 1",
+          'package_product_must_be_virtual'] as $needle) {
     $contains($templateService, $needle, 'admin_price_sync_missing_' . $needle);
+}
+foreach (['YFTHPKG9800', '`virtual_type` = 1', '`is_virtual` = 1'] as $needle) {
+    $contains($virtualRepairMigration, $needle, 'virtual_checkout_repair_missing_' . $needle);
 }
 $contains($detail, '已是会员也可以再次购买', 'detail_repeat_purchase_message_missing');
 $contains($membership, '再次购买康养套餐', 'membership_repeat_purchase_entry_missing');

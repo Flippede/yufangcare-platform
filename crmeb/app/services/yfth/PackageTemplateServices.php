@@ -161,10 +161,13 @@ class PackageTemplateServices extends PackageBenefitBaseServices
         Db::name('store_product')->where('id', (int)$product['id'])->update([
             'price' => $price,
             'ot_price' => $price,
+            'is_virtual' => 1,
+            'virtual_type' => 1,
         ]);
         Db::name('store_product_attr_value')->where('id', (int)$sku['id'])->update([
             'price' => $price,
             'ot_price' => $price,
+            'is_virtual' => 1,
         ]);
 
         Db::name('yfth_package_product_binding')->where('template_id', $templateId)
@@ -425,6 +428,11 @@ class PackageTemplateServices extends PackageBenefitBaseServices
         }
 
         [$product, $sku] = $this->assertProductSkuActive($data['product_id'], $data['product_attr_unique']);
+        if ((int)($product['is_virtual'] ?? 0) !== 1
+            || (int)($product['virtual_type'] ?? 0) <= 0
+            || (int)($sku['is_virtual'] ?? 0) !== 1) {
+            throw new AdminException('package_product_must_be_virtual');
+        }
         $data['sku_price_snapshot'] = $this->normalizeMoney($data['sku_price_snapshot'] ?? $sku['price']);
         if (!$this->moneyEquals($data['sku_price_snapshot'], $rule['package_price'])) {
             throw new AdminException('sku_price_must_equal_rule_price');

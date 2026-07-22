@@ -143,7 +143,7 @@ class PromoteYfthMemberPackage9800 extends Migrator
         $this->execute('UPDATE ' . $productTable . ' SET `store_name`=' . $this->quote('御方通和9800元康养会员套餐')
             . ',`store_info`=' . $this->quote('购买后激活永久会员并生成套餐权益')
             . ',`price`=' . $this->quote(self::PRICE) . ',`ot_price`=' . $this->quote(self::PRICE)
-            . ',`stock`=GREATEST(`stock`,999999),`is_show`=1,`is_del`=0 WHERE `id`=' . $productId);
+            . ',`stock`=GREATEST(`stock`,999999),`is_show`=1,`is_del`=0,`is_virtual`=1,`virtual_type`=1 WHERE `id`=' . $productId);
 
         $attrTable = $this->tableName('store_product_attr');
         if (!$this->row('SELECT `id` FROM ' . $attrTable . ' WHERE `product_id`=' . $productId . ' AND `type`=0 LIMIT 1')) {
@@ -161,7 +161,7 @@ class PromoteYfthMemberPackage9800 extends Migrator
                 . $this->quote($image) . ',' . $this->quote(self::SKU_UNIQUE) . ',' . $this->quote(self::PRICE) . ',0,1,1,1)');
         } else {
             $this->execute('UPDATE ' . $skuTable . ' SET `price`=' . $this->quote(self::PRICE)
-                . ',`ot_price`=' . $this->quote(self::PRICE) . ',`stock`=GREATEST(`stock`,999999),`is_show`=1'
+                . ',`ot_price`=' . $this->quote(self::PRICE) . ',`stock`=GREATEST(`stock`,999999),`is_show`=1,`is_virtual`=1'
                 . ' WHERE `id`=' . (int)$sku['id']);
         }
 

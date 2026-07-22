@@ -664,6 +664,10 @@ function vfRunIntentOrderActivationFlow(array $fixture, callable $assert, array 
     [$intent, $payload] = vfCreatePackageOrder($fixture, 'real_flow_main');
     $purchaseId = (int)$payload['purchase']['id'];
     $orderId = (int)$payload['order']['store_order_id'];
+    $createdOrder = Db::name('store_order')->where('id', $orderId)->find();
+    $assert(trim((string)($createdOrder['real_name'] ?? '')) === '', 'virtual_package_order_has_no_consignee_name');
+    $assert(trim((string)($createdOrder['user_phone'] ?? '')) === '', 'virtual_package_order_has_no_delivery_phone');
+    $assert(trim((string)($createdOrder['user_address'] ?? '')) === '', 'virtual_package_order_has_no_delivery_address');
     $order = vfMarkPaid($orderId);
 
     app()->make(PackagePaySuccessListener::class)->handle([$order]);

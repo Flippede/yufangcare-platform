@@ -1729,3 +1729,9 @@ The store-acquisition facts below remain historical and stable. Its debug-purge 
 - Package checkout no longer requires the attributed B1 store to own legacy `package_sale`, `online_payment`, store-subject, or per-store payment-route metadata. The active-store and authoritative-attribution checks remain fail closed.
 - Purchase snapshots identify `headquarter_mall` and `crmeb_headquarter_checkout`; no payment credential or merchant secret is written to YFTH snapshots.
 - Root cause closed: directly approved stores were valid attribution stores but had no legacy independent-store payment foundation, so the obsolete gate returned `store_capability_missing:package_sale` before CRMEB order creation.
+
+# Current Fact Snapshot - 9800 Package Virtual Checkout Repair
+
+- The dedicated `YFTHPKG9800` CRMEB product and SKU are virtual entitlement carriers. Package checkout does not request a consignee name, delivery phone, or shipping address.
+- A forward migration repairs previously published package products whose `is_virtual=1` but `virtual_type=0` mismatch caused CRMEB to treat the package as a physical pickup order.
+- Publishing a new package price keeps the managed product and SKU virtual, and new package bindings reject physical products. Ordinary physical-product checkout keeps the original CRMEB recipient validation.
