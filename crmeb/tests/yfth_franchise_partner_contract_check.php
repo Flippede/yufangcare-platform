@@ -114,7 +114,8 @@ $assert($contains($adminRoute, "user/:uid/partner/revoke"), 'partner_revoke_rout
 $assert($contains($userRoleController, 'partnerGrantOptions') && $contains($userRoleController, 'grantPartner') && $contains($userRoleController, 'revokePartner'), 'manual_partner_identity_controller_present');
 $assert($contains($grantMigration, 'yfth-user-role-partner-grant-options') && $contains($grantMigration, 'yfth-user-role-partner-grant'), 'manual_grant_permissions_forward_migration');
 $assert($contains($revokeMigration, 'yfth-user-role-partner-revoke'), 'partner_revoke_permission_forward_migration');
-$assert($contains($userRolePage, '授予合伙人') && $contains($userRolePage, '直属上级') && $contains($userRolePage, '撤销合伙人'), 'manual_partner_identity_admin_surface_present');
+$assert($contains($userRolePage, '授予五级合伙人') && $contains($userRolePage, '直属上级') && $contains($userRolePage, '撤销{{ row.partner_identity.rank_name }}'), 'manual_partner_identity_admin_surface_present');
+$assert($contains($userRolePage, 'partnerGrantReady') && $contains($userRolePage, '平台董事 → 大区总监 → 省级合伙人 → 地级合伙人 → 县级合伙人'), 'manual_partner_grant_hierarchy_and_submit_guard_present');
 $assert($contains($adminApi, 'yfthPartnerGrantOptions') && $contains($adminApi, 'yfthUserPartnerGrant') && $contains($adminApi, 'yfthUserPartnerRevoke'), 'manual_partner_identity_admin_api_present');
 $assert($contains($apiRoute, "yfth/franchise/partner/workbench") && $contains($apiRoute, "yfth/franchise/partner/invite"), 'user_routes_registered');
 $assert($contains($apiRoute, 'yfth/franchise/partner/promotion/apply'), 'promotion_apply_route_registered');

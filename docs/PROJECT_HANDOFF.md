@@ -1,5 +1,14 @@
 # 项目交接文档
 
+## Current Fact Snapshot - Headquarters Five-Level Partner Identity Controls
+
+- Headquarters manages the full partner hierarchy from `御方通和 -> 用户经营身份`: platform director, regional director, province partner, prefecture partner and county partner.
+- A platform director is granted directly by headquarters. Every lower rank must select exactly one active adjacent superior; the server validates the hierarchy and rejects missing, wrong-rank or cyclic parent relationships.
+- The Admin list and detail view expose explicit five-level grant controls and rank-specific revoke actions. Submission remains disabled until rank, required superior and an operation reason of at least four characters are complete.
+- Revocation removes the active partner qualification and current parent relation while preserving immutable rank events, performance, settlement and audit history. A partner with active direct reports cannot be revoked until those reports are reassigned.
+- Partner identity remains independent from customer membership and store-manager/staff roles. Store personnel cannot invoke headquarters grant or revoke APIs.
+- Final Git and production deployment facts must be read after the focused contract, Admin build, fast-forward merge and release complete.
+
 ## Current Fact Snapshot - Headquarters Membership Revocation
 
 - Headquarters can revoke an effective permanent-membership qualification from `御方通和 -> 用户经营身份`. The action is shown only for current members and requires a reason of at least four characters plus the exact confirmation phrase `确认解除会员`.
