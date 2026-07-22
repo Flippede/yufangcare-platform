@@ -162,7 +162,11 @@ $assertContains($activation, 'YfthBenefitItemDao::class', 'Paid package activati
 $assertContains($activation, 'recomputeMemberIdentity', 'Activation must recompute member_5980 identity');
 $assertNotContains($activation, 'PackageTemplateServices::class', 'Activation must not read live package templates');
 $assertNotContains($activation, 'BenefitTemplateServices::class', 'Activation must not read live benefit templates');
-$assertContains($purchase, "package_5980", 'Purchase validation must verify package payment route scene');
+$assertContains($purchase, 'headquarterMallPaymentContext', 'Package purchase must use headquarters mall payment context');
+$assertContains($purchase, "'seller_scope' => 'headquarter_mall'", 'Package seller must be the headquarters mall');
+$assertContains($purchase, "'route_type' => 'crmeb_headquarter_checkout'", 'Package payment must reuse CRMEB headquarters checkout');
+$assertNotContains($purchase, "store_capability_missing:' . \$capability", 'Attributed B1 store capability must not gate headquarters online package checkout');
+$assertNotContains($purchase, "store_subject_role_missing:' . \$role", 'Attributed B1 subject roles must not gate headquarters online package checkout');
 $assertContains($purchase, 'createIntent', 'Purchase service must create package purchase intents');
 $assertContains($purchase, 'createOrderFromIntent', 'Purchase service must create CRMEB orders from intents');
 $assertContains($purchase, 'claimIntentForOrder', 'Purchase intent order creation must claim intent before CRMEB order creation');

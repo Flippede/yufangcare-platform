@@ -149,6 +149,7 @@ if ($executeFlow) {
             $notes[] = 'real_flow_seeded_run:' . $runId;
 
             vfRunAdminPermissionFlow($assert);
+            vfRunHeadquarterMallAttributionFlow($fixture, $assert);
             $main = vfRunIntentOrderActivationFlow($fixture, $assert, $notes);
             vfRunActivationFailureRetryFlow($fixture, $assert);
             vfRunActivationRecoveryFlow($fixture, $assert);
@@ -188,6 +189,31 @@ function vfRunId(): string
         return preg_replace('/[^A-Za-z0-9]/', '', $provided);
     }
     return 'RF' . date('His') . strtoupper(substr(bin2hex(random_bytes(3)), 0, 6));
+}
+
+function vfRunHeadquarterMallAttributionFlow(array $fixture, callable $assert): void
+{
+    $storeId = (int)$fixture['store_id'];
+    Db::name('yfth_store_payment_route')->where('store_id', $storeId)->delete();
+    Db::name('yfth_store_capability')->where('store_id', $storeId)->delete();
+    Db::name('yfth_store_subject')->where('store_id', $storeId)->delete();
+
+    $validation = app()->make(PackagePurchaseServices::class)->validatePurchaseRequest((int)$fixture['uid'], [
+        'template_id' => (int)$fixture['template_id'],
+        'store_id' => $storeId,
+        'product_id' => (int)$fixture['product_id'],
+        'product_attr_unique' => (string)$fixture['product_attr_unique'],
+        'agreement_accepted' => 1,
+        'client_price' => '5980.00',
+        'client_month_count' => 10,
+    ]);
+
+    $assert((int)$validation['store']['store_id'] === $storeId, 'headquarter_checkout_preserves_authoritative_attribution_store');
+    $assert((string)$validation['store_checks']['seller_scope'] === 'headquarter_mall', 'headquarter_checkout_does_not_require_b1_seller_capability');
+    $assert((string)$validation['payment_route']['route_type'] === 'crmeb_headquarter_checkout', 'headquarter_checkout_reuses_crmeb_payment_route');
+    $assert(vfCount('yfth_store_capability', ['store_id' => $storeId]) === 0, 'headquarter_checkout_does_not_create_fake_b1_capabilities');
+    $assert(vfCount('yfth_store_subject', ['store_id' => $storeId]) === 0, 'headquarter_checkout_does_not_create_fake_b1_subjects');
+    $assert(vfCount('yfth_store_payment_route', ['store_id' => $storeId]) === 0, 'headquarter_checkout_does_not_create_fake_b1_payment_route');
 }
 
 function vfRunBindPurchaseWorker(): void
@@ -360,6 +386,7 @@ function vfSeedFixture(string $runId): array
 
     $subjectId = vfSeedSubjectAndStoreScope($runId, $storeId, $phone);
     $package = vfSeedPackage($runId, $productId, $skuUnique);
+    vfSeedAuthoritativeAttribution($uid, $storeId, $runId);
 
     return array_merge($package, [
         'run_id' => $runId,
@@ -369,6 +396,48 @@ function vfSeedFixture(string $runId): array
         'subject_id' => $subjectId,
         'product_id' => $productId,
         'product_attr_unique' => $skuUnique,
+    ]);
+}
+
+function vfSeedAuthoritativeAttribution(int $uid, int $storeId, string $runId): void
+{
+    $now = time();
+    $sourceId = 'package-real-flow-' . $runId;
+    $currentId = (int)Db::name('yfth_hq_customer_attribution_current')->insertGetId([
+        'uid' => $uid,
+        'store_id' => $storeId,
+        'status' => 'active',
+        'status_reason_code' => '',
+        'authority_version' => 1,
+        'source_type' => 'runtime_validation',
+        'source_id' => $sourceId,
+        'bound_at' => $now - 100,
+        'paused_at' => 0,
+        'closed_at' => 0,
+        'close_reason' => '',
+        'add_time' => $now - 100,
+        'update_time' => $now,
+    ]);
+    Db::name('yfth_hq_customer_attribution_event')->insert([
+        'event_no' => 'HAE' . strtoupper(substr(hash('sha256', $sourceId), 0, 24)),
+        'attribution_current_id' => $currentId,
+        'uid' => $uid,
+        'authority_version' => 1,
+        'event_type' => 'attribution_created',
+        'before_store_id' => 0,
+        'after_store_id' => $storeId,
+        'before_status' => 'unassigned',
+        'after_status' => 'active',
+        'before_status_reason_code' => 'initial_placeholder',
+        'after_status_reason_code' => '',
+        'source_type' => 'runtime_validation',
+        'source_id' => $sourceId,
+        'source_unique_key' => hash('sha256', $sourceId . ':attribution'),
+        'operator_uid' => 1,
+        'operator_role_code' => 'runtime_validation',
+        'reason' => 'package purchase runtime validation',
+        'request_id' => $runId,
+        'add_time' => $now - 100,
     ]);
 }
 

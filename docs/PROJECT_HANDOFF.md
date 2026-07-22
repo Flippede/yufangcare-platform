@@ -1722,3 +1722,10 @@ The store-acquisition facts below remain historical and stable. Its debug-purge 
 - Store operators use their active headquarters-granted store role; ordinary customers use their active QR/referral attribution. The obsolete package-page `purchase_attribution` read contract has been removed.
 - Historical attribution and referral rows remain immutable for reward, audit, and transaction history, but they can no longer override the current store used for a new package purchase.
 - Cross-store purchase requests remain fail-closed on the server. This change does not alter orders, payment, package activation, or historical reward snapshots.
+
+# Current Fact Snapshot - Headquarters Package Checkout Attribution Fix
+
+- The online 9800 package checkout uses the CRMEB headquarters mall payment flow. The selected B1 store is the authoritative permanent-attribution and commission-responsibility store, not an independent online seller or payment subject.
+- Package checkout no longer requires the attributed B1 store to own legacy `package_sale`, `online_payment`, store-subject, or per-store payment-route metadata. The active-store and authoritative-attribution checks remain fail closed.
+- Purchase snapshots identify `headquarter_mall` and `crmeb_headquarter_checkout`; no payment credential or merchant secret is written to YFTH snapshots.
+- Root cause closed: directly approved stores were valid attribution stores but had no legacy independent-store payment foundation, so the obsolete gate returned `store_capability_missing:package_sale` before CRMEB order creation.

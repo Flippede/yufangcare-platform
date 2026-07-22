@@ -19,6 +19,7 @@ use crmeb\exceptions\ApiException;
 class PackagePurchaseServices extends PackageBenefitBaseServices
 {
     private const CREATING_TIMEOUT_SECONDS = 300;
+    private const HEADQUARTER_PAYMENT_ROUTE_VERSION = 1;
 
     public function __construct(YfthPackagePurchaseDao $dao)
     {
@@ -940,8 +941,10 @@ class PackagePurchaseServices extends PackageBenefitBaseServices
             throw new ApiException('package_sku_price_mismatch');
         }
 
+        // The selected store is the permanent attribution and commission store. Online package
+        // payment is collected by the headquarters CRMEB mall, never by the attributed B1 store.
         $store = app()->make(StoreAccessServices::class)->assertStoreActive($storeId);
-        $storeChecks = $this->assertStoreReadyForPackage($storeId);
+        $storeChecks = $this->headquarterMallPaymentContext($storeId);
 
         $order = [];
         $orderSn = trim((string)($data['order_sn'] ?? ''));
@@ -1016,40 +1019,27 @@ class PackagePurchaseServices extends PackageBenefitBaseServices
         return $row;
     }
 
-    private function assertStoreReadyForPackage(int $storeId): array
+    private function headquarterMallPaymentContext(int $storeId): array
     {
-        /** @var StoreCapabilityServices $capabilityServices */
-        $capabilityServices = app()->make(StoreCapabilityServices::class);
-        foreach (['package_sale', 'online_payment'] as $capability) {
-            if (!$capabilityServices->isAvailable($storeId, $capability)) {
-                throw new ApiException('store_capability_missing:' . $capability);
-            }
-        }
-
-        /** @var StoreSubjectServices $storeSubjectServices */
-        $storeSubjectServices = app()->make(StoreSubjectServices::class);
-        $subjects = $storeSubjectServices->listActiveByStore($storeId);
-        $roles = array_values(array_unique(array_column($subjects, 'subject_role')));
-        $subjectIds = [];
-        foreach ($subjects as $subject) {
-            $subjectIds[(string)$subject['subject_role']] = (int)$subject['subject_id'];
-        }
-        foreach (['sales', 'payment', 'fulfillment', 'refund'] as $role) {
-            if (!in_array($role, $roles, true)) {
-                throw new ApiException('store_subject_role_missing:' . $role);
-            }
-        }
-
-        /** @var StorePaymentRouteServices $routeServices */
-        $routeServices = app()->make(StorePaymentRouteServices::class);
-        $route = $routeServices->resolveRoute($storeId, 'package_5980');
-
         return [
-            'capabilities' => ['package_sale', 'online_payment'],
-            'subject_roles' => $roles,
-            'subject_ids' => $subjectIds,
-            'subjects' => $subjects,
-            'payment_route' => $route,
+            'attribution_store_id' => $storeId,
+            'seller_scope' => 'headquarter_mall',
+            'capabilities' => ['crmeb_order', 'crmeb_online_payment'],
+            'subject_roles' => [],
+            'subject_ids' => [],
+            'subjects' => [],
+            'payment_route' => [
+                'business_scene' => 'package_5980',
+                'route_type' => 'crmeb_headquarter_checkout',
+                'config_status' => 'runtime_config',
+                'version_no' => self::HEADQUARTER_PAYMENT_ROUTE_VERSION,
+                'subject_id' => 0,
+                'receiver_subject_id' => 0,
+                'invoice_subject_id' => 0,
+                'refund_subject_id' => 0,
+                'merchant_ref_masked' => '',
+                'sub_merchant_ref_masked' => '',
+            ],
         ];
     }
 
