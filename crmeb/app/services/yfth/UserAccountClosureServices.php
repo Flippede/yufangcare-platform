@@ -319,14 +319,10 @@ class UserAccountClosureServices
         if ($this->hasColumn('store_order', 'is_system_del')) {
             $query->where('is_system_del', 0);
         }
-        $query->where(function ($q) {
-            $q->where(function ($sub) {
-                $sub->where('paid', 0);
-                if ($this->hasColumn('store_order', 'is_cancel')) {
-                    $sub->where('is_cancel', 0);
-                }
-            })->whereOr('status', 'in', [0, 1, 4]);
-        });
+        if ($this->hasColumn('store_order', 'is_cancel')) {
+            $query->where('is_cancel', 0);
+        }
+        $query->whereIn('status', [0, 1, 4]);
         return (int)$query->count();
     }
 

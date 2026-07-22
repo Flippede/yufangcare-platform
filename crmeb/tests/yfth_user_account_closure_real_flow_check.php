@@ -256,6 +256,28 @@ try {
         $assert((int)Db::name('user')->where('uid', $uid)->where('is_del', 0)->count() === 1, $expectedCode . '_leaves_account_intact');
     }
 
+    // Completed and review-pending orders are no longer active fulfilment blockers.
+    $orderStateOffset = 70;
+    foreach ([
+        'review_pending' => ['paid' => 1, 'status' => 2],
+        'completed_paid' => ['paid' => 1, 'status' => 3],
+        'completed_unpaid' => ['paid' => 0, 'pay_time' => 0, 'status' => 3],
+    ] as $case => $orderState) {
+        $uid = $base + $orderStateOffset++;
+        $insertUser($uid, 'closure_order_state_' . $uid, '');
+        $insertOrder($uid, $case . '-' . $uid, $orderState);
+        $preflight = $service->preflightForHeadquarters($uid, $hq);
+        $assert(!in_array('unfinished_orders', $codes($preflight), true), $case . '_does_not_require_order_deletion');
+    }
+
+    foreach ([0, 1, 4] as $activeStatus) {
+        $uid = $base + $orderStateOffset++;
+        $insertUser($uid, 'closure_active_order_' . $uid, '');
+        $insertOrder($uid, 'active-' . $activeStatus . '-' . $uid, ['paid' => $activeStatus === 0 ? 0 : 1, 'status' => $activeStatus]);
+        $preflight = $service->preflightForHeadquarters($uid, $hq);
+        $assert(in_array('unfinished_orders', $codes($preflight), true), 'active_order_status_' . $activeStatus . '_still_blocks_closure');
+    }
+
     // 9-10: manager/staff are revoked; active partner/franchisee responsibility blocks closure.
     $uidStaff = $base + 20;
     $insertUser($uidStaff, 'closure_staff_' . $uidStaff, '');

@@ -34,6 +34,8 @@ $assert(strpos($service, "'yfth_customer_relation' => ['uid']") !== false, 'stor
 $assert(strpos($service, "'yfth_permanent_membership' => ['uid']") !== false, 'membership_projection_deleted');
 $assert(strpos($service, "'yfth_user_store_role' => ['uid']") !== false, 'revocable_store_roles_deleted');
 $assert(strpos($service, 'businessBlockers') !== false && strpos($service, 'unfinishedOrderCount') !== false, 'explicit_business_gates_exist');
+$assert(strpos($service, "whereIn('status', [0, 1, 4])") !== false, 'unfinished_orders_follow_order_lifecycle_status');
+$assert(strpos($service, "\$sub->where('paid', 0)") === false, 'completed_unpaid_orders_do_not_require_user_deletion');
 $assert(strpos($service, 'verifySecurity') !== false && strpos($service, "empty(\$data['agreement'])") !== false, 'self_closure_requires_security_and_agreement');
 $assert(strpos($service, 'Db::transaction') !== false && strpos($service, 'lock(true)') !== false, 'closure_is_locked_transaction');
 $assert(strpos($service, '$this->audit->record(') !== false && strpos($service, 'recordSafely') === false, 'audit_is_strict_inside_transaction');
