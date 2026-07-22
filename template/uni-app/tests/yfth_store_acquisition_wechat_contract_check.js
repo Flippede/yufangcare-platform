@@ -28,6 +28,15 @@ const accept = read('pages/yfth/store_acquisition/accept.vue');
   ['resolving: false', 'resolve single-flight state'],
   ['if (this.resolving || this.submitting || this.redirecting', 'duplicate lifecycle guard'],
   ['finally(() => { this.resolving = false; })', 'resolve guard cleanup'],
+	[`!['success', 'error'].includes(this.state)`, 'failed acquisition does not auto-retry'],
+	['@click="leaveFailure">返回主页', 'failed acquisition returns home'],
 ].forEach(([needle, label]) => requireText(accept, needle, label));
+
+if (accept.includes('@click="resolve">重新核验')) {
+  throw new Error('Failed acquisition must not expose the obsolete retry action');
+}
+if (!/leaveFailure\(\)\s*\{[\s\S]{0,160}uni\.removeStorageSync\(PENDING_KEY\);[\s\S]{0,160}this\.goHome\(\);/.test(accept)) {
+  throw new Error('Failed acquisition must clear the pending token before returning home');
+}
 
 console.log('YFTH store acquisition WeChat contract check passed.');

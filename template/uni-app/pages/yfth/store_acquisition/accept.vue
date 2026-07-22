@@ -19,7 +19,7 @@
 			<view v-else class="message error">{{ error || '该门店码暂时无法使用' }}</view>
 			<button v-if="state === 'login'" class="primary" @click="login">去登录</button>
 			<button v-if="state === 'confirm'" class="primary" @click="accept">确认绑定</button>
-			<button v-if="state === 'error'" class="secondary" @click="resolve">重新核验</button>
+			<button v-if="state === 'error'" class="secondary" @click="leaveFailure">返回主页</button>
 			<button v-if="state === 'success'" class="secondary" @click="goHome">返回商城首页</button>
 		</view>
 	</view>
@@ -39,7 +39,7 @@ export default {
 		if (!/^[a-f0-9]{64}$/.test(this.token)) { this.state = 'error'; this.error = '门店专属码无效或已损坏'; return; }
 		uni.setStorageSync(PENDING_KEY, this.token);
 	},
-	onShow() { if (/^[a-f0-9]{64}$/.test(this.token) && !this.resolving && !this.submitting && !this.redirecting && this.state !== 'success') this.resolve(); },
+	onShow() { if (/^[a-f0-9]{64}$/.test(this.token) && !this.resolving && !this.submitting && !this.redirecting && !['success', 'error'].includes(this.state)) this.resolve(); },
 	onUnload() { if (this.successTimer) clearTimeout(this.successTimer); },
 	methods: {
 		resolve() {
@@ -71,6 +71,10 @@ export default {
 				})
 				.catch((err) => { this.state = 'error'; this.error = (err && (err.msg || err.message)) || '门店绑定失败'; })
 				.finally(() => { this.submitting = false; });
+		},
+		leaveFailure() {
+			uni.removeStorageSync(PENDING_KEY);
+			this.goHome();
 		},
 		goHome() { uni.reLaunch({ url: '/pages/index/index' }); }
 	}
