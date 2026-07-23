@@ -11,7 +11,7 @@
     <el-alert :title="dashboard.disclaimer || '招商收益候选仅记录业务事实，不代表平台自动打款。'" type="warning" :closable="false" />
 
     <el-card shadow="never" class="content-card">
-      <el-tabs :key="'partner-tabs-' + rulesRenderKey" v-model="tab" @tab-click="loadTab">
+      <el-tabs v-model="tab" @tab-click="onTabClick">
         <el-tab-pane label="合伙人管理" name="partners">
           <div class="toolbar">
             <el-input v-model.trim="partnerQuery.keyword" clearable placeholder="昵称、账号、手机号、门店或 UID" @keyup.enter.native="loadPartners(true)" />
@@ -260,7 +260,15 @@ export default {
   created() { this.loadDashboard(); this.loadPartners(); this.loadRules(); },
   methods: {
     loadDashboard() { return yfthPartnerDashboard().then((res) => { this.dashboard = res.data || {}; this.rankOptions = this.dashboard.rank_options || []; }); },
-    loadTab() { ({ partners: this.loadPartners, performance: this.loadPerformances, procurementProfit: this.loadProcurementProfits, openingReward: this.loadOpeningRewards, dividends: this.loadDividends, rewards: this.loadRewards, rules: this.loadRules, warnings: this.loadWarnings, promotions: this.loadPromotions, openingQuota: this.loadOpeningQuotas, rewardEvents: this.loadRewardEvents, migrationIssues: this.loadMigrationIssues }[this.tab] || (() => {})).call(this); },
+    onTabClick(pane) {
+      const name = pane && pane.name ? String(pane.name) : this.tab;
+      if (name) this.tab = name;
+      this.loadTab(name);
+    },
+    loadTab(name) {
+      const active = name || this.tab;
+      ({ partners: this.loadPartners, performance: this.loadPerformances, procurementProfit: this.loadProcurementProfits, openingReward: this.loadOpeningRewards, dividends: this.loadDividends, rewards: this.loadRewards, rules: this.loadRules, warnings: this.loadWarnings, promotions: this.loadPromotions, openingQuota: this.loadOpeningQuotas, rewardEvents: this.loadRewardEvents, migrationIssues: this.loadMigrationIssues }[active] || (() => {})).call(this);
+    },
     loadPartners(reset) { if (reset === true) this.partnerQuery.page = 1; this.loading = true; return yfthPartnerList(this.partnerQuery).then((res) => { const d = res.data || {}; this.partners = d.list || []; this.partnerTotal = Number(d.count || 0); if (d.rank_options) this.rankOptions = d.rank_options; }).finally(() => { this.loading = false; }); },
     loadPerformances() { this.loading = true; return yfthPartnerPerformances({ page: 1, limit: 100 }).then((res) => { this.performances = (res.data || {}).list || []; }).finally(() => { this.loading = false; }); },
     loadProcurementProfits() { this.loading = true; return yfthPartnerProcurementProfits({ page: 1, limit: 100 }).then((res) => { this.procurementProfits = (res.data || {}).list || []; }).finally(() => { this.loading = false; }); },
