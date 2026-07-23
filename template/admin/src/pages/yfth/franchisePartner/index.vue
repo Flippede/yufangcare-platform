@@ -111,34 +111,7 @@
           <el-pagination class="pager" layout="total,prev,pager,next" :total="rewardTotal" :page-size="rewardQuery.limit" :current-page.sync="rewardQuery.page" @current-change="loadRewards" />
         </el-tab-pane>
 
-        <el-tab-pane :key="'rules-pane-' + rulesRenderKey" label="职级规则" name="rules">
-          <div class="toolbar"><el-button type="primary" icon="el-icon-plus" @click="openRule">复制当前规则</el-button></div>
-          <div :key="'rules-' + rulesRenderKey" v-loading="rulesLoading" class="partner-rule-list">
-            <div v-for="rule in partnerRules" :key="rule.id" class="partner-rule-card">
-              <div class="partner-rule-head">
-                <div>
-                  <strong>{{ rule.rule_no }}</strong>
-                  <span>版本 {{ rule.version_no }}</span>
-                  <span>{{ rule.status === 'published' ? '已发布' : '草稿' }}</span>
-                </div>
-                <el-button v-if="rule.status === 'draft'" type="text" @click="publishRule(rule)">发布</el-button>
-              </div>
-              <div class="partner-rule-summary">
-                <span>单笔金额：{{ rule.order_amount }}</span>
-                <span>瓶数：{{ rule.bottle_count }}</span>
-                <span>平台董事加权：{{ Number(rule.platform_dividend_bps || 0) / 100 }}%</span>
-              </div>
-              <div class="partner-rule-ranks">
-                <div v-for="rank in rule.rank_rules" :key="rank.rank_code" class="partner-rule-rank">
-                  <strong>{{ rank.rank_name }}</strong>
-                  <span>采购分润 {{ Number(rank.procurement_rate_bps || 0) / 100 }}%</span>
-                  <span>开店服务奖励 {{ moneyCent(rank.opening_reward_amount_cent) }}</span>
-                </div>
-              </div>
-            </div>
-            <div v-if="!rulesLoading && partnerRules.length === 0" class="partner-rule-empty">暂无职级规则</div>
-          </div>
-        </el-tab-pane>
+        <el-tab-pane label="职级规则" name="rules" />
 
         <el-tab-pane label="保级预警" name="warnings">
           <el-table v-loading="loading" :data="warnings" border size="small">
@@ -200,6 +173,34 @@
           </el-table>
         </el-tab-pane>
       </el-tabs>
+      <section v-if="tab === 'rules'" :key="'rules-' + rulesRenderKey" v-loading="rulesLoading" class="partner-rule-section">
+        <div class="toolbar"><el-button type="primary" icon="el-icon-plus" @click="openRule">复制当前规则</el-button></div>
+        <div class="partner-rule-list">
+          <div v-for="rule in partnerRules" :key="rule.id" class="partner-rule-card">
+            <div class="partner-rule-head">
+              <div>
+                <strong>{{ rule.rule_no }}</strong>
+                <span>版本 {{ rule.version_no }}</span>
+                <span>{{ rule.status === 'published' ? '已发布' : '草稿' }}</span>
+              </div>
+              <el-button v-if="rule.status === 'draft'" type="text" @click="publishRule(rule)">发布</el-button>
+            </div>
+            <div class="partner-rule-summary">
+              <span>单笔金额：{{ rule.order_amount }}</span>
+              <span>瓶数：{{ rule.bottle_count }}</span>
+              <span>平台董事加权：{{ Number(rule.platform_dividend_bps || 0) / 100 }}%</span>
+            </div>
+            <div class="partner-rule-ranks">
+              <div v-for="rank in rule.rank_rules" :key="rank.rank_code" class="partner-rule-rank">
+                <strong>{{ rank.rank_name }}</strong>
+                <span>采购分润 {{ Number(rank.procurement_rate_bps || 0) / 100 }}%</span>
+                <span>开店服务奖励 {{ moneyCent(rank.opening_reward_amount_cent) }}</span>
+              </div>
+            </div>
+          </div>
+          <div v-if="!rulesLoading && partnerRules.length === 0" class="partner-rule-empty">暂无职级规则</div>
+        </div>
+      </section>
     </el-card>
 
     <el-dialog title="招商合伙人详情" :visible.sync="detailVisible" width="760px">
