@@ -1,5 +1,18 @@
 # 项目交接文档
 
+## Current Fact Snapshot - Final Procurement And Partner Profit V1 Closure
+
+- Procurement and Partner Profit V1 is merged into `main` and deployed to `https://yfth.top`. The final reviewed feature commit is `825d38cf6d33fcdc9b2d834de3d9937aaee12db5`; the final Admin render-guard commit is `e63590a76ca4f45922b1f5bed332f3a8b69cc9f4`.
+- Store procurement continues to reuse the existing YFTH supply catalog, purchase order, headquarters review, shipment, receipt, store inventory and logistics flow. Only `store_manager` may create procurement orders; store staff and partner ranks cannot create them.
+- Procurement profit defaults are configurable by headquarters: county partner 20%, prefecture partner 10%, province partner 5%, regional director 3% and platform director 1%. The order snapshot freezes the rule version, hierarchy and rates; freight is excluded from the profit base.
+- The county partner alone receives the current store-opening service reward, initially `17600.00` per valid offline `98000.00` opening. Upper-rank opening rewards remain reserved and default to zero. Missing county ownership uses the explicit recruitment source first, otherwise the deterministic nearest active county-partner allocation.
+- The platform-director procurement rate may be configured to zero independently. The weighted platform dividend is a separate configurable monthly pool, initially 1%. Procurement profit, opening-service reward and weighted dividend are business ledgers only and do not represent an online payment.
+- All procurement profit, reversal, opening-service reward and weighted-dividend facts are visible in the partner workbench. The headquarters rule page displays the published five-rank rule and allows copying it into a new version without changing historical snapshots.
+- The final Admin defect was caused by a hidden rule form evaluating an uninitialized rank map before the dialog opened. The render guard now mounts that form only after the complete rank map is prepared. Production browser verification shows one published rule card, no empty state, the 20/10/5/3/1 rates, the county `17600.00` opening reward and the 1% platform dividend; the rule-copy dialog opens without console errors.
+- Verification passed: PHP 7.4 contract check with 41 assertions, the previously recorded isolated MySQL 8.0.46 migration and real-flow checks, Admin/H5/mp-weixin production builds, request fallback checks, `git diff --check`, sensitive-data scan and production browser verification.
+- Production backup for the final Admin correction: `/www/backup/yfth-procurement-admin-rule-render-guard-20260723-182619`. No real payment, online opening payment, production payment configuration change or production business-data rewrite was performed.
+- Final `main` and `origin/main` commit should be read from real Git HEAD after this documentation closure commit and push.
+
 ## Current Fact Snapshot - Procurement And Partner Profit V1
 
 - 门店采购继续复用既有供应链：总部采购目录、门店采购单、总部审核、发货、门店收货和门店库存。采购入口与写权限均限定为 `store_manager`，店员和合伙人不能创建采购单。
