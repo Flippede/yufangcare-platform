@@ -261,7 +261,7 @@ export default {
   created() { this.loadDashboard(); this.loadPartners(); },
   methods: {
     loadDashboard() {
-      return yfthPartnerDashboard().then((res) => {
+      return yfthPartnerDashboard({ _t: Date.now() }).then((res) => {
         this.dashboard = res.data || {};
         this.rankOptions = this.dashboard.rank_options || [];
         this.partnerRules = Array.isArray(this.dashboard.rule_versions) ? this.dashboard.rule_versions : [];
@@ -286,7 +286,7 @@ export default {
     loadRewards(reset) { if (reset === true) this.rewardQuery.page = 1; this.loading = true; return yfthPartnerRewards(this.rewardQuery).then((res) => { const d = res.data || {}; this.rewards = d.list || []; this.rewardTotal = Number(d.count || 0); }).finally(() => { this.loading = false; }); },
     loadRules() {
       this.rulesLoading = true;
-      return yfthPartnerDashboard().then((res) => {
+      return yfthPartnerDashboard({ _t: Date.now() }).then((res) => {
         const d = res.data || {};
         this.dashboard = d;
         this.partnerRules = Array.isArray(d.rule_versions) ? d.rule_versions : [];

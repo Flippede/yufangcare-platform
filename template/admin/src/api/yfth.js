@@ -1151,8 +1151,8 @@ export function yfthFranchiseOpeningProfileCreateStore(id, data) {
   });
 }
 
-export function yfthPartnerDashboard() {
-  return request({ url: 'yfth/franchise_partner/dashboard', method: 'get' });
+export function yfthPartnerDashboard(params) {
+  return request({ url: 'yfth/franchise_partner/dashboard', method: 'get', params });
 }
 
 export function yfthPartnerRules() {
