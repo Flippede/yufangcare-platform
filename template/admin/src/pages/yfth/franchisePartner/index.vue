@@ -11,7 +11,7 @@
     <el-alert :title="dashboard.disclaimer || '招商收益候选仅记录业务事实，不代表平台自动打款。'" type="warning" :closable="false" />
 
     <el-card shadow="never" class="content-card">
-      <el-tabs v-model="tab" @tab-click="loadTab">
+      <el-tabs :key="'partner-tabs-' + rulesRenderKey" v-model="tab" @tab-click="loadTab">
         <el-tab-pane label="合伙人管理" name="partners">
           <div class="toolbar">
             <el-input v-model.trim="partnerQuery.keyword" clearable placeholder="昵称、账号、手机号、门店或 UID" @keyup.enter.native="loadPartners(true)" />
