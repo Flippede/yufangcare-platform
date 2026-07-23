@@ -1,5 +1,14 @@
 # 项目交接文档
 
+## Current Fact Snapshot - Procurement Product Catalog Visibility
+
+- The store procurement page previously showed no products because the headquarters procurement catalog (`yfth_supply_catalog`) was empty. CRMEB retail product publication and YFTH procurement authorization are intentionally separate facts.
+- Headquarters now has two product-management entries: `商城商品管理` continues to manage CRMEB retail products, SKU, retail stock and images; `采购商品管理` manages procurement authorization, purchase price, minimum quantity and related supply-chain fields.
+- Procurement management can idempotently import currently listed, undeleted physical CRMEB products. Existing catalog rows and configured purchase prices are preserved. Virtual products, including the 9800 membership package, are excluded.
+- The initial import uses the current retail price as a conservative purchase-price placeholder. Headquarters can adjust the procurement price independently before operational purchasing.
+- Isolated MySQL 8.0.46 verification passed for menu migration up/down/up, first import, repeat-import idempotency, virtual-product exclusion and configured-price preservation. PHP 7.4 syntax, the supply-chain contract and the Admin production build also passed.
+- Production deployment, migration and the first catalog import are completed only after the final Git merge and deployment steps recorded by the current task.
+
 ## Current Fact Snapshot - Final Procurement And Partner Profit V1 Closure
 
 - Procurement and Partner Profit V1 is merged into `main` and deployed to `https://yfth.top`. The final reviewed feature commit is `825d38cf6d33fcdc9b2d834de3d9937aaee12db5`; the final Admin render-guard commit is `e63590a76ca4f45922b1f5bed332f3a8b69cc9f4`.

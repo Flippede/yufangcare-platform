@@ -33,6 +33,8 @@ $adminRoute = $read('app/adminapi/route/yfth.php');
 $adminApi = $read('../template/admin/src/api/yfth.js');
 $uniApi = $read('../template/uni-app/api/yfth.js');
 $adminPage = $read('../template/admin/src/pages/yfth/supplyChain/index.vue');
+$productRouter = $read('../template/admin/src/router/modules/product.js');
+$procurementMenuMigration = $read('database/migrations/20260723170000_expose_yfth_procurement_product_management.php');
 $purchasePage = $read('../template/uni-app/pages/yfth/workbench/purchase/index.vue');
 $inventoryPage = $read('../template/uni-app/pages/yfth/workbench/purchase/inventory.vue');
 
@@ -87,6 +89,9 @@ $assert($contains($service, 'normalizeCatalogPayload(array $data, int $adminId, 
 $assert($contains($service, "'created_uid' => \$before ?") && $contains($service, "'create_time' => \$before ?"), 'service_catalog_update_preserves_created_fields');
 $assert($contains($service, 'store_product_attr_value'), 'service_reuses_crmeb_sku_table');
 $assert($contains($service, 'store_product'), 'service_reuses_crmeb_product_table');
+$assert($contains($service, 'adminImportVisibleProducts'), 'service_can_import_visible_products');
+$assert($contains($service, "->where('is_virtual', 0)"), 'catalog_import_excludes_virtual_products');
+$assert($contains($service, "'import_visible_product'"), 'catalog_import_is_audited');
 $assert(!$contains($service, 'decStockIncSales('), 'service_does_not_decrement_crmeb_sales_stock');
 $assert(!$contains($service, 'incStockDecSales('), 'service_does_not_increment_crmeb_sales_stock');
 $assert(!$contains($service, "Db::name('store_order')->insert"), 'service_does_not_create_crmeb_order');
@@ -101,6 +106,7 @@ $assert($contains($apiRoute, "yfth/supply/inventory"), 'api_route_has_inventory_
 $assert($contains($adminRoute, "Route::group('supply_chain'"), 'admin_route_has_supply_group');
 $assert($contains($adminRoute, 'AdminAuthTokenMiddleware::class'), 'admin_route_uses_admin_token_middleware');
 $assert($contains($adminController, 'assertApiAuthForAdmin'), 'admin_controller_asserts_api_auth');
+$assert($contains($adminController, "yfth/supply_chain/catalog/import_visible"), 'admin_controller_asserts_catalog_import_permission');
 $assert($contains($adminController, "yfth/supply_chain/purchase_order/<id>/ship"), 'admin_controller_asserts_ship_permission');
 
 $assert($contains($apiController, '$request->post()'), 'api_controller_checks_raw_post_fields');
@@ -108,8 +114,13 @@ $assert($contains($apiController, 'Idempotency-Key'), 'api_controller_accepts_id
 $assert($contains($uniApi, 'createYfthPurchaseOrder'), 'uni_api_has_purchase_create');
 $assert($contains($uniApi, 'receiveYfthPurchaseOrder'), 'uni_api_has_receive');
 $assert($contains($adminApi, 'yfthSupplyCatalogSave'), 'admin_api_has_catalog_save');
+$assert($contains($adminApi, 'yfthSupplyCatalogImportVisible'), 'admin_api_has_catalog_import');
 $assert($contains($adminApi, 'yfthPurchaseOrderShip'), 'admin_api_has_ship');
-$assert($contains($adminPage, 'yfthSupplyCatalogList') && $contains($adminPage, 'yfthPurchaseOrderAudit'), 'admin_page_uses_real_api');
+$assert($contains($adminPage, 'yfthSupplyCatalogList') && $contains($adminPage, 'yfthSupplyCatalogImportVisible') && $contains($adminPage, 'yfthPurchaseOrderAudit'), 'admin_page_uses_real_api');
+$assert($contains($productRouter, '商城商品管理'), 'admin_product_menu_identifies_retail_products');
+$assert($contains($productRouter, '采购商品管理'), 'admin_product_menu_exposes_procurement_products');
+$assert($contains($procurementMenuMigration, 'yfth-procurement-product-index'), 'migration_creates_procurement_product_page_permission');
+$assert($contains($procurementMenuMigration, 'yfth-supply-catalog-import-visible'), 'migration_creates_catalog_import_permission');
 $assert($contains($purchasePage, 'createYfthPurchaseOrder') && $contains($purchasePage, 'receiveYfthPurchaseOrder'), 'purchase_page_uses_real_api');
 $assert($contains($purchasePage, "context.role_code !== 'store_manager'") && $contains($purchasePage, '仅店长可进入采购中心'), 'purchase_page_rejects_non_manager_roles');
 $assert($contains($purchasePage, 'v-if="accessGranted"') && $contains($purchasePage, 'window.location.replace(target)'), 'purchase_page_hides_content_and_redirects_h5_until_manager_verified');

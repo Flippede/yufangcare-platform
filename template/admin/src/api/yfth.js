@@ -590,6 +590,14 @@ export function yfthSupplyCatalogDisable(data) {
   });
 }
 
+export function yfthSupplyCatalogImportVisible(data) {
+  return request({
+    url: 'yfth/supply_chain/catalog/import_visible',
+    method: 'post',
+    data,
+  });
+}
+
 export function yfthSupplyProductSearch(params) {
   return request({
     url: 'yfth/supply_chain/product/search',

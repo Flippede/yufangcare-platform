@@ -11,7 +11,14 @@
             </el-select>
             <el-button type="primary" icon="el-icon-search" @click="loadCatalog(true)">查询</el-button>
             <el-button icon="el-icon-plus" @click="openCatalog()">新增</el-button>
+            <el-button type="success" icon="el-icon-download" :loading="importingCatalog" @click="importVisibleProducts">导入商城上架商品</el-button>
           </div>
+          <el-alert
+            class="catalog-tip"
+            type="info"
+            :closable="false"
+            title="采购目录复用商城商品、SKU 和图片；导入时排除虚拟套餐，初始采购价取当前商城售价，导入后可单独编辑。"
+          />
           <el-table v-loading="loading.catalog" :data="catalog.list" border>
             <el-table-column prop="product_id" label="商品 ID" width="100" />
             <el-table-column prop="product_name" label="商品" min-width="220" />
@@ -196,6 +203,7 @@ import {
   yfthPurchaseOrderList,
   yfthPurchaseOrderShip,
   yfthSupplyCatalogDisable,
+  yfthSupplyCatalogImportVisible,
   yfthSupplyCatalogList,
   yfthSupplyCatalogSave,
   yfthSupplyShipmentList,
@@ -206,6 +214,7 @@ export default {
   data() {
     return {
       tab: 'catalog',
+      importingCatalog: false,
       loading: { catalog: false, orders: false, shipments: false, inventory: false, ledger: false, alerts: false },
       filters: {
         catalog: { keyword: '', status: '', page: 1, limit: 20 },
@@ -299,6 +308,24 @@ export default {
         this.loadCatalog(false);
       });
     },
+    importVisibleProducts() {
+      this.$confirm(
+        '将全部已上架、未删除的普通商城商品导入采购目录。会员套餐等虚拟商品会被排除，已有采购商品及其采购价不会被覆盖。',
+        '导入商城上架商品',
+        { type: 'warning' },
+      ).then(() => {
+        this.importingCatalog = true;
+        return yfthSupplyCatalogImportVisible({ product_ids: [] });
+      }).then((res) => {
+        const data = res.data || {};
+        this.$message.success(`已导入 ${data.imported_count || 0} 个，跳过 ${data.skipped_count || 0} 个已有商品`);
+        this.loadCatalog(true);
+      }).catch(() => {
+        // Closing the confirmation dialog intentionally cancels the import.
+      }).finally(() => {
+        this.importingCatalog = false;
+      });
+    },
     openOrder(row) {
       yfthPurchaseOrderDetail(row.id).then((res) => {
         this.detail = res.data || {};
@@ -360,6 +387,9 @@ export default {
   align-items: center;
   flex-wrap: wrap;
   gap: 10px;
+  margin-bottom: 14px;
+}
+.catalog-tip {
   margin-bottom: 14px;
 }
 .w120 { width: 120px; }

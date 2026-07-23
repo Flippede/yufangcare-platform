@@ -32,11 +32,20 @@ export default {
       path: 'product_list',
       name: `${pre}productList`,
       meta: {
-        title: '商品管理',
+        title: '商城商品管理',
         auth: ['admin-store-storeProuduct-index'],
         keepAlive: true,
       },
       component: () => import('@/pages/product/productList'),
+    },
+    {
+      path: 'procurement_products',
+      name: `${pre}procurementProducts`,
+      meta: {
+        title: '采购商品管理',
+        auth: ['yfth-procurement-product-index'],
+      },
+      component: () => import('@/pages/yfth/supplyChain/index'),
     },
     {
       path: 'product_classify',

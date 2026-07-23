@@ -42,6 +42,14 @@ class SupplyChain extends AuthController
         ]), (int)$this->adminId, $this->adminInfo ?: []));
     }
 
+    public function catalogImportVisible(SupplyChainServices $services)
+    {
+        $this->assertAdminApiAuth('yfth/supply_chain/catalog/import_visible', 'POST');
+        return app('json')->success($services->adminImportVisibleProducts($this->request->postMore([
+            ['product_ids', []],
+        ]), (int)$this->adminId, $this->adminInfo ?: []));
+    }
+
     public function productSearch(SupplyChainServices $services)
     {
         $this->assertAdminApiAuth('yfth/supply_chain/product/search', 'GET');

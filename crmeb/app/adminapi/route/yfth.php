@@ -147,6 +147,7 @@ Route::group('yfth', function () {
         Route::get('catalog', 'v1.yfth.SupplyChain/catalogList')->option(['real_name' => 'Supply catalog list']);
         Route::post('catalog/save', 'v1.yfth.SupplyChain/catalogSave')->option(['real_name' => 'Supply catalog save']);
         Route::post('catalog/disable', 'v1.yfth.SupplyChain/catalogDisable')->option(['real_name' => 'Supply catalog disable']);
+        Route::post('catalog/import_visible', 'v1.yfth.SupplyChain/catalogImportVisible')->option(['real_name' => 'Import visible physical products into supply catalog']);
         Route::get('product/search', 'v1.yfth.SupplyChain/productSearch')->option(['real_name' => 'Supply product search']);
         Route::get('purchase_order', 'v1.yfth.SupplyChain/purchaseOrderList')->option(['real_name' => 'Purchase order list']);
         Route::get('purchase_order/:id', 'v1.yfth.SupplyChain/purchaseOrderDetail')->option(['real_name' => 'Purchase order detail']);

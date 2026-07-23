@@ -119,13 +119,90 @@ class SupplyChainServices extends YfthFoundationBaseServices
         return ['catalog' => $this->formatCatalog($after, true)];
     }
 
+    public function adminImportVisibleProducts(array $data, int $adminId, array $adminInfo = []): array
+    {
+        $this->assertHeadquarterAdmin($adminInfo);
+        $requestedIds = array_values(array_unique(array_filter(array_map('intval', (array)($data['product_ids'] ?? [])))));
+        $query = Db::name('store_product')
+            ->where('is_del', 0)
+            ->where('is_show', 1)
+            ->where('is_virtual', 0);
+        if ($requestedIds) {
+            $query->whereIn('id', $requestedIds);
+        }
+        $products = $query
+            ->field('id,store_name,price')
+            ->order('id asc')
+            ->select()
+            ->toArray();
+        if (!$products) {
+            throw new ApiException('supply_catalog_no_visible_physical_products');
+        }
+
+        $existingIds = $this->dao->search([])
+            ->whereIn('product_id', array_column($products, 'id'))
+            ->column('product_id');
+        $existingMap = array_fill_keys(array_map('intval', $existingIds), true);
+        $imported = [];
+        $skipped = [];
+        $now = time();
+
+        foreach ($products as $product) {
+            $productId = (int)$product['id'];
+            if (isset($existingMap[$productId])) {
+                $skipped[] = $productId;
+                continue;
+            }
+            $price = $this->normalizeMoney((string)$product['price']);
+            if ($price === '') {
+                $skipped[] = $productId;
+                continue;
+            }
+            $payload = [
+                'product_id' => $productId,
+                'status' => 'active',
+                'purchase_price' => $price,
+                'retail_reference_price' => $price,
+                'min_purchase_quantity' => 1,
+                'package_multiple' => 1,
+                'allow_store_types' => '',
+                'qualification_requirement' => '',
+                'created_uid' => $adminId,
+                'updated_uid' => $adminId,
+                'create_time' => $now,
+                'update_time' => $now,
+            ];
+            try {
+                $created = $this->dao->save($payload);
+            } catch (\Throwable $e) {
+                if ($this->dao->getOne(['product_id' => $productId])) {
+                    $skipped[] = $productId;
+                    continue;
+                }
+                throw $e;
+            }
+            $row = $this->rowArray($created);
+            $this->audit('supply_catalog', (int)$row['id'], 'import_visible_product', [], $row, $adminId, 'headquarter_admin', 0, '');
+            $imported[] = $this->formatCatalog($row, true, $product);
+        }
+
+        return [
+            'imported_count' => count($imported),
+            'skipped_count' => count($skipped),
+            'imported' => $imported,
+            'skipped_product_ids' => $skipped,
+        ];
+    }
+
     public function productSearch(array $where, array $adminInfo = []): array
     {
         $this->assertHeadquarterAdmin($adminInfo);
         [$page, $limit, $defaultLimit] = $this->getPageValue();
         $limit = $limit ?: $defaultLimit;
         $keyword = trim((string)($where['keyword'] ?? ''));
-        $query = Db::name('store_product')->where('is_del', 0);
+        $query = Db::name('store_product')
+            ->where('is_del', 0)
+            ->where('is_virtual', 0);
         if ($keyword !== '') {
             if (ctype_digit($keyword)) {
                 $query->where('id', (int)$keyword);
