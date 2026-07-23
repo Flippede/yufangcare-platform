@@ -262,11 +262,20 @@ export default {
   methods: {
     loadDashboard() {
       return yfthPartnerDashboard({ _t: Date.now() }).then((res) => {
-        this.dashboard = res.data || {};
+        this.dashboard = this.responsePayload(res);
         this.rankOptions = this.dashboard.rank_options || [];
-        this.partnerRules = Array.isArray(this.dashboard.rule_versions) ? this.dashboard.rule_versions : [];
+        this.partnerRules = this.normalizeList(this.dashboard.rule_versions);
         return this.dashboard;
       });
+    },
+    responsePayload(res) {
+      const first = res && typeof res === 'object' ? res : {};
+      const payload = first.data && typeof first.data === 'object' ? first.data : first;
+      return payload.data && typeof payload.data === 'object' ? payload.data : payload;
+    },
+    normalizeList(value) {
+      if (Array.isArray(value)) return value;
+      return value && typeof value === 'object' ? Object.keys(value).map((key) => value[key]) : [];
     },
     onTabClick(pane) {
       const name = pane && pane.name ? String(pane.name) : this.tab;
@@ -287,10 +296,11 @@ export default {
     loadRules() {
       this.rulesLoading = true;
       return yfthPartnerDashboard({ _t: Date.now() }).then((res) => {
-        const d = res.data || {};
+        const d = this.responsePayload(res);
         this.dashboard = d;
-        this.partnerRules = Array.isArray(d.rule_versions) ? d.rule_versions : [];
-        if (Array.isArray(d.rank_options)) this.rankOptions = d.rank_options;
+        this.partnerRules = this.normalizeList(d.rule_versions);
+        const rankOptions = this.normalizeList(d.rank_options);
+        if (rankOptions.length) this.rankOptions = rankOptions;
         this.rulesLoading = false;
         return d;
       }).catch((error) => {

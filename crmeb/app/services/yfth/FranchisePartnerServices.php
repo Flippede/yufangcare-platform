@@ -54,7 +54,7 @@ class FranchisePartnerServices extends YfthFoundationBaseServices
             'pending_rewards' => (int)Db::name('yfth_partner_reward_candidate')->where('status', 'pending')->count(),
             'open_warnings' => (int)Db::name('yfth_partner_warning')->where('status', 'open')->count(),
             'rank_options' => $this->rankOptions(),
-            'rule_versions' => $rules['list'],
+            'rule_versions' => array_values((array)$rules['list']),
             'disclaimer' => '招商收益候选和线下结算仅记录业务事实，不代表平台自动打款。',
         ];
     }
@@ -62,11 +62,11 @@ class FranchisePartnerServices extends YfthFoundationBaseServices
     public function adminRules(array $adminInfo): array
     {
         $this->assertHeadquarters($adminInfo);
-        $versions = Db::name('yfth_partner_rule_version')->order('version_no desc')->select()->toArray();
+        $versions = array_values(Db::name('yfth_partner_rule_version')->order('version_no desc')->select()->toArray());
         foreach ($versions as &$version) {
-            $version['rank_rules'] = $this->rankRules((int)$version['id']);
+            $version['rank_rules'] = array_values($this->rankRules((int)$version['id']));
         }
-        return ['list' => $versions, 'rank_options' => $this->rankOptions()];
+        return ['list' => array_values($versions), 'rank_options' => $this->rankOptions()];
     }
 
     public function adminSaveRule(array $data, int $adminId, array $adminInfo): array
