@@ -113,7 +113,7 @@
 
         <el-tab-pane label="职级规则" name="rules">
           <div class="toolbar"><el-button type="primary" icon="el-icon-plus" @click="openRule">复制当前规则</el-button></div>
-          <el-table v-loading="loading" :data="rules" border size="small">
+          <el-table v-loading="loading" :data="partnerRules" border size="small">
             <el-table-column prop="rule_no" label="规则编号" min-width="180" />
             <el-table-column prop="version_no" label="版本" width="80" />
             <el-table-column prop="order_amount" label="单笔金额" width="120" />
@@ -235,7 +235,7 @@ export default {
       partnerQuery: { keyword: '', rank_code: '', status: '', page: 1, limit: 20 },
       performances: [], rewards: [], rewardTotal: 0, rewardQuery: { status: '', page: 1, limit: 20 },
       procurementProfits: [], openingRewards: [], dividends: [], dividendPeriod: '',
-      rules: [], warnings: [], promotions: [], openingQuotas: [], rewardEvents: [], migrationIssues: [],
+      partnerRules: [], warnings: [], promotions: [], openingQuotas: [], rewardEvents: [], migrationIssues: [],
       eventQuery: { status: '', page: 1, limit: 100 }, detail: null, detailVisible: false, ruleVisible: false,
       ruleForm: { order_amount: '89100.00', bottle_count: 440, platform_dividend_bps: 100, rank_rules: {}, reason: '' },
     };
@@ -243,7 +243,7 @@ export default {
   computed: {
     rankCards() { return this.rankOptions.map((item) => ({ code: item.value, name: item.label, count: (this.dashboard.rank_counts || {})[item.value] || 0 })); },
   },
-  created() { this.loadDashboard(); this.loadPartners(); },
+  created() { this.loadDashboard(); this.loadPartners(); this.loadRules(); },
   methods: {
     loadDashboard() { return yfthPartnerDashboard().then((res) => { this.dashboard = res.data || {}; this.rankOptions = this.dashboard.rank_options || []; }); },
     loadTab() { ({ partners: this.loadPartners, performance: this.loadPerformances, procurementProfit: this.loadProcurementProfits, openingReward: this.loadOpeningRewards, dividends: this.loadDividends, rewards: this.loadRewards, rules: this.loadRules, warnings: this.loadWarnings, promotions: this.loadPromotions, openingQuota: this.loadOpeningQuotas, rewardEvents: this.loadRewardEvents, migrationIssues: this.loadMigrationIssues }[this.tab] || (() => {})).call(this); },
@@ -254,7 +254,7 @@ export default {
     loadDividends() { this.loading = true; return yfthPartnerDividends({ page: 1, limit: 100 }).then((res) => { this.dividends = (res.data || {}).list || []; }).finally(() => { this.loading = false; }); },
     generateDividend() { if (!this.dividendPeriod) return this.$message.warning('请选择月份'); return yfthPartnerDividendGenerate({ period_key: this.dividendPeriod }).then(() => { this.$message.success('分红批次已生成'); return this.loadDividends(); }); },
     loadRewards(reset) { if (reset === true) this.rewardQuery.page = 1; this.loading = true; return yfthPartnerRewards(this.rewardQuery).then((res) => { const d = res.data || {}; this.rewards = d.list || []; this.rewardTotal = Number(d.count || 0); }).finally(() => { this.loading = false; }); },
-    loadRules() { this.loading = true; return yfthPartnerRules().then((res) => { const d = res.data || {}; this.rules = d.list || []; this.rankOptions = d.rank_options || this.rankOptions; }).finally(() => { this.loading = false; }); },
+    loadRules() { this.loading = true; return yfthPartnerRules().then((res) => { const d = res.data || {}; this.partnerRules = Array.isArray(d.list) ? d.list : []; this.rankOptions = Array.isArray(d.rank_options) ? d.rank_options : this.rankOptions; }).finally(() => { this.loading = false; }); },
     loadWarnings() { this.loading = true; return yfthPartnerWarnings({ page: 1, limit: 100 }).then((res) => { this.warnings = (res.data || {}).list || []; }).finally(() => { this.loading = false; }); },
     loadPromotions() { this.loading = true; return yfthPartnerPromotions({ page: 1, limit: 100 }).then((res) => { this.promotions = (res.data || {}).list || []; }).finally(() => { this.loading = false; }); },
     loadOpeningQuotas() { this.loading = true; return yfthOpeningQuotaAwards({ page: 1, limit: 100 }).then((res) => { this.openingQuotas = (res.data || {}).list || []; }).finally(() => { this.loading = false; }); },
@@ -274,7 +274,7 @@ export default {
     changeParent(row) { this.$prompt('请输入直接上级 UID，填 0 表示总部直营', '调整招商上级').then(({ value }) => this.$prompt('请输入调整原因', '操作原因').then(({ value: reason }) => yfthPartnerParentChange(row.uid, { parent_uid: Number(value || 0), reason }))).then(() => { this.$message.success('招商上级已更新'); this.loadPartners(); }).catch(() => {}); },
     rewardAction(row, action) { this.$prompt('请输入操作原因', action === 'confirm' ? '确认收益候选' : '取消收益候选').then(({ value }) => yfthPartnerRewardAction(row.id, action, { reason: value })).then(() => { this.$message.success('操作完成'); this.loadRewards(); this.loadDashboard(); }); },
     settle(row) { this.$prompt('请输入线下凭证编号或附件说明', '记录线下结算').then(({ value: evidence }) => this.$prompt('请输入结算说明', '操作原因').then(({ value: reason }) => yfthPartnerRewardAction(row.id, 'settle', { evidence, reason }))).then(() => { this.$message.success('线下结算事实已记录'); this.loadRewards(); }); },
-    openRule() { const source = this.rules.find((item) => item.status === 'published') || this.rules[0] || {}; const map = {}; this.rankOptions.forEach((rank) => { const current = (source.rank_rules || []).find((item) => item.rank_code === rank.value) || {}; map[rank.value] = { reward_per_bottle: current.reward_per_bottle || '0.00', procurement_percent: Number(current.procurement_rate_bps || 0) / 100, opening_reward_amount: Number(current.opening_reward_amount_cent || 0) / 100 }; }); this.ruleForm = { order_amount: source.order_amount || '89100.00', bottle_count: Number(source.bottle_count || 440), platform_dividend_bps: Number(source.platform_dividend_bps || 100), rank_rules: map, reason: '' }; this.ruleVisible = true; },
+    openRule() { const source = this.partnerRules.find((item) => item.status === 'published') || this.partnerRules[0] || {}; const map = {}; this.rankOptions.forEach((rank) => { const current = (source.rank_rules || []).find((item) => item.rank_code === rank.value) || {}; map[rank.value] = { reward_per_bottle: current.reward_per_bottle || '0.00', procurement_percent: Number(current.procurement_rate_bps || 0) / 100, opening_reward_amount: Number(current.opening_reward_amount_cent || 0) / 100 }; }); this.ruleForm = { order_amount: source.order_amount || '89100.00', bottle_count: Number(source.bottle_count || 440), platform_dividend_bps: Number(source.platform_dividend_bps || 100), rank_rules: map, reason: '' }; this.ruleVisible = true; },
     saveRule() { if (!this.ruleForm.reason) return this.$message.warning('必须填写规则变更原因'); const payload = JSON.parse(JSON.stringify(this.ruleForm)); Object.keys(payload.rank_rules || {}).forEach((code) => { const row = payload.rank_rules[code]; row.procurement_rate_bps = Math.round(Number(row.procurement_percent || 0) * 100); row.opening_reward_amount_cent = Math.round(Number(row.opening_reward_amount || 0) * 100); delete row.procurement_percent; delete row.opening_reward_amount; }); yfthPartnerRuleSave(payload).then(() => { this.$message.success('规则草稿已保存'); this.ruleVisible = false; this.loadRules(); }); },
     publishRule(row) { this.$prompt('请输入发布原因', '发布规则').then(({ value }) => yfthPartnerRulePublish(row.id, { reason: value })).then(() => { this.$message.success('新规则已发布，历史快照不会重算'); this.loadRules(); }); },
     sourceName(value) { return { franchise_opening: '正式开店', legacy_franchisee_migration: '历史身份迁移' }[value] || value || '-'; },
