@@ -113,18 +113,31 @@
 
         <el-tab-pane label="职级规则" name="rules">
           <div class="toolbar"><el-button type="primary" icon="el-icon-plus" @click="openRule">复制当前规则</el-button></div>
-          <el-table v-loading="loading" :data="partnerRules" border size="small">
-            <el-table-column prop="rule_no" label="规则编号" min-width="180" />
-            <el-table-column prop="version_no" label="版本" width="80" />
-            <el-table-column prop="order_amount" label="单笔金额" width="120" />
-            <el-table-column prop="bottle_count" label="瓶数" width="90" />
-            <el-table-column prop="platform_dividend_bps" label="董事加权(BPS)" width="130" />
-            <el-table-column prop="status" label="状态" width="90" />
-            <el-table-column label="五级每瓶金额" min-width="320"><template slot-scope="{ row }"><span v-for="rank in row.rank_rules" :key="rank.rank_code" class="rule-pill">{{ rank.rank_name }} {{ rank.reward_per_bottle }}</span></template></el-table-column>
-            <el-table-column label="采购分润比例" min-width="320"><template slot-scope="{ row }"><span v-for="rank in row.rank_rules" :key="'purchase-' + rank.rank_code" class="rule-pill">{{ rank.rank_name }} {{ Number(rank.procurement_rate_bps || 0) / 100 }}%</span></template></el-table-column>
-            <el-table-column label="开店服务奖励" min-width="260"><template slot-scope="{ row }"><span v-for="rank in row.rank_rules" :key="'opening-' + rank.rank_code" class="rule-pill">{{ rank.rank_name }} {{ moneyCent(rank.opening_reward_amount_cent) }}</span></template></el-table-column>
-            <el-table-column label="操作" width="110"><template slot-scope="{ row }"><el-button v-if="row.status === 'draft'" type="text" @click="publishRule(row)">发布</el-button></template></el-table-column>
-          </el-table>
+          <div v-loading="loading" class="partner-rule-list">
+            <div v-for="rule in partnerRules" :key="rule.id" class="partner-rule-card">
+              <div class="partner-rule-head">
+                <div>
+                  <strong>{{ rule.rule_no }}</strong>
+                  <span>版本 {{ rule.version_no }}</span>
+                  <span>{{ rule.status === 'published' ? '已发布' : '草稿' }}</span>
+                </div>
+                <el-button v-if="rule.status === 'draft'" type="text" @click="publishRule(rule)">发布</el-button>
+              </div>
+              <div class="partner-rule-summary">
+                <span>单笔金额：{{ rule.order_amount }}</span>
+                <span>瓶数：{{ rule.bottle_count }}</span>
+                <span>平台董事加权：{{ Number(rule.platform_dividend_bps || 0) / 100 }}%</span>
+              </div>
+              <div class="partner-rule-ranks">
+                <div v-for="rank in rule.rank_rules" :key="rank.rank_code" class="partner-rule-rank">
+                  <strong>{{ rank.rank_name }}</strong>
+                  <span>采购分润 {{ Number(rank.procurement_rate_bps || 0) / 100 }}%</span>
+                  <span>开店服务奖励 {{ moneyCent(rank.opening_reward_amount_cent) }}</span>
+                </div>
+              </div>
+            </div>
+            <div v-if="!loading && partnerRules.length === 0" class="partner-rule-empty">暂无职级规则</div>
+          </div>
         </el-tab-pane>
 
         <el-tab-pane label="保级预警" name="warnings">
@@ -289,5 +302,16 @@ export default {
 .summary-item { min-height: 76px; padding: 14px; border: 1px solid #e8ded0; border-radius: 6px; background: #fff; }
 .summary-item span { display: block; color: #8b765f; font-size: 12px; }.summary-item strong { display: block; margin-top: 8px; color: #5f4228; font-size: 24px; }
 .summary-item.warning { border-color: #e6b968; background: #fff9ec; }.content-card { margin-top: 14px; }.toolbar { display: flex; gap: 10px; margin-bottom: 14px; }.toolbar .el-input { width: 300px; }.pager { margin-top: 16px; text-align: right; }.muted { margin-top: 4px; color: #999; font-size: 12px; }.danger { color: #f56c6c; }.rule-pill { display: inline-block; margin: 2px 6px 2px 0; padding: 3px 7px; border-radius: 4px; background: #f5eee5; color: #785737; font-size: 12px; }.detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px; }.detail-grid>div { padding: 12px; background: #f7f4ef; }.detail-grid span { display: block; color: #999; font-size: 12px; }.detail-grid b { display: block; margin-top: 5px; }
+.partner-rule-list { min-height: 120px; }
+.partner-rule-card { margin-bottom: 12px; padding: 16px; border: 1px solid #e8ded0; border-radius: 6px; background: #fff; }
+.partner-rule-head { display: flex; align-items: center; justify-content: space-between; }
+.partner-rule-head>div { display: flex; align-items: center; gap: 16px; color: #8b765f; }
+.partner-rule-head strong { color: #30261f; font-size: 16px; }
+.partner-rule-summary { display: flex; gap: 28px; margin-top: 12px; padding: 10px 12px; background: #f8f5f0; color: #6f5b47; }
+.partner-rule-ranks { display: grid; grid-template-columns: repeat(5, minmax(150px, 1fr)); gap: 10px; margin-top: 12px; }
+.partner-rule-rank { padding: 12px; border: 1px solid #efe5d7; border-radius: 4px; }
+.partner-rule-rank strong, .partner-rule-rank span { display: block; }
+.partner-rule-rank span { margin-top: 6px; color: #7e6b58; font-size: 12px; }
+.partner-rule-empty { padding: 36px; text-align: center; color: #999; }
 @media (max-width: 1280px) { .summary-grid { grid-template-columns: repeat(4, 1fr); } }
 </style>
