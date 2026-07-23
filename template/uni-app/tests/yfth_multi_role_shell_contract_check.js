@@ -44,6 +44,10 @@ assert(!userPage.includes('if (!this.isYfthPermanentMember) { this.goYfthPackage
 const referralCodePage = read('pages/yfth/referral/code.vue');
 assert(referralCodePage.includes('v-if="!isMember"') && referralCodePage.includes('我的身份码'), 'ordinary customers must render the identity-code panel');
 assert(referralCodePage.includes('return this.issueIdentity();'), 'ordinary customers must issue an identity code instead of a referral invite');
+assert(referralCodePage.includes("{{ isMember ? '我的推广码' : '我的身份码' }}"), 'identity-code page heading must follow permanent membership state');
+assert(referralCodePage.includes('普通用户身份码不具备推广能力，也不会建立一级推荐关系'), 'ordinary identity code must explicitly reject referral semantics');
+assert(referralCodePage.includes("if (!this.isMember) return { title: '御方通和总部商城'"), 'ordinary identity code sharing must not publish a referral invite');
+assert(referralCodePage.includes('else uni.hideShareMenu();'), 'ordinary identity code must hide the mini-program referral share action');
 
 const context = read('libs/yfthContext.js');
 const cache = read('utils/cache.js');

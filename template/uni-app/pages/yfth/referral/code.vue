@@ -1,16 +1,16 @@
 <template>
 	<view class="page">
-		<view v-if="loading" class="state">正在准备推广码...</view>
+		<view v-if="loading" class="state">正在准备身份码...</view>
 		<view v-else-if="error" class="state error"><text>{{ error }}</text><button @click="load">重新加载</button></view>
 		<block v-else>
 			<view class="hero">
-				<view class="eyebrow">御方通和永久会员</view>
-				<view class="title">我的推广码</view>
-				<view class="subtitle">邀请非会员加入同一归属门店</view>
+				<view class="eyebrow">{{ isMember ? '御方通和永久会员' : '御方通和普通用户' }}</view>
+				<view class="title">{{ isMember ? '我的推广码' : '我的身份码' }}</view>
+				<view class="subtitle">{{ isMember ? '邀请非会员加入同一归属门店' : '用于向所属门店核验本人身份' }}</view>
 			</view>
 			<view v-if="!isMember" class="panel empty-panel">
-				<view class="panel-title">我的身份码</view>
-				<view class="muted">向所属门店店长或店员出示此码，可核验账号并办理线下会员开通。本码不具备推广能力。</view>
+				<view class="panel-title">身份核验码</view>
+				<view class="muted">向所属门店店长或店员出示此码，可核验账号并办理线下会员开通。普通用户身份码不具备推广能力，也不会建立一级推荐关系。</view>
 				<view v-if="identity.token" class="qr-wrap">
 					<zb-code ref="identityQrcode" cid="yfth-identity-qr" :val="identity.token" :size="390" :onval="true" :loadMake="true" foreground="#7b572c" @result="onIdentityQrReady" />
 				</view>
@@ -118,8 +118,12 @@ export default {
 			return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
 		}
 	},
-	onLoad() { this.load(); },
+	onLoad() {
+		uni.setNavigationBarTitle({ title: '我的身份码' });
+		this.load();
+	},
 	onShareAppMessage() {
+		if (!this.isMember) return { title: '御方通和总部商城', path: YFTH_HEADQUARTERS_HOME_ROUTE };
 		const path = this.invite.invite_token ? yfthReferralAcceptRoute(this.invite.invite_token) : YFTH_HEADQUARTERS_HOME_ROUTE;
 		return { title: '接受御方通和推荐邀请', path };
 	},
@@ -128,6 +132,7 @@ export default {
 			this.loading = true; this.error = '';
 			getYfthPackageMembershipMe().then((res) => {
 				this.profile = res.data || {};
+				this.updatePageChrome();
 				if (this.promotion.code_type === 'store_acquisition') {
 					const role = encodeURIComponent(this.promotion.role_code || 'store_staff');
 					const store = Number(this.promotion.store_id || 0);
@@ -138,6 +143,13 @@ export default {
 				return this.issueIdentity();
 			}).catch((err) => { this.error = (err && (err.msg || err.message)) || '推广资格读取失败'; })
 				.finally(() => { this.loading = false; });
+		},
+		updatePageChrome() {
+			uni.setNavigationBarTitle({ title: this.isMember ? '我的推广码' : '我的身份码' });
+			// #ifdef MP-WEIXIN
+			if (this.isMember) uni.showShareMenu({ menus: ['shareAppMessage'] });
+			else uni.hideShareMenu();
+			// #endif
 		},
 		issue() {
 			if (this.issuing) return Promise.resolve();
