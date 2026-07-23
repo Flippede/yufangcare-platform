@@ -75,7 +75,7 @@
 import jsQR from 'jsqr';
 // #endif
 import { activateYfthStorePermanentMembershipIdentity } from '@/api/yfth.js';
-import { currentContext } from '@/libs/yfthContext.js';
+import { currentContext, loadYfthIdentities, resolveYfthContext } from '@/libs/yfthContext.js';
 import { yfthReferralAcceptRoute } from '@/libs/yfthReferralNavigation.js';
 
 export default {
@@ -95,6 +95,7 @@ export default {
 			lastScanAt: 0,
 			nativeScannerOpened: false,
 			h5FilePicker: null,
+			operatorContext: null,
 			safeTop: 20,
 			safeBottom: 0
 		};
@@ -111,9 +112,7 @@ export default {
 			return !this.cameraPending && !this.cameraActive;
 		},
 		isStoreMembershipOperator() {
-			const context = currentContext();
-			return ['store_manager', 'store_staff'].indexOf(String(context.role_code || '')) !== -1
-				&& Number(context.store_id || 0) > 0;
+			return this.isMembershipOperatorContext(this.operatorContext || currentContext());
 		},
 		membershipScanPreferred() {
 			return this.mode === 'membership_activation' || this.isStoreMembershipOperator;
@@ -141,6 +140,9 @@ export default {
 		const system = uni.getSystemInfoSync ? uni.getSystemInfoSync() : {};
 		this.safeTop = Number((system.safeAreaInsets && system.safeAreaInsets.top) || system.statusBarHeight || 20);
 		this.safeBottom = Number((system.safeAreaInsets && system.safeAreaInsets.bottom) || 0);
+		if (this.mode === 'membership_activation') {
+			this.resolveMembershipOperatorContext().catch(() => {});
+		}
 	},
 	onReady() {
 		this.$nextTick(() => this.scan());
@@ -296,10 +298,11 @@ export default {
 		consume(value) {
 			const identityToken = this.extractIdentityToken(value);
 			if (identityToken) {
-				if (!this.isStoreMembershipOperator) {
-					return this.toast('该码为用户身份码，仅限门店店长或店员核验');
-				}
-				return this.confirmIdentityActivation(identityToken);
+				this.stopCamera();
+				this.nativeScannerOpened = false;
+				return this.resolveMembershipOperatorContext()
+					.then((context) => this.confirmIdentityActivation(identityToken, context))
+					.catch(() => this.toast('该码为用户身份码，仅限当前门店的店长或店员核验'));
 			}
 			if (this.mode === 'membership_activation') return this.toast('不是有效的御方通和用户身份码');
 			const target = this.extractTarget(value);
@@ -310,7 +313,35 @@ export default {
 				: yfthReferralAcceptRoute(target.token);
 			uni.navigateTo({ url });
 		},
-		confirmIdentityActivation(token) {
+		isMembershipOperatorContext(context) {
+			return ['store_manager', 'store_staff'].indexOf(String((context && context.role_code) || '')) !== -1
+				&& Number((context && context.store_id) || 0) > 0;
+		},
+		resolveMembershipOperatorContext() {
+			const cached = currentContext();
+			if (this.isMembershipOperatorContext(cached)) {
+				this.operatorContext = cached;
+				return Promise.resolve(cached);
+			}
+			return loadYfthIdentities().then((identities) => {
+				const operators = (identities || []).filter((item) => this.isMembershipOperatorContext(item));
+				const selected = operators.find((item) => {
+					return item.role_code === cached.role_code
+						&& Number(item.store_id || 0) === Number(cached.store_id || 0);
+				}) || operators.sort((left, right) => {
+					if (left.role_code !== right.role_code) return left.role_code === 'store_manager' ? -1 : 1;
+					return Number(left.store_id || 0) - Number(right.store_id || 0);
+				})[0];
+				if (!selected) {
+					throw new Error('membership_store_operator_forbidden');
+				}
+				return resolveYfthContext(selected.role_code, selected.store_id);
+			}).then((context) => {
+				this.operatorContext = context;
+				return context;
+			});
+		},
+		confirmIdentityActivation(token, context) {
 			this.stopCamera();
 			this.nativeScannerOpened = false;
 			uni.showModal({
@@ -320,13 +351,12 @@ export default {
 				cancelText: '取消',
 				success: (result) => {
 					if (!result.confirm) return this.scan();
-					this.activateIdentityMembership(token);
+					this.activateIdentityMembership(token, context);
 				},
 				fail: () => this.scan()
 			});
 		},
-		activateIdentityMembership(token) {
-			const context = currentContext();
+		activateIdentityMembership(token, context) {
 			uni.showLoading({ title: '正在核验', mask: true });
 			activateYfthStorePermanentMembershipIdentity({
 				role_code: context.role_code,
