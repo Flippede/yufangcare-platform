@@ -219,7 +219,7 @@
     </el-dialog>
 
     <el-dialog title="创建职级规则草稿" :visible.sync="ruleVisible" width="680px">
-      <el-form label-width="150px"><el-form-item label="有效开店金额"><el-input v-model="ruleForm.order_amount" /></el-form-item><el-form-item label="每单瓶数"><el-input-number v-model="ruleForm.bottle_count" :min="1" /></el-form-item>
+      <el-form v-if="ruleVisible" label-width="150px"><el-form-item label="有效开店金额"><el-input v-model="ruleForm.order_amount" /></el-form-item><el-form-item label="每单瓶数"><el-input-number v-model="ruleForm.bottle_count" :min="1" /></el-form-item>
         <el-form-item label="董事分红池(BPS)"><el-input-number v-model="ruleForm.platform_dividend_bps" :min="0" :max="10000" /></el-form-item>
         <template v-for="rank in rankOptions">
           <el-form-item :key="rank.value + '-bottle'" :label="rank.label + '/瓶'"><el-input v-model="ruleForm.rank_rules[rank.value].reward_per_bottle" /></el-form-item>
