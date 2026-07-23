@@ -113,7 +113,7 @@
 
         <el-tab-pane label="职级规则" name="rules">
           <div class="toolbar"><el-button type="primary" icon="el-icon-plus" @click="openRule">复制当前规则</el-button></div>
-          <div v-loading="loading" class="partner-rule-list">
+          <div :key="'rules-' + rulesRenderKey" v-loading="rulesLoading" class="partner-rule-list">
             <div v-for="rule in partnerRules" :key="rule.id" class="partner-rule-card">
               <div class="partner-rule-head">
                 <div>
@@ -136,7 +136,7 @@
                 </div>
               </div>
             </div>
-            <div v-if="!loading && partnerRules.length === 0" class="partner-rule-empty">暂无职级规则</div>
+            <div v-if="!rulesLoading && partnerRules.length === 0" class="partner-rule-empty">暂无职级规则</div>
           </div>
         </el-tab-pane>
 
@@ -248,7 +248,7 @@ export default {
       partnerQuery: { keyword: '', rank_code: '', status: '', page: 1, limit: 20 },
       performances: [], rewards: [], rewardTotal: 0, rewardQuery: { status: '', page: 1, limit: 20 },
       procurementProfits: [], openingRewards: [], dividends: [], dividendPeriod: '',
-      partnerRules: [], warnings: [], promotions: [], openingQuotas: [], rewardEvents: [], migrationIssues: [],
+      partnerRules: [], rulesLoading: false, rulesRenderKey: 0, warnings: [], promotions: [], openingQuotas: [], rewardEvents: [], migrationIssues: [],
       eventQuery: { status: '', page: 1, limit: 100 }, detail: null, detailVisible: false, ruleVisible: false,
       ruleForm: { order_amount: '89100.00', bottle_count: 440, platform_dividend_bps: 100, rank_rules: {}, reason: '' },
     };
@@ -267,7 +267,18 @@ export default {
     loadDividends() { this.loading = true; return yfthPartnerDividends({ page: 1, limit: 100 }).then((res) => { this.dividends = (res.data || {}).list || []; }).finally(() => { this.loading = false; }); },
     generateDividend() { if (!this.dividendPeriod) return this.$message.warning('请选择月份'); return yfthPartnerDividendGenerate({ period_key: this.dividendPeriod }).then(() => { this.$message.success('分红批次已生成'); return this.loadDividends(); }); },
     loadRewards(reset) { if (reset === true) this.rewardQuery.page = 1; this.loading = true; return yfthPartnerRewards(this.rewardQuery).then((res) => { const d = res.data || {}; this.rewards = d.list || []; this.rewardTotal = Number(d.count || 0); }).finally(() => { this.loading = false; }); },
-    loadRules() { this.loading = true; return yfthPartnerRules().then((res) => { const d = res.data || {}; this.partnerRules = Array.isArray(d.list) ? d.list : []; this.rankOptions = Array.isArray(d.rank_options) ? d.rank_options : this.rankOptions; }).finally(() => { this.loading = false; }); },
+    loadRules() {
+      this.rulesLoading = true;
+      return yfthPartnerRules().then((res) => {
+        const d = res.data || {};
+        this.$set(this, 'partnerRules', Array.isArray(d.list) ? d.list : []);
+        if (Array.isArray(d.rank_options)) this.$set(this, 'rankOptions', d.rank_options);
+        this.rulesRenderKey += 1;
+      }).finally(() => {
+        this.rulesLoading = false;
+        this.$nextTick(() => this.$forceUpdate());
+      });
+    },
     loadWarnings() { this.loading = true; return yfthPartnerWarnings({ page: 1, limit: 100 }).then((res) => { this.warnings = (res.data || {}).list || []; }).finally(() => { this.loading = false; }); },
     loadPromotions() { this.loading = true; return yfthPartnerPromotions({ page: 1, limit: 100 }).then((res) => { this.promotions = (res.data || {}).list || []; }).finally(() => { this.loading = false; }); },
     loadOpeningQuotas() { this.loading = true; return yfthOpeningQuotaAwards({ page: 1, limit: 100 }).then((res) => { this.openingQuotas = (res.data || {}).list || []; }).finally(() => { this.loading = false; }); },
