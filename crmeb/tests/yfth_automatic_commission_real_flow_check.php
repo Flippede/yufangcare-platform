@@ -270,6 +270,11 @@ try {
         'remark' => 'isolated offline paid by staff',
     ]);
     $assert((string)$staffPaid['status'] === 'paid', 'store_staff_can_complete_same_store_c1_settlement');
+    $c1SettlementSummary = $finance->storeSummary(acContext($fixture['manager'], 'store_manager', $storeA));
+    $assert((int)$c1SettlementSummary['c1_account']['unsettled_cent'] === $c1PendingBefore - 800,
+        'completed_c1_settlements_reduce_store_c1_unsettled_summary');
+    $assert((int)$c1SettlementSummary['c1_account']['settled_cent'] === 800,
+        'completed_c1_settlements_increase_store_c1_settled_summary');
 
     $negativeUid = $fixture['negative'];
     $finance->adjustUser($negativeUid, -1000, 1, 'isolated negative adjustment', 'ac-user-negative');
@@ -418,6 +423,8 @@ try {
 
     $storeSummary = $finance->storeSummary(acContext($fixture['manager'], 'store_manager', $storeA));
     $assert(isset($storeSummary['account']['unsettled']) && isset($storeSummary['account']['settled']), 'b1_surface_exposes_only_settlement_balances');
+    $assert(isset($storeSummary['c1_account']['unsettled']) && isset($storeSummary['c1_account']['settled']),
+        'store_surface_exposes_c1_settlement_balances_separately');
     foreach (['own_available_cent', 'proxy_available_cent', 'hq_frozen_cent', 'hq_withdrawn_cent'] as $forbidden) {
         $assert(!array_key_exists($forbidden, $storeSummary['account']), 'b1_surface_hides_withdrawal_bucket:' . $forbidden);
     }

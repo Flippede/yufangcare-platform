@@ -1,12 +1,12 @@
 <template>
 	<view class="page">
 		<view class="header">
-			<view><text class="eyebrow">当前门店结算</text><text class="title">¥ {{ account.unsettled || '0.00' }}</text><text class="sub">未结算金额</text></view>
+			<view><text class="eyebrow">C1 线下结算</text><text class="title">¥ {{ c1Account.unsettled || '0.00' }}</text><text class="sub">待完成结算金额</text></view>
 			<view class="store-name">{{ context.store_name || ('门店 ' + context.store_id) }}</view>
 		</view>
 		<view class="metrics">
-			<view><text>{{ account.unsettled || '0.00' }}</text><text>未结算金额</text></view>
-			<view><text>{{ account.settled || '0.00' }}</text><text>已结算金额</text></view>
+			<view><text>{{ c1Account.unsettled || '0.00' }}</text><text>待完成结算金额</text></view>
+			<view><text>{{ c1Account.settled || '0.00' }}</text><text>已完成结算金额</text></view>
 		</view>
 		<view class="tabs">
 			<view v-for="item in tabs" :key="item.key" :class="{ active: tab === item.key }" @click="tab = item.key">{{ item.label }}</view>
@@ -43,7 +43,7 @@ import { getYfthStoreCommissionSummary, getYfthStoreCommissionLedger, getYfthSto
 import { currentContext } from '@/libs/yfthContext.js';
 
 export default {
-	data() { return { context: currentContext(), account: {}, ledger: [], c1Settlements: [], batches: [], tab: 'batches' }; },
+	data() { return { context: currentContext(), account: {}, c1Account: {}, ledger: [], c1Settlements: [], batches: [], tab: 'batches' }; },
 	computed: { tabs() { return [{ key: 'batches', label: '结算明细' }, { key: 'c1', label: 'C1结算' }, { key: 'ledger', label: '佣金明细' }]; } },
 	onShow() { this.context = currentContext(); this.load(); },
 	methods: {
@@ -53,6 +53,7 @@ export default {
 			return Promise.all([getYfthStoreCommissionSummary(params), getYfthStoreCommissionLedger(params), getYfthStoreC1Settlements(params), getYfthStoreCommissionSettlementBatches(params)])
 				.then(([summary, ledger, c1, batches]) => {
 					this.account = (summary.data && summary.data.account) || {};
+					this.c1Account = (summary.data && summary.data.c1_account) || {};
 					this.ledger = (ledger.data && ledger.data.list) || [];
 					this.c1Settlements = (c1.data && c1.data.list) || [];
 					this.batches = (batches.data && batches.data.list) || [];

@@ -108,9 +108,16 @@ class CommissionFinanceServices
     {
         $storeId = $this->assertStoreContext($context);
         $account = $this->storeAccount($storeId);
+        $c1Account = [
+            'unsettled_cent' => (int)$account['c1_pending_cent'],
+            'settled_cent' => (int)$account['c1_paid_cent'],
+        ];
         return [
             'store_id' => $storeId,
             'account' => $this->moneyDto($account, [
+                'unsettled_cent', 'settled_cent',
+            ]),
+            'c1_account' => $this->moneyDto($c1Account, [
                 'unsettled_cent', 'settled_cent',
             ]),
             'notice' => '门店佣金按总部结算周期处理；页面不提供余额或提现能力。',
