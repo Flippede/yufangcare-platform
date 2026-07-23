@@ -9,6 +9,7 @@
 // +----------------------------------------------------------------------
 
 const path = require('path');
+const { execFileSync } = require('child_process');
 // 引入js打包工具
 const UglifyJsPlugin = require('uglifyjs-webpack-plugin');
 const MonacoWebpackPlugin = require('monaco-editor-webpack-plugin');
@@ -16,6 +17,20 @@ const MonacoWebpackPlugin = require('monaco-editor-webpack-plugin');
 const resolve = (dir) => {
   return path.join(__dirname, dir);
 };
+const resolveAdminBuildId = () => {
+  if (process.env.YFTH_ADMIN_BUILD_ID) {
+    return process.env.YFTH_ADMIN_BUILD_ID.replace(/[^a-zA-Z0-9_-]/g, '');
+  }
+  try {
+    return execFileSync('git', ['rev-parse', '--short', 'HEAD'], {
+      cwd: path.resolve(__dirname, '../..'),
+      encoding: 'utf8',
+    }).trim();
+  } catch (error) {
+    return 'local';
+  }
+};
+const adminBuildId = resolveAdminBuildId();
 // 项目部署基础
 module.exports = {
   // 打包路径
@@ -58,6 +73,16 @@ module.exports = {
   },
   chainWebpack: (config) => {
     config.plugins.delete('prefetch');
+    if (process.env.NODE_ENV === 'production') {
+      config.output
+        .filename(`system_static/js/[name].[contenthash:8].${adminBuildId}.js`)
+        .chunkFilename(`system_static/js/[name].[contenthash:8].${adminBuildId}.js`);
+      config.plugin('extract-css').tap((args) => {
+        args[0].filename = `system_static/css/[name].[contenthash:8].${adminBuildId}.css`;
+        args[0].chunkFilename = `system_static/css/[name].[contenthash:8].${adminBuildId}.css`;
+        return args;
+      });
+    }
     config.resolve.alias
       .set('@', resolve('src')) // key,value自行定义，比如.set('@@', resolve('src/components'))
       .set('_c', resolve('src/components'));
