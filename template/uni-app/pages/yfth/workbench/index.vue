@@ -132,8 +132,16 @@
 										@input="setMembershipRejectReason(item.id, $event)"
 									/>
 									<view class="button-row">
-										<button class="primary" @click="approveMembershipApplication(item)">确认开通</button>
-										<button @click="rejectMembershipApplication(item)">拒绝申请</button>
+										<view
+											class="membership-action primary"
+											hover-class="membership-action-active"
+											@tap.stop="approveMembershipApplication(item)"
+										>确认开通</view>
+										<view
+											class="membership-action"
+											hover-class="membership-action-active"
+											@tap.stop="rejectMembershipApplication(item)"
+										>拒绝申请</view>
 									</view>
 								</view>
 							</view>
@@ -879,7 +887,21 @@ button { font-size: 26rpx; }
 .membership-application { border: 1rpx solid #eee1cf; box-shadow: none; }
 .application-summary { margin-top: 18rpx; padding: 18rpx; border-radius: 12rpx; background: #fffaf2; color: #5e5147; font-size: 24rpx; line-height: 1.75; }
 .membership-actions { margin-top: 18rpx; }
-.membership-actions .button-row button { min-width: 0; }
+.membership-actions .button-row { align-items: stretch; }
+.membership-actions .membership-action {
+	flex: 1;
+	min-width: 0;
+	height: 64rpx;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background: #fff7e9;
+	color: #6f4c2f;
+	border-radius: 10rpx;
+	font-size: 28rpx;
+	line-height: 1;
+}
+.membership-actions .membership-action-active { opacity: 0.78; }
 .membership-actions .button-row .primary { background: #6f4c2f; color: #fff; }
 .inline-empty { margin-top: 18rpx; color: #786b73; background: #fffaf2; border-radius: 12rpx; padding: 22rpx; text-align: center; }
 .empty { margin-top: 80rpx; text-align: center; color: #786b73; background: #fff; border-radius: 16rpx; padding: 34rpx; }

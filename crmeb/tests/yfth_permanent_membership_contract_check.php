@@ -72,7 +72,10 @@ try {
     $assert(strpos($workbench, 'getYfthStorePermanentMemberships') !== false
         && strpos($workbench, '会员开通申请') !== false
         && strpos($workbench, 'approveMembershipApplication') !== false
-        && strpos($workbench, 'rejectMembershipApplication') !== false,
+        && strpos($workbench, 'rejectMembershipApplication') !== false
+        && strpos($workbench, '@tap.stop="approveMembershipApplication(item)"') !== false
+        && strpos($workbench, '@tap.stop="rejectMembershipApplication(item)"') !== false
+        && strpos($workbench, 'class="membership-action primary"') !== false,
         'workbench_writeoff_pane_exposes_membership_application_review');
     $assert(strpos($service, 'consumePackageActivation') !== false
         && strpos($service, 'closeForMembershipWithLockedCurrentsInTransaction') !== false,
