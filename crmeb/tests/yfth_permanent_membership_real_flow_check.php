@@ -78,6 +78,19 @@ try {
     ]), 'repeat_apply_returns_pending_application', $assert)['data'];
     $assert((int)$repeatApply['id'] === (int)$applied['id'], 'repeat_apply_is_idempotent');
 
+    $pendingList = pmExpectOk(pmRequest('GET', $base . '/api/yfth/store_workbench/permanent_membership' . $ctxManagerA . '&status=pending_store_review', $tokens['manager_a']), 'pending_application_visible_to_store', $assert)['data'];
+    $pendingRow = pmFindEnrollment($pendingList['list'] ?? [], (int)$applied['id']);
+    $assert((int)($pendingRow['id'] ?? 0) === (int)$applied['id'], 'pending_application_appears_in_authoritative_store_workbench');
+    $assert(trim((string)($pendingRow['applicant']['name'] ?? '')) !== ''
+        && strpos((string)($pendingRow['applicant']['phone_masked'] ?? ''), '****') !== false,
+        'store_application_contains_masked_applicant_identity');
+    $assert(($pendingRow['upstream_member']['exists'] ?? false) === true
+        && trim((string)($pendingRow['upstream_member']['name'] ?? '')) !== ''
+        && strpos((string)($pendingRow['upstream_member']['phone_masked'] ?? ''), '****') !== false,
+        'store_application_contains_active_upstream_member');
+    $otherStorePending = pmExpectOk(pmRequest('GET', $base . '/api/yfth/store_workbench/permanent_membership' . $ctxManagerB . '&status=pending_store_review', $tokens['manager_b']), 'other_store_pending_application_list', $assert)['data'];
+    $assert(!pmFindEnrollment($otherStorePending['list'] ?? [], (int)$applied['id']), 'pending_application_not_visible_to_other_store');
+
     pmExpectFail(pmRequest('POST', $base . '/api/yfth/store_workbench/permanent_membership/' . $applied['id'] . '/approve' . $ctxManagerB, $tokens['manager_b'], [
         'idempotency_key' => $run . '-cross-approve',
     ]), 'other_store_cannot_approve', $assert);
@@ -178,6 +191,14 @@ function pmSeed(string $run): array
     $amountCent = pmMoneyToCent((string)$rule['package_price']);
     if ($amountCent <= 0) throw new RuntimeException('managed_member_package_price_invalid');
     return ['users' => $users, 'stores' => $stores, 'package_amount_cent' => $amountCent];
+}
+
+function pmFindEnrollment(array $rows, int $id): array
+{
+    foreach ($rows as $row) {
+        if ((int)($row['id'] ?? 0) === $id) return (array)$row;
+    }
+    return [];
 }
 
 function pmPublishedMemberPackage(string $run): void

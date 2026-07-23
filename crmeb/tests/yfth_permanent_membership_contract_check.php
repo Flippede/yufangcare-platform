@@ -23,6 +23,7 @@ try {
     $canonicalizer = $read('app/services/yfth/HqAuthoritySourceCanonicalizer.php');
     $attribution = $read('app/services/yfth/HqCustomerAttributionServices.php');
     $referral = $read('app/services/yfth/HqActiveReferralServices.php');
+    $workbench = $read('../template/uni-app/pages/yfth/workbench/index.vue');
 
     foreach (['yfth_permanent_membership_enrollment','yfth_permanent_membership','yfth_permanent_membership_event','yfth_business_dynamic_code','yfth_membership_reward_candidate'] as $table) {
         $assert(strpos($migration, "'{$table}'") !== false, 'migration_has_' . $table);
@@ -63,6 +64,16 @@ try {
         && strpos($service, 'public function approveForStore') !== false
         && strpos($service, 'public function activateIdentityForStore') !== false,
         'offline_application_review_and_identity_scan_share_one_service');
+    $assert(strpos($service, 'storeEnrollmentDtos') !== false
+        && strpos($service, "'applicant'") !== false
+        && strpos($service, "'upstream_member'") !== false
+        && strpos($service, "whereIn('active_referred_uid'") !== false,
+        'store_application_list_contains_safe_applicant_and_active_upstream_summary');
+    $assert(strpos($workbench, 'getYfthStorePermanentMemberships') !== false
+        && strpos($workbench, '会员开通申请') !== false
+        && strpos($workbench, 'approveMembershipApplication') !== false
+        && strpos($workbench, 'rejectMembershipApplication') !== false,
+        'workbench_writeoff_pane_exposes_membership_application_review');
     $assert(strpos($service, 'consumePackageActivation') !== false
         && strpos($service, 'closeForMembershipWithLockedCurrentsInTransaction') !== false,
         'offline_activation_freezes_reward_before_closing_referral');

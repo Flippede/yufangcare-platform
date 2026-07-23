@@ -262,7 +262,12 @@ class PermanentMembershipServices extends YfthFoundationBaseServices
     public function storeList(Request $request, array $where): array
     {
         $context = $this->storeContext($request);
-        return $this->listEnrollments(['store_id' => (int)$context['store_id'], 'status' => trim((string)($where['status'] ?? ''))]);
+        $result = $this->listEnrollments([
+            'store_id' => (int)$context['store_id'],
+            'status' => trim((string)($where['status'] ?? '')),
+        ]);
+        $result['list'] = $this->storeEnrollmentDtos($result['list'], (int)$context['store_id']);
+        return $result;
     }
 
     public function storeDetail(Request $request, int $id): array
@@ -270,7 +275,8 @@ class PermanentMembershipServices extends YfthFoundationBaseServices
         $context = $this->storeContext($request);
         $row = $this->requireEnrollment($id);
         if ((int)$row['store_id'] !== (int)$context['store_id']) throw new ApiException('membership_enrollment_store_forbidden');
-        return $this->operatorEnrollmentDto($row);
+        $rows = $this->storeEnrollmentDtos([$this->operatorEnrollmentDto($row)], (int)$context['store_id']);
+        return $rows[0];
     }
 
     public function adminList(array $where, array $adminInfo): array
@@ -577,6 +583,62 @@ class PermanentMembershipServices extends YfthFoundationBaseServices
     public function operatorEnrollmentDto(array $row): array
     {
         return ['id'=>(int)$row['id'],'enrollment_no'=>(string)$row['enrollment_no'],'store_id'=>(int)$row['store_id'],'target_uid'=>(int)$row['target_uid'],'status'=>(string)$row['status'],'amount_cents'=>(int)$row['amount_cents'],'payment_status'=>(string)$row['payment_status'],'target_bound_at'=>(int)$row['target_bound_at'],'payment_confirmed_at'=>(int)$row['payment_confirmed_at'],'activated_member_id'=>(int)$row['activated_member_id'],'activated_at'=>(int)$row['activated_at'],'add_time'=>(int)$row['add_time'],'update_time'=>(int)$row['update_time']];
+    }
+
+    private function storeEnrollmentDtos(array $rows, int $storeId): array
+    {
+        if (!$rows) return [];
+        $targetUids = array_values(array_unique(array_filter(array_map(function (array $row): int {
+            return (int)($row['target_uid'] ?? 0);
+        }, $rows))));
+        if (!$targetUids) return $rows;
+
+        $referralRows = Db::name('yfth_hq_active_referral_current')
+            ->where('store_id', $storeId)
+            ->where('status', 'active')
+            ->whereIn('active_referred_uid', $targetUids)
+            ->field('referrer_uid,active_referred_uid')
+            ->select()->toArray();
+        $referrerByTarget = [];
+        $referrerUids = [];
+        foreach ($referralRows as $referral) {
+            $targetUid = (int)($referral['active_referred_uid'] ?? 0);
+            $referrerUid = (int)($referral['referrer_uid'] ?? 0);
+            if ($targetUid <= 0 || $referrerUid <= 0) continue;
+            $referrerByTarget[$targetUid] = $referrerUid;
+            $referrerUids[] = $referrerUid;
+        }
+
+        $userUids = array_values(array_unique(array_merge($targetUids, $referrerUids)));
+        $userRows = Db::name('user')->whereIn('uid', $userUids)
+            ->where('is_del', 0)->field('uid,nickname,real_name,phone')->select()->toArray();
+        $users = [];
+        foreach ($userRows as $user) $users[(int)$user['uid']] = $user;
+
+        foreach ($rows as &$row) {
+            $targetUid = (int)($row['target_uid'] ?? 0);
+            $applicant = $users[$targetUid] ?? [];
+            $referrerUid = (int)($referrerByTarget[$targetUid] ?? 0);
+            $referrer = $users[$referrerUid] ?? [];
+            $row['applicant'] = [
+                'name' => $this->displayName($applicant),
+                'phone_masked' => $this->maskPhone((string)($applicant['phone'] ?? '')),
+            ];
+            $row['upstream_member'] = [
+                'exists' => $referrerUid > 0,
+                'name' => $referrerUid > 0 ? $this->displayName($referrer) : '',
+                'phone_masked' => $referrerUid > 0 ? $this->maskPhone((string)($referrer['phone'] ?? '')) : '',
+            ];
+        }
+        unset($row);
+        return $rows;
+    }
+
+    private function displayName(array $user): string
+    {
+        $name = trim((string)($user['nickname'] ?? ''));
+        if ($name === '') $name = trim((string)($user['real_name'] ?? ''));
+        return $name !== '' ? $name : '御方通和用户';
     }
 
     private function customerEnrollmentDto(array $row): array

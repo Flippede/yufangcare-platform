@@ -99,6 +99,49 @@
 				<view v-else-if="pane === 'writeoff'" class="section">
 					<view class="panel">
 						<view class="panel-head">
+							<view>
+								<view class="panel-title">会员开通申请</view>
+								<view class="muted">用户完成线下套餐购买申请后，由所属门店店长或店员处理。</view>
+							</view>
+							<button class="mini" @click="loadMembershipApplications">刷新</button>
+						</view>
+						<view v-if="membershipApplicationLoading" class="inline-empty">正在加载会员申请...</view>
+						<view v-else-if="!membershipApplications.length" class="inline-empty">暂无待处理会员申请。</view>
+						<view v-else>
+							<view v-for="item in membershipApplications" :key="item.id" class="list-card membership-application">
+								<view class="row-main">
+									<view>
+										<view class="strong">{{ item.applicant && item.applicant.name || '御方通和用户' }}</view>
+										<view class="muted">{{ item.applicant && item.applicant.phone_masked || '手机号未提供' }}</view>
+									</view>
+									<view class="status">{{ membershipStatusText(item.status) }}</view>
+								</view>
+								<view class="application-summary">
+									<view>申请套餐：御方通和9800元康养会员套餐</view>
+									<view>线下金额：￥{{ membershipAmount(item.amount_cents) }}</view>
+									<view v-if="item.upstream_member && item.upstream_member.exists">
+										上一级会员：{{ item.upstream_member.name }} {{ item.upstream_member.phone_masked }}
+									</view>
+									<view v-else>上一级会员：无（仅开通会员，不产生直推阶梯奖励）</view>
+									<view>申请时间：{{ formatTime(item.add_time) }}</view>
+								</view>
+								<view v-if="item.status === 'pending_store_review'" class="membership-actions">
+									<input
+										:value="membershipRejectReasons[item.id] || ''"
+										placeholder="拒绝时填写原因"
+										@input="setMembershipRejectReason(item.id, $event)"
+									/>
+									<view class="button-row">
+										<button class="primary" @click="approveMembershipApplication(item)">确认开通</button>
+										<button @click="rejectMembershipApplication(item)">拒绝申请</button>
+									</view>
+								</view>
+							</view>
+						</view>
+					</view>
+
+					<view class="panel">
+						<view class="panel-head">
 							<view class="panel-title">服务核销</view>
 							<button class="mini" @click="loadWriteoffRecords(true)">记录</button>
 						</view>
@@ -221,8 +264,10 @@
 
 <script>
 import {
+	approveYfthStorePermanentMembership,
 	cancelYfthStoreWorkbenchAppointment,
 	confirmYfthStoreWorkbenchAppointment,
+	getYfthStorePermanentMemberships,
 	getYfthStoreWorkbenchAppointmentDetail,
 	getYfthStoreWorkbenchAppointments,
 	getYfthStoreWorkbenchOrderDetail,
@@ -231,6 +276,7 @@ import {
 	getYfthStoreCommissionSummary,
 	getYfthStoreWorkbenchWriteoffRecords,
 	precheckYfthStoreWorkbenchWriteoff,
+	rejectYfthStorePermanentMembership,
 	rejectYfthStoreWorkbenchAppointment,
 	writeoffYfthStoreWorkbenchByDigital,
 	writeoffYfthStoreWorkbenchByToken
@@ -268,6 +314,9 @@ export default {
 			writeoffPrecheck: {},
 			writeoffResult: {},
 			writeoffRecords: [],
+			membershipApplications: [],
+			membershipApplicationLoading: false,
+			membershipRejectReasons: {},
 			orders: [],
 			orderLoading: false,
 			orderWhere: { order_sn: '', page: 1, limit: 10 },
@@ -426,6 +475,7 @@ export default {
 				this.loadAppointments(true);
 			} else if (this.pane === 'writeoff') {
 				this.loadWriteoffRecords(true);
+				this.loadMembershipApplications();
 			} else if (this.pane === 'orders') {
 				this.loadOrders(true);
 			}
@@ -486,6 +536,7 @@ export default {
 			this.writeoffPrecheck = {};
 			uni.showToast({ title: '请扫码或输入数字码', icon: 'none' });
 			this.loadWriteoffRecords(true);
+			this.loadMembershipApplications();
 		},
 		scanQr() {
 			// #ifdef H5
@@ -564,6 +615,77 @@ export default {
 			}).catch((err) => {
 				uni.showToast({ title: String((err && err.msg) || err), icon: 'none' });
 			});
+		},
+		loadMembershipApplications() {
+			this.membershipApplicationLoading = true;
+			getYfthStorePermanentMemberships(this.contextParams({
+				status: 'pending_store_review',
+				page: 1,
+				limit: 50
+			})).then((res) => {
+				this.membershipApplications = (res.data && res.data.list) || [];
+			}).catch((err) => {
+				uni.showToast({ title: String((err && err.msg) || err || '会员申请读取失败'), icon: 'none' });
+			}).finally(() => {
+				this.membershipApplicationLoading = false;
+			});
+		},
+		setMembershipRejectReason(id, event) {
+			this.$set(this.membershipRejectReasons, id, String((event && event.detail && event.detail.value) || ''));
+		},
+		approveMembershipApplication(item) {
+			uni.showModal({
+				title: '确认开通会员',
+				content: '确认 ' + ((item.applicant && item.applicant.name) || '该用户') + ' 已完成线下购买，并开通永久会员？',
+				success: (modal) => {
+					if (!modal.confirm) return;
+					approveYfthStorePermanentMembership(item.id, this.contextParams({
+						idempotency_key: this.idempotencyKey('membership_approve', item.id)
+					})).then(() => {
+						uni.showToast({ title: '会员已开通', icon: 'success' });
+						this.loadMembershipApplications();
+						this.loadOverview();
+					}).catch((err) => {
+						uni.showToast({ title: String((err && err.msg) || err || '会员开通失败'), icon: 'none' });
+					});
+				}
+			});
+		},
+		rejectMembershipApplication(item) {
+			const reason = String(this.membershipRejectReasons[item.id] || '').trim();
+			if (reason.length < 2) {
+				uni.showToast({ title: '请填写拒绝原因', icon: 'none' });
+				return;
+			}
+			uni.showModal({
+				title: '拒绝会员申请',
+				content: '确认拒绝 ' + ((item.applicant && item.applicant.name) || '该用户') + ' 的会员开通申请？',
+				success: (modal) => {
+					if (!modal.confirm) return;
+					rejectYfthStorePermanentMembership(item.id, this.contextParams({
+						reason,
+						idempotency_key: this.idempotencyKey('membership_reject', item.id)
+					})).then(() => {
+						uni.showToast({ title: '申请已拒绝', icon: 'success' });
+						this.$delete(this.membershipRejectReasons, item.id);
+						this.loadMembershipApplications();
+					}).catch((err) => {
+						uni.showToast({ title: String((err && err.msg) || err || '拒绝申请失败'), icon: 'none' });
+					});
+				}
+			});
+		},
+		membershipAmount(amountCents) {
+			return (Number(amountCents || 0) / 100).toFixed(2);
+		},
+		membershipStatusText(status) {
+			const labels = {
+				pending_store_review: '待门店处理',
+				activated: '已开通',
+				rejected: '已拒绝',
+				cancelled: '已取消'
+			};
+			return labels[status] || status || '未知状态';
 		},
 		loadOrders(reset) {
 			if (reset) {
@@ -754,6 +876,11 @@ button { font-size: 26rpx; }
 .list-card { margin-top: 18rpx; }
 .detail-box, .result-box { margin-top: 18rpx; background: #fffaf2; box-shadow: none; }
 .detail-line { color: #5e5147; font-size: 25rpx; margin-top: 10rpx; }
+.membership-application { border: 1rpx solid #eee1cf; box-shadow: none; }
+.application-summary { margin-top: 18rpx; padding: 18rpx; border-radius: 12rpx; background: #fffaf2; color: #5e5147; font-size: 24rpx; line-height: 1.75; }
+.membership-actions { margin-top: 18rpx; }
+.membership-actions .button-row button { min-width: 0; }
+.membership-actions .button-row .primary { background: #6f4c2f; color: #fff; }
 .inline-empty { margin-top: 18rpx; color: #786b73; background: #fffaf2; border-radius: 12rpx; padding: 22rpx; text-align: center; }
 .empty { margin-top: 80rpx; text-align: center; color: #786b73; background: #fff; border-radius: 16rpx; padding: 34rpx; }
 .error { color: #a74e4e; }
