@@ -67,6 +67,33 @@
 				<button class="cancel-button" @click="toggleInput">取消</button>
 			</view>
 		</view>
+
+		<view v-if="activationState" class="activation-mask">
+			<view class="activation-card">
+				<view class="activation-icon" :class="'is-' + activationState">
+					<text v-if="activationState === 'success'">✓</text>
+					<text v-else-if="activationState === 'error'">!</text>
+					<text v-else>会</text>
+				</view>
+				<text class="activation-title">{{ activationTitle }}</text>
+				<text class="activation-copy">{{ activationMessage }}</text>
+				<view v-if="activationState === 'confirm'" class="activation-actions">
+					<button class="activation-secondary" @click="cancelIdentityActivation">取消</button>
+					<button class="activation-primary" @click="submitIdentityActivation">确认开通</button>
+				</view>
+				<view v-else-if="activationState === 'success'" class="activation-actions single">
+					<button class="activation-primary" @click="goUserCenter">返回我的</button>
+				</view>
+				<view v-else-if="activationState === 'error'" class="activation-actions">
+					<button class="activation-secondary" @click="goUserCenter">返回我的</button>
+					<button class="activation-primary" @click="retryIdentityActivation">重新扫码</button>
+				</view>
+				<view v-else class="activation-loading">
+					<view class="loading-dot"></view>
+					<text>正在开通，请勿关闭页面</text>
+				</view>
+			</view>
+		</view>
 	</view>
 </template>
 
@@ -96,6 +123,10 @@ export default {
 			nativeScannerOpened: false,
 			h5FilePicker: null,
 			operatorContext: null,
+			pendingIdentityActivation: null,
+			activationState: '',
+			activationMessage: '',
+			activationReturnTimer: 0,
 			safeTop: 20,
 			safeBottom: 0
 		};
@@ -133,6 +164,15 @@ export default {
 		},
 		inputSubmitLabel() {
 			return this.membershipScanPreferred ? '核验身份' : '识别邀请';
+		},
+		activationTitle() {
+			const titles = {
+				confirm: '确认开通会员',
+				submitting: '正在开通会员',
+				success: '会员开通成功',
+				error: '会员开通未完成'
+			};
+			return titles[this.activationState] || '';
 		}
 	},
 	onLoad(options) {
@@ -147,7 +187,11 @@ export default {
 	onReady() {
 		this.$nextTick(() => this.scan());
 	},
-	onUnload() { this.stopCamera(); this.cleanupH5FilePicker(); },
+	onUnload() {
+		this.stopCamera();
+		this.cleanupH5FilePicker();
+		this.clearActivationReturnTimer();
+	},
 		onHide() { this.stopCamera(); },
 	methods: {
 		scan() {
@@ -344,43 +388,59 @@ export default {
 		confirmIdentityActivation(token, context) {
 			this.stopCamera();
 			this.nativeScannerOpened = false;
-			uni.showModal({
-				title: '确认开通会员',
-				content: '确认该顾客属于当前门店并已完成线下购买，为其开通永久会员？',
-				confirmText: '确认开通',
-				cancelText: '取消',
-				success: (result) => {
-					if (!result.confirm) return this.scan();
-					this.activateIdentityMembership(token, context);
-				},
-				fail: () => this.scan()
-			});
+			this.pendingIdentityActivation = { token, context };
+			this.activationMessage = '确认该顾客属于当前门店并已完成线下购买，为其开通永久会员？';
+			this.activationState = 'confirm';
+		},
+		cancelIdentityActivation() {
+			this.pendingIdentityActivation = null;
+			this.activationState = '';
+			this.activationMessage = '';
+			this.scan();
+		},
+		submitIdentityActivation() {
+			if (this.activationState !== 'confirm' || !this.pendingIdentityActivation) return;
+			const pending = this.pendingIdentityActivation;
+			this.activationState = 'submitting';
+			this.activationMessage = '正在核验顾客归属并开通会员资格。';
+			this.activateIdentityMembership(pending.token, pending.context);
 		},
 		activateIdentityMembership(token, context) {
-			uni.showLoading({ title: '正在核验', mask: true });
 			activateYfthStorePermanentMembershipIdentity({
 				role_code: context.role_code,
 				store_id: context.store_id,
 				identity_token: token,
 				idempotency_key: 'store_identity_activation_' + token
-			}).then(() => {
-				uni.hideLoading();
-				uni.showModal({
-					title: '会员开通成功',
-					content: '该顾客已开通永久会员，已有上级会员时奖励将按现有阶梯规则处理。',
-					showCancel: false,
-					success: () => this.goBack()
-				});
+			}).then((response) => {
+				this.pendingIdentityActivation = null;
+				this.activationState = 'success';
+				this.activationMessage = '该顾客已开通永久会员，已有上级会员时奖励将按现有阶梯规则处理。';
+				this.clearActivationReturnTimer();
+				this.activationReturnTimer = setTimeout(() => this.goUserCenter(), 1800);
+				return response;
 			}).catch((error) => {
-				uni.hideLoading();
 				this.nativeScannerOpened = false;
-				uni.showModal({
-					title: '会员开通未完成',
-					content: this.identityActivationError(error),
-					showCancel: false,
-					confirmText: '重新扫码',
-					success: () => this.scan()
-				});
+				this.pendingIdentityActivation = null;
+				this.activationState = 'error';
+				this.activationMessage = this.identityActivationError(error);
+			});
+		},
+		retryIdentityActivation() {
+			this.activationState = '';
+			this.activationMessage = '';
+			this.scan();
+		},
+		clearActivationReturnTimer() {
+			if (this.activationReturnTimer) clearTimeout(this.activationReturnTimer);
+			this.activationReturnTimer = 0;
+		},
+		goUserCenter() {
+			this.clearActivationReturnTimer();
+			this.stopCamera();
+			this.activationState = '';
+			uni.switchTab({
+				url: '/pages/user/index',
+				fail: () => uni.reLaunch({ url: '/pages/user/index' })
 			});
 		},
 		identityActivationError(error) {
@@ -471,7 +531,22 @@ export default {
 .input-sheet button { width: 100%; height: 78rpx; margin: 18rpx 0 0; border-radius: 10rpx; font-size: 26rpx; line-height: 78rpx; }
 .submit-button { color: #fff; background: #9b713b; }
 .cancel-button { color: #72685c; background: #f2eee8; }
+.activation-mask { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 38rpx; box-sizing: border-box; background: rgba(10,10,9,.72); backdrop-filter: blur(8px); z-index: 12; }
+.activation-card { display: flex; width: 100%; max-width: 620rpx; flex-direction: column; align-items: center; padding: 46rpx 34rpx 34rpx; border-radius: 22rpx; box-sizing: border-box; color: #2d261e; background: #fff; box-shadow: 0 24rpx 70rpx rgba(0,0,0,.3); }
+.activation-icon { display: flex; align-items: center; justify-content: center; width: 94rpx; height: 94rpx; margin-bottom: 24rpx; border-radius: 50%; color: #fff; background: #a67c45; font-size: 44rpx; font-weight: 700; }
+.activation-icon.is-success { background: #4f8b62; }
+.activation-icon.is-error { background: #b65348; }
+.activation-title { font-size: 34rpx; font-weight: 700; }
+.activation-copy { margin-top: 18rpx; color: #74685a; font-size: 24rpx; line-height: 1.7; text-align: center; }
+.activation-actions { display: grid; width: 100%; grid-template-columns: 1fr 1fr; gap: 18rpx; margin-top: 34rpx; }
+.activation-actions.single { grid-template-columns: 1fr; }
+.activation-actions button { height: 82rpx; margin: 0; border-radius: 10rpx; font-size: 26rpx; line-height: 82rpx; }
+.activation-primary { color: #fff; background: #9b713b; }
+.activation-secondary { color: #6e6254; background: #f2eee8; }
+.activation-loading { display: flex; align-items: center; gap: 14rpx; margin-top: 34rpx; color: #7c7062; font-size: 23rpx; }
+.loading-dot { width: 20rpx; height: 20rpx; border-radius: 50%; background: #a67c45; animation: loadingPulse 1s ease-in-out infinite; }
 @keyframes scanMove { 0%, 100% { top: 10%; opacity: .6; } 50% { top: 88%; opacity: 1; } }
+@keyframes loadingPulse { 0%, 100% { opacity: .35; transform: scale(.82); } 50% { opacity: 1; transform: scale(1); } }
 /* #ifdef H5 */
 @media screen and (min-width: 768px) {
 	.scanner-page { right: auto; left: 50%; transform: translateX(-50%); box-shadow: 0 0 45px rgba(0,0,0,.2); }
