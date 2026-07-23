@@ -236,7 +236,7 @@
 import {
   yfthPartnerDashboard, yfthPartnerDetail, yfthPartnerList, yfthPartnerParentChange,
   yfthPartnerPerformances, yfthPartnerRankChange, yfthPartnerRewardAction, yfthPartnerRewards,
-  yfthPartnerRules, yfthPartnerRulePublish, yfthPartnerRuleSave, yfthPartnerWarnings,
+  yfthPartnerRulePublish, yfthPartnerRuleSave, yfthPartnerWarnings,
   yfthPartnerPromotions, yfthPartnerPromotionReview,
   yfthRewardEventList, yfthRewardEventRetry, yfthOpeningQuotaAwards, yfthOpeningQuotaConfirm,
   yfthRewardConsistency, yfthPartnerMigrationIssues, yfthPartnerProcurementProfits,
@@ -258,9 +258,16 @@ export default {
   computed: {
     rankCards() { return this.rankOptions.map((item) => ({ code: item.value, name: item.label, count: (this.dashboard.rank_counts || {})[item.value] || 0 })); },
   },
-  created() { this.loadDashboard(); this.loadPartners(); this.loadRules(); },
+  created() { this.loadDashboard(); this.loadPartners(); },
   methods: {
-    loadDashboard() { return yfthPartnerDashboard().then((res) => { this.dashboard = res.data || {}; this.rankOptions = this.dashboard.rank_options || []; }); },
+    loadDashboard() {
+      return yfthPartnerDashboard().then((res) => {
+        this.dashboard = res.data || {};
+        this.rankOptions = this.dashboard.rank_options || [];
+        this.partnerRules = Array.isArray(this.dashboard.rule_versions) ? this.dashboard.rule_versions : [];
+        return this.dashboard;
+      });
+    },
     onTabClick(pane) {
       const name = pane && pane.name ? String(pane.name) : this.tab;
       if (name) this.tab = name;
@@ -279,9 +286,10 @@ export default {
     loadRewards(reset) { if (reset === true) this.rewardQuery.page = 1; this.loading = true; return yfthPartnerRewards(this.rewardQuery).then((res) => { const d = res.data || {}; this.rewards = d.list || []; this.rewardTotal = Number(d.count || 0); }).finally(() => { this.loading = false; }); },
     loadRules() {
       this.rulesLoading = true;
-      return yfthPartnerRules().then((res) => {
+      return yfthPartnerDashboard().then((res) => {
         const d = res.data || {};
-        this.partnerRules = Array.isArray(d.list) ? d.list : [];
+        this.dashboard = d;
+        this.partnerRules = Array.isArray(d.rule_versions) ? d.rule_versions : [];
         if (Array.isArray(d.rank_options)) this.rankOptions = d.rank_options;
         this.rulesLoading = false;
         return d;

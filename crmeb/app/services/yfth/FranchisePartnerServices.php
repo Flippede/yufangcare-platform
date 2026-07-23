@@ -45,6 +45,7 @@ class FranchisePartnerServices extends YfthFoundationBaseServices
         foreach (self::RANKS as $code => $rank) {
             $counts[$code] = (int)Db::name('yfth_partner_profile')->where(['rank_code' => $code, 'status' => 'active'])->count();
         }
+        $rules = $this->adminRules($adminInfo);
         return [
             'rank_counts' => $counts,
             'active_partners' => array_sum($counts),
@@ -53,6 +54,7 @@ class FranchisePartnerServices extends YfthFoundationBaseServices
             'pending_rewards' => (int)Db::name('yfth_partner_reward_candidate')->where('status', 'pending')->count(),
             'open_warnings' => (int)Db::name('yfth_partner_warning')->where('status', 'open')->count(),
             'rank_options' => $this->rankOptions(),
+            'rule_versions' => $rules['list'],
             'disclaimer' => '招商收益候选和线下结算仅记录业务事实，不代表平台自动打款。',
         ];
     }
