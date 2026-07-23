@@ -520,6 +520,7 @@ class SupplyChainServices extends YfthFoundationBaseServices
     private function doCreatePurchaseOrder(array $scope, array $data): array
     {
         $items = $this->normalizePurchaseItems((array)($data['items'] ?? []), (string)($scope['context']['store_type'] ?? ''));
+        $address = $this->requirePurchaseAddress((int)$scope['operator_uid'], (int)($data['address_id'] ?? 0));
         $now = time();
         $amountCents = 0;
         $quantityTotal = 0;
@@ -529,7 +530,7 @@ class SupplyChainServices extends YfthFoundationBaseServices
         }
         $amount = $this->centsToDecimal($amountCents);
 
-        return Db::transaction(function () use ($scope, $items, $now, $amount, $amountCents, $quantityTotal, $data) {
+        return Db::transaction(function () use ($scope, $items, $address, $now, $amount, $amountCents, $quantityTotal, $data) {
             $orderDao = app()->make(YfthPurchaseOrderDao::class);
             $order = $orderDao->save([
                 'purchase_no' => $this->makeNo('PO'),
@@ -541,6 +542,19 @@ class SupplyChainServices extends YfthFoundationBaseServices
                 'quantity_total' => $quantityTotal,
                 'operator_uid' => (int)$scope['operator_uid'],
                 'operator_role_code' => (string)$scope['role_code'],
+                'address_id' => (int)$address['id'],
+                'real_name' => (string)$address['real_name'],
+                'user_phone' => (string)$address['phone'],
+                'user_address' => trim(implode(' ', array_filter([
+                    (string)($address['province'] ?? ''),
+                    (string)($address['city'] ?? ''),
+                    (string)($address['district'] ?? ''),
+                    (string)($address['detail'] ?? ''),
+                ]))),
+                'freight_price' => '0.00',
+                'pay_type' => $this->normalizePurchasePayType((string)($data['pay_type'] ?? 'offline')),
+                'pay_status' => 'pending',
+                'buyer_mark' => substr(trim((string)($data['buyer_mark'] ?? '')), 0, 255),
                 'idempotency_key' => trim((string)($data['idempotency_key'] ?? '')),
                 'create_time' => $now,
                 'update_time' => $now,
@@ -669,9 +683,16 @@ class SupplyChainServices extends YfthFoundationBaseServices
             ->select()
             ->toArray();
         $quotaPayment = Db::name('yfth_product_quota_reservation')->where('purchase_order_id', $id)->find() ?: [];
+        $productMap = $this->productMap(array_column($items, 'product_id'));
+        $formattedItems = array_map(function ($item) use ($productMap) {
+            $formatted = $this->formatPurchaseItem($item);
+            $product = $productMap[(int)$formatted['product_id']] ?? [];
+            $formatted['product_image'] = (string)($product['image'] ?? '');
+            return $formatted;
+        }, $items);
         return [
             'order' => $this->formatPurchaseOrder($order, true),
-            'items' => array_map([$this, 'formatPurchaseItem'], $items),
+            'items' => $formattedItems,
             'shipments' => array_map([$this, 'formatShipment'], $shipments),
             'receipts' => $receipts,
             'quota_payment' => $quotaPayment,
@@ -986,6 +1007,11 @@ class SupplyChainServices extends YfthFoundationBaseServices
             'product_id' => (int)($row['product_id'] ?? 0),
             'product_name' => (string)($product['store_name'] ?? ''),
             'product_image' => (string)($product['image'] ?? ''),
+            'slider_images' => $this->decodeProductImages($product['slider_image'] ?? ''),
+            'product_info' => (string)($product['store_info'] ?? ''),
+            'retail_price' => (string)($product['price'] ?? '0.00'),
+            'stock' => (int)($product['stock'] ?? 0),
+            'unit_name' => (string)($product['unit_name'] ?? ''),
             'status' => (string)($row['status'] ?? ''),
             'purchase_price' => (string)($row['purchase_price'] ?? '0.00'),
             'retail_reference_price' => (string)($row['retail_reference_price'] ?? '0.00'),
@@ -1018,6 +1044,13 @@ class SupplyChainServices extends YfthFoundationBaseServices
             'quantity_total' => (int)($row['quantity_total'] ?? 0),
             'operator_uid' => (int)($row['operator_uid'] ?? 0),
             'operator_role_code' => (string)($row['operator_role_code'] ?? ''),
+            'real_name' => (string)($row['real_name'] ?? ''),
+            'user_phone' => (string)($row['user_phone'] ?? ''),
+            'user_address' => (string)($row['user_address'] ?? ''),
+            'freight_price' => (string)($row['freight_price'] ?? '0.00'),
+            'pay_type' => (string)($row['pay_type'] ?? ''),
+            'pay_status' => (string)($row['pay_status'] ?? ''),
+            'buyer_mark' => (string)($row['buyer_mark'] ?? ''),
             'create_time' => (int)($row['create_time'] ?? 0),
             'update_time' => (int)($row['update_time'] ?? 0),
         ];
@@ -1080,7 +1113,7 @@ class SupplyChainServices extends YfthFoundationBaseServices
         }
         $rows = Db::name('store_product')
             ->whereIn('id', $ids)
-            ->field('id,store_name,image,price,ot_price,stock,sales,is_show')
+            ->field('id,store_name,store_info,image,slider_image,price,ot_price,stock,sales,is_show,unit_name')
             ->select()
             ->toArray();
         $map = [];
@@ -1088,6 +1121,45 @@ class SupplyChainServices extends YfthFoundationBaseServices
             $map[(int)$row['id']] = $row;
         }
         return $map;
+    }
+
+    private function requirePurchaseAddress(int $uid, int $addressId): array
+    {
+        if ($addressId <= 0) {
+            return [
+                'id' => 0,
+                'real_name' => '',
+                'phone' => '',
+                'province' => '',
+                'city' => '',
+                'district' => '',
+                'detail' => '',
+            ];
+        }
+        $address = Db::name('user_address')
+            ->where('id', $addressId)
+            ->where('uid', $uid)
+            ->where('is_del', 0)
+            ->find();
+        if (!$address) {
+            throw new ApiException('purchase_address_invalid');
+        }
+        return $address;
+    }
+
+    private function normalizePurchasePayType(string $payType): string
+    {
+        $payType = strtolower(trim($payType));
+        return in_array($payType, ['weixin', 'yue', 'offline'], true) ? $payType : 'offline';
+    }
+
+    private function decodeProductImages($images): array
+    {
+        if (is_array($images)) {
+            return array_values(array_filter(array_map('strval', $images)));
+        }
+        $decoded = json_decode((string)$images, true);
+        return is_array($decoded) ? array_values(array_filter(array_map('strval', $decoded))) : [];
     }
 
     private function skuMap(array $productIds): array

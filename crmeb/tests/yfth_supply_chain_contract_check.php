@@ -36,6 +36,8 @@ $adminPage = $read('../template/admin/src/pages/yfth/supplyChain/index.vue');
 $productRouter = $read('../template/admin/src/router/modules/product.js');
 $procurementMenuMigration = $read('database/migrations/20260723170000_expose_yfth_procurement_product_management.php');
 $purchasePage = $read('../template/uni-app/pages/yfth/workbench/purchase/index.vue');
+$purchaseCheckoutPage = $read('../template/uni-app/pages/yfth/workbench/purchase/checkout.vue');
+$purchaseDetailPage = $read('../template/uni-app/pages/yfth/workbench/purchase/detail.vue');
 $inventoryPage = $read('../template/uni-app/pages/yfth/workbench/purchase/inventory.vue');
 
 foreach ([
@@ -121,9 +123,11 @@ $assert($contains($productRouter, '商城商品管理'), 'admin_product_menu_ide
 $assert($contains($productRouter, '采购商品管理'), 'admin_product_menu_exposes_procurement_products');
 $assert($contains($procurementMenuMigration, 'yfth-procurement-product-index'), 'migration_creates_procurement_product_page_permission');
 $assert($contains($procurementMenuMigration, 'yfth-supply-catalog-import-visible'), 'migration_creates_catalog_import_permission');
-$assert($contains($purchasePage, 'createYfthPurchaseOrder') && $contains($purchasePage, 'receiveYfthPurchaseOrder'), 'purchase_page_uses_real_api');
-$assert($contains($purchasePage, "context.role_code !== 'store_manager'") && $contains($purchasePage, '仅店长可进入采购中心'), 'purchase_page_rejects_non_manager_roles');
-$assert($contains($purchasePage, 'v-if="accessGranted"') && $contains($purchasePage, 'window.location.replace(target)'), 'purchase_page_hides_content_and_redirects_h5_until_manager_verified');
+$assert($contains($purchasePage, 'getYfthSupplyCatalog') && $contains($purchaseCheckoutPage, 'createYfthPurchaseOrder') && $contains($purchaseDetailPage, 'receiveYfthPurchaseOrder'), 'purchase_pages_use_real_api');
+$assert($contains($purchasePage, "context.role_code !== 'store_manager'") && $contains($purchasePage, '仅店长可进入采购商城'), 'purchase_page_rejects_non_manager_roles');
+$assert($contains($purchasePage, 'v-if="accessGranted"') && $contains($purchasePage, "uni.reLaunch({ url: '/pages/yfth/workbench/index' })"), 'purchase_page_hides_content_until_manager_verified');
+$assert($contains($purchaseCheckoutPage, 'getAddressDefault') && $contains($purchaseCheckoutPage, 'address_id: this.address.id'), 'purchase_checkout_uses_crmeb_address');
+$assert($contains($purchaseDetailPage, 'logistics_company') && $contains($purchaseDetailPage, 'logistics_no'), 'purchase_detail_exposes_logistics');
 $assert($contains($inventoryPage, 'getYfthInventory') && $contains($inventoryPage, 'getYfthInventoryLedger'), 'inventory_page_uses_real_api');
 
 if ($failures) {

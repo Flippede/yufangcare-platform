@@ -1,236 +1,114 @@
 <template>
-	<view v-if="accessGranted" class="purchase-page">
-		<view class="top">
+	<view v-if="accessGranted" class="page">
+		<view class="hero">
 			<view>
-				<view class="title">采购中心</view>
-				<view class="sub">{{ context.store_name || '当前门店' }}</view>
+				<view class="eyebrow">总部统一供货</view>
+				<view class="title">采购商城</view>
+				<view class="store">{{ context.store_name || '当前门店' }}</view>
 			</view>
-			<button class="light" @click="goInventory">库存</button>
+			<view class="hero-actions">
+				<view class="icon-btn" @click="goOrders">单</view>
+				<view class="icon-btn cart-btn" @click="goCart">车<text v-if="cartCount">{{ cartCount }}</text></view>
+			</view>
 		</view>
 
-		<view class="tabs">
-			<view v-for="item in tabs" :key="item.value" :class="['tab', tab === item.value ? 'active' : '']" @click="changeTab(item.value)">{{ item.label }}</view>
+		<view class="search">
+			<text>⌕</text>
+			<input v-model="keyword" placeholder="搜索总部采购商品" confirm-type="search" @confirm="load" />
+			<view v-if="keyword" class="clear" @click="keyword = ''; load()">×</view>
 		</view>
 
-		<view v-if="loading" class="empty">加载中...</view>
-		<block v-else>
-			<view v-if="tab === 'catalog'">
-				<view v-if="!catalog.length" class="empty">暂无总部授权采购商品</view>
-				<view v-for="item in catalog" :key="item.id" class="card">
-					<view class="row-main">
-						<view>
-							<view class="strong">{{ item.product_name || ('商品 ' + item.product_id) }}</view>
-							<view class="muted">采购价 ¥{{ item.purchase_price }} / 起订 {{ item.min_purchase_quantity }} / 倍数 {{ item.package_multiple }}</view>
-							<view class="muted">SKU: {{ firstSku(item).sku_name || firstSku(item).sku_unique || '-' }}</view>
-						</view>
-						<view class="price">¥{{ item.purchase_price }}</view>
-					</view>
-					<view v-if="canWrite" class="buy-row">
-						<input v-model="quantities[item.id]" type="number" placeholder="数量" />
-						<input v-model="quotaAmounts[item.id]" type="digit" :placeholder="'商品额度（元，可用 ¥' + quotaAvailable + '）'" />
-						<button @click="submitPurchase(item)">提交采购</button>
-					</view>
-					<view v-else class="muted">店员仅可查看采购目录，不能创建采购单。</view>
-				</view>
-			</view>
+		<view class="quick-row">
+			<view class="quick" @click="goOrders"><b>采购单</b><span>查看全部订单</span></view>
+			<view class="quick" @click="goTransit"><b>在途物流</b><span>跟踪发货进度</span></view>
+			<view class="quick" @click="goInventory"><b>门店库存</b><span>收货后自动入库</span></view>
+		</view>
 
-			<view v-else-if="tab === 'orders'">
-				<view v-if="!orders.length" class="empty">暂无采购单</view>
-				<view v-for="item in orders" :key="item.id" class="card" @click="goDetail(item.id)">
-					<view class="row-main">
-						<view>
-							<view class="strong">{{ item.purchase_no }}</view>
-							<view class="muted">{{ formatTime(item.create_time) }} / {{ item.quantity_total }} 件</view>
-						</view>
-						<view class="status">{{ item.status_text || item.status }}</view>
+		<view class="section-head"><b>采购商品</b><span>总部采购价 · 快递配送</span></view>
+		<view v-if="loading" class="empty">正在加载采购商品...</view>
+		<view v-else-if="!catalog.length" class="empty">暂无可采购商品</view>
+		<view v-else class="goods-grid">
+			<view v-for="item in catalog" :key="item.id" class="goods" @click="goProduct(item.id)">
+				<image :src="item.product_image || fallbackImage" mode="aspectFill"></image>
+				<view class="goods-body">
+					<view class="name">{{ item.product_name || '采购商品' }}</view>
+					<view class="info">{{ item.product_info || ('起订 ' + item.min_purchase_quantity + ' 件') }}</view>
+					<view class="price-row">
+						<view><small>采购价</small><b>¥{{ item.purchase_price }}</b></view>
+						<view class="add" @click.stop="quickAdd(item)">+</view>
 					</view>
-					<view class="price">¥{{ item.amount_snapshot }}</view>
+					<view class="retail">商城参考价 ¥{{ item.retail_reference_price || item.retail_price }}</view>
 				</view>
 			</view>
-
-			<view v-else>
-				<view v-if="!inTransit.length" class="empty">暂无在途采购单</view>
-				<view v-for="item in inTransit" :key="item.id" class="card">
-					<view class="row-main">
-						<view>
-							<view class="strong">{{ item.purchase_no }}</view>
-							<view class="muted">发货后待收货 / {{ item.quantity_total }} 件</view>
-						</view>
-						<view class="status">{{ item.status }}</view>
-					</view>
-					<button v-if="canWrite" class="primary" @click="receive(item)">确认收货入库</button>
-				</view>
-			</view>
-		</block>
+		</view>
 	</view>
 	<view v-else class="access-check">正在校验采购权限...</view>
 </template>
 
 <script>
-import {
-	createYfthPurchaseOrder,
-	getYfthPurchaseOrders,
-	getYfthSupplyCatalog,
-	getYfthSupplyInTransit,
-	receiveYfthPurchaseOrder,
-	getYfthProductQuotaSummary
-} from '@/api/yfth.js';
+import { getYfthSupplyCatalog } from '@/api/yfth.js';
 import { currentContext, resolveYfthContext } from '@/libs/yfthContext.js';
 
 export default {
 	data() {
 		return {
-			accessGranted: false,
-			context: {},
-			tab: 'catalog',
-			loading: false,
-			catalog: [],
-			orders: [],
-			inTransit: [],
-			quantities: {},
-			quotaAmounts: {},
-			quotaAvailableCent: 0,
-			tabs: [
-				{ label: '采购商品', value: 'catalog' },
-				{ label: '我的采购单', value: 'orders' },
-				{ label: '在途收货', value: 'transit' }
-			]
+			accessGranted: false, context: {}, loading: false, keyword: '', catalog: [], cartCount: 0,
+			fallbackImage: '/static/images/noCart.png'
 		};
-	},
-	computed: {
-		quotaAvailable() {
-			return (Number(this.quotaAvailableCent || 0) / 100).toFixed(2);
-		},
-		canWrite() {
-			return this.context.role_code === 'store_manager';
-		}
 	},
 	onShow() {
 		const cached = currentContext();
 		resolveYfthContext(cached.role_code || 'customer', cached.store_id || 0).then((context) => {
 			if (context.role_code !== 'store_manager') {
-				this.redirectToWorkbench();
+				uni.showToast({ title: '仅店长可进入采购商城', icon: 'none' });
+				uni.reLaunch({ url: '/pages/yfth/workbench/index' });
 				return;
 			}
-			this.context = context;
-			this.accessGranted = true;
-			this.load();
-		}).catch((err) => {
-			uni.showToast({ title: String((err && err.msg) || err), icon: 'none' });
-			uni.navigateBack();
-		});
+			this.context = context; this.accessGranted = true; this.load(); this.refreshCartCount();
+		}).catch((err) => uni.showToast({ title: String((err && err.msg) || err), icon: 'none' }));
 	},
 	methods: {
-		redirectToWorkbench() {
-			const target = '/pages/yfth/workbench/index';
-			this.accessGranted = false;
-			uni.showToast({ title: '仅店长可进入采购中心', icon: 'none' });
-			uni.reLaunch({ url: target });
-			setTimeout(() => {
-				// #ifdef H5
-				if (typeof window !== 'undefined' && window.location.pathname !== target) {
-					window.location.replace(target);
-				}
-				// #endif
-			}, 300);
-		},
-		contextParams(extra) {
-			return Object.assign({ role_code: this.context.role_code, store_id: this.context.store_id }, extra || {});
-		},
-		changeTab(tab) {
-			this.tab = tab;
-			this.load();
-		},
+		contextParams(extra) { return Object.assign({ role_code: this.context.role_code, store_id: this.context.store_id }, extra || {}); },
+		cartKey() { return 'YFTH_PURCHASE_CART_' + Number(this.context.store_id || 0); },
+		getCart() { return uni.getStorageSync(this.cartKey()) || []; },
+		setCart(cart) { uni.setStorageSync(this.cartKey(), cart); this.refreshCartCount(); },
+		refreshCartCount() { this.cartCount = this.getCart().reduce((sum, item) => sum + Number(item.quantity || 0), 0); },
 		load() {
 			this.loading = true;
-			const api = this.tab === 'catalog'
-				? getYfthSupplyCatalog(this.contextParams())
-				: (this.tab === 'orders' ? getYfthPurchaseOrders(this.contextParams({ page: 1, limit: 20 })) : getYfthSupplyInTransit(this.contextParams({ page: 1, limit: 20 })));
-			api.then((res) => {
-				const list = (res.data && res.data.list) || [];
-				if (this.tab === 'catalog') this.catalog = list;
-				if (this.tab === 'orders') this.orders = list;
-				if (this.tab === 'transit') this.inTransit = list;
-			}).catch((err) => {
-				uni.showToast({ title: String((err && err.msg) || err), icon: 'none' });
-			}).finally(() => {
-				this.loading = false;
-			});
-			getYfthProductQuotaSummary(this.contextParams()).then((res) => {
-				this.quotaAvailableCent = Number((res.data && res.data.available_cent) || 0);
-			}).catch(() => {});
+			getYfthSupplyCatalog(this.contextParams({ keyword: this.keyword })).then((res) => {
+				this.catalog = (res.data && res.data.list) || [];
+			}).catch((err) => uni.showToast({ title: String((err && err.msg) || err), icon: 'none' }))
+				.finally(() => { this.loading = false; });
 		},
-		firstSku(item) {
-			return (item.skus && item.skus[0]) || {};
-		},
-		submitPurchase(item) {
-			const sku = this.firstSku(item);
-			const qty = Number(this.quantities[item.id] || item.min_purchase_quantity || 1);
-			if (!sku.sku_unique) {
-				uni.showToast({ title: '商品暂无可采购 SKU', icon: 'none' });
-				return;
+		quickAdd(item) {
+			const sku = (item.skus && item.skus[0]) || {};
+			if (!sku.sku_unique) return uni.showToast({ title: '商品暂无可采购规格', icon: 'none' });
+			const cart = this.getCart();
+			const key = item.product_id + ':' + sku.sku_unique;
+			const found = cart.find((row) => row.key === key);
+			if (found) found.quantity += Number(item.package_multiple || 1);
+			else {
+				const multiple = Math.max(1, Number(item.package_multiple || 1));
+				const minQuantity = Math.ceil(Math.max(1, Number(item.min_purchase_quantity || 1)) / multiple) * multiple;
+				cart.push({
+				key, catalog_id: item.id, product_id: item.product_id, product_name: item.product_name,
+				product_image: item.product_image, sku_unique: sku.sku_unique, sku_name: sku.sku_name,
+				purchase_price: item.purchase_price, quantity: minQuantity,
+				min_quantity: minQuantity, multiple
+				});
 			}
-			const payload = this.contextParams({
-				idempotency_key: 'yfth_purchase_' + item.id + '_' + Date.now(),
-				quota_amount_cent: Math.max(0, Math.round(Number(this.quotaAmounts[item.id] || 0) * 100)),
-				items: [{ product_id: item.product_id, sku_unique: sku.sku_unique, quantity: qty }]
-			});
-			createYfthPurchaseOrder(payload).then((res) => {
-				uni.showToast({ title: '采购单已提交', icon: 'success' });
-				const order = res.data && res.data.order;
-				if (order && order.id) this.goDetail(order.id);
-			}).catch((err) => {
-				uni.showToast({ title: String((err && err.msg) || err), icon: 'none' });
-			});
+			this.setCart(cart);
+			uni.showToast({ title: '已加入采购车', icon: 'success' });
 		},
-		receive(item) {
-			uni.showModal({
-				title: '确认收货',
-				content: '确认收到该采购单商品并完成入库？',
-				success: (modal) => {
-					if (!modal.confirm) return;
-					receiveYfthPurchaseOrder(item.id, this.contextParams({ idempotency_key: 'yfth_receipt_' + item.id + '_' + Date.now() })).then(() => {
-						uni.showToast({ title: '已入库', icon: 'success' });
-						this.load();
-					}).catch((err) => {
-						uni.showToast({ title: String((err && err.msg) || err), icon: 'none' });
-					});
-				}
-			});
-		},
-		goDetail(id) {
-			uni.navigateTo({ url: '/pages/yfth/workbench/purchase/detail?id=' + id });
-		},
-		goInventory() {
-			uni.navigateTo({ url: '/pages/yfth/workbench/purchase/inventory' });
-		},
-		formatTime(value) {
-			const ts = Number(value || 0);
-			if (!ts) return '-';
-			const date = new Date(ts * 1000);
-			const pad = (n) => (n < 10 ? '0' + n : '' + n);
-			return date.getFullYear() + '-' + pad(date.getMonth() + 1) + '-' + pad(date.getDate()) + ' ' + pad(date.getHours()) + ':' + pad(date.getMinutes());
-		}
+		goProduct(id) { uni.navigateTo({ url: '/pages/yfth/workbench/purchase/product?id=' + id }); },
+		goCart() { uni.navigateTo({ url: '/pages/yfth/workbench/purchase/cart' }); },
+		goOrders() { uni.navigateTo({ url: '/pages/yfth/workbench/purchase/orders' }); },
+		goTransit() { uni.navigateTo({ url: '/pages/yfth/workbench/purchase/orders?status=shipped' }); },
+		goInventory() { uni.navigateTo({ url: '/pages/yfth/workbench/purchase/inventory' }); }
 	}
 };
 </script>
 
 <style scoped>
-.purchase-page { min-height: 100vh; background: #f6f0e6; padding: 24rpx; }
-.access-check { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: #f6f0e6; color: #7a604d; font-size: 26rpx; }
-.top { background: #5a3f2e; color: #fff; border-radius: 16rpx; padding: 26rpx; display: flex; justify-content: space-between; align-items: center; }
-.title { font-size: 38rpx; font-weight: 700; }
-.sub { margin-top: 8rpx; color: #f4dfc0; font-size: 24rpx; }
-.light { background: #fffaf2; color: #6f4c2f; border-radius: 12rpx; font-size: 24rpx; }
-.tabs { display: flex; gap: 12rpx; margin: 20rpx 0; }
-.tab { flex: 1; text-align: center; background: #fff7e9; color: #7a604d; border-radius: 12rpx; padding: 18rpx 8rpx; font-size: 25rpx; }
-.tab.active { background: #6f4c2f; color: #fff; font-weight: 700; }
-.card, .empty { background: #fff; border-radius: 16rpx; padding: 24rpx; margin-top: 18rpx; }
-.row-main { display: flex; justify-content: space-between; gap: 18rpx; }
-.strong { font-size: 30rpx; font-weight: 700; color: #2d2434; }
-.muted { color: #786b73; font-size: 24rpx; margin-top: 8rpx; }
-.price, .status { color: #8f4d2c; font-weight: 700; }
-.buy-row { display: flex; gap: 14rpx; margin-top: 18rpx; }
-.buy-row input { flex: 1; background: #fffaf2; border-radius: 10rpx; padding: 0 18rpx; height: 64rpx; line-height: 64rpx; }
-.buy-row button, .primary { flex: 1; background: #6f4c2f; color: #fff; border-radius: 10rpx; font-size: 25rpx; }
+.page,.access-check{min-height:100vh;background:#f5f1e9;color:#2d241d}.page{padding-bottom:40rpx}.access-check{display:flex;align-items:center;justify-content:center}.hero{display:flex;justify-content:space-between;align-items:center;padding:40rpx 30rpx 34rpx;background:#7d5b39;color:#fff}.eyebrow{font-size:22rpx;opacity:.75}.title{font-size:48rpx;font-weight:700;margin-top:5rpx}.store{font-size:25rpx;margin-top:8rpx;opacity:.9}.hero-actions{display:flex;gap:14rpx}.icon-btn{position:relative;width:72rpx;height:72rpx;border:1rpx solid rgba(255,255,255,.55);border-radius:50%;display:flex;align-items:center;justify-content:center}.cart-btn text{position:absolute;right:-4rpx;top:-8rpx;min-width:30rpx;height:30rpx;border-radius:15rpx;background:#d94a35;font-size:19rpx;text-align:center;line-height:30rpx}.search{height:76rpx;margin:-18rpx 24rpx 18rpx;padding:0 24rpx;display:flex;align-items:center;gap:14rpx;background:#fff;border-radius:10rpx;box-shadow:0 8rpx 22rpx rgba(80,55,30,.09)}.search input{flex:1;font-size:26rpx}.clear{padding:10rpx}.quick-row{display:grid;grid-template-columns:repeat(3,1fr);gap:12rpx;padding:0 24rpx}.quick{background:#fff;padding:22rpx 16rpx;border-radius:10rpx}.quick b,.quick span{display:block}.quick b{font-size:27rpx}.quick span{font-size:20rpx;color:#918274;margin-top:8rpx}.section-head{display:flex;justify-content:space-between;align-items:center;padding:34rpx 24rpx 18rpx}.section-head b{font-size:34rpx}.section-head span{font-size:22rpx;color:#9a8a7b}.goods-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18rpx;padding:0 24rpx}.goods{overflow:hidden;background:#fff;border-radius:10rpx}.goods>image{width:100%;height:310rpx;background:#eee8df}.goods-body{padding:18rpx}.name{height:72rpx;font-size:27rpx;font-weight:600;line-height:36rpx;overflow:hidden}.info{height:32rpx;color:#9a8a7b;font-size:21rpx;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.price-row{display:flex;justify-content:space-between;align-items:end;margin-top:14rpx}.price-row small{display:block;color:#a47c4c;font-size:19rpx}.price-row b{color:#b77932;font-size:31rpx}.add{width:50rpx;height:50rpx;border-radius:50%;background:#8a633d;color:#fff;text-align:center;line-height:48rpx;font-size:36rpx}.retail{margin-top:8rpx;color:#aaa;font-size:19rpx;text-decoration:line-through}.empty{margin:24rpx;background:#fff;border-radius:10rpx;padding:80rpx 20rpx;text-align:center;color:#9a8a7b}
 </style>

@@ -21,6 +21,9 @@ class SupplyChainController
             ['items', []],
             [['supplier_subject_id', 'd'], 0],
             [['quota_amount_cent', 'd'], 0],
+            [['address_id', 'd'], 0],
+            ['pay_type', 'offline'],
+            ['buyer_mark', ''],
             ['idempotency_key', ''],
         ]);
         foreach (['store_id', 'store_ids', 'role_code', 'operator_uid', 'operator_role_code'] as $field) {

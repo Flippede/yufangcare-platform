@@ -207,13 +207,37 @@
 				{
 					"path": "workbench/purchase/index",
 					"style": {
-						"navigationBarTitleText": "Store Purchase"
+						"navigationBarTitleText": "采购商城"
 					}
 				},
 				{
 					"path": "workbench/purchase/detail",
 					"style": {
-						"navigationBarTitleText": "Purchase Detail"
+						"navigationBarTitleText": "采购订单详情"
+					}
+				},
+				{
+					"path": "workbench/purchase/product",
+					"style": {
+						"navigationBarTitleText": "采购商品详情"
+					}
+				},
+				{
+					"path": "workbench/purchase/cart",
+					"style": {
+						"navigationBarTitleText": "采购车"
+					}
+				},
+				{
+					"path": "workbench/purchase/checkout",
+					"style": {
+						"navigationBarTitleText": "确认采购订单"
+					}
+				},
+				{
+					"path": "workbench/purchase/orders",
+					"style": {
+						"navigationBarTitleText": "我的采购单"
 					}
 				},
 				{
