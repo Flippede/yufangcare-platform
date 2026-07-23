@@ -113,7 +113,7 @@
 
         <el-tab-pane :key="'rules-pane-' + rulesRenderKey" label="职级规则" name="rules">
           <div class="toolbar"><el-button type="primary" icon="el-icon-plus" @click="openRule">复制当前规则</el-button></div>
-          <div v-if="tab === 'rules'" :key="'rules-' + rulesRenderKey" v-loading="rulesLoading" class="partner-rule-list">
+          <div :key="'rules-' + rulesRenderKey" v-loading="rulesLoading" class="partner-rule-list">
             <div v-for="rule in partnerRules" :key="rule.id" class="partner-rule-card">
               <div class="partner-rule-head">
                 <div>
