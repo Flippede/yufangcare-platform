@@ -19,7 +19,7 @@ class SupplyChainServices extends YfthFoundationBaseServices
 {
     private const DOMAIN = 'yfth_supply_chain';
     private const STORE_READ_ROLES = ['store_manager', 'store_staff', 'county_partner', 'prefecture_partner', 'province_partner', 'regional_director', 'platform_director'];
-    private const STORE_WRITE_ROLES = ['store_manager', 'county_partner', 'prefecture_partner', 'province_partner', 'regional_director', 'platform_director'];
+    private const STORE_WRITE_ROLES = ['store_manager'];
     private const CATALOG_STATUSES = ['active', 'disabled'];
     private const ORDER_STATUSES = ['submitted', 'approved', 'rejected', 'shipped', 'stocked', 'cancelled'];
 
@@ -481,6 +481,7 @@ class SupplyChainServices extends YfthFoundationBaseServices
                 max(0, (int)($data['quota_amount_cent'] ?? 0)),
                 trim((string)($data['idempotency_key'] ?? '')) . ':quota'
             );
+            app()->make(ProcurementPartnerProfitServices::class)->freezeForPurchaseOrder($order, $amountCents);
             $detail = $this->purchaseOrderDetail((int)$order['id'], (int)$scope['store_id']);
             $this->audit('purchase_order', (int)$order['id'], 'submit', [], $detail['order'], (int)$scope['operator_uid'], (string)$scope['role_code'], (int)$scope['store_id'], '');
             return $detail;
@@ -540,6 +541,7 @@ class SupplyChainServices extends YfthFoundationBaseServices
                 'update_time' => $now,
             ]);
             app()->make(ProductQuotaPurchaseServices::class)->useForStockIn($orderId);
+            app()->make(ProcurementPartnerProfitServices::class)->recognizeForReceipt($orderId);
             $after = array_merge($order, ['status' => 'stocked', 'receive_time' => $now, 'update_time' => $now]);
             $this->audit('purchase_receipt', (int)$receipt['id'], 'stock_in', [], $receipt, (int)$scope['operator_uid'], (string)$scope['role_code'], (int)$scope['store_id'], '');
             $this->audit('purchase_order', $orderId, 'stocked', $order, $after, (int)$scope['operator_uid'], (string)$scope['role_code'], (int)$scope['store_id'], '');

@@ -33,8 +33,8 @@ It is intentionally not a finance, settlement, payment, revenue sharing, recomme
 
 1. Store operator enters the user-token workbench.
 2. Server resolves the real YFTH business context through `CurrentBusinessContextServices`.
-3. `franchisee` and `store_manager` can create purchase orders and confirm receipt.
-4. `store_staff` can read purchase catalog, purchase order status, inventory, and ledger, but cannot create purchase orders or stock in.
+3. Only `store_manager` can enter the procurement center, create purchase orders, and confirm receipt.
+4. `store_staff` and partner identities cannot create purchase orders; profit visibility belongs to the separate partner workbench.
 5. Client-submitted `store_id`, `store_ids`, role, or operator fields in write bodies are rejected.
 6. Purchase order list/detail and inventory queries are always scoped to the resolved current store.
 

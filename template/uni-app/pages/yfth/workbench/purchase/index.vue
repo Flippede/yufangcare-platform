@@ -98,20 +98,17 @@ export default {
 		};
 	},
 	computed: {
-		isPartnerRole() {
-			return ['county_partner', 'prefecture_partner', 'province_partner', 'regional_director', 'platform_director'].includes(this.context.role_code);
-		},
 		quotaAvailable() {
 			return (Number(this.quotaAvailableCent || 0) / 100).toFixed(2);
 		},
 		canWrite() {
-			return this.context.role_code === 'store_manager' || this.isPartnerRole;
+			return this.context.role_code === 'store_manager';
 		}
 	},
 	onShow() {
 		const cached = currentContext();
 		resolveYfthContext(cached.role_code || 'customer', cached.store_id || 0).then((context) => {
-			if (context.role_code !== 'store_manager' && !['county_partner', 'prefecture_partner', 'province_partner', 'regional_director', 'platform_director'].includes(context.role_code)) {
+			if (context.role_code !== 'store_manager') {
 				this.redirectToWorkbench();
 				return;
 			}
@@ -127,7 +124,7 @@ export default {
 		redirectToWorkbench() {
 			const target = '/pages/yfth/workbench/index';
 			this.accessGranted = false;
-			uni.showToast({ title: '仅店长或店铺归属合伙人可进入采购中心', icon: 'none' });
+			uni.showToast({ title: '仅店长可进入采购中心', icon: 'none' });
 			uni.reLaunch({ url: target });
 			setTimeout(() => {
 				// #ifdef H5

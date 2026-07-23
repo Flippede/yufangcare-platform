@@ -53,6 +53,40 @@
 			</view>
 
 			<view class="panel">
+				<view class="title">采购分润</view>
+				<view class="reward-grid">
+					<view><strong>￥{{ procurement.pending || '0.00' }}</strong><span>待结算</span></view>
+					<view><strong>￥{{ procurement.settled || '0.00' }}</strong><span>已结算</span></view>
+					<view><strong>￥{{ procurement.reversed || '0.00' }}</strong><span>退款冲正</span></view>
+				</view>
+				<view v-for="item in recentProcurement" :key="item.id" class="profit-row">
+					<view><b>{{ item.rank_code }}</b><span>采购单 {{ item.purchase_order_id }} · {{ item.status }}</span></view>
+					<strong>{{ cent(item.amount_cent) }}</strong>
+				</view>
+				<view v-if="!recentProcurement.length" class="inline-empty">暂无店长采购分润。</view>
+			</view>
+
+			<view class="panel">
+				<view class="title">开店服务奖励</view>
+				<view class="reward-grid">
+					<view><strong>￥{{ openingService.pending || '0.00' }}</strong><span>待结算</span></view>
+					<view><strong>￥{{ openingService.settled || '0.00' }}</strong><span>已结算</span></view>
+					<view><strong>￥{{ openingService.reversed || '0.00' }}</strong><span>已冲正</span></view>
+				</view>
+				<view class="hint">当前仅县级合伙人按有效开店记录获得服务奖励，上级职级接口保留但默认金额为 0。</view>
+			</view>
+
+			<view v-if="profile.rank_code === 'platform_director'" class="panel">
+				<view class="title">平台加权分红</view>
+				<view class="reward-grid">
+					<view><strong>￥{{ platformDividend.pending || '0.00' }}</strong><span>待结算</span></view>
+					<view><strong>￥{{ platformDividend.settled || '0.00' }}</strong><span>已结算</span></view>
+					<view><strong>￥{{ platformDividend.reversed || '0.00' }}</strong><span>已冲正</span></view>
+				</view>
+				<view class="hint">按总部发布规则，以平台采购业绩池和有效开店权重生成批次；采购分润比例可独立设为 0。</view>
+			</view>
+
+			<view class="panel">
 				<view class="title">招商收益候选</view>
 				<view class="reward-grid"><view><strong>￥{{ rewards.pending || '0.00' }}</strong><span>待确认</span></view><view><strong>￥{{ rewards.confirmed || '0.00' }}</strong><span>已确认</span></view><view><strong>￥{{ rewards.settled || '0.00' }}</strong><span>线下已结算</span></view></view>
 				<view class="hint">仅记录线下业务事实，不代表平台自动打款。</view>
@@ -71,6 +105,11 @@ export default {
 	computed: {
 		profile() { return this.data.profile || {}; }, performance() { return this.data.performance || {}; },
 		applications() { return this.data.my_applications || []; }, rewards() { return this.data.reward_summary || {}; },
+		profitSummary() { return this.data.profit_summary || {}; },
+		procurement() { return this.profitSummary.procurement || {}; },
+		openingService() { return this.profitSummary.opening_service || {}; },
+		platformDividend() { return this.profitSummary.platform_dividend || {}; },
+		recentProcurement() { return this.profitSummary.recent_procurement || []; },
 		promotionRule() { return this.data.promotion_rule || {}; },
 		promotionApplication() { return this.data.promotion_application || {}; },
 		flattenedTeam() {
@@ -143,6 +182,7 @@ export default {
 			if (this.$refs.partnerQr && this.$refs.partnerQr._saveCode) this.$refs.partnerQr._saveCode();
 			// #endif
 		},
+		cent(value) { return `￥${(Number(value || 0) / 100).toFixed(2)}`; },
 		formatRule(value) { const data = value || {}; const entries = Object.keys(data).map((key) => key + '=' + data[key]); return entries.length ? entries.join('，') : '总部人工审核'; }
 	}
 };
@@ -151,4 +191,5 @@ export default {
 <style scoped>
 .page { min-height: 100vh; padding: 24rpx; box-sizing: border-box; background: #f5efe5; color: #2d2434; }.hero { padding: 32rpx; border-radius: 16rpx; background: #8b633b; color: #fff; }.eyebrow { color: #f3dfba; font-size: 22rpx; }.rank { margin-top: 8rpx; font-size: 40rpx; font-weight: 700; }.store { margin-top: 8rpx; color: #fff1d7; font-size: 24rpx; }.metrics { display: grid; grid-template-columns: repeat(3,1fr); margin-top: 18rpx; background: #fff; border-radius: 16rpx; }.metrics>view,.reward-grid>view { padding: 24rpx 8rpx; text-align: center; }.metrics strong,.reward-grid strong { display: block; color: #74502e; font-size: 32rpx; }.metrics span,.reward-grid span { display: block; margin-top: 8rpx; color: #8d8178; font-size: 21rpx; }.panel { margin-top: 18rpx; padding: 24rpx; border-radius: 16rpx; background: #fff; box-shadow: 0 8rpx 24rpx rgba(75,50,30,.05); }.panel-head,.row,.rule-line { display: flex; align-items: center; justify-content: space-between; gap: 14rpx; }.title { font-size: 30rpx; font-weight: 700; }.hint,.inline-empty,.row span,.tree-row span { display: block; margin-top: 8rpx; color: #91847a; font-size: 22rpx; line-height: 1.55; }.panel button { margin: 0; padding: 0 18rpx; height: 58rpx; line-height: 58rpx; border-radius: 10rpx; background: #75512f; color: #fff; font-size: 23rpx; }.panel button.light { background: #f6ecdc; color: #75512f; }.invite-box { margin-top: 20rpx; text-align: center; }.qr-wrap { display: flex; align-items: center; justify-content: center; min-height: 390rpx; padding: 12rpx 0; }.partner-qr-image { display: block; width: 390rpx; height: 390rpx; }.qr-state { display: flex; align-items: center; justify-content: center; width: 390rpx; height: 390rpx; color: #91847a; font-size: 23rpx; background: #faf6ef; }.invite-actions { display: flex; justify-content: center; gap: 16rpx; }.invite-link { margin: 14rpx 0; padding: 14rpx; border-radius: 10rpx; background: #faf6ef; color: #786a60; font-size: 20rpx; word-break: break-all; }.row,.tree-row { padding-top: 18rpx; padding-bottom: 18rpx; border-bottom: 1rpx solid #f0e8de; }.row b,.tree-row b { font-size: 25rpx; }.row em { color: #a8753e; font-size: 22rpx; font-style: normal; }.rule-line { margin-top: 18rpx; padding: 16rpx; background: #faf6ef; }.rule-json { margin-top: 12rpx; color: #705e51; font-size: 23rpx; line-height: 1.6; }.reward-grid { display: grid; grid-template-columns: repeat(3,1fr); }.empty { margin-top: 20rpx; padding: 40rpx; text-align: center; background: #fff; border-radius: 16rpx; }.error { color: #c44; }
 .promotion-status { margin-top: 16rpx; color: #8b633b; font-size: 23rpx; }.panel button.promotion-button { width: 100%; margin-top: 18rpx; }
+.profit-row { display: flex; align-items: center; justify-content: space-between; gap: 16rpx; padding: 18rpx 0; border-top: 1rpx solid #f0e8de; }.profit-row b,.profit-row strong { color: #74502e; font-size: 25rpx; }.profit-row span { display: block; margin-top: 5rpx; color: #91847a; font-size: 21rpx; }
 </style>

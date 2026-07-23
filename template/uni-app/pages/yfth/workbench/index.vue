@@ -349,7 +349,7 @@ export default {
 			return ['store_manager', 'store_staff'].indexOf(this.context.role_code) !== -1;
 		},
 		canPurchaseInventory() {
-			return this.context.role_code === 'store_manager' || this.isPartnerRole;
+			return this.context.role_code === 'store_manager';
 		},
 		canIssueAcquisitionCode() {
 			return ['store_manager', 'store_staff'].indexOf(this.context.role_code) !== -1;

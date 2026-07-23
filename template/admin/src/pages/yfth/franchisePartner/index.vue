@@ -51,6 +51,47 @@
           </el-table>
         </el-tab-pane>
 
+        <el-tab-pane label="采购分润" name="procurementProfit">
+          <el-alert title="店长采购单收货入库后，系统按下单时冻结的五级比例和上下级快照生成分润台账；不代表已自动支付。" type="info" :closable="false" />
+          <el-table v-loading="loading" :data="procurementProfits" border size="small" class="governance-table">
+            <el-table-column prop="purchase_no" label="采购单号" min-width="180" />
+            <el-table-column prop="store_name" label="采购门店" min-width="150" />
+            <el-table-column prop="nickname" label="收益合伙人" min-width="130" />
+            <el-table-column prop="rank_code" label="职级快照" width="150" />
+            <el-table-column label="采购金额" width="120"><template slot-scope="{ row }">{{ moneyCent(row.base_amount_cent) }}</template></el-table-column>
+            <el-table-column label="比例" width="90"><template slot-scope="{ row }">{{ Number(row.rate_bps || 0) / 100 }}%</template></el-table-column>
+            <el-table-column label="分润金额" width="120"><template slot-scope="{ row }">{{ moneyCent(row.amount_cent) }}</template></el-table-column>
+            <el-table-column prop="status" label="状态" width="100" />
+          </el-table>
+        </el-tab-pane>
+
+        <el-tab-pane label="开店服务奖励" name="openingReward">
+          <el-alert title="加盟费线下处理。当前仅县级合伙人按有效开店获得服务奖励，上级职级接口保留且默认金额为 0。" type="warning" :closable="false" />
+          <el-table v-loading="loading" :data="openingRewards" border size="small" class="governance-table">
+            <el-table-column prop="application_id" label="加盟申请 ID" width="120" />
+            <el-table-column prop="store_name" label="正式门店" min-width="160" />
+            <el-table-column prop="nickname" label="县级合伙人" min-width="140" />
+            <el-table-column label="服务奖励" width="130"><template slot-scope="{ row }">{{ moneyCent(row.amount_cent) }}</template></el-table-column>
+            <el-table-column prop="status" label="状态" width="100" />
+          </el-table>
+        </el-tab-pane>
+
+        <el-tab-pane label="平台加权分红" name="dividends">
+          <div class="toolbar">
+            <el-date-picker v-model="dividendPeriod" type="month" value-format="yyyy-MM" placeholder="选择月份" />
+            <el-button type="primary" @click="generateDividend">生成分红批次</el-button>
+          </div>
+          <el-alert title="平台董事采购分润和平台总业绩加权分红分别计算；采购分润比例可设为 0。批次仅形成台账，不代表已支付。" type="info" :closable="false" />
+          <el-table v-loading="loading" :data="dividends" border size="small" class="governance-table">
+            <el-table-column prop="period_key" label="月份" width="100" />
+            <el-table-column label="平台采购业绩" width="140"><template slot-scope="{ row }">{{ moneyCent(row.performance_cent) }}</template></el-table-column>
+            <el-table-column label="分红池比例" width="110"><template slot-scope="{ row }">{{ Number(row.pool_bps || 0) / 100 }}%</template></el-table-column>
+            <el-table-column label="分红池" width="120"><template slot-scope="{ row }">{{ moneyCent(row.pool_cent) }}</template></el-table-column>
+            <el-table-column prop="status" label="状态" width="100" />
+            <el-table-column label="董事分配" min-width="260"><template slot-scope="{ row }"><span v-for="item in row.items" :key="item.id" class="rule-pill">{{ item.nickname || item.beneficiary_uid }} {{ moneyCent(item.amount_cent) }}</span></template></el-table-column>
+          </el-table>
+        </el-tab-pane>
+
         <el-tab-pane label="收益与线下结算" name="rewards">
           <div class="toolbar"><el-select v-model="rewardQuery.status" clearable placeholder="状态" @change="loadRewards(true)"><el-option v-for="s in ['pending','confirmed','settled','cancelled']" :key="s" :label="s" :value="s" /></el-select></div>
           <el-table v-loading="loading" :data="rewards" border size="small">
@@ -80,6 +121,8 @@
             <el-table-column prop="platform_dividend_bps" label="董事加权(BPS)" width="130" />
             <el-table-column prop="status" label="状态" width="90" />
             <el-table-column label="五级每瓶金额" min-width="320"><template slot-scope="{ row }"><span v-for="rank in row.rank_rules" :key="rank.rank_code" class="rule-pill">{{ rank.rank_name }} {{ rank.reward_per_bottle }}</span></template></el-table-column>
+            <el-table-column label="采购分润比例" min-width="320"><template slot-scope="{ row }"><span v-for="rank in row.rank_rules" :key="'purchase-' + rank.rank_code" class="rule-pill">{{ rank.rank_name }} {{ Number(rank.procurement_rate_bps || 0) / 100 }}%</span></template></el-table-column>
+            <el-table-column label="开店服务奖励" min-width="260"><template slot-scope="{ row }"><span v-for="rank in row.rank_rules" :key="'opening-' + rank.rank_code" class="rule-pill">{{ rank.rank_name }} {{ moneyCent(rank.opening_reward_amount_cent) }}</span></template></el-table-column>
             <el-table-column label="操作" width="110"><template slot-scope="{ row }"><el-button v-if="row.status === 'draft'" type="text" @click="publishRule(row)">发布</el-button></template></el-table-column>
           </el-table>
         </el-tab-pane>
@@ -161,8 +204,13 @@
     </el-dialog>
 
     <el-dialog title="创建职级规则草稿" :visible.sync="ruleVisible" width="680px">
-      <el-form label-width="130px"><el-form-item label="有效开店金额"><el-input v-model="ruleForm.order_amount" /></el-form-item><el-form-item label="每单瓶数"><el-input-number v-model="ruleForm.bottle_count" :min="1" /></el-form-item>
-        <el-form-item v-for="rank in rankOptions" :key="rank.value" :label="rank.label + '/瓶'"><el-input v-model="ruleForm.rank_rules[rank.value].reward_per_bottle" /></el-form-item>
+      <el-form label-width="150px"><el-form-item label="有效开店金额"><el-input v-model="ruleForm.order_amount" /></el-form-item><el-form-item label="每单瓶数"><el-input-number v-model="ruleForm.bottle_count" :min="1" /></el-form-item>
+        <el-form-item label="董事分红池(BPS)"><el-input-number v-model="ruleForm.platform_dividend_bps" :min="0" :max="10000" /></el-form-item>
+        <template v-for="rank in rankOptions">
+          <el-form-item :key="rank.value + '-bottle'" :label="rank.label + '/瓶'"><el-input v-model="ruleForm.rank_rules[rank.value].reward_per_bottle" /></el-form-item>
+          <el-form-item :key="rank.value + '-purchase'" :label="rank.label + '采购(%)'"><el-input-number v-model="ruleForm.rank_rules[rank.value].procurement_percent" :min="0" :max="100" :precision="2" /></el-form-item>
+          <el-form-item :key="rank.value + '-opening'" :label="rank.label + '开店奖励'"><el-input-number v-model="ruleForm.rank_rules[rank.value].opening_reward_amount" :min="0" :precision="2" /></el-form-item>
+        </template>
         <el-form-item label="变更原因"><el-input v-model.trim="ruleForm.reason" type="textarea" /></el-form-item></el-form>
       <span slot="footer"><el-button @click="ruleVisible=false">取消</el-button><el-button type="primary" @click="saveRule">保存草稿</el-button></span>
     </el-dialog>
@@ -176,7 +224,8 @@ import {
   yfthPartnerRules, yfthPartnerRulePublish, yfthPartnerRuleSave, yfthPartnerWarnings,
   yfthPartnerPromotions, yfthPartnerPromotionReview,
   yfthRewardEventList, yfthRewardEventRetry, yfthOpeningQuotaAwards, yfthOpeningQuotaConfirm,
-  yfthRewardConsistency, yfthPartnerMigrationIssues,
+  yfthRewardConsistency, yfthPartnerMigrationIssues, yfthPartnerProcurementProfits,
+  yfthPartnerOpeningRewards, yfthPartnerDividends, yfthPartnerDividendGenerate,
 } from '@/api/yfth';
 
 export default {
@@ -185,6 +234,7 @@ export default {
       tab: 'partners', loading: false, dashboard: {}, rankOptions: [], partners: [], partnerTotal: 0,
       partnerQuery: { keyword: '', rank_code: '', status: '', page: 1, limit: 20 },
       performances: [], rewards: [], rewardTotal: 0, rewardQuery: { status: '', page: 1, limit: 20 },
+      procurementProfits: [], openingRewards: [], dividends: [], dividendPeriod: '',
       rules: [], warnings: [], promotions: [], openingQuotas: [], rewardEvents: [], migrationIssues: [],
       eventQuery: { status: '', page: 1, limit: 100 }, detail: null, detailVisible: false, ruleVisible: false,
       ruleForm: { order_amount: '89100.00', bottle_count: 440, platform_dividend_bps: 100, rank_rules: {}, reason: '' },
@@ -196,9 +246,13 @@ export default {
   created() { this.loadDashboard(); this.loadPartners(); },
   methods: {
     loadDashboard() { return yfthPartnerDashboard().then((res) => { this.dashboard = res.data || {}; this.rankOptions = this.dashboard.rank_options || []; }); },
-    loadTab() { ({ partners: this.loadPartners, performance: this.loadPerformances, rewards: this.loadRewards, rules: this.loadRules, warnings: this.loadWarnings, promotions: this.loadPromotions, openingQuota: this.loadOpeningQuotas, rewardEvents: this.loadRewardEvents, migrationIssues: this.loadMigrationIssues }[this.tab] || (() => {})).call(this); },
+    loadTab() { ({ partners: this.loadPartners, performance: this.loadPerformances, procurementProfit: this.loadProcurementProfits, openingReward: this.loadOpeningRewards, dividends: this.loadDividends, rewards: this.loadRewards, rules: this.loadRules, warnings: this.loadWarnings, promotions: this.loadPromotions, openingQuota: this.loadOpeningQuotas, rewardEvents: this.loadRewardEvents, migrationIssues: this.loadMigrationIssues }[this.tab] || (() => {})).call(this); },
     loadPartners(reset) { if (reset === true) this.partnerQuery.page = 1; this.loading = true; return yfthPartnerList(this.partnerQuery).then((res) => { const d = res.data || {}; this.partners = d.list || []; this.partnerTotal = Number(d.count || 0); if (d.rank_options) this.rankOptions = d.rank_options; }).finally(() => { this.loading = false; }); },
     loadPerformances() { this.loading = true; return yfthPartnerPerformances({ page: 1, limit: 100 }).then((res) => { this.performances = (res.data || {}).list || []; }).finally(() => { this.loading = false; }); },
+    loadProcurementProfits() { this.loading = true; return yfthPartnerProcurementProfits({ page: 1, limit: 100 }).then((res) => { this.procurementProfits = (res.data || {}).list || []; }).finally(() => { this.loading = false; }); },
+    loadOpeningRewards() { this.loading = true; return yfthPartnerOpeningRewards({ page: 1, limit: 100 }).then((res) => { this.openingRewards = (res.data || {}).list || []; }).finally(() => { this.loading = false; }); },
+    loadDividends() { this.loading = true; return yfthPartnerDividends({ page: 1, limit: 100 }).then((res) => { this.dividends = (res.data || {}).list || []; }).finally(() => { this.loading = false; }); },
+    generateDividend() { if (!this.dividendPeriod) return this.$message.warning('请选择月份'); return yfthPartnerDividendGenerate({ period_key: this.dividendPeriod }).then(() => { this.$message.success('分红批次已生成'); return this.loadDividends(); }); },
     loadRewards(reset) { if (reset === true) this.rewardQuery.page = 1; this.loading = true; return yfthPartnerRewards(this.rewardQuery).then((res) => { const d = res.data || {}; this.rewards = d.list || []; this.rewardTotal = Number(d.count || 0); }).finally(() => { this.loading = false; }); },
     loadRules() { this.loading = true; return yfthPartnerRules().then((res) => { const d = res.data || {}; this.rules = d.list || []; this.rankOptions = d.rank_options || this.rankOptions; }).finally(() => { this.loading = false; }); },
     loadWarnings() { this.loading = true; return yfthPartnerWarnings({ page: 1, limit: 100 }).then((res) => { this.warnings = (res.data || {}).list || []; }).finally(() => { this.loading = false; }); },
@@ -220,8 +274,8 @@ export default {
     changeParent(row) { this.$prompt('请输入直接上级 UID，填 0 表示总部直营', '调整招商上级').then(({ value }) => this.$prompt('请输入调整原因', '操作原因').then(({ value: reason }) => yfthPartnerParentChange(row.uid, { parent_uid: Number(value || 0), reason }))).then(() => { this.$message.success('招商上级已更新'); this.loadPartners(); }).catch(() => {}); },
     rewardAction(row, action) { this.$prompt('请输入操作原因', action === 'confirm' ? '确认收益候选' : '取消收益候选').then(({ value }) => yfthPartnerRewardAction(row.id, action, { reason: value })).then(() => { this.$message.success('操作完成'); this.loadRewards(); this.loadDashboard(); }); },
     settle(row) { this.$prompt('请输入线下凭证编号或附件说明', '记录线下结算').then(({ value: evidence }) => this.$prompt('请输入结算说明', '操作原因').then(({ value: reason }) => yfthPartnerRewardAction(row.id, 'settle', { evidence, reason }))).then(() => { this.$message.success('线下结算事实已记录'); this.loadRewards(); }); },
-    openRule() { const source = this.rules.find((item) => item.status === 'published') || this.rules[0] || {}; const map = {}; this.rankOptions.forEach((rank) => { const current = (source.rank_rules || []).find((item) => item.rank_code === rank.value) || {}; map[rank.value] = { reward_per_bottle: current.reward_per_bottle || '0.00' }; }); this.ruleForm = { order_amount: source.order_amount || '89100.00', bottle_count: Number(source.bottle_count || 440), platform_dividend_bps: Number(source.platform_dividend_bps || 100), rank_rules: map, reason: '' }; this.ruleVisible = true; },
-    saveRule() { if (!this.ruleForm.reason) return this.$message.warning('必须填写规则变更原因'); yfthPartnerRuleSave(this.ruleForm).then(() => { this.$message.success('规则草稿已保存'); this.ruleVisible = false; this.loadRules(); }); },
+    openRule() { const source = this.rules.find((item) => item.status === 'published') || this.rules[0] || {}; const map = {}; this.rankOptions.forEach((rank) => { const current = (source.rank_rules || []).find((item) => item.rank_code === rank.value) || {}; map[rank.value] = { reward_per_bottle: current.reward_per_bottle || '0.00', procurement_percent: Number(current.procurement_rate_bps || 0) / 100, opening_reward_amount: Number(current.opening_reward_amount_cent || 0) / 100 }; }); this.ruleForm = { order_amount: source.order_amount || '89100.00', bottle_count: Number(source.bottle_count || 440), platform_dividend_bps: Number(source.platform_dividend_bps || 100), rank_rules: map, reason: '' }; this.ruleVisible = true; },
+    saveRule() { if (!this.ruleForm.reason) return this.$message.warning('必须填写规则变更原因'); const payload = JSON.parse(JSON.stringify(this.ruleForm)); Object.keys(payload.rank_rules || {}).forEach((code) => { const row = payload.rank_rules[code]; row.procurement_rate_bps = Math.round(Number(row.procurement_percent || 0) * 100); row.opening_reward_amount_cent = Math.round(Number(row.opening_reward_amount || 0) * 100); delete row.procurement_percent; delete row.opening_reward_amount; }); yfthPartnerRuleSave(payload).then(() => { this.$message.success('规则草稿已保存'); this.ruleVisible = false; this.loadRules(); }); },
     publishRule(row) { this.$prompt('请输入发布原因', '发布规则').then(({ value }) => yfthPartnerRulePublish(row.id, { reason: value })).then(() => { this.$message.success('新规则已发布，历史快照不会重算'); this.loadRules(); }); },
     sourceName(value) { return { franchise_opening: '正式开店', legacy_franchisee_migration: '历史身份迁移' }[value] || value || '-'; },
   },

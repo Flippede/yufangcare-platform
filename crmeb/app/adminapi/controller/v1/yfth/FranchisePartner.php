@@ -6,6 +6,7 @@ use app\adminapi\controller\AuthController;
 use app\services\system\admin\SystemRoleServices;
 use app\services\yfth\FranchiseOpeningServices;
 use app\services\yfth\FranchisePartnerServices;
+use app\services\yfth\ProcurementPartnerProfitServices;
 
 class FranchisePartner extends AuthController
 {
@@ -147,6 +148,38 @@ class FranchisePartner extends AuthController
         $this->auth('yfth/franchise_partner/opening/<application_id>/cancel', 'POST');
         $data = $this->request->postMore([['reason', '']]);
         return app('json')->success($services->adminCancelOpening((int)$application_id, (string)$data['reason'], (int)$this->adminId, $this->adminInfo ?: []));
+    }
+
+    public function procurementProfitList(ProcurementPartnerProfitServices $services)
+    {
+        $this->auth('yfth/franchise_partner/procurement_profit', 'GET');
+        return app('json')->success($services->adminProcurementProfits($this->request->getMore([
+            ['rank_code', ''], ['status', ''], [['store_id', 'd'], 0],
+            [['page', 'd'], 1], [['limit', 'd'], 20],
+        ])));
+    }
+
+    public function openingRewardList(ProcurementPartnerProfitServices $services)
+    {
+        $this->auth('yfth/franchise_partner/opening_reward', 'GET');
+        return app('json')->success($services->adminOpeningRewards($this->request->getMore([
+            ['status', ''], [['page', 'd'], 1], [['limit', 'd'], 20],
+        ])));
+    }
+
+    public function dividendList(ProcurementPartnerProfitServices $services)
+    {
+        $this->auth('yfth/franchise_partner/dividend', 'GET');
+        return app('json')->success($services->adminDividends($this->request->getMore([
+            ['status', ''], [['page', 'd'], 1], [['limit', 'd'], 20],
+        ])));
+    }
+
+    public function dividendGenerate(ProcurementPartnerProfitServices $services)
+    {
+        $this->auth('yfth/franchise_partner/dividend/generate', 'POST');
+        $data = $this->request->postMore([['period_key', date('Y-m')]]);
+        return app('json')->success($services->generateDividend((string)$data['period_key']));
     }
 
     private function auth(string $rule, string $method): void

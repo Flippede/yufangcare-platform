@@ -1215,6 +1215,22 @@ export function yfthPartnerOpeningComplete(data) {
   return request({ url: 'yfth/franchise_partner/opening/complete', method: 'post', data });
 }
 
+export function yfthPartnerProcurementProfits(params) {
+  return request({ url: 'yfth/franchise_partner/procurement_profit', method: 'get', params });
+}
+
+export function yfthPartnerOpeningRewards(params) {
+  return request({ url: 'yfth/franchise_partner/opening_reward', method: 'get', params });
+}
+
+export function yfthPartnerDividends(params) {
+  return request({ url: 'yfth/franchise_partner/dividend', method: 'get', params });
+}
+
+export function yfthPartnerDividendGenerate(data) {
+  return request({ url: 'yfth/franchise_partner/dividend/generate', method: 'post', data });
+}
+
 export function yfthPermanentMembershipEnrollments(params) { return request({ url: 'yfth/permanent_membership/enrollment', method: 'get', params }); }
 export function yfthPermanentMembershipEnrollment(id) { return request({ url: `yfth/permanent_membership/enrollment/${id}`, method: 'get' }); }
 export function yfthPermanentMembershipMembers(params) { return request({ url: 'yfth/permanent_membership/member', method: 'get', params }); }

@@ -106,6 +106,8 @@ class FranchisePartnerServices extends YfthFoundationBaseServices
                     'rank_name' => $meta['name'],
                     'rank_level' => $meta['level'],
                     'reward_per_bottle' => $this->money($input['reward_per_bottle'] ?? $base['reward_per_bottle'] ?? '0.00'),
+                    'procurement_rate_bps' => max(0, min(10000, (int)($input['procurement_rate_bps'] ?? $base['procurement_rate_bps'] ?? 0))),
+                    'opening_reward_amount_cent' => max(0, (int)($input['opening_reward_amount_cent'] ?? $base['opening_reward_amount_cent'] ?? 0)),
                     'promotion_config' => $this->json($input['promotion_config'] ?? $base['promotion_config'] ?? []),
                     'retention_config' => $this->json($input['retention_config'] ?? $base['retention_config'] ?? []),
                     'warning_config' => $this->json($input['warning_config'] ?? $base['warning_config'] ?? []),
@@ -840,6 +842,7 @@ class FranchisePartnerServices extends YfthFoundationBaseServices
         unset($detail['rank_events']);
         $detail['my_applications'] = $this->partnerApplications($uid, 10);
         $detail['reward_summary'] = $this->rewardSummary($uid);
+        $detail['profit_summary'] = app()->make(ProcurementPartnerProfitServices::class)->partnerSummary($uid);
         $detail['warnings'] = Db::name('yfth_partner_warning')->where(['partner_uid' => $uid, 'status' => 'open'])->order('id desc')->select()->toArray();
         $detail['promotion_application'] = Db::name('yfth_partner_promotion_application')->where('partner_uid', $uid)->order('id desc')->find() ?: [];
         $detail['next_rank'] = $this->nextRank((string)$profile['rank_code']);
@@ -979,6 +982,11 @@ class FranchisePartnerServices extends YfthFoundationBaseServices
         // V1 deliberately creates no hierarchy cash candidate. The durable reward event
         // grants product quota only to source.direct_partner_uid for its first three stores.
         $performance = Db::name('yfth_partner_opening_performance')->where('id', $performanceId)->find() ?: [];
+        app()->make(ProcurementPartnerProfitServices::class)->recordOpeningReward(
+            $applicationId,
+            $storeId,
+            (int)($source['direct_partner_uid'] ?? 0)
+        );
         $this->recordAudit('partner_opening_performance', $performanceId, 'opening_performance_create', [], $performance, $adminId, $storeId, 'formal_franchise_opening');
         return $performance;
     }
@@ -996,6 +1004,9 @@ class FranchisePartnerServices extends YfthFoundationBaseServices
             Db::name('yfth_partner_opening_performance')->where('id', (int)$performance['id'])->update([
                 'status' => 'invalid', 'invalid_reason' => $reason, 'update_time' => $now,
             ]);
+            Db::name('yfth_partner_opening_reward_ledger')->where([
+                'application_id' => $applicationId, 'status' => 'pending',
+            ])->update(['status' => 'reversed', 'update_time' => $now]);
             $profile = Db::name('yfth_partner_profile')->where([
                 'uid' => (int)$performance['applicant_uid'], 'source_type' => 'franchise_opening', 'source_id' => $applicationId,
             ])->lock(true)->find();

@@ -125,6 +125,10 @@ Route::group('yfth', function () {
         Route::post('promotion/:id/review', 'v1.yfth.FranchisePartner/promotionReview')->option(['real_name' => '招商晋级审批']);
         Route::post('opening/complete', 'v1.yfth.FranchisePartner/openingComplete')->option(['real_name' => '总部正式开店']);
         Route::post('opening/:application_id/cancel', 'v1.yfth.FranchisePartner/openingCancel')->option(['real_name' => '取消正式开店并冲正额度']);
+        Route::get('procurement_profit', 'v1.yfth.FranchisePartner/procurementProfitList')->option(['real_name' => '采购分润明细']);
+        Route::get('opening_reward', 'v1.yfth.FranchisePartner/openingRewardList')->option(['real_name' => '县级开店服务奖励']);
+        Route::get('dividend', 'v1.yfth.FranchisePartner/dividendList')->option(['real_name' => '平台董事加权分红']);
+        Route::post('dividend/generate', 'v1.yfth.FranchisePartner/dividendGenerate')->option(['real_name' => '生成平台董事加权分红批次']);
     })->option(['parent' => 'yfth', 'cate_name' => '招商合伙人与开店']);
     Route::group('permanent_membership', function () {
         Route::get('enrollment', 'v1.yfth.PermanentMembership/index')->option(['real_name' => 'Permanent membership enrollment list']);
