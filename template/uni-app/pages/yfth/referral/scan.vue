@@ -31,7 +31,7 @@
 				<view class="corner corner-br"></view>
 				<view v-if="cameraActive" class="scan-line"></view>
 			</view>
-			<text v-if="cameraActive" class="scan-hint">将御方通和推广二维码放入框内</text>
+			<text v-if="cameraActive" class="scan-hint">{{ scanHint }}</text>
 			<view v-else class="camera-state">
 				<text class="state-title">{{ cameraStateTitle }}</text>
 				<text class="state-copy">{{ cameraStateCopy }}</text>
@@ -42,7 +42,7 @@
 		<view class="scanner-footer" :style="{ paddingBottom: safeBottom + 18 + 'px' }">
 			<view class="input-action" @click="toggleInput">
 				<text class="input-icon">⌨</text>
-				<text>输入邀请码</text>
+				<text>{{ inputActionLabel }}</text>
 			</view>
 			<!-- #ifdef H5 -->
 			<view class="album-action" aria-label="从相册选择二维码" @click="chooseQrImage">
@@ -61,9 +61,9 @@
 		<view v-if="inputVisible" class="input-mask" @click="toggleInput">
 			<view class="input-sheet" @click.stop>
 				<view class="sheet-handle"></view>
-				<view class="sheet-title">输入邀请链接或邀请码</view>
-				<textarea v-model.trim="input" maxlength="1024" placeholder="粘贴邀请链接或 64 位推广码" />
-				<button class="submit-button" @click="submitInput">识别邀请</button>
+				<view class="sheet-title">{{ inputSheetTitle }}</view>
+				<textarea v-model.trim="input" maxlength="1024" :placeholder="inputPlaceholder" />
+				<button class="submit-button" @click="submitInput">{{ inputSubmitLabel }}</button>
 				<button class="cancel-button" @click="toggleInput">取消</button>
 			</view>
 		</view>
@@ -109,6 +109,31 @@ export default {
 		},
 		canRetryCamera() {
 			return !this.cameraPending && !this.cameraActive;
+		},
+		isStoreMembershipOperator() {
+			const context = currentContext();
+			return ['store_manager', 'store_staff'].indexOf(String(context.role_code || '')) !== -1
+				&& Number(context.store_id || 0) > 0;
+		},
+		membershipScanPreferred() {
+			return this.mode === 'membership_activation' || this.isStoreMembershipOperator;
+		},
+		scanHint() {
+			return this.membershipScanPreferred
+				? '将顾客的御方通和身份码放入框内'
+				: '将御方通和推广二维码放入框内';
+		},
+		inputActionLabel() {
+			return this.membershipScanPreferred ? '输入身份码' : '输入邀请码';
+		},
+		inputSheetTitle() {
+			return this.membershipScanPreferred ? '输入顾客身份码' : '输入邀请链接或邀请码';
+		},
+		inputPlaceholder() {
+			return this.membershipScanPreferred ? '粘贴顾客身份码或身份码链接' : '粘贴邀请链接或 64 位推广码';
+		},
+		inputSubmitLabel() {
+			return this.membershipScanPreferred ? '核验身份' : '识别邀请';
 		}
 	},
 	onLoad(options) {
@@ -269,30 +294,14 @@ export default {
 		},
 		submitInput() { this.consume(this.input); },
 		consume(value) {
-			if (this.mode === 'membership_activation') {
-				const token = this.extractIdentityToken(value);
-				if (!token) return this.toast('不是有效的御方通和用户身份码');
-				this.stopCamera();
-				this.nativeScannerOpened = false;
-				const context = currentContext();
-				activateYfthStorePermanentMembershipIdentity({
-					role_code: context.role_code,
-					store_id: context.store_id,
-					identity_token: token,
-					idempotency_key: 'store_identity_activation_' + Date.now()
-				}).then(() => {
-					uni.showModal({
-						title: '会员开通成功',
-						content: '该顾客已开通永久会员。',
-						showCancel: false,
-						success: () => this.goBack()
-					});
-				}).catch(() => {
-					this.nativeScannerOpened = false;
-					this.scan();
-				});
-				return;
+			const identityToken = this.extractIdentityToken(value);
+			if (identityToken) {
+				if (!this.isStoreMembershipOperator) {
+					return this.toast('该码为用户身份码，仅限门店店长或店员核验');
+				}
+				return this.confirmIdentityActivation(identityToken);
 			}
+			if (this.mode === 'membership_activation') return this.toast('不是有效的御方通和用户身份码');
 			const target = this.extractTarget(value);
 			if (!target.token) return this.toast('不是有效的御方通和推广码、门店码或邀请链接');
 			this.stopCamera();
@@ -300,6 +309,62 @@ export default {
 				? `/pages/yfth/store_acquisition/accept?acquisition_token=${target.token}`
 				: yfthReferralAcceptRoute(target.token);
 			uni.navigateTo({ url });
+		},
+		confirmIdentityActivation(token) {
+			this.stopCamera();
+			this.nativeScannerOpened = false;
+			uni.showModal({
+				title: '确认开通会员',
+				content: '确认该顾客属于当前门店并已完成线下购买，为其开通永久会员？',
+				confirmText: '确认开通',
+				cancelText: '取消',
+				success: (result) => {
+					if (!result.confirm) return this.scan();
+					this.activateIdentityMembership(token);
+				},
+				fail: () => this.scan()
+			});
+		},
+		activateIdentityMembership(token) {
+			const context = currentContext();
+			uni.showLoading({ title: '正在核验', mask: true });
+			activateYfthStorePermanentMembershipIdentity({
+				role_code: context.role_code,
+				store_id: context.store_id,
+				identity_token: token,
+				idempotency_key: 'store_identity_activation_' + token
+			}).then(() => {
+				uni.hideLoading();
+				uni.showModal({
+					title: '会员开通成功',
+					content: '该顾客已开通永久会员，已有上级会员时奖励将按现有阶梯规则处理。',
+					showCancel: false,
+					success: () => this.goBack()
+				});
+			}).catch((error) => {
+				uni.hideLoading();
+				this.nativeScannerOpened = false;
+				uni.showModal({
+					title: '会员开通未完成',
+					content: this.identityActivationError(error),
+					showCancel: false,
+					confirmText: '重新扫码',
+					success: () => this.scan()
+				});
+			});
+		},
+		identityActivationError(error) {
+			const raw = String((error && (error.msg || error.message)) || error || '');
+			const messages = {
+				permanent_membership_already_exists: '该用户已经是永久会员，无需重复开通。',
+				offline_membership_store_attribution_mismatch: '该用户未绑定当前门店，不能由本店开通会员。',
+				membership_store_operator_forbidden: '当前账号不是店长或店员，无权开通会员。',
+				customer_identity_code_invalid: '该身份码已失效，请让用户刷新身份码后重试。',
+				customer_identity_code_required: '未读取到有效身份码，请重新扫码。',
+				membership_user_not_found: '该用户不存在或账号已注销。'
+			};
+			const key = Object.keys(messages).find((item) => raw.indexOf(item) !== -1);
+			return key ? messages[key] : (raw || '核验失败，请稍后重试。');
 		},
 		extractIdentityToken(value) {
 			let text = String(value || '').trim();
