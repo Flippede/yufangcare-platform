@@ -112,7 +112,7 @@
         </el-tab-pane>
 
         <el-tab-pane label="职级规则" name="rules">
-          <section :key="'rules-' + rulesRenderKey" v-loading="rulesLoading" class="partner-rule-section">
+          <section v-loading="rulesLoading" class="partner-rule-section">
             <div class="toolbar"><el-button type="primary" icon="el-icon-plus" @click="openRule">复制当前规则</el-button></div>
             <div class="partner-rule-list">
               <div v-for="rule in partnerRules" :key="rule.id" class="partner-rule-card">
@@ -250,7 +250,7 @@ export default {
       partnerQuery: { keyword: '', rank_code: '', status: '', page: 1, limit: 20 },
       performances: [], rewards: [], rewardTotal: 0, rewardQuery: { status: '', page: 1, limit: 20 },
       procurementProfits: [], openingRewards: [], dividends: [], dividendPeriod: '',
-      partnerRules: [], rulesLoading: false, rulesRenderKey: 0, warnings: [], promotions: [], openingQuotas: [], rewardEvents: [], migrationIssues: [],
+      partnerRules: [], rulesLoading: false, warnings: [], promotions: [], openingQuotas: [], rewardEvents: [], migrationIssues: [],
       eventQuery: { status: '', page: 1, limit: 100 }, detail: null, detailVisible: false, ruleVisible: false,
       ruleForm: { order_amount: '89100.00', bottle_count: 440, platform_dividend_bps: 100, rank_rules: {}, reason: '' },
     };
@@ -281,12 +281,15 @@ export default {
       this.rulesLoading = true;
       return yfthPartnerRules().then((res) => {
         const d = res.data || {};
-        this.$set(this, 'partnerRules', Array.isArray(d.list) ? d.list : []);
-        if (Array.isArray(d.rank_options)) this.$set(this, 'rankOptions', d.rank_options);
-        this.rulesRenderKey += 1;
-      }).finally(() => {
+        this.partnerRules = Array.isArray(d.list) ? d.list : [];
+        if (Array.isArray(d.rank_options)) this.rankOptions = d.rank_options;
         this.rulesLoading = false;
-        this.$nextTick(() => this.$forceUpdate());
+        return d;
+      }).catch((error) => {
+        this.partnerRules = [];
+        this.rulesLoading = false;
+        this.$message.error((error && (error.msg || error.message)) || '职级规则加载失败');
+        return null;
       });
     },
     loadWarnings() { this.loading = true; return yfthPartnerWarnings({ page: 1, limit: 100 }).then((res) => { this.warnings = (res.data || {}).list || []; }).finally(() => { this.loading = false; }); },
