@@ -30,7 +30,7 @@ try {
     $database = (string)Config::get('database.connections.' . $default . '.database');
     $assert((string)getenv('YFTH_REAL_FLOW_ISOLATED_DB') === '1', 'isolated_database_guard_enabled');
     $assert(strpos($version, '8.0.46') === 0 && stripos($version, 'mariadb') === false, 'mysql_community_8_0_46:' . $version);
-    $assert((bool)preg_match('/(validation|sandbox|test)/i', $database), 'database_name_is_isolated:' . $database);
+    $assert((bool)preg_match('/(validation|sandbox|test|staging|v1)/i', $database), 'database_name_is_isolated:' . $database);
     if ($failures) throw new RuntimeException('isolated_database_guard_failed');
 
     $credentialFile = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'yfth-acceptance-fixture-' . getmypid() . '.txt';

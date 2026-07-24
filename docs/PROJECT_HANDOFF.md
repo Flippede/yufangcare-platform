@@ -1,5 +1,14 @@
 # 项目交接文档
 
+## Current Fact Snapshot - Partner Context Isolation V1
+
+- Development branch: `codex/yfth-partner-context-isolation-v1`; baseline: `1337ddb00fc42b65ead6c64f88538ea6f8027d4c`. Final `main`, `origin/main` and production commits must be read from real Git after this task's merge and deployment.
+- The five partner ranks now use `yfth_partner_profile` as their only operating identity source. Partner contexts always carry `store_id=0`, no store capability set and no store-manager/staff authority. A county partner may manage or recruit stores without becoming a store operator.
+- Partner pages use a fixed six-entry shell: workbench, team, franchise applications, earnings, headquarters mall and personal center. Store appointments, verification, store orders, store customers, benefit pickup and C1/B1 store settlement are not exposed to partner ranks.
+- The partner workbench, partner earnings page and personal-center account summary now read the same partner-ledger summary: recruitment rewards, procurement profit, opening-service rewards and platform dividends. They no longer reuse the selected store's C1/B1 commission summary.
+- A partner QR code remains a franchise-application source code. It does not create a C1 referral or store-customer attribution. The existing five-level TEST hierarchy and private credentials remain isolated; passwords are stored only in the server-side mode-600 file.
+- Focused source and isolated MySQL Community 8.0.46 checks cover all five effective ranks, adjacent hierarchy, county managed-store visibility, absence of county manager/staff roles, partner QR source capture, unified reward events and partner-context isolation. The final build, merge and production verification results must be recorded from actual commands.
+
 ## Current Fact Snapshot - Native Procurement Order Consolidation V1
 
 - Development branch: `codex/yfth-native-procurement-order-v1`; task baseline: `d99ea5091b76eae5c22f1617d389cd8eafbe675d`. Final `main`, `origin/main` and production commits must be read from real Git after the requested fast-forward merge and deployment.

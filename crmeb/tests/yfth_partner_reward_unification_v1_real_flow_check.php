@@ -28,19 +28,48 @@ try {
     $assert((bool)preg_match('/(validation|sandbox|test|local|dev|v1)/i', $database), 'isolated_database_name:' . $database);
     if ($failures) throw new RuntimeException('isolation_guard_failed');
 
-    $partner = Db::name('yfth_partner_profile')->where(['status' => 'active', 'qualification_status' => 'effective'])->where('primary_store_id', '>', 0)->find();
-    if (!$partner) throw new RuntimeException('effective_partner_fixture_missing');
+    $rankCodes = ['platform_director', 'regional_director', 'province_partner', 'prefecture_partner', 'county_partner'];
+    $partners = Db::name('yfth_partner_profile')
+        ->where(['status' => 'active', 'qualification_status' => 'effective'])
+        ->whereIn('rank_code', $rankCodes)
+        ->select()->toArray();
+    $partnerByRank = [];
+    foreach ($partners as $partnerRow) {
+        $partnerByRank[(string)$partnerRow['rank_code']] = $partnerRow;
+    }
+    $assert(count(array_intersect($rankCodes, array_keys($partnerByRank))) === 5, 'five_partner_ranks_are_effective');
+
+    $identityServices = app()->make(UserIdentityServices::class);
+    $contextServices = app()->make(CurrentBusinessContextServices::class);
+    foreach ($rankCodes as $rankCode) {
+        if (empty($partnerByRank[$rankCode])) {
+            continue;
+        }
+        $profile = $partnerByRank[$rankCode];
+        $partnerUid = (int)$profile['uid'];
+        $identities = $identityServices->listUserIdentities($partnerUid);
+        $partnerIdentity = array_values(array_filter($identities, function (array $identity) use ($rankCode): bool {
+            return (string)$identity['role_code'] === $rankCode && (int)$identity['store_id'] === 0
+                && (string)$identity['source_type'] === 'partner_profile';
+        }));
+        $assert(count($partnerIdentity) === 1, $rankCode . '_profile_identity_is_unique');
+        $context = $contextServices->resolve($partnerUid, $rankCode, (int)$profile['primary_store_id']);
+        $assert(
+            (int)$context['store_id'] === 0
+            && (string)$context['business_context_source'] === 'server_partner_profile'
+            && empty($context['capabilities']),
+            $rankCode . '_context_isolated_from_store_operation'
+        );
+    }
+
+    $partner = $partnerByRank['county_partner'] ?? [];
+    if (!$partner) throw new RuntimeException('effective_county_partner_fixture_missing');
     $uid = (int)$partner['uid'];
     $storeId = (int)$partner['primary_store_id'];
-    $rankCode = (string)$partner['rank_code'];
-    $identities = app()->make(UserIdentityServices::class)->listUserIdentities($uid);
-    $partnerIdentity = array_values(array_filter($identities, function (array $identity) use ($rankCode, $storeId): bool {
-        return (string)$identity['role_code'] === $rankCode && (int)$identity['store_id'] === $storeId
-            && (string)$identity['source_type'] === 'partner_store_binding';
-    }));
-    $assert(count($partnerIdentity) === 1, 'partner_store_identity_selectable');
-    $context = app()->make(CurrentBusinessContextServices::class)->resolve($uid, $rankCode, $storeId);
-    $assert((int)$context['store_id'] === $storeId && (string)$context['business_context_source'] === 'server_partner_store_binding', 'partner_context_resolved_from_binding');
+    $assert($storeId > 0, 'county_partner_manages_test_store');
+    $assert((int)Db::name('yfth_user_store_role')->where('uid', $uid)->whereIn('role_code', ['store_manager', 'store_staff'])->where('status', 'active')->count() === 0, 'county_partner_has_no_store_operating_role');
+    $countyContext = $contextServices->resolve($uid, 'county_partner', $storeId);
+    $assert((int)($countyContext['permission_scope']['managed_store_count'] ?? 0) >= 1, 'county_partner_exposes_managed_store_count_only');
     // Fixed IDs make this isolated flow replayable: the durable event and award
     // uniqueness guards must return the original first-three result on every run.
     $nonce = 991000;

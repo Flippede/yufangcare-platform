@@ -845,6 +845,10 @@ class FranchisePartnerServices extends YfthFoundationBaseServices
         $detail['my_applications'] = $this->partnerApplications($uid, 10);
         $detail['reward_summary'] = $this->rewardSummary($uid);
         $detail['profit_summary'] = app()->make(ProcurementPartnerProfitServices::class)->partnerSummary($uid);
+        $detail['unified_earning_summary'] = $this->unifiedEarningSummary(
+            $detail['reward_summary'],
+            $detail['profit_summary']
+        );
         $detail['warnings'] = Db::name('yfth_partner_warning')->where(['partner_uid' => $uid, 'status' => 'open'])->order('id desc')->select()->toArray();
         $detail['promotion_application'] = Db::name('yfth_partner_promotion_application')->where('partner_uid', $uid)->order('id desc')->find() ?: [];
         $detail['next_rank'] = $this->nextRank((string)$profile['rank_code']);
@@ -1144,6 +1148,25 @@ class FranchisePartnerServices extends YfthFoundationBaseServices
             $summary[(string)$row['status']] = (string)$row['amount'];
         }
         return $summary;
+    }
+
+    private function unifiedEarningSummary(array $rewardSummary, array $profitSummary): array
+    {
+        $pending = (float)($rewardSummary['pending'] ?? 0) + (float)($rewardSummary['confirmed'] ?? 0);
+        $settled = (float)($rewardSummary['settled'] ?? 0);
+        $reversed = (float)($rewardSummary['cancelled'] ?? 0);
+        foreach (['procurement', 'opening_service', 'platform_dividend'] as $domain) {
+            $row = $profitSummary[$domain] ?? [];
+            $pending += (float)($row['pending'] ?? 0);
+            $settled += (float)($row['settled'] ?? 0);
+            $reversed += (float)($row['reversed'] ?? 0);
+        }
+        return [
+            'pending' => number_format($pending, 2, '.', ''),
+            'settled' => number_format($settled, 2, '.', ''),
+            'reversed' => number_format($reversed, 2, '.', ''),
+            'currency' => 'CNY',
+        ];
     }
 
     private function partnerApplications(int $uid, int $limit): array

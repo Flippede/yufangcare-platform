@@ -67,19 +67,22 @@ class UserIdentityServices extends YfthFoundationBaseServices
             'uid' => $uid, 'status' => 'active', 'qualification_status' => 'effective',
         ])->find();
         if ($partner) {
-            $bindings = Db::name('yfth_partner_store_binding')->where([
+            $bindingCount = (int)Db::name('yfth_partner_store_binding')->where([
                 'partner_uid' => $uid, 'status' => 'active',
-            ])->order('id asc')->select()->toArray();
-            foreach ($bindings as $binding) {
-                $roles[] = [
-                    'identity_id' => (int)$partner['id'], 'store_role_id' => 0,
-                    'role_code' => (string)$partner['rank_code'],
-                    'role_name' => YfthConstants::roles()[(string)$partner['rank_code']] ?? (string)$partner['rank_code'],
-                    'store_id' => (int)$binding['store_id'], 'status' => 'active',
-                    'source_type' => 'partner_store_binding',
-                    'permission_scope' => ['binding_id' => (int)$binding['id']],
-                ];
-            }
+            ])->count();
+            $roles[] = [
+                'identity_id' => (int)$partner['id'],
+                'store_role_id' => 0,
+                'role_code' => (string)$partner['rank_code'],
+                'role_name' => YfthConstants::roles()[(string)$partner['rank_code']] ?? (string)$partner['rank_code'],
+                'store_id' => 0,
+                'status' => 'active',
+                'source_type' => 'partner_profile',
+                'permission_scope' => [
+                    'managed_store_count' => $bindingCount,
+                    'partner_profile_id' => (int)$partner['id'],
+                ],
+            ];
         }
 
         $roles = array_values($this->uniqueIdentityRows($roles));

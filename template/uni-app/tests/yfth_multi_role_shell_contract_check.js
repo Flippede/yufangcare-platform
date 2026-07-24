@@ -51,7 +51,7 @@ assert(referralCodePage.includes('else uni.hideShareMenu();'), 'ordinary identit
 
 const context = read('libs/yfthContext.js');
 const cache = read('utils/cache.js');
-assert(context.includes("const PARTNER_ROLES = ['county_partner', 'prefecture_partner', 'province_partner', 'regional_director', 'platform_director']"), 'all five partner ranks must be operating roles');
+assert(context.includes("export const PARTNER_ROLES = ['county_partner', 'prefecture_partner', 'province_partner', 'regional_director', 'platform_director']"), 'all five partner ranks must be operating roles');
 assert(context.includes("['store_manager', 'store_staff', 'service_mentor'].concat(PARTNER_ROLES)"), 'business role whitelist must include store and partner roles');
 assert(context.includes('getYfthContext(data)'), 'role/store context must be verified by the backend');
 assert(context.includes('uid: Number(context.uid || currentUid() || 0)'), 'cached context must carry the current uid');
@@ -62,6 +62,8 @@ assert(context.includes('dominantYfthIdentities'), 'identity selection must calc
 assert(context.includes('resolveDominantYfthContext'), 'cached lower roles must be replaced by the highest server identity');
 assert(context.includes('PARTNER_ROLES.forEach((role) => { YFTH_ROLE_NAVS[role] = YFTH_ROLE_NAVS.partner_workbench; })'), 'partner roles must inherit the partner workbench navigation');
 assert(context.indexOf('export const YFTH_ROLE_NAVS = {') < context.indexOf('PARTNER_ROLES.forEach((role) => { YFTH_ROLE_NAVS[role] = YFTH_ROLE_NAVS.partner_workbench; })'), 'partner navigation inheritance must run after YFTH_ROLE_NAVS initialization');
+assert(context.includes("return ['store_manager', 'store_staff'].indexOf(roleCode) !== -1;"), 'partner identities must not require a store operating context');
+assert(context.includes("{ title: '团队', pane: 'team' }") && context.includes("{ title: '招商申请', pane: 'applications' }") && context.includes("{ title: '收益', pane: 'earnings' }"), 'partner navigation must expose team applications and earnings');
 assert(context.includes('enterYfthBusinessMall') && context.includes('leaveYfthBusinessMall') && context.includes('isYfthBusinessMallBrowsing'), 'business mall browsing must be explicit and session-scoped');
 assert(context.includes("const BUSINESS_SURFACE_KEY = 'YFTH_BUSINESS_SURFACE'"), 'business mall and user-center intent must survive a tab chunk reload');
 assert(context.includes("Cache.set(BUSINESS_SURFACE_KEY, { uid, action }, BUSINESS_SURFACE_TTL)"), 'business surface intent must be scoped to the current uid and expire');
@@ -78,6 +80,7 @@ assertContains('pages/yfth/workbench/index.vue', 'getYfthStoreWorkbenchOrders', 
 assertContains('pages/yfth/workbench/index.vue', 'store_staff', 'workbench must keep store staff as a server-validated store role');
 assertNotContains('pages/yfth/workbench/index.vue', "from '@/api/yfth_admin.js'", 'formal workbench must not import admin-token APIs');
 assertContains('pages/yfth/workbench/index.vue', 'resolveDominantYfthContext', 'workbench must always resolve the highest server identity');
+assertContains('pages/yfth/workbench/index.vue', "/pages/yfth/franchise/partner/index?tab=dashboard", 'partner roles must leave the store workbench before store APIs are called');
 assertContains('pages/yfth/workbench/index.vue', "item.action === 'mall'", 'workbench mall entry must opt into headquarters mall browsing');
 assertContains('pages/yfth/workbench/index.vue', 'const cachedContext = currentContext()', 'workbench must keep the cached operating navigation stable during server refresh');
 assertContains('pages/yfth/workbench/index.vue', 'v-if="navItems.length" class="nav"', 'workbench must hide navigation instead of flashing customer tabs without an operating context');
@@ -95,6 +98,14 @@ assertContains('pages/yfth/workbench/role_switch.vue', 'dominantYfthIdentities',
 assertContains('pages/yfth/workbench/store_switch.vue', 'dominantYfthIdentities', 'store selection must stay within the highest role');
 assertContains('pages/yfth/workbench/index.vue', '/pages/yfth/workbench/customer/index', 'workbench must link to customer relation page');
 assertContains('pages/yfth/workbench/index.vue', 'role_code=${role}&store_id=${storeId}', 'customer navigation must carry the last server-verified role and store selection');
+
+const partnerPage = read('pages/yfth/franchise/partner/index.vue');
+assert(partnerPage.includes("activeTab === 'dashboard'") && partnerPage.includes("activeTab === 'team'") && partnerPage.includes("activeTab === 'applications'") && partnerPage.includes("activeTab === 'earnings'"), 'partner workbench must provide isolated fixed sections');
+assert(partnerPage.includes('合伙人收益与门店 C1/B1 佣金分开核算'), 'partner workbench must state the isolated earning boundary');
+assert(partnerPage.includes('招商申请二维码') && partnerPage.includes('不会建立 C1 推荐关系'), 'partner QR must remain an application-source code');
+assert(partnerPage.includes('unified_earning_summary'), 'partner workbench must use the unified partner earning summary');
+assert(userPage.includes("this.isYfthPartner ? '/pages/yfth/franchise/partner/index?tab=earnings'"), 'partner account entry must use the unified partner earning surface');
+assert(userPage.includes("goYfthPartnerTeam") && userPage.includes('合伙人中心'), 'partner user center must expose partner-specific entries');
 
 assertContains('api/yfth.js', 'yfth/customer/list', 'user API helper must expose customer list');
 assertContains('api/yfth.js', 'yfth/customer/relation', 'user API helper must expose customer relation binding');

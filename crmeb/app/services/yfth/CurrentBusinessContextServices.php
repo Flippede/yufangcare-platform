@@ -37,16 +37,25 @@ class CurrentBusinessContextServices
                 'uid' => $uid, 'rank_code' => $roleCode, 'status' => 'active', 'qualification_status' => 'effective',
             ])->find();
             if (!$profile) throw new ApiException('partner_context_not_effective');
-            $binding = Db::name('yfth_partner_store_binding')->where([
-                'partner_uid' => $uid, 'store_id' => $storeId, 'status' => 'active',
-            ])->find();
-            if (!$binding) throw new ApiException('partner_store_binding_not_found');
-            $store = app()->make(StoreAccessServices::class)->assertStoreActive($storeId);
-            return array_merge($this->baseContext($uid, $roleCode), $store, [
-                'store_role_id' => 0, 'identity_id' => (int)$profile['id'],
-                'permission_scope' => ['source' => 'partner_store_binding', 'binding_id' => (int)$binding['id']],
-                'business_context_source' => 'server_partner_store_binding',
-            ], $this->storeBusinessSummary($storeId));
+            $managedStoreCount = (int)Db::name('yfth_partner_store_binding')->where([
+                'partner_uid' => $uid, 'status' => 'active',
+            ])->count();
+            return array_merge($this->baseContext($uid, $roleCode), [
+                'store_id' => 0,
+                'store_name' => '',
+                'store_status' => '',
+                'store_type' => '',
+                'store_role_id' => 0,
+                'identity_id' => (int)$profile['id'],
+                'permission_scope' => [
+                    'source' => 'partner_profile',
+                    'managed_store_count' => $managedStoreCount,
+                ],
+                'business_context_source' => 'server_partner_profile',
+                'subject_status' => '',
+                'qualification_status' => (string)$profile['qualification_status'],
+                'capabilities' => [],
+            ]);
         }
 
         /** @var UserIdentityServices $identityServices */

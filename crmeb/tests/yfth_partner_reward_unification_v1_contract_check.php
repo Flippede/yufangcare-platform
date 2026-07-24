@@ -49,8 +49,8 @@ foreach (['reserve', 'useForStockIn', 'release', 'refundUsed', 'reverseRefund'] 
 $assert($has($supply, 'quota_amount_cent') && $has($supply, 'quota_payment'), 'purchase_supports_quota_plus_online');
 $assert($has($brokerage, 'isYfthUnifiedRewardOrder') && $has($brokerage, 'yfth_package_purchase'), 'crmeb_brokerage_guard');
 $assert($has($constants, 'partnerRoles') && $has($constants, "'platform_director'"), 'all_partner_ranks_are_business_roles');
-$assert($has($context, 'server_partner_store_binding') && $has($context, 'partner_store_binding_not_found'), 'partner_context_is_server_bound_to_store');
-$assert($has($identities, "'source_type' => 'partner_store_binding'"), 'partner_store_identity_is_selectable');
+$assert($has($context, 'server_partner_profile') && !$has($context, 'partner_store_binding_not_found'), 'partner_context_is_profile_scoped');
+$assert($has($identities, "'source_type' => 'partner_profile'") && $has($identities, "'store_id' => 0"), 'partner_identity_is_not_store_operating_identity');
 foreach (['user_brokerage', 'user_bill', 'now_money', 'integral'] as $forbidden) {
     $assert(!$has($orchestrator, $forbidden), 'orchestrator_does_not_write_crmeb_asset:' . $forbidden);
 }

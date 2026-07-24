@@ -340,10 +340,10 @@ export default {
 			return roleNav(this.context.role_code);
 		},
 		storeRoleReady() {
-			return (['store_manager', 'store_staff'].indexOf(this.context.role_code) !== -1 || this.isPartnerRole) && Number(this.context.store_id) > 0;
+			return ['store_manager', 'store_staff'].indexOf(this.context.role_code) !== -1 && Number(this.context.store_id) > 0;
 		},
 		canReadProductQuota() {
-			return this.context.role_code === 'store_manager' || this.isPartnerRole;
+			return this.context.role_code === 'store_manager';
 		},
 		canReadPackageMembership() {
 			return ['store_manager', 'store_staff'].indexOf(this.context.role_code) !== -1;
@@ -390,9 +390,6 @@ export default {
 		businessTools() {
 			const tools = [];
 			tools.push({ key: 'commission', icon: '账', title: '佣金与结算', desc: '未结算、已结算、C1申请与结算明细' });
-			if (this.isPartnerRole) {
-				tools.push({ key: 'partner', icon: '招', title: '招商合伙人工作台', desc: '申请二维码、团队、业绩、职级与招商收益' });
-			}
 			if (this.canPurchaseInventory) {
 				tools.push({ key: 'purchase', icon: '采', title: '进入采购库存', desc: '采购单、收货与门店库存' });
 			}
@@ -443,6 +440,10 @@ export default {
 						uni.reLaunch({ url: '/pages/index/index' });
 						return;
 					}
+					if (this.isPartnerRoleCode(context.role_code)) {
+						uni.redirectTo({ url: '/pages/yfth/franchise/partner/index?tab=dashboard' });
+						return;
+					}
 					this.identities = identities;
 					this.context = context;
 					if (this.storeRoleReady) {
@@ -466,6 +467,9 @@ export default {
 				role_code: this.context.role_code,
 				store_id: this.context.store_id
 			}, extra || {});
+		},
+		isPartnerRoleCode(roleCode) {
+			return ['county_partner', 'prefecture_partner', 'province_partner', 'regional_director', 'platform_director'].indexOf(roleCode) !== -1;
 		},
 		loadOverview() {
 			return Promise.all([

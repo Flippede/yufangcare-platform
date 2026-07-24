@@ -15,7 +15,7 @@ export const YFTH_ROLE_LABELS = {
 	platform_director: '平台董事'
 };
 
-const PARTNER_ROLES = ['county_partner', 'prefecture_partner', 'province_partner', 'regional_director', 'platform_director'];
+export const PARTNER_ROLES = ['county_partner', 'prefecture_partner', 'province_partner', 'regional_director', 'platform_director'];
 
 export const YFTH_ROLE_NAVS = {
 	customer: [
@@ -26,9 +26,9 @@ export const YFTH_ROLE_NAVS = {
 	],
 	partner_workbench: [
 		{ title: '工作台', pane: 'dashboard' },
-		{ title: '门店', pane: 'stores' },
-		{ title: '客户', pane: 'customers' },
-		{ title: '订单', pane: 'orders' },
+		{ title: '团队', pane: 'team' },
+		{ title: '招商申请', pane: 'applications' },
+		{ title: '收益', pane: 'earnings' },
 		{ title: '商城', url: '/pages/index/index', type: 'switchTab', action: 'mall' },
 		{ title: '我的', url: '/pages/user/index', type: 'switchTab', action: 'user_center' }
 	],
@@ -90,8 +90,12 @@ export function isBusinessRole(roleCode) {
 	return ['store_manager', 'store_staff', 'service_mentor'].concat(PARTNER_ROLES).indexOf(roleCode) !== -1;
 }
 
+export function isPartnerRole(roleCode) {
+	return PARTNER_ROLES.indexOf(roleCode) !== -1;
+}
+
 export function roleRequiresStore(roleCode) {
-	return ['store_manager', 'store_staff'].concat(PARTNER_ROLES).indexOf(roleCode) !== -1;
+	return ['store_manager', 'store_staff'].indexOf(roleCode) !== -1;
 }
 
 export function currentContext() {

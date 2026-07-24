@@ -82,7 +82,7 @@
 					<view class="mall-assets" v-if="isLogin">
 						<view class="asset-item" @click="goYfthCommissionAccount">
 							<text class="asset-value">{{ yfthUnifiedBalance }}</text>
-							<text class="asset-label">账户余额</text>
+							<text class="asset-label">{{ yfthAccountLabel }}</text>
 						</view>
 						<view class="asset-item" @click="goMenuPage('/pages/users/user_integral/index')">
 							<text class="asset-value">{{ userInfo.integral || 0 }}</text>
@@ -95,9 +95,15 @@
 						<view class="asset-note">商城资产与御方通和推荐佣金分别记录，互不混用</view>
 					</view>
 					<view class="member-exclusive" v-if="isLogin">
-						<view class="section-title">会员专属</view>
-						<view class="exclusive-grid">
-							<view @click="goYfthReferralCode"><text class="exclusive-icon">码</text><text>{{ isYfthPermanentMember || isYfthStoreOperator ? '我的推广码' : '我的身份码' }}</text></view>
+						<view class="section-title">{{ isYfthPartner ? '合伙人中心' : '会员专属' }}</view>
+						<view v-if="isYfthPartner" class="exclusive-grid">
+							<view @click="goYfthReferralCode"><text class="exclusive-icon">招</text><text>招商申请码</text></view>
+							<view @click="goYfthPartnerTeam"><text class="exclusive-icon">队</text><text>团队与门店</text></view>
+							<view @click="goYfthCommissionAccount"><text class="exclusive-icon">益</text><text>合伙人收益</text></view>
+							<view @click="goMenuPage('/pages/index/index')"><text class="exclusive-icon">商</text><text>总部商城</text></view>
+						</view>
+						<view v-else class="exclusive-grid">
+							<view @click="goYfthReferralCode"><text class="exclusive-icon">码</text><text>{{ yfthCodeLabel }}</text></view>
 							<view @click="goYfthAttribution"><text class="exclusive-icon">归</text><text>我的归属</text></view>
 							<view @click="goYfthPackageMembership"><text class="exclusive-icon">会</text><text>套餐会员</text></view>
 							<view @click="goYfthRewards"><text class="exclusive-icon">奖</text><text>我的奖励</text></view>
@@ -234,8 +240,8 @@ import colors from '@/mixins/color';
 import pageFooter from '@/components/pageFooter/index.vue';
 import { getCustomer } from '@/utils/index.js';
 import editUserModal from '@/components/eidtUserModal/index.vue';
-import { currentContext, dominantYfthIdentities, isBusinessRole, isYfthBusinessUserCenterBrowsing, leaveYfthBusinessUserCenter, loadYfthIdentities, resolveDominantYfthContext, roleLabel } from '@/libs/yfthContext.js';
-import { getYfthPackageMembershipMe, getYfthCommissionSummary } from '@/api/yfth.js';
+import { currentContext, dominantYfthIdentities, isBusinessRole, isPartnerRole, isYfthBusinessUserCenterBrowsing, leaveYfthBusinessUserCenter, loadYfthIdentities, resolveDominantYfthContext, roleLabel } from '@/libs/yfthContext.js';
+import { getYfthPackageMembershipMe, getYfthCommissionSummary, getYfthPartnerWorkbench } from '@/api/yfth.js';
 export default {
 	components: {
 		pageFooter,
@@ -272,7 +278,21 @@ export default {
 		isYfthStoreOperator() {
 			return ['store_manager', 'store_staff'].includes(String((this.yfthCurrentContext || {}).role_code || ''));
 		},
+		isYfthPartner() {
+			return isPartnerRole(String((this.yfthCurrentContext || {}).role_code || ''));
+		},
+		yfthAccountLabel() {
+			return this.isYfthPartner ? '合伙人收益' : '账户余额';
+		},
+		yfthCodeLabel() {
+			if (this.isYfthPartner) return '招商申请码';
+			return this.isYfthPermanentMember || this.isYfthStoreOperator ? '我的推广码' : '我的身份码';
+		},
 		yfthUnifiedBalance() {
+			if (this.isYfthPartner) {
+				const summary = this.yfthPartnerProfile.unified_earning_summary || {};
+				return (Number(summary.pending || 0) + Number(summary.settled || 0)).toFixed(2);
+			}
 			return (Number(this.userInfo.now_money || 0) + Number(this.yfthCommissionProfile.account && this.yfthCommissionProfile.account.available || 0)).toFixed(2);
 		}
 	},
@@ -357,6 +377,7 @@ export default {
 			yfthMembershipState: 'idle',
 			yfthMembershipRequestSeq: 0,
 			yfthCommissionProfile: {},
+			yfthPartnerProfile: {},
 			my_banner_status: 0,
 			is_diy: uni.getStorageSync('is_diy')
 		};
@@ -490,6 +511,7 @@ export default {
 			this.hasYfthBusinessIdentity = false;
 			this.yfthIdentities = [];
 			this.yfthCurrentContext = {};
+			this.yfthPartnerProfile = {};
 			this.yfthBusinessIdentityRequestSeq += 1;
 		},
 		loadYfthBusinessEntry() {
@@ -518,14 +540,19 @@ export default {
 				}
 				return resolveDominantYfthContext(list).then((context) => {
 					this.yfthCurrentContext = context;
-					if (!keepUserCenter) uni.reLaunch({ url: '/pages/yfth/workbench/index' });
+					if (isPartnerRole(context.role_code)) this.loadYfthPartnerFinance();
+					if (!keepUserCenter) {
+						uni.reLaunch({ url: isPartnerRole(context.role_code) ? '/pages/yfth/franchise/partner/index?tab=dashboard' : '/pages/yfth/workbench/index' });
+					}
 					return true;
 				});
 			}).catch(() => {
 				if (requestSeq === this.yfthBusinessIdentityRequestSeq) {
 					const cached = currentContext();
 					this.hasYfthBusinessIdentity = Boolean(cached.is_business_role);
-					if (cached.is_business_role && !keepUserCenter) uni.reLaunch({ url: '/pages/yfth/workbench/index' });
+					if (cached.is_business_role && !keepUserCenter) {
+						uni.reLaunch({ url: isPartnerRole(cached.role_code) ? '/pages/yfth/franchise/partner/index?tab=dashboard' : '/pages/yfth/workbench/index' });
+					}
 				}
 				return false;
 			});
@@ -563,9 +590,22 @@ export default {
 				return true;
 			}).catch(() => { this.yfthCommissionProfile = {}; return false; });
 		},
+		loadYfthPartnerFinance() {
+			if (!this.isLogin || !this.isYfthPartner) {
+				this.yfthPartnerProfile = {};
+				return Promise.resolve(false);
+			}
+			return getYfthPartnerWorkbench().then((res) => {
+				this.yfthPartnerProfile = res.data || {};
+				return true;
+			}).catch(() => {
+				this.yfthPartnerProfile = {};
+				return false;
+			});
+		},
 		goYfthCommissionAccount() {
 			if (!this.isLogin) { toLogin(); return; }
-			uni.navigateTo({ url: '/pages/yfth/commission/account' });
+			uni.navigateTo({ url: this.isYfthPartner ? '/pages/yfth/franchise/partner/index?tab=earnings' : '/pages/yfth/commission/account' });
 		},
 		serviceMenuInitial(name) {
 			const text = String(name || '服务').trim();
@@ -834,11 +874,15 @@ export default {
 				this.goYfthWorkbench();
 				return;
 			}
-			uni.navigateTo({ url: '/pages/yfth/workbench/index' });
+			uni.navigateTo({ url: this.isYfthPartner ? '/pages/yfth/franchise/partner/index?tab=dashboard' : '/pages/yfth/workbench/index' });
 		},
 
 		goYfthReferralCode() {
 			if (!this.isLogin) { toLogin(); return; }
+			if (this.isYfthPartner) {
+				uni.navigateTo({ url: '/pages/yfth/franchise/partner/index?tab=applications' });
+				return;
+			}
 			if (this.isYfthStoreOperator) {
 				const context = this.yfthCurrentContext || {};
 				uni.navigateTo({ url: `/pages/yfth/store_acquisition/code?role_code=${encodeURIComponent(context.role_code)}&store_id=${Number(context.store_id || 0)}` });
@@ -854,6 +898,11 @@ export default {
 		goYfthRewards() {
 			if (!this.isLogin) { toLogin(); return; }
 			uni.navigateTo({ url: '/pages/yfth/referral/ledger' });
+		},
+
+		goYfthPartnerTeam() {
+			if (!this.isLogin) { toLogin(); return; }
+			uni.navigateTo({ url: '/pages/yfth/franchise/partner/index?tab=team' });
 		},
 
 		goPages(url) {

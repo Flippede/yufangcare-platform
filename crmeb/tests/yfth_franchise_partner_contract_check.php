@@ -124,7 +124,13 @@ $assert($contains($apiRoute, "yfth/franchise/partner/workbench") && $contains($a
 $assert($contains($apiRoute, 'yfth/franchise/partner/promotion/apply'), 'promotion_apply_route_registered');
 $assert($contains($adminPage, '招商合伙人详情') && $contains($adminPage, '收益与线下结算'), 'admin_surface_present');
 $assert($contains($adminPage, '晋级申请') && $contains($userPage, '申请晋升下一职级'), 'promotion_surface_present');
-$assert($contains($userPage, '加盟申请二维码') && $contains($userPage, '招商收益候选'), 'partner_workbench_present');
+$assert(
+    $contains($userPage, '招商申请二维码')
+    && $contains($userPage, '招商收益记录')
+    && $contains($userPage, '不会建立 C1 推荐关系或授予门店经营身份')
+    && $contains($userPage, '不展示门店 C1/B1 佣金'),
+    'partner_workbench_is_profile_scoped'
+);
 
 $assert($contains($userPage, ':key="qrRenderKey"')
     && $contains($userPage, 'queueQrRender')
