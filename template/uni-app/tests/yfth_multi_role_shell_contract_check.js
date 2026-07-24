@@ -104,6 +104,7 @@ assert(partnerPage.includes("activeTab === 'dashboard'") && partnerPage.includes
 assert(partnerPage.includes('合伙人收益与门店 C1/B1 佣金分开核算'), 'partner workbench must state the isolated earning boundary');
 assert(partnerPage.includes('招商申请二维码') && partnerPage.includes('不会建立 C1 推荐关系'), 'partner QR must remain an application-source code');
 assert(partnerPage.includes('unified_earning_summary'), 'partner workbench must use the unified partner earning summary');
+assert(partnerPage.includes('min-height: 106rpx'), 'partner workbench footer must match the shared mall and user-center footer height');
 assert(userPage.includes("this.isYfthPartner ? '/pages/yfth/franchise/partner/index?tab=earnings'"), 'partner account entry must use the unified partner earning surface');
 assert(userPage.includes("goYfthPartnerTeam") && userPage.includes('合伙人中心'), 'partner user center must expose partner-specific entries');
 

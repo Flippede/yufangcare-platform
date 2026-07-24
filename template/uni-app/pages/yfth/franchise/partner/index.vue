@@ -342,7 +342,7 @@ export default {
 </script>
 
 <style scoped>
-.page { min-height: 100vh; padding: 24rpx 24rpx calc(150rpx + env(safe-area-inset-bottom)); box-sizing: border-box; background: #f5efe5; color: #2d2434; }
+.page { min-height: 100vh; padding: 24rpx 24rpx calc(130rpx + env(safe-area-inset-bottom)); box-sizing: border-box; background: #f5efe5; color: #2d2434; }
 .hero { padding: 32rpx; border-radius: 16rpx; background: #8b633b; color: #fff; }
 .eyebrow { color: #f3dfba; font-size: 22rpx; }
 .rank { margin-top: 8rpx; font-size: 40rpx; font-weight: 700; }
@@ -376,7 +376,7 @@ export default {
 .profit-row { display: flex; align-items: center; justify-content: space-between; gap: 16rpx; padding: 18rpx 0; border-top: 1rpx solid #f0e8de; }
 .profit-row b,.profit-row strong { color: #74502e; font-size: 25rpx; }
 .profit-row span { display: block; margin-top: 5rpx; color: #91847a; font-size: 21rpx; }
-.partner-tabbar { position: fixed; z-index: 30; right: 0; bottom: 0; left: 0; display: grid; grid-template-columns: repeat(6,1fr); max-width: 750px; margin: 0 auto; padding: 20rpx 8rpx calc(20rpx + env(safe-area-inset-bottom)); box-sizing: border-box; border-top: 1rpx solid #eadfce; background: #fffaf3; }
-.partner-tab { overflow: hidden; color: #75695f; font-size: 21rpx; text-align: center; text-overflow: ellipsis; white-space: nowrap; }
+.partner-tabbar { position: fixed; z-index: 30; right: 0; bottom: 0; left: 0; display: grid; grid-template-columns: repeat(6,1fr); min-height: calc(106rpx + env(safe-area-inset-bottom)); max-width: 750px; margin: 0 auto; padding: 0 8rpx env(safe-area-inset-bottom); box-sizing: border-box; border-top: 1rpx solid #eadfce; background: #fffaf3; }
+.partner-tab { display: flex; align-items: center; justify-content: center; min-height: 106rpx; overflow: hidden; color: #75695f; font-size: 21rpx; text-align: center; text-overflow: ellipsis; white-space: nowrap; }
 .partner-tab.active { color: #8b633b; font-weight: 700; }
 </style>
