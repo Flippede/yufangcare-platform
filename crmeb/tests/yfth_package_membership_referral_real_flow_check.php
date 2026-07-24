@@ -2,7 +2,7 @@
 
 use app\services\yfth\DirectReferralRewardServices;
 use app\services\yfth\AutomaticCommissionServices;
-use app\services\yfth\YfthCommissionOrderSourceServices;
+use app\services\yfth\YfthOrderSourceServices;
 use app\services\yfth\CurrentBusinessContextServices;
 use app\services\yfth\HqAuthorityMutation;
 use app\services\yfth\HqAuthoritySource;
@@ -681,7 +681,7 @@ function pmrCreatePaidOrder(int $uid, int $storeId, string $amount, string $suff
         'unique' => substr(hash('md5', $suffix . microtime(true)), 0, 32),
         'store_id' => $storeId,
     ]);
-    app()->make(YfthCommissionOrderSourceServices::class)->mark($orderId, 'normal_mall');
+    app()->make(YfthOrderSourceServices::class)->mark($orderId, 'normal_mall');
     return $orderId;
 }
 

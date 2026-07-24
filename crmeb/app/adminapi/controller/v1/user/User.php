@@ -18,6 +18,7 @@ use think\exception\ValidateException;
 use think\facade\App;
 use app\services\yfth\AdminStoreContextServices;
 use app\services\yfth\HqUserRoleManagementServices;
+use app\services\yfth\YfthUserCommissionSummaryServices;
 
 class User extends AuthController
 {
@@ -76,8 +77,16 @@ class User extends AuthController
                 array_column($result['list'] ?? [], 'uid'),
                 $this->adminInfo ?: []
             );
+            $commissionSummaries = app()->make(YfthUserCommissionSummaryServices::class)->summaries(
+                array_column($result['list'] ?? [], 'uid')
+            );
             foreach ($result['list'] as &$row) {
                 $row['yfth'] = $summaries[(int)$row['uid']] ?? null;
+                $row['yfth_commission'] = $commissionSummaries[(int)$row['uid']] ?? [
+                    'total_cent' => 0,
+                    'total' => '0.00',
+                    'breakdown' => [],
+                ];
             }
         }
         return app('json')->success($result);

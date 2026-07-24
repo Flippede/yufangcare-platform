@@ -28,8 +28,7 @@ class SupplyChain extends AuthController
             ['retail_reference_price', '0.00'],
             [['min_purchase_quantity', 'd'], 1],
             [['package_multiple', 'd'], 1],
-            ['allow_store_types', ''],
-            ['qualification_requirement', ''],
+            ['sku_prices', []],
         ]), (int)$this->adminId, $this->adminInfo ?: []));
     }
 

@@ -122,7 +122,7 @@ class PackagePurchaseServices extends PackageBenefitBaseServices
             $purchase = $this->bindCreatedOrderToIntent($intentDao, $intentRow, $validation, $order, $uid, $data, $requestId);
             // The order starts life through CRMEB, but this binding makes it an
             // explicit YFTH package source before any payment/activation event.
-            app()->make(YfthCommissionOrderSourceServices::class)->mark((int)$order['id'], 'package');
+            app()->make(YfthOrderSourceServices::class)->mark((int)$order['id'], 'package');
         } catch (\Throwable $e) {
             $this->markIntentFailed($intentDao, $intentRow, $requestId, $this->errorCode($e->getMessage()), $e->getMessage(), $order);
             $this->compensateUnboundPackageOrder($intentDao, $intentRow, $order, $uid, $requestId, $e->getMessage());

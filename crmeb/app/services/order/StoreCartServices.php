@@ -146,7 +146,7 @@ class StoreCartServices extends BaseServices
      * @throws \think\db\exception\DbException
      * @throws \think\db\exception\ModelNotFoundException
      */
-    public function checkProductStock(int $uid, int $cartNum, string $unique, int $type = 0, $productId, int $seckillId, int $bargainId, int $combinationId, int $advanceId)
+    public function checkProductStock(int $uid, int $cartNum, string $unique, int $type = 0, $productId, int $seckillId, int $bargainId, int $combinationId, int $advanceId, bool $allowHiddenProduct = false)
     {
         /** @var StoreProductAttrValueServices $attrValueServices */
         $attrValueServices = app()->make(StoreProductAttrValueServices::class);
@@ -158,6 +158,13 @@ class StoreCartServices extends BaseServices
                 /** @var StoreProductServices $productServices */
                 $productServices = app()->make(StoreProductServices::class);
                 $productInfo = $productServices->isValidProduct($productId);
+                if (!$productInfo && $allowHiddenProduct) {
+                    $productInfo = $productServices->getOne([
+                        'id' => $productId,
+                        'is_del' => 0,
+                        'is_virtual' => 0,
+                    ]);
+                }
                 if (!$productInfo) {
                     throw new ApiException(410295);
                 }
@@ -234,15 +241,16 @@ class StoreCartServices extends BaseServices
      * @throws \think\db\exception\DbException
      * @throws \think\db\exception\ModelNotFoundException
      */
-    public function setCart(int $uid, int $product_id, int $cart_num = 1, string $product_attr_unique = '', int $type = 0, bool $new = true, int $combination_id = 0, int $seckill_id = 0, int $bargain_id = 0, int $advance_id = 0)
+    public function setCart(int $uid, int $product_id, int $cart_num = 1, string $product_attr_unique = '', int $type = 0, bool $new = true, int $combination_id = 0, int $seckill_id = 0, int $bargain_id = 0, int $advance_id = 0, array $channelContext = [])
     {
         if ($cart_num < 1) $cart_num = 1;
-        if ($type == 0) {
+        $isProcurement = ($channelContext['channel'] ?? '') === 'procurement';
+        if ($type == 0 && !$isProcurement) {
             //检查限购
             $this->checkLimit($uid, $product_id, $cart_num, $new);
         }
         //检测库存限量
-        [$attrInfo, $product_attr_unique, $bargainPriceMin, $cart_num, $productInfo] = $this->checkProductStock($uid, $cart_num, $product_attr_unique, $type, $product_id, $seckill_id, $bargain_id, $combination_id, $advance_id);
+        [$attrInfo, $product_attr_unique, $bargainPriceMin, $cart_num, $productInfo] = $this->checkProductStock($uid, $cart_num, $product_attr_unique, $type, $product_id, $seckill_id, $bargain_id, $combination_id, $advance_id, $isProcurement);
         if ($new) {
             /** @var StoreOrderCreateServices $storeOrderCreateService */
             $storeOrderCreateService = app()->make(StoreOrderCreateServices::class);
@@ -271,6 +279,22 @@ class StoreCartServices extends BaseServices
             if ($bargain_id || $combination_id || $seckill_id || $advance_id) {
                 $info['truePrice'] = $info['productInfo']['attrInfo']['price'] ?? 0;
                 $info['vip_truePrice'] = 0;
+            }
+            if (($channelContext['channel'] ?? '') === 'procurement') {
+                $procurementPrice = (string)($channelContext['unit_price'] ?? '');
+                if (!preg_match('/^\d+(\.\d{1,2})?$/', $procurementPrice) || bccomp($procurementPrice, '0', 2) <= 0) {
+                    throw new ApiException('procurement_price_invalid');
+                }
+                $info['yfth_channel'] = 'procurement';
+                $info['yfth_procurement_store_id'] = (int)($channelContext['store_id'] ?? 0);
+                $info['yfth_supply_catalog_id'] = (int)($channelContext['catalog_id'] ?? 0);
+                $info['yfth_procurement_unit_price'] = $procurementPrice;
+                $info['truePrice'] = $procurementPrice;
+                $info['sum_price'] = $procurementPrice;
+                $info['vip_truePrice'] = 0;
+                $info['productInfo']['price'] = $procurementPrice;
+                $info['productInfo']['attrInfo']['price'] = $procurementPrice;
+                $info['attrInfo']['price'] = $procurementPrice;
             }
             $info['trueStock'] = $info['productInfo']['attrInfo']['stock'];
             $info['costPrice'] = $info['productInfo']['attrInfo']['cost'];
@@ -670,6 +694,15 @@ class StoreCartServices extends BaseServices
                 } else {
                     $item['price_type'] = 'activity';
                 }
+            }
+            if (($item['yfth_channel'] ?? '') === 'procurement') {
+                $procurementPrice = (string)($item['yfth_procurement_unit_price'] ?? '0');
+                $item['truePrice'] = $procurementPrice;
+                $item['vip_truePrice'] = 0;
+                $item['sum_price'] = $procurementPrice;
+                $item['price_type'] = 'procurement';
+                $item['productInfo']['price'] = $procurementPrice;
+                $item['productInfo']['attrInfo']['price'] = $procurementPrice;
             }
             if (isset($item['status']) && $item['status'] == 0) {
                 $item['is_valid'] = 0;

@@ -156,7 +156,7 @@ class AutomaticCommissionServices
             if ($existing) return ['snapshot' => $existing, 'created' => false];
             $order = $this->row(Db::name('store_order')->where('id', $orderId)->lock(true)->find());
             if (!$this->validMallOrder($order, true)) return ['reason' => 'mall_order_not_eligible'];
-            if (!app()->make(YfthCommissionOrderSourceServices::class)->excludesCrmebBrokerage($order)) {
+            if (!app()->make(YfthOrderSourceServices::class)->excludesCrmebBrokerage($order)) {
                 return ['reason' => 'order_not_yfth_commission_source'];
             }
             if (Db::name('yfth_package_purchase')->where('order_id', $orderId)->count() > 0) {

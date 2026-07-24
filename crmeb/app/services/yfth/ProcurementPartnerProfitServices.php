@@ -172,6 +172,208 @@ class ProcurementPartnerProfitServices
         return ['reversed_amount_cent' => (int)$snapshot['reversed_amount_cent'] + $reversalBase, 'idempotent' => false];
     }
 
+    public function freezeForStoreOrder(array $order): array
+    {
+        $orderId = (int)($order['id'] ?? 0);
+        $sidecar = Db::name('yfth_native_procurement_order')->where('store_order_id', $orderId)->find();
+        if (!$sidecar) {
+            throw new ApiException('native_procurement_order_missing');
+        }
+        $existing = Db::name('yfth_procurement_profit_snapshot')->where([
+            'source_type' => 'store_order',
+            'source_id' => $orderId,
+        ])->find();
+        if ($existing) {
+            return $this->formatSnapshot($existing);
+        }
+        $baseAmountCent = max(0, (int)bcmul(
+            bcsub((string)($order['pay_price'] ?? '0'), (string)($order['pay_postage'] ?? '0'), 2),
+            '100',
+            0
+        ));
+        $rule = $this->activeRule(true);
+        $rankRules = $this->rankRuleMap((int)$rule['id']);
+        $storeId = (int)$sidecar['store_id'];
+        $directPartnerUid = $this->resolveDirectCountyPartner($storeId);
+        $chain = $directPartnerUid > 0 ? $this->partnerChain($directPartnerUid) : [];
+        $rates = [];
+        foreach ($chain as $member) {
+            $code = (string)$member['rank_code'];
+            $rates[$code] = max(0, min(10000, (int)($rankRules[$code]['procurement_rate_bps'] ?? 0)));
+        }
+        $now = time();
+        try {
+            $id = (int)Db::name('yfth_procurement_profit_snapshot')->insertGetId([
+                'purchase_order_id' => 0,
+                'purchase_no' => (string)($order['order_id'] ?? ''),
+                'source_type' => 'store_order',
+                'source_id' => $orderId,
+                'store_order_id' => $orderId,
+                'store_id' => $storeId,
+                'rule_version_id' => (int)$rule['id'],
+                'base_amount_cent' => $baseAmountCent,
+                'platform_dividend_bps' => max(0, min(10000, (int)$rule['platform_dividend_bps'])),
+                'chain_snapshot' => $this->json($chain),
+                'rate_snapshot' => $this->json($rates),
+                'status' => 'frozen',
+                'recognized_time' => 0,
+                'reversed_amount_cent' => 0,
+                'create_time' => $now,
+                'update_time' => $now,
+            ]);
+        } catch (\Throwable $e) {
+            $existing = Db::name('yfth_procurement_profit_snapshot')->where([
+                'source_type' => 'store_order',
+                'source_id' => $orderId,
+            ])->find();
+            if (!$existing) throw $e;
+            return $this->formatSnapshot($existing);
+        }
+        return $this->formatSnapshot(Db::name('yfth_procurement_profit_snapshot')->where('id', $id)->find() ?: []);
+    }
+
+    public function recognizeForStoreOrder(int $orderId): array
+    {
+        $snapshot = Db::name('yfth_procurement_profit_snapshot')->where([
+            'source_type' => 'store_order',
+            'source_id' => $orderId,
+        ])->lock(true)->find();
+        if (!$snapshot) {
+            throw new ApiException('procurement_profit_snapshot_missing');
+        }
+        if ((string)$snapshot['status'] === 'recognized') {
+            return $this->formatSnapshot($snapshot);
+        }
+        $chain = $this->decode((string)$snapshot['chain_snapshot']);
+        $rates = $this->decode((string)$snapshot['rate_snapshot']);
+        $now = time();
+        foreach ($chain as $member) {
+            $uid = (int)($member['uid'] ?? 0);
+            $rank = (string)($member['rank_code'] ?? '');
+            $rate = max(0, min(10000, (int)($rates[$rank] ?? 0)));
+            $amount = $uid > 0 && $rate > 0 ? intdiv((int)$snapshot['base_amount_cent'] * $rate, 10000) : 0;
+            if ($amount <= 0) continue;
+            $this->insertImmutable('yfth_procurement_profit_ledger', [
+                'snapshot_id' => (int)$snapshot['id'],
+                'purchase_order_id' => 0,
+                'source_type' => 'store_order',
+                'source_id' => $orderId,
+                'store_order_id' => $orderId,
+                'store_id' => (int)$snapshot['store_id'],
+                'beneficiary_uid' => $uid,
+                'rank_code' => $rank,
+                'entry_type' => 'procurement_profit',
+                'base_amount_cent' => (int)$snapshot['base_amount_cent'],
+                'rate_bps' => $rate,
+                'amount_cent' => $amount,
+                'status' => 'pending',
+                'source_unique_key' => 'store_order:' . $orderId . ':partner:' . $uid . ':rank:' . $rank,
+                'settled_time' => 0,
+                'create_time' => $now,
+                'update_time' => $now,
+            ]);
+        }
+        Db::name('yfth_procurement_profit_snapshot')->where('id', (int)$snapshot['id'])->update([
+            'status' => 'recognized',
+            'recognized_time' => $now,
+            'update_time' => $now,
+        ]);
+        $snapshot['status'] = 'recognized';
+        $snapshot['recognized_time'] = $now;
+        return $this->formatSnapshot($snapshot);
+    }
+
+    public function reverseForStoreOrder(int $orderId, int $amountCent, string $sourceKey): array
+    {
+        if ($amountCent <= 0 || trim($sourceKey) === '') {
+            throw new ApiException('procurement_profit_reversal_invalid');
+        }
+        return Db::transaction(function () use ($orderId, $amountCent, $sourceKey) {
+            $snapshot = $this->lockRecognizedStoreOrderSnapshot($orderId);
+            return $this->reverseStoreOrderSnapshot($snapshot, $amountCent, $sourceKey);
+        });
+    }
+
+    public function synchronizeStoreOrderRefund(int $orderId, int $cumulativeAmountCent): array
+    {
+        if ($cumulativeAmountCent <= 0) {
+            throw new ApiException('procurement_profit_reversal_invalid');
+        }
+        return Db::transaction(function () use ($orderId, $cumulativeAmountCent) {
+            $snapshot = $this->lockRecognizedStoreOrderSnapshot($orderId);
+            $target = min((int)$snapshot['base_amount_cent'], $cumulativeAmountCent);
+            $delta = max(0, $target - (int)$snapshot['reversed_amount_cent']);
+            if ($delta <= 0) {
+                return ['reversed_amount_cent' => (int)$snapshot['reversed_amount_cent'], 'idempotent' => true];
+            }
+            return $this->reverseStoreOrderSnapshot(
+                $snapshot,
+                $delta,
+                'store_order_refund:' . $orderId . ':cumulative:' . $target
+            );
+        });
+    }
+
+    private function lockRecognizedStoreOrderSnapshot(int $orderId): array
+    {
+        $snapshot = Db::name('yfth_procurement_profit_snapshot')->where([
+            'source_type' => 'store_order',
+            'source_id' => $orderId,
+        ])->lock(true)->find();
+        if (!$snapshot || (string)$snapshot['status'] !== 'recognized') {
+            throw new ApiException('procurement_profit_not_recognized');
+        }
+        return $snapshot;
+    }
+
+    private function reverseStoreOrderSnapshot(array $snapshot, int $amountCent, string $sourceKey): array
+    {
+        $orderId = (int)($snapshot['store_order_id'] ?: $snapshot['source_id']);
+        $sourceHash = hash('sha256', $sourceKey);
+        if (Db::name('yfth_procurement_profit_ledger')->where('snapshot_id', (int)$snapshot['id'])
+            ->whereLike('source_unique_key', 'reversal:' . $sourceHash . ':%')->find()) {
+            return ['reversed_amount_cent' => (int)$snapshot['reversed_amount_cent'], 'idempotent' => true];
+        }
+        $remaining = max(0, (int)$snapshot['base_amount_cent'] - (int)$snapshot['reversed_amount_cent']);
+        $reversalBase = min($remaining, $amountCent);
+        if ($reversalBase <= 0) {
+            return ['reversed_amount_cent' => (int)$snapshot['reversed_amount_cent'], 'idempotent' => true];
+        }
+        $rows = Db::name('yfth_procurement_profit_ledger')->where([
+            'snapshot_id' => (int)$snapshot['id'],
+            'entry_type' => 'procurement_profit',
+        ])->order('id asc')->select()->toArray();
+        $now = time();
+        foreach ($rows as $row) {
+            $amount = -intdiv($reversalBase * (int)$row['rate_bps'], 10000);
+            if ($amount === 0) continue;
+            $this->insertImmutable('yfth_procurement_profit_ledger', [
+                'snapshot_id' => (int)$snapshot['id'],
+                'purchase_order_id' => 0,
+                'source_type' => 'store_order',
+                'source_id' => $orderId,
+                'store_order_id' => $orderId,
+                'store_id' => (int)$snapshot['store_id'],
+                'beneficiary_uid' => (int)$row['beneficiary_uid'],
+                'rank_code' => (string)$row['rank_code'],
+                'entry_type' => 'procurement_reversal',
+                'base_amount_cent' => $reversalBase,
+                'rate_bps' => (int)$row['rate_bps'],
+                'amount_cent' => $amount,
+                'status' => 'pending',
+                'source_unique_key' => 'reversal:' . $sourceHash . ':accrual:' . (int)$row['id'],
+                'settled_time' => 0,
+                'create_time' => $now,
+                'update_time' => $now,
+            ]);
+        }
+        Db::name('yfth_procurement_profit_snapshot')->where('id', (int)$snapshot['id'])->update([
+            'reversed_amount_cent' => (int)$snapshot['reversed_amount_cent'] + $reversalBase,
+            'update_time' => $now,
+        ]);
+        return ['reversed_amount_cent' => (int)$snapshot['reversed_amount_cent'] + $reversalBase, 'idempotent' => false];
+    }
+
     public function recordOpeningReward(int $applicationId, int $storeId, int $directPartnerUid): array
     {
         if ($applicationId <= 0 || $storeId <= 0 || $directPartnerUid <= 0) {
@@ -234,7 +436,8 @@ class ProcurementPartnerProfitServices
         $query = Db::name('yfth_procurement_profit_ledger')->alias('l')
             ->leftJoin('user u', 'u.uid=l.beneficiary_uid')
             ->leftJoin('system_store s', 's.id=l.store_id')
-            ->leftJoin('yfth_purchase_order o', 'o.id=l.purchase_order_id');
+            ->leftJoin('yfth_purchase_order o', 'o.id=l.purchase_order_id')
+            ->leftJoin('yfth_native_procurement_order n', 'n.store_order_id=l.store_order_id');
         if (!empty($filters['rank_code'])) {
             $query->where('l.rank_code', trim((string)$filters['rank_code']));
         }
@@ -245,7 +448,7 @@ class ProcurementPartnerProfitServices
             $query->where('l.store_id', (int)$filters['store_id']);
         }
         $count = (int)(clone $query)->count();
-        $list = $query->field('l.*,u.nickname,u.phone,s.name AS store_name,o.purchase_no')
+        $list = $query->field('l.*,u.nickname,u.phone,s.name AS store_name,COALESCE(o.purchase_no,n.order_no) AS purchase_no')
             ->page($page, $limit)->order('l.id desc')->select()->toArray();
         return ['list' => $list, 'count' => $count];
     }

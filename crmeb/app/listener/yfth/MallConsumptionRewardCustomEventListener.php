@@ -3,6 +3,7 @@
 namespace app\listener\yfth;
 
 use app\services\yfth\UnifiedRewardOrchestratorServices;
+use app\services\yfth\YfthOrderSourceServices;
 use think\facade\Log;
 use think\facade\Db;
 
@@ -17,6 +18,9 @@ class MallConsumptionRewardCustomEventListener
         try {
             if ($mark === 'order_take') {
                 $orderId = (int)($data['id'] ?? 0);
+                if (app()->make(YfthOrderSourceServices::class)->isSource($orderId, 'procurement')) {
+                    return;
+                }
                 if ($orderId > 0) {
                     app()->make(UnifiedRewardOrchestratorServices::class)->enqueueAndTry(
                         'mall_order_completed', 'store_order', (string)$orderId,
@@ -27,6 +31,9 @@ class MallConsumptionRewardCustomEventListener
             }
             $orderSn = (string)($data['order_id'] ?? '');
             $orderId = (int)Db::name('store_order')->where('order_id', $orderSn)->value('id');
+            if (app()->make(YfthOrderSourceServices::class)->isSource($orderId, 'procurement')) {
+                return;
+            }
             if ($orderId > 0) {
                 app()->make(UnifiedRewardOrchestratorServices::class)->enqueueAndTry(
                     'mall_order_refunded', 'store_order', (string)$orderId,

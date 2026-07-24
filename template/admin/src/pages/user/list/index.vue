@@ -358,9 +358,16 @@
             <div>{{ scope.row.phone }}</div>
           </template>
         </el-table-column>
-        <el-table-column label="商城余额" prop="now_money" min-width="100" :sortable="true">
+        <el-table-column label="当前佣金" min-width="150">
           <template slot-scope="scope">
-            <div>{{ scope.row.now_money }}</div>
+            <div>¥{{ (scope.row.yfth_commission && scope.row.yfth_commission.total) || '0.00' }}</div>
+            <div
+              v-for="item in (scope.row.yfth_commission && scope.row.yfth_commission.breakdown) || []"
+              :key="item.label + item.amount"
+              class="commission-breakdown"
+            >
+              {{ item.label }} ¥{{ item.amount }}
+            </div>
           </template>
         </el-table-column>
         <el-table-column label="商城积分" prop="integral" min-width="100">
@@ -1420,5 +1427,12 @@ img {
 
 .search-form-sub {
   display: flex;
+}
+
+.commission-breakdown {
+  color: #8c8c8c;
+  font-size: 12px;
+  line-height: 18px;
+  white-space: nowrap;
 }
 </style>

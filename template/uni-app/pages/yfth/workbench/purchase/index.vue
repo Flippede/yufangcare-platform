@@ -19,9 +19,9 @@
 		</view>
 
 		<view class="quick-row">
-			<view class="quick" @click="goOrders"><b>采购单</b><span>查看全部订单</span></view>
-			<view class="quick" @click="goTransit"><b>在途物流</b><span>跟踪发货进度</span></view>
-			<view class="quick" @click="goInventory"><b>门店库存</b><span>收货后自动入库</span></view>
+			<view class="quick" @click="goOrders"><b>采购订单</b><span>查看全部订单</span></view>
+			<view class="quick" @click="goUnsend"><b>待发货</b><span>等待总部发货</span></view>
+			<view class="quick" @click="goTransit"><b>待收货</b><span>跟踪快递物流</span></view>
 		</view>
 
 		<view class="section-head"><b>采购商品</b><span>总部采购价 · 快递配送</span></view>
@@ -61,13 +61,23 @@ export default {
 		resolveYfthContext(cached.role_code || 'customer', cached.store_id || 0).then((context) => {
 			if (context.role_code !== 'store_manager') {
 				uni.showToast({ title: '仅店长可进入采购商城', icon: 'none' });
-				uni.reLaunch({ url: '/pages/yfth/workbench/index' });
+				this.redirectToWorkbench();
 				return;
 			}
 			this.context = context; this.accessGranted = true; this.load(); this.refreshCartCount();
 		}).catch((err) => uni.showToast({ title: String((err && err.msg) || err), icon: 'none' }));
 	},
 	methods: {
+		redirectToWorkbench() {
+			const target = '/pages/yfth/workbench/index';
+			// #ifdef H5
+			if (typeof window !== 'undefined') {
+				window.location.replace(target);
+				return;
+			}
+			// #endif
+			uni.reLaunch({ url: target });
+		},
 		contextParams(extra) { return Object.assign({ role_code: this.context.role_code, store_id: this.context.store_id }, extra || {}); },
 		cartKey() { return 'YFTH_PURCHASE_CART_' + Number(this.context.store_id || 0); },
 		getCart() { return uni.getStorageSync(this.cartKey()) || []; },
@@ -102,9 +112,9 @@ export default {
 		},
 		goProduct(id) { uni.navigateTo({ url: '/pages/yfth/workbench/purchase/product?id=' + id }); },
 		goCart() { uni.navigateTo({ url: '/pages/yfth/workbench/purchase/cart' }); },
-		goOrders() { uni.navigateTo({ url: '/pages/yfth/workbench/purchase/orders' }); },
-		goTransit() { uni.navigateTo({ url: '/pages/yfth/workbench/purchase/orders?status=shipped' }); },
-		goInventory() { uni.navigateTo({ url: '/pages/yfth/workbench/purchase/inventory' }); }
+		goOrders() { uni.navigateTo({ url: '/pages/goods/order_list/index?status=0' }); },
+		goUnsend() { uni.navigateTo({ url: '/pages/goods/order_list/index?status=2' }); },
+		goTransit() { uni.navigateTo({ url: '/pages/goods/order_list/index?status=3' }); }
 	}
 };
 </script>

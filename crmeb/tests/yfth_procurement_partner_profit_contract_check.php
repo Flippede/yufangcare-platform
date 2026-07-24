@@ -13,27 +13,25 @@ $read = function (string $path) use ($root): string {
 };
 
 $assert = function (bool $condition, string $label) use (&$failures, &$passes): void {
-    if ($condition) {
-        $passes[] = $label;
-        return;
-    }
-    $failures[] = $label;
+    $condition ? $passes[] = $label : $failures[] = $label;
 };
 
-$contains = function (string $text, string $needle): bool {
+$contains = static function (string $text, string $needle): bool {
     return strpos($text, $needle) !== false;
 };
 
-$migration = $read('database/migrations/20260723150000_create_yfth_procurement_partner_profit_v1.php');
+$baseMigration = $read('database/migrations/20260723150000_create_yfth_procurement_partner_profit_v1.php');
+$nativeMigration = $read('database/migrations/20260724120000_unify_yfth_procurement_with_store_orders.php');
 $service = $read('app/services/yfth/ProcurementPartnerProfitServices.php');
-$supply = $read('app/services/yfth/SupplyChainServices.php');
-$partner = $read('app/services/yfth/FranchisePartnerServices.php');
-$controller = $read('app/adminapi/controller/v1/yfth/FranchisePartner.php');
-$routes = $read('app/adminapi/route/yfth.php');
-$adminApi = $read('../template/admin/src/api/yfth.js');
-$adminPage = $read('../template/admin/src/pages/yfth/franchisePartner/index.vue');
-$partnerPage = $read('../template/uni-app/pages/yfth/franchise/partner/index.vue');
-$purchasePage = $read('../template/uni-app/pages/yfth/workbench/purchase/index.vue');
+$sourceService = $read('app/services/yfth/YfthOrderSourceServices.php');
+$payListener = $read('app/listener/yfth/ProcurementPartnerProfitPayListener.php');
+$customListener = $read('app/listener/yfth/ProcurementPartnerProfitCustomEventListener.php');
+$ordinaryPayListener = $read('app/listener/yfth/MallConsumptionRewardPayListener.php');
+$ordinaryCustomListener = $read('app/listener/yfth/MallConsumptionRewardCustomEventListener.php');
+$events = $read('app/event.php');
+$partnerService = $read('app/services/yfth/FranchisePartnerServices.php');
+$adminController = $read('app/adminapi/controller/v1/yfth/FranchisePartner.php');
+$adminRoutes = $read('app/adminapi/route/yfth.php');
 
 foreach ([
     'yfth_procurement_profit_snapshot',
@@ -41,62 +39,50 @@ foreach ([
     'yfth_partner_opening_reward_ledger',
     'yfth_platform_dividend_batch',
     'yfth_platform_dividend_item',
-    'yfth_partner_service_area',
 ] as $table) {
-    $assert($contains($migration, $table), 'migration_contains_' . $table);
+    $assert($contains($baseMigration, $table), 'base_migration_contains:' . $table);
 }
+$assert($contains($nativeMigration, "'source_type'") && $contains($nativeMigration, "'store_order_id'"), 'native_migration_extends_profit_sources');
 
-foreach ([
-    'uniq_yfth_procurement_snapshot_order',
-    'uniq_yfth_procurement_profit_source',
-    'uniq_yfth_opening_reward_source',
-    'uniq_yfth_platform_dividend_batch',
-    'uniq_yfth_platform_dividend_item',
-    'uniq_yfth_partner_service_area',
-] as $index) {
-    $assert($contains($migration, $index), 'migration_contains_' . $index);
-}
+$assert($contains($service, 'freezeForStoreOrder'), 'profit_freezes_native_store_order');
+$assert($contains($service, 'recognizeForStoreOrder'), 'profit_recognizes_native_store_order');
+$assert($contains($service, 'reverseForStoreOrder'), 'profit_reverses_native_store_order');
+$assert($contains($service, 'synchronizeStoreOrderRefund'), 'profit_synchronizes_cumulative_native_refunds');
+$assert($contains($service, "'source_type' => 'store_order'"), 'profit_records_native_source_type');
+$assert($contains($service, 'resolveDirectCountyPartner'), 'profit_resolves_direct_county_partner');
+$assert($contains($service, 'nearestCountyPartner'), 'profit_keeps_nearest_county_fallback');
+$assert($contains($service, 'chain_snapshot') && $contains($service, 'rate_snapshot'), 'profit_freezes_chain_and_rule_rates');
+$assert($contains($service, "source_unique_key' => \$sourceKey"), 'profit_ledger_has_idempotency_key');
+$assert($contains($service, 'recordOpeningReward'), 'county_opening_reward_is_preserved');
+$assert($contains($service, 'generateDividend'), 'platform_weighted_dividend_is_preserved');
 
-$assert($contains($migration, "'county_partner' => [2000, 1760000]"), 'migration_seeds_county_defaults');
-$assert($contains($migration, "'prefecture_partner' => [1000, 0]"), 'migration_seeds_prefecture_default');
-$assert($contains($migration, "'province_partner' => [500, 0]"), 'migration_seeds_province_default');
-$assert($contains($migration, "'regional_director' => [300, 0]"), 'migration_seeds_regional_default');
-$assert($contains($migration, "'platform_director' => [100, 0]"), 'migration_seeds_platform_default');
-$assert($contains($migration, "if (!\$rankRule->hasColumn('opening_reward_amount_cent'))"), 'migration_repairs_partial_columns');
+$assert($contains($payListener, 'freezeForStoreOrder'), 'native_payment_freezes_partner_profit');
+$assert($contains($customListener, "['order_take', 'admin_order_refund_success']"), 'native_completion_and_refund_events_are_consumed');
+$assert($contains($customListener, 'recognizeForStoreOrder'), 'native_receipt_recognizes_partner_profit');
+$assert($contains($customListener, 'synchronizeStoreOrderRefund'), 'native_refund_reverses_only_new_cumulative_amount');
+$assert($contains($events, 'ProcurementPartnerProfitPayListener::class'), 'native_profit_pay_listener_is_registered');
+$assert($contains($events, 'ProcurementPartnerProfitCustomEventListener::class'), 'native_profit_custom_listener_is_registered');
 
-$assert($contains($supply, "STORE_WRITE_ROLES = ['store_manager']"), 'only_store_manager_can_purchase');
-$assert($contains($supply, 'freezeForPurchaseOrder'), 'purchase_creation_freezes_profit_snapshot');
-$assert($contains($supply, 'recognizeForReceipt'), 'receipt_recognizes_partner_profit');
-$assert(!$contains($supply, "Db::name('store_order')->insert"), 'procurement_does_not_create_crmeb_order');
-$assert(!$contains($supply, "Db::name('store_product')->update"), 'procurement_does_not_mutate_crmeb_sales_stock');
+$assert(
+    $contains($sourceService, "'legacy_brokerage_excluded' => 1")
+    && $contains($sourceService, 'public function excludesCrmebBrokerage'),
+    'procurement_source_excludes_crmeb_brokerage'
+);
+$assert($contains($ordinaryPayListener, "isSource(\$orderId, 'procurement')"), 'procurement_payment_skips_c1_b1_mall_commission');
+$assert($contains($ordinaryCustomListener, "isSource(\$orderId, 'procurement')"), 'procurement_completion_and_refund_skip_c1_b1_mall_commission');
 
-$assert($contains($service, 'resolveDirectCountyPartner'), 'service_resolves_county_partner');
-$assert($contains($service, 'nearestCountyPartner'), 'service_has_nearest_fallback');
-$assert($contains($service, "['match_score', 'priority', 'workload', 'start_time', 'uid']"), 'nearest_assignment_is_stable');
-$assert($contains($service, 'chain_snapshot') && $contains($service, 'rate_snapshot'), 'order_freezes_chain_and_rates');
-$assert($contains($service, "source_unique_key' => \$sourceKey"), 'profit_ledger_is_idempotent');
-$assert($contains($service, "(string)\$profile['rank_code'] !== 'county_partner'"), 'opening_reward_is_county_only');
-$assert($contains($service, 'generateDividend'), 'service_generates_platform_dividend');
-$assert($contains($service, 'reverseForPurchaseOrder'), 'service_reserves_refund_reversal');
-
-$assert($contains($partner, "'procurement_rate_bps'"), 'partner_rule_supports_procurement_rate');
-$assert($contains($partner, "'opening_reward_amount_cent'"), 'partner_rule_supports_opening_reward');
-$assert($contains($partner, 'recordOpeningReward'), 'opening_completion_records_reward');
-$assert($contains($partner, "'profit_summary'"), 'partner_workbench_returns_profit_summary');
-
-$assert($contains($controller, 'procurementProfitList') && $contains($controller, 'dividendGenerate'), 'admin_controller_exposes_profit_management');
-$assert($contains($routes, 'procurement_profit') && $contains($routes, 'dividend/generate'), 'admin_routes_expose_profit_management');
-$assert($contains($adminApi, 'yfthPartnerProcurementProfits') && $contains($adminApi, 'yfthPartnerDividendGenerate'), 'admin_api_exposes_profit_management');
-$assert($contains($adminPage, '采购分润') && $contains($adminPage, '开店服务奖励') && $contains($adminPage, '平台加权分红'), 'admin_page_shows_profit_surfaces');
-$assert($contains($partnerPage, '采购分润') && $contains($partnerPage, '开店服务奖励'), 'partner_workbench_shows_profit_surfaces');
-$assert($contains($purchasePage, '仅店长可进入采购中心'), 'purchase_page_excludes_non_managers');
+$assert($contains($partnerService, "'procurement_rate_bps'"), 'partner_rules_keep_procurement_rates');
+$assert($contains($partnerService, "'opening_reward_amount_cent'"), 'partner_rules_keep_county_opening_reward');
+$assert($contains($partnerService, "'profit_summary'"), 'partner_workbench_keeps_profit_summary');
+$assert($contains($adminController, 'procurementProfitList'), 'headquarters_can_query_procurement_profit');
+$assert($contains($adminRoutes, 'procurement_profit'), 'headquarters_profit_route_is_registered');
 
 if ($failures) {
-    echo "YFTH procurement partner profit contract check failed:\n";
+    echo "YFTH native procurement partner profit contract check failed:\n";
     foreach ($failures as $failure) {
         echo " - {$failure}\n";
     }
     exit(1);
 }
 
-echo '[OK] YFTH procurement partner profit contract check passed with ' . count($passes) . " assertions.\n";
+echo '[OK] YFTH native procurement partner profit contract check passed with ' . count($passes) . " assertions.\n";

@@ -133,6 +133,7 @@ Route::group(function () {
 
 Route::group(function () {
     Route::get('yfth/supply/catalog', 'v1.yfth.SupplyChainController/catalog')->option(['real_name' => 'YFTH store purchase catalog']);
+    Route::post('yfth/supply/native_checkout', 'v1.yfth.SupplyChainController/nativeCheckout')->option(['real_name' => 'YFTH native procurement checkout']);
     Route::post('yfth/supply/purchase_order', 'v1.yfth.SupplyChainController/createOrder')->option(['real_name' => 'YFTH store purchase order create']);
     Route::get('yfth/supply/purchase_order', 'v1.yfth.SupplyChainController/orderList')->option(['real_name' => 'YFTH store purchase orders']);
     Route::get('yfth/supply/purchase_order/:id', 'v1.yfth.SupplyChainController/orderDetail')->option(['real_name' => 'YFTH store purchase order detail']);

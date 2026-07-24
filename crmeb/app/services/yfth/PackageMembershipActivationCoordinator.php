@@ -42,7 +42,7 @@ class PackageMembershipActivationCoordinator
             // The package order is always a YFTH source. Marking it again here
             // is harmless and closes the recovery-path gap before any payment
             // listener can consult CRMEB's legacy brokerage services.
-            app()->make(YfthCommissionOrderSourceServices::class)->mark((int)($purchase['order_id'] ?? 0), 'package');
+            app()->make(YfthOrderSourceServices::class)->mark((int)($purchase['order_id'] ?? 0), 'package');
             // The active referral is frozen into the durable activation event and
             // its automatic accrual before the relationship is closed.  That
             // ordering prevents a membership retry from observing neither a

@@ -60,6 +60,8 @@ if (!$execute) {
         $assert((bool)preg_match('/(validation|sandbox|test|local|dev)/i', $database), 'database_name_looks_isolated:' . $database);
 
         foreach ([
+            'yfth_native_procurement_order',
+            'yfth_supply_catalog_sku',
             'yfth_procurement_profit_snapshot',
             'yfth_procurement_profit_ledger',
             'yfth_partner_opening_reward_ledger',
@@ -207,22 +209,36 @@ function ppRunBusinessFlow(callable $assert): void
             'create_time' => $now,
             'update_time' => $now,
         ]);
+        Db::name('yfth_native_procurement_order')->insert([
+            'store_order_id' => $orderId,
+            'order_no' => 'SO-PROFIT-' . $run,
+            'store_id' => $storeId,
+            'operator_uid' => 830000000 + random_int(1000, 9999),
+            'status' => 'paid',
+            'create_time' => $now,
+            'update_time' => $now,
+        ]);
 
         $services = app()->make(ProcurementPartnerProfitServices::class);
-        $snapshot = $services->freezeForPurchaseOrder([
+        $snapshot = $services->freezeForStoreOrder([
             'id' => $orderId,
-            'purchase_no' => 'PO-PROFIT-' . $run,
-            'store_id' => $storeId,
-        ], 100000);
-        $assert((int)$snapshot['base_amount_cent'] === 100000, 'snapshot_freezes_purchase_base');
+            'order_id' => 'SO-PROFIT-' . $run,
+            'pay_price' => '1000.00',
+            'pay_postage' => '0.00',
+        ]);
+        $assert((int)$snapshot['base_amount_cent'] === 100000, 'snapshot_freezes_native_order_base');
         $assert(count($snapshot['chain_snapshot']) === 5, 'snapshot_freezes_five_level_chain');
 
-        $services->recognizeForReceipt($orderId);
-        $services->recognizeForReceipt($orderId);
+        $services->recognizeForStoreOrder($orderId);
+        $services->recognizeForStoreOrder($orderId);
         $rows = Db::name('yfth_procurement_profit_ledger')
-            ->where(['purchase_order_id' => $orderId, 'entry_type' => 'procurement_profit'])
+            ->where([
+                'source_type' => 'store_order',
+                'store_order_id' => $orderId,
+                'entry_type' => 'procurement_profit',
+            ])
             ->order('rank_code asc')->select()->toArray();
-        $assert(count($rows) === 5, 'duplicate_receipt_does_not_duplicate_profit');
+        $assert(count($rows) === 5, 'duplicate_order_completion_does_not_duplicate_profit');
         $amounts = [];
         foreach ($rows as $row) {
             $amounts[(string)$row['rank_code']] = (int)$row['amount_cent'];
@@ -241,12 +257,18 @@ function ppRunBusinessFlow(callable $assert): void
         $assert(($openingReplay['idempotent'] ?? false) === true, 'opening_reward_is_idempotent');
         $assert((int)Db::name('yfth_partner_opening_reward_ledger')->where('application_id', $run)->count() === 1, 'opening_reward_has_single_row');
 
-        $reverse = $services->reverseForPurchaseOrder($orderId, 25000, 'refund-' . $run);
-        $reverseReplay = $services->reverseForPurchaseOrder($orderId, 25000, 'refund-' . $run);
+        $reverse = $services->synchronizeStoreOrderRefund($orderId, 25000);
+        $reverseReplay = $services->synchronizeStoreOrderRefund($orderId, 25000);
         $assert((int)$reverse['reversed_amount_cent'] === 25000, 'refund_reverses_snapshot_base');
         $assert(($reverseReplay['idempotent'] ?? false) === true, 'refund_reversal_is_idempotent');
+        $secondReverse = $services->synchronizeStoreOrderRefund($orderId, 50000);
+        $assert((int)$secondReverse['reversed_amount_cent'] === 50000, 'second_partial_refund_only_reverses_new_delta');
         $assert((int)Db::name('yfth_procurement_profit_ledger')
-            ->where(['purchase_order_id' => $orderId, 'entry_type' => 'procurement_reversal'])->count() === 5, 'refund_creates_one_reversal_per_partner');
+            ->where([
+                'source_type' => 'store_order',
+                'store_order_id' => $orderId,
+                'entry_type' => 'procurement_reversal',
+            ])->count() === 10, 'two_partial_refunds_create_one_delta_per_partner');
 
         $period = date('Y-m');
         $dividend = $services->generateDividend($period);

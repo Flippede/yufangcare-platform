@@ -62,15 +62,6 @@ export default {
       component: () => import('@/pages/yfth/franchiseApplication/index'),
     },
     {
-      path: 'supply-chain',
-      name: `${pre}supply_chain`,
-      meta: {
-        auth: ['yfth-supply-chain-index'],
-        title: '供应链与门店库存',
-      },
-      component: () => import('@/pages/yfth/supplyChain/index'),
-    },
-    {
       path: 'franchise-opening',
       name: `${pre}franchise_opening`,
       meta: {
@@ -138,15 +129,6 @@ export default {
       name: `${pre}permanent_membership`,
       meta: { auth: ['yfth-permanent-membership-index'], title: '永久会员办理' },
       component: () => import('@/pages/yfth/permanentMembership/index'),
-    },
-    {
-      path: 'user-role',
-      name: `${pre}user_role`,
-      meta: {
-        auth: ['yfth-user-role-management-index'],
-        title: '用户经营身份',
-      },
-      component: () => import('@/pages/yfth/userRole/index'),
     },
     {
       path: 'commission-finance',

@@ -45,6 +45,9 @@
       <el-table-column label="订单号 | 类型" width="200">
         <template slot-scope="scope">
           <div>{{ scope.row.order_id }}</div>
+          <el-tag v-if="scope.row.yfth_order_source === 'procurement'" size="mini" type="warning">
+            门店采购订单
+          </el-tag>
           <div class="pink_name" :style="{ color: scope.row.color }">{{ scope.row.pink_name }}</div>
           <span v-if="scope.row.is_del === 1" style="color: #ed4014; display: block">用户已删除</span>
           <span v-if="scope.row.is_cancel === 1 && scope.row.is_del === 0" style="color: #ed4014; display: block"

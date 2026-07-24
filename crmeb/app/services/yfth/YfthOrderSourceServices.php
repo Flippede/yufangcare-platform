@@ -9,7 +9,7 @@ use think\facade\Db;
  * brokerage module consults this fact before any first-, second-, staff-,
  * agent-, or division-level brokerage is posted.
  */
-class YfthCommissionOrderSourceServices
+class YfthOrderSourceServices
 {
     /**
      * A YFTH commission order must have an authoritative YFTH customer-to-store
@@ -54,5 +54,16 @@ class YfthCommissionOrderSourceServices
         return (int)Db::name('yfth_commission_order_source')->where([
             'order_id' => $orderId, 'legacy_brokerage_excluded' => 1,
         ])->count() > 0;
+    }
+
+    public function sourceType(int $orderId): string
+    {
+        if ($orderId <= 0) return '';
+        return (string)Db::name('yfth_commission_order_source')->where('order_id', $orderId)->value('source_type');
+    }
+
+    public function isSource(int $orderId, string $sourceType): bool
+    {
+        return $this->sourceType($orderId) === $sourceType;
     }
 }

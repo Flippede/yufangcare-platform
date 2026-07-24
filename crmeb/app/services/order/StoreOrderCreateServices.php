@@ -29,7 +29,7 @@ use crmeb\exceptions\ApiStatusException;
 use crmeb\services\CacheService;
 use app\dao\order\StoreOrderDao;
 use app\services\user\UserServices;
-use app\services\yfth\YfthCommissionOrderSourceServices;
+use app\services\yfth\YfthOrderSourceServices;
 use app\services\user\UserBillServices;
 use app\services\user\UserAddressServices;
 use app\services\activity\bargain\StoreBargainServices;
@@ -40,6 +40,7 @@ use app\services\product\product\StoreProductServices;
 use think\facade\Cache;
 use think\facade\Config;
 use think\facade\Log;
+use think\facade\Db;
 
 /**
  * 订单创建
@@ -153,6 +154,11 @@ class StoreOrderCreateServices extends BaseServices
         if (!$cartGroup) {
             throw new ApiException(410208);
         }
+        $procurementContext = $this->resolveProcurementContext((array)($cartGroup['cartInfo'] ?? []));
+        if ($procurementContext) {
+            $couponId = 0;
+            $useIntegral = false;
+        }
         //下单前砍价验证
         if ($bargainId) {
             $bargainServices->checkBargainUser((int)$bargainId, $uid);
@@ -223,6 +229,11 @@ class StoreOrderCreateServices extends BaseServices
             if (!$advanceId) $advanceId = $cart['advance_id'];
             $cartInfoGainIntegral = isset($cart['productInfo']['give_integral']) ? bcmul((string)$cart['cart_num'], (string)$cart['productInfo']['give_integral'], 0) : 0;
             $gainIntegral = bcadd((string)$gainIntegral, (string)$cartInfoGainIntegral, 0);
+        }
+        if ($procurementContext) {
+            $couponId = 0;
+            $gainIntegral = 0;
+            $useIntegral = false;
         }
         if (count($cartInfo) == 1 && isset($cartInfo[0]['productInfo']['presale']) && $cartInfo[0]['productInfo']['presale'] == 1) {
             $advance_id = $cartInfo[0]['product_id'];
@@ -296,7 +307,7 @@ class StoreOrderCreateServices extends BaseServices
         /** @var StoreOrderCartInfoServices $cartServices */
         $cartServices = app()->make(StoreOrderCartInfoServices::class);
         $priceData['coupon_id'] = $couponId;
-        $order = $this->transaction(function () use ($cartIds, $orderInfo, $cartInfo, $key, $userInfo, $useIntegral, $priceData, $combinationId, $seckillId, $bargainId, $cartServices, $uid, $addressId, $advanceId) {
+        $order = $this->transaction(function () use ($cartIds, $orderInfo, $cartInfo, $key, $userInfo, $useIntegral, $priceData, $combinationId, $seckillId, $bargainId, $cartServices, $uid, $addressId, $advanceId, $procurementContext) {
             //创建订单
             $order = $this->dao->save($orderInfo);
             if (!$order) {
@@ -305,8 +316,19 @@ class StoreOrderCreateServices extends BaseServices
             // Only orders whose buyer has YFTH's authoritative store attribution
             // enter the YFTH commission domain.  The shared CRMEB creator still
             // serves unrelated native storefront flows.
-            $commissionSource = app()->make(YfthCommissionOrderSourceServices::class);
-            if ($commissionSource->shouldMarkCustomerOrder((int)$uid)) {
+            $commissionSource = app()->make(YfthOrderSourceServices::class);
+            if ($procurementContext) {
+                $commissionSource->mark((int)$order['id'], 'procurement');
+                Db::name('yfth_native_procurement_order')->insert([
+                    'store_order_id' => (int)$order['id'],
+                    'order_no' => (string)$order['order_id'],
+                    'store_id' => (int)$procurementContext['store_id'],
+                    'operator_uid' => (int)$uid,
+                    'status' => 'created',
+                    'create_time' => time(),
+                    'update_time' => time(),
+                ]);
+            } elseif ($commissionSource->shouldMarkCustomerOrder((int)$uid)) {
                 $commissionSource->mark((int)$order['id'], 'normal_mall');
             }
             //记录自提人电话和姓名
@@ -353,6 +375,39 @@ class StoreOrderCreateServices extends BaseServices
         ]]);
 
         return $order;
+    }
+
+    private function resolveProcurementContext(array $cartInfo): array
+    {
+        $context = [];
+        foreach ($cartInfo as $cart) {
+            $channel = (string)($cart['yfth_channel'] ?? '');
+            if ($channel === '') {
+                if ($context) {
+                    throw new ApiException('procurement_cart_mixed_channel');
+                }
+                continue;
+            }
+            if ($channel !== 'procurement') {
+                throw new ApiException('procurement_cart_channel_invalid');
+            }
+            $storeId = (int)($cart['yfth_procurement_store_id'] ?? 0);
+            if ($storeId <= 0) {
+                throw new ApiException('procurement_store_id_required');
+            }
+            if ($context && (int)$context['store_id'] !== $storeId) {
+                throw new ApiException('procurement_cart_store_mismatch');
+            }
+            $context = ['store_id' => $storeId];
+        }
+        if ($context) {
+            foreach ($cartInfo as $cart) {
+                if ((string)($cart['yfth_channel'] ?? '') !== 'procurement') {
+                    throw new ApiException('procurement_cart_mixed_channel');
+                }
+            }
+        }
+        return $context;
     }
 
 
@@ -490,7 +545,7 @@ class StoreOrderCreateServices extends BaseServices
                 }
             }
             $isCommission = 0;
-            if (app()->make(YfthCommissionOrderSourceServices::class)->excludesCrmebBrokerage((array)$order)) {
+            if (app()->make(YfthOrderSourceServices::class)->excludesCrmebBrokerage((array)$order)) {
                 $createService->update(['id' => $orderId], [
                     'spread_uid' => 0, 'spread_two_uid' => 0, 'one_brokerage' => 0,
                     'two_brokerage' => 0, 'staff_brokerage' => 0, 'agent_brokerage' => 0,

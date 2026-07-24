@@ -6,7 +6,7 @@ use app\services\yfth\CommissionFinanceServices;
 use app\services\yfth\CommissionProfitSharingProviderFactory;
 use app\services\yfth\FailClosedCommissionProfitSharingProvider;
 use app\services\yfth\MockCommissionProfitSharingProvider;
-use app\services\yfth\YfthCommissionOrderSourceServices;
+use app\services\yfth\YfthOrderSourceServices;
 use app\services\order\StoreOrderTakeServices;
 use crmeb\services\CacheService;
 use think\facade\Config;
@@ -191,7 +191,7 @@ try {
     $assert((int)Db::name('yfth_user_commission_account')->where('uid', $c1)->value('available_cent') === $beforeDue + 400, 'nonzero_observation_c1_amount_exact');
 
     $packageLegacyOrder = acCreateOrder($buyer, '20.00', 'package-legacy-guard');
-    app()->make(YfthCommissionOrderSourceServices::class)->mark($packageLegacyOrder, 'package');
+    app()->make(YfthOrderSourceServices::class)->mark($packageLegacyOrder, 'package');
     Db::name('store_order')->where('id', $packageLegacyOrder)->update([
         'spread_uid' => $c1, 'spread_two_uid' => 0, 'one_brokerage' => '2.00',
     ]);
@@ -559,7 +559,7 @@ function acCreateOrder(int $uid, string $amount, string $suffix, bool $markYfthS
         'refund_price' => '0.00', 'is_del' => 0, 'is_system_del' => 0, 'is_cancel' => 0,
     ]);
     if ($markYfthSource) {
-        app()->make(YfthCommissionOrderSourceServices::class)->mark($orderId, 'normal_mall');
+        app()->make(YfthOrderSourceServices::class)->mark($orderId, 'normal_mall');
     }
     return $orderId;
 }

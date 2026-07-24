@@ -19,7 +19,7 @@ $orchestrator = $read('app/services/yfth/UnifiedRewardOrchestratorServices.php')
 $legacySettlement = $read('app/services/yfth/DirectReferralRewardSettlementServices.php');
 $legacyRewardWriter = $read('app/services/yfth/DirectReferralRewardServices.php');
 $packageActivation = $read('app/services/yfth/PackageMembershipActivationCoordinator.php');
-$sourceGuard = $read('app/services/yfth/YfthCommissionOrderSourceServices.php');
+$sourceGuard = $read('app/services/yfth/YfthOrderSourceServices.php');
 $migrationHealth = $read('app/services/yfth/AutomaticCommissionMigrationHealthServices.php');
 $provider = $read('app/services/yfth/CommissionProfitSharingProviderInterface.php');
 $providerFactory = $read('app/services/yfth/CommissionProfitSharingProviderFactory.php');
@@ -93,7 +93,7 @@ $assert(strpos($failClosedProvider, 'commission_profit_sharing_provider_not_conf
 foreach (['shouldMarkCustomerOrder', 'mark(', 'excludesCrmebBrokerage', 'legacy_brokerage_excluded'] as $needle) {
     $assert(strpos($sourceGuard, $needle) !== false, 'order_source_guard_missing:' . $needle);
 }
-foreach (['YfthCommissionOrderSourceServices', 'excludesCrmebBrokerage', 'division_brokerage'] as $needle) {
+foreach (['YfthOrderSourceServices', 'excludesCrmebBrokerage', 'division_brokerage'] as $needle) {
     $assert(strpos($orderCreate . $orderTake, $needle) !== false, 'crmeb_brokerage_exclusion_missing:' . $needle);
 }
 

@@ -35,6 +35,13 @@ class SupplyChainController
         return app('json')->success($services->createPurchaseOrder($request, $data));
     }
 
+    public function nativeCheckout(Request $request, SupplyChainServices $services)
+    {
+        return app('json')->success($services->prepareNativeCheckout($request, $request->postMore([
+            ['items', []],
+        ])));
+    }
+
     public function orderList(Request $request, SupplyChainServices $services)
     {
         return app('json')->success($services->storePurchaseOrderList($request, $request->getMore([

@@ -272,6 +272,11 @@ export function createYfthPurchaseOrder(data) {
 	return request.post('yfth/supply/purchase_order' + payload.query, payload.body);
 }
 
+export function prepareYfthNativeProcurementCheckout(data) {
+	const payload = splitYfthContext(data || {});
+	return request.post('yfth/supply/native_checkout' + payload.query, payload.body);
+}
+
 export function getYfthPurchaseOrders(data) {
 	return request.get('yfth/supply/purchase_order', data || {});
 }

@@ -46,6 +46,7 @@ use crmeb\services\printer\Printer;
 use crmeb\services\SystemConfigService;
 use crmeb\utils\Arr;
 use Guzzle\Http\EntityBody;
+use think\facade\Db;
 use think\facade\Log;
 
 /**
@@ -103,7 +104,21 @@ class StoreOrderServices extends BaseServices
         $data = $this->dao->getOrderList($where, $field, $page, $limit, $with);
         $count = $this->dao->count($where, false);
         $data = $this->tidyOrderList($data);
+        $procurementOrders = [];
+        $orderIds = array_values(array_filter(array_map('intval', array_column($data, 'id'))));
+        if ($orderIds) {
+            try {
+                $procurementOrders = Db::name('yfth_native_procurement_order')
+                    ->whereIn('store_order_id', $orderIds)
+                    ->column('store_id', 'store_order_id');
+            } catch (\Throwable $e) {
+                $procurementOrders = [];
+            }
+        }
         foreach ($data as &$item) {
+            $item['yfth_order_source'] = isset($procurementOrders[(int)$item['id']]) ? 'procurement' : 'retail';
+            $item['yfth_order_source_text'] = $item['yfth_order_source'] === 'procurement' ? '门店采购订单' : '';
+            $item['yfth_procurement_store_id'] = (int)($procurementOrders[(int)$item['id']] ?? 0);
             $refund_num = array_sum(array_column($item['refund'], 'refund_num'));
             $cart_num = 0;
             $vipTruePrice = 0;

@@ -1,5 +1,16 @@
 # 项目交接文档
 
+## Current Fact Snapshot - Native Procurement Order Consolidation V1
+
+- Development branch: `codex/yfth-native-procurement-order-v1`; task baseline: `d99ea5091b76eae5c22f1617d389cd8eafbe675d`. Final `main`, `origin/main` and production commits must be read from real Git after the requested fast-forward merge and deployment.
+- Store-manager procurement now reuses the native CRMEB cart, order confirmation, order creation, payment, delivery, receipt, refund and order-admin flow. Procurement orders are marked by an immutable `yfth_native_procurement_order` sidecar instead of creating a second active purchase-order state machine.
+- The headquarters procurement catalog is independent from the retail catalog. A procurement item only requires SKU procurement prices; it may reference a retail-visible CRMEB product or a procurement-only hidden CRMEB product. No separate `allowed procurement` switch is required.
+- The legacy YFTH purchase-order, shipment, receipt and inventory tables remain read-only for historical traceability. Their active create, audit, shipment, receipt and alert write endpoints return `procurement_legacy_runtime_disabled`.
+- Commission sources are mutually exclusive. Retail orders continue to feed the C1/B1 automatic-commission path, while native procurement orders feed only the county/prefecture/province/regional/platform partner-profit path. CRMEB legacy brokerage remains excluded for YFTH procurement orders.
+- Headquarters Admin now exposes procurement catalog management beside retail product management. Native order rows show the procurement source and store, user management shows the current C1/B1/partner commission summary instead of presenting it as CRMEB mall balance, and user operating identity is routed under `客户与会员` beside user management.
+- Actual validation passed: PHP 7.4 syntax; supply-chain, procurement-profit, automatic-commission and Stage 3 contracts; isolated MySQL Community 8.0.46 migration up/down/up; native-order sidecar and SKU uniqueness; legacy-history immutability; five-level 20/10/5/3/1 procurement profit and refund idempotency; Admin production build; H5 production build; mp-weixin production compile; request fallback; sensitive scan; and `git diff --check`.
+- No real payment, SMS, WeChat upload or production business-data rewrite was performed during local validation. Production release facts must be recorded only after backup, forward migration, deployment and online verification complete.
+
 ## Current Fact Snapshot - Procurement Product Catalog Visibility
 
 - The store procurement page previously showed no products because the headquarters procurement catalog (`yfth_supply_catalog`) was empty. CRMEB retail product publication and YFTH procurement authorization are intentionally separate facts.

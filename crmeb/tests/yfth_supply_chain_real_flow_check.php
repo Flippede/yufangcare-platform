@@ -27,23 +27,30 @@ $read = function (string $path) use ($root): string {
 
 try {
     $service = $read('app/services/yfth/SupplyChainServices.php');
-    $migration = $read('database/migrations/20260708170000_create_yfth_supply_chain_inventory_tables.php');
+    $orderCreate = $read('app/services/order/StoreOrderCreateServices.php');
+    $nativeMigration = $read('database/migrations/20260724120000_unify_yfth_procurement_with_store_orders.php');
 
-    $assert(strpos($service, 'lockPurchaseOrder') !== false && strpos($service, '->lock(true)->find()') !== false, 'source_has_purchase_order_row_lock');
-    $assert(strpos($service, "return in_array('store_purchase', \$capabilities, true);") !== false, 'source_requires_store_purchase_capability');
-    $assert(strpos($service, 'supply_receive:') !== false, 'source_has_deterministic_receipt_idempotency_key');
-    $assert(strpos($service, 'purchase_order_already_stocked') !== false, 'source_handles_duplicate_receipt');
-    $assert(strpos($service, 'purchase_order_already_shipped') !== false, 'source_handles_duplicate_shipment');
-    $assert(strpos($service, '(float)') === false, 'source_has_no_float_money_calculation');
-    $assert(strpos($service, 'FIND_IN_SET(:store_type, allow_store_types)') !== false, 'source_has_exact_store_type_match');
+    $assert(strpos($service, 'prepareNativeCheckout') !== false, 'source_prepares_native_checkout');
+    $assert(
+        substr_count($service, "throw new ApiException('procurement_legacy_runtime_disabled')") >= 5,
+        'source_disables_legacy_procurement_writes'
+    );
+    $assert(
+        strpos($service, "'order_confirm_url' => '/pages/goods/order_confirm/index") !== false,
+        'source_reuses_native_order_confirmation'
+    );
+    $assert(strpos($service, "return in_array('store_purchase', \$capabilities, true);") === false, 'source_has_no_legacy_capability_gate');
+    $assert(strpos($service, "Db::name('store_order')->insert") === false, 'source_does_not_insert_native_orders_directly');
+    $assert(strpos($orderCreate, "Db::name('yfth_native_procurement_order')->insert") !== false, 'native_order_create_writes_sidecar');
+    $assert(strpos($orderCreate, 'excludesCrmebBrokerage') !== false, 'native_procurement_excludes_legacy_brokerage');
     foreach ([
-        'uniq_yfth_purchase_item_order_sku',
-        'uniq_yfth_purchase_shipment_order',
-        'uniq_yfth_purchase_receipt_order',
-        'uniq_yfth_purchase_receipt_shipment',
-        'uniq_yfth_inventory_ledger_business_sku',
-    ] as $index) {
-        $assert(strpos($migration, $index) !== false, 'migration_has_' . $index);
+        'yfth_native_procurement_order',
+        'yfth_supply_catalog_sku',
+        'uniq_yfth_native_procurement_order',
+        'uniq_yfth_catalog_sku',
+        'yfth_native_procurement_snapshot_must_be_empty_before_rollback',
+    ] as $schemaPart) {
+        $assert(strpos($nativeMigration, $schemaPart) !== false, 'native_migration_contains:' . $schemaPart);
     }
 } catch (Throwable $e) {
     $failures[] = 'source_check_exception:' . $e->getMessage();
@@ -83,19 +90,17 @@ if (!$executeFlow) {
 
         $versionRow = Db::query('SELECT VERSION() AS version');
         $mysqlVersion = (string)($versionRow[0]['version'] ?? '');
-        $assert($mysqlVersion !== '', 'mysql_version_available');
-        $assert(stripos($mysqlVersion, 'mariadb') === false, 'mysql_vendor_is_not_mariadb');
-        $assert((bool)preg_match('/^8\.0\./', $mysqlVersion), 'mysql_version_is_8_0:' . $mysqlVersion);
-
         $connection = Config::get('database.default');
         $database = (string)Config::get('database.connections.' . $connection . '.database');
         $prefix = (string)Config::get('database.connections.' . $connection . '.prefix');
+
+        $assert((bool)preg_match('/^8\.0\./', $mysqlVersion), 'mysql_version_is_8_0:' . $mysqlVersion);
         $assert((string)getenv('YFTH_REAL_FLOW_ISOLATED_DB') === '1', 'isolated_db_guard_confirmed');
         $assert((bool)preg_match('/(validation|sandbox|test|local|dev)/i', $database), 'database_name_looks_isolated:' . $database);
 
         if (!$failures) {
-            scAssertRealIndexes($assert, $database, $prefix);
-            scAssertUniquenessGuards($assert, $prefix);
+            scAssertNativeSchema($assert, $database, $prefix);
+            scAssertNativeUniquenessAndLegacyReadOnly($assert);
         }
     } catch (Throwable $e) {
         $failures[] = 'real_flow_exception:' . $e->getMessage() . ':' . $e->getFile() . ':' . $e->getLine();
@@ -117,138 +122,95 @@ foreach ($passes as $pass) {
     echo "[PASS] {$pass}\n";
 }
 
-if ($executeFlow) {
-    echo "[OK] YFTH supply chain real-flow guards verified on isolated MySQL.\n";
-} else {
-    echo "[OK] YFTH supply chain P1/P2 source guards passed; isolated MySQL flow skipped.\n";
-}
+echo $executeFlow
+    ? "[OK] YFTH native procurement runtime guards verified on isolated MySQL.\n"
+    : "[OK] YFTH native procurement source guards passed; isolated MySQL flow skipped.\n";
 
-function scAssertRealIndexes(callable $assert, string $database, string $prefix): void
+function scAssertNativeSchema(callable $assert, string $database, string $prefix): void
 {
+    foreach (['yfth_native_procurement_order', 'yfth_supply_catalog_sku'] as $table) {
+        $rows = Db::query(
+            'SELECT COUNT(*) AS cnt FROM information_schema.TABLES WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?',
+            [$database, $prefix . $table]
+        );
+        $assert((int)($rows[0]['cnt'] ?? 0) === 1, 'native_table_exists:' . $table);
+    }
+
     foreach ([
-        [$prefix . 'yfth_purchase_order_item', 'uniq_yfth_purchase_item_order_sku'],
-        [$prefix . 'yfth_purchase_shipment', 'uniq_yfth_purchase_shipment_order'],
-        [$prefix . 'yfth_purchase_receipt', 'uniq_yfth_purchase_receipt_order'],
-        [$prefix . 'yfth_purchase_receipt', 'uniq_yfth_purchase_receipt_shipment'],
-        [$prefix . 'yfth_inventory_ledger', 'uniq_yfth_inventory_ledger_business_sku'],
+        [$prefix . 'yfth_native_procurement_order', 'uniq_yfth_native_procurement_order'],
+        [$prefix . 'yfth_supply_catalog_sku', 'uniq_yfth_catalog_sku'],
+        [$prefix . 'yfth_procurement_profit_snapshot', 'uniq_yfth_procurement_snapshot_source'],
     ] as $index) {
         $rows = Db::query(
             'SELECT COUNT(*) AS cnt FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND INDEX_NAME = ?',
             [$database, $index[0], $index[1]]
         );
-        $assert((int)($rows[0]['cnt'] ?? 0) > 0, 'real_index_exists:' . $index[0] . '.' . $index[1]);
+        $assert((int)($rows[0]['cnt'] ?? 0) > 0, 'native_index_exists:' . $index[0] . '.' . $index[1]);
     }
 }
 
-function scAssertUniquenessGuards(callable $assert, string $prefix): void
+function scAssertNativeUniquenessAndLegacyReadOnly(callable $assert): void
 {
-    $runId = time() . random_int(1000, 9999);
-    $orderNo = 'POREAL' . $runId;
-    $shipmentNo = 'SHREAL' . $runId;
-    $receiptNo = 'RCREAL' . $runId;
-    $sku = 'real-flow-sku-' . $runId;
+    $runId = 900000000 + random_int(1000, 999999);
     $now = time();
+    $legacyTables = [
+        'yfth_purchase_order',
+        'yfth_purchase_order_item',
+        'yfth_purchase_shipment',
+        'yfth_purchase_receipt',
+        'yfth_inventory_balance',
+        'yfth_inventory_ledger',
+    ];
+    $before = [];
+    foreach ($legacyTables as $table) {
+        $before[$table] = (int)Db::name($table)->count();
+    }
 
     Db::startTrans();
     try {
-        Db::name('yfth_purchase_order')->insert([
-            'purchase_no' => $orderNo,
+        Db::name('yfth_native_procurement_order')->insert([
+            'store_order_id' => $runId,
+            'order_no' => 'NATIVE-' . $runId,
             'store_id' => 990001,
-            'supplier_subject_id' => 0,
-            'status' => 'shipped',
-            'audit_status' => 'approved',
-            'amount_snapshot' => '1.23',
-            'quantity_total' => 1,
             'operator_uid' => 990001,
-            'operator_role_code' => 'store_manager',
+            'status' => 'created',
             'create_time' => $now,
             'update_time' => $now,
         ]);
-        $orderId = (int)Db::name('yfth_purchase_order')->where('purchase_no', $orderNo)->value('id');
-
-        Db::name('yfth_purchase_shipment')->insert([
-            'purchase_order_id' => $orderId,
-            'shipment_no' => $shipmentNo,
-            'status' => 'shipped',
-            'quantity_total' => 1,
-            'operator_uid' => 1,
-            'shipped_time' => $now,
-            'create_time' => $now,
-            'update_time' => $now,
-        ]);
-        scExpectDuplicate(function () use ($orderId, $now) {
-            Db::name('yfth_purchase_shipment')->insert([
-                'purchase_order_id' => $orderId,
-                'shipment_no' => 'SHDUP' . $orderId,
-                'status' => 'shipped',
-                'quantity_total' => 1,
-                'operator_uid' => 1,
-                'shipped_time' => $now,
-                'create_time' => $now,
-                'update_time' => $now,
-            ]);
-        }, $assert, 'duplicate_shipment_blocked');
-
-        Db::name('yfth_purchase_receipt')->insert([
-            'purchase_order_id' => $orderId,
-            'shipment_id' => 880001,
-            'receipt_no' => $receiptNo,
-            'status' => 'stocked',
-            'quantity_total' => 1,
-            'operator_uid' => 990001,
-            'operator_role_code' => 'store_manager',
-            'received_time' => $now,
-            'stocked_time' => $now,
-            'create_time' => $now,
-            'update_time' => $now,
-        ]);
-        scExpectDuplicate(function () use ($orderId, $now) {
-            Db::name('yfth_purchase_receipt')->insert([
-                'purchase_order_id' => $orderId,
-                'shipment_id' => 880002,
-                'receipt_no' => 'RCDUP' . $orderId,
-                'status' => 'stocked',
-                'quantity_total' => 1,
-                'operator_uid' => 990001,
-                'operator_role_code' => 'store_manager',
-                'received_time' => $now,
-                'stocked_time' => $now,
-                'create_time' => $now,
-                'update_time' => $now,
-            ]);
-        }, $assert, 'duplicate_receipt_blocked');
-
-        Db::name('yfth_inventory_ledger')->insert([
-            'store_id' => 990001,
-            'location_id' => 990001,
-            'product_id' => 990001,
-            'sku_unique' => $sku,
-            'quantity_change' => 1,
-            'balance_after' => 1,
-            'business_type' => 'purchase_inbound',
-            'business_id' => 770001,
-            'operator_uid' => 990001,
-            'operator_role_code' => 'store_manager',
-            'reason' => 'real_flow_guard',
-            'add_time' => $now,
-        ]);
-        scExpectDuplicate(function () use ($sku, $now) {
-            Db::name('yfth_inventory_ledger')->insert([
+        scExpectDuplicate(function () use ($runId, $now) {
+            Db::name('yfth_native_procurement_order')->insert([
+                'store_order_id' => $runId,
+                'order_no' => 'NATIVE-DUP-' . $runId,
                 'store_id' => 990001,
-                'location_id' => 990001,
-                'product_id' => 990001,
-                'sku_unique' => $sku,
-                'quantity_change' => 1,
-                'balance_after' => 2,
-                'business_type' => 'purchase_inbound',
-                'business_id' => 770001,
                 'operator_uid' => 990001,
-                'operator_role_code' => 'store_manager',
-                'reason' => 'real_flow_guard',
-                'add_time' => $now,
+                'status' => 'created',
+                'create_time' => $now,
+                'update_time' => $now,
             ]);
-        }, $assert, 'duplicate_ledger_blocked');
+        }, $assert, 'duplicate_native_order_sidecar_blocked');
 
+        Db::name('yfth_supply_catalog_sku')->insert([
+            'catalog_id' => $runId,
+            'product_id' => $runId,
+            'sku_unique' => 'native-sku-' . $runId,
+            'purchase_price' => '12.34',
+            'create_time' => $now,
+            'update_time' => $now,
+        ]);
+        scExpectDuplicate(function () use ($runId, $now) {
+            Db::name('yfth_supply_catalog_sku')->insert([
+                'catalog_id' => $runId,
+                'product_id' => $runId,
+                'sku_unique' => 'native-sku-' . $runId,
+                'purchase_price' => '56.78',
+                'create_time' => $now,
+                'update_time' => $now,
+            ]);
+        }, $assert, 'duplicate_catalog_sku_price_blocked');
+
+        foreach ($legacyTables as $table) {
+            $assert((int)Db::name($table)->count() === $before[$table], 'legacy_history_unchanged:' . $table);
+        }
         Db::rollback();
     } catch (Throwable $e) {
         Db::rollback();

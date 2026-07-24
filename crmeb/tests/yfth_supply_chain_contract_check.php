@@ -13,129 +13,126 @@ $read = function (string $path) use ($root): string {
 };
 
 $assert = function (bool $condition, string $label) use (&$failures, &$passes): void {
-    if ($condition) {
-        $passes[] = $label;
-        return;
-    }
-    $failures[] = $label;
+    $condition ? $passes[] = $label : $failures[] = $label;
 };
 
-$contains = function (string $text, string $needle): bool {
+$contains = static function (string $text, string $needle): bool {
     return strpos($text, $needle) !== false;
 };
 
-$migration = $read('database/migrations/20260708170000_create_yfth_supply_chain_inventory_tables.php');
+$legacyMigration = $read('database/migrations/20260708170000_create_yfth_supply_chain_inventory_tables.php');
+$nativeMigration = $read('database/migrations/20260724120000_unify_yfth_procurement_with_store_orders.php');
 $service = $read('app/services/yfth/SupplyChainServices.php');
-$apiController = $read('app/api/controller/v1/yfth/SupplyChainController.php');
-$adminController = $read('app/adminapi/controller/v1/yfth/SupplyChain.php');
+$cartService = $read('app/services/order/StoreCartServices.php');
+$orderCreateService = $read('app/services/order/StoreOrderCreateServices.php');
+$orderService = $read('app/services/order/StoreOrderServices.php');
+$sourceService = $read('app/services/yfth/YfthOrderSourceServices.php');
+$payListener = $read('app/listener/yfth/MallConsumptionRewardPayListener.php');
+$refundListener = $read('app/listener/yfth/MallConsumptionRewardCustomEventListener.php');
 $apiRoute = $read('app/api/route/yfth_service.php');
-$adminRoute = $read('app/adminapi/route/yfth.php');
-$adminApi = $read('../template/admin/src/api/yfth.js');
 $uniApi = $read('../template/uni-app/api/yfth.js');
-$adminPage = $read('../template/admin/src/pages/yfth/supplyChain/index.vue');
-$productRouter = $read('../template/admin/src/router/modules/product.js');
-$procurementMenuMigration = $read('database/migrations/20260723170000_expose_yfth_procurement_product_management.php');
 $purchasePage = $read('../template/uni-app/pages/yfth/workbench/purchase/index.vue');
-$purchaseCheckoutPage = $read('../template/uni-app/pages/yfth/workbench/purchase/checkout.vue');
-$purchaseDetailPage = $read('../template/uni-app/pages/yfth/workbench/purchase/detail.vue');
-$inventoryPage = $read('../template/uni-app/pages/yfth/workbench/purchase/inventory.vue');
+$checkoutPage = $read('../template/uni-app/pages/yfth/workbench/purchase/checkout.vue');
+$adminPage = $read('../template/admin/src/pages/yfth/supplyChain/index.vue');
+$orderTable = $read('../template/admin/src/pages/order/orderList/components/tableList.vue');
+$userRouter = $read('../template/admin/src/router/modules/user.js');
+$yfthRouter = $read('../template/admin/src/router/modules/yfth.js');
 
 foreach ([
     'yfth_supply_catalog',
     'yfth_purchase_order',
-    'yfth_purchase_order_item',
-    'yfth_stock_location',
     'yfth_inventory_balance',
     'yfth_inventory_ledger',
-    'yfth_purchase_shipment',
-    'yfth_purchase_receipt',
-    'yfth_inventory_alert_rule',
-] as $table) {
-    $assert($contains($migration, $table), 'migration_contains_' . $table);
+] as $legacyTable) {
+    $assert($contains($legacyMigration, $legacyTable), 'legacy_history_table_is_preserved:' . $legacyTable);
 }
 
 foreach ([
-    'uniq_yfth_supply_catalog_product',
-    'uniq_yfth_purchase_order_no',
-    'uniq_yfth_purchase_item_order_sku',
-    'uniq_yfth_inventory_balance_location_sku',
-    'idx_yfth_inventory_ledger_business',
-    'uniq_yfth_inventory_ledger_business_sku',
-    'uniq_yfth_purchase_shipment_order',
-    'uniq_yfth_purchase_receipt_order',
-    'uniq_yfth_purchase_receipt_shipment',
-    'uniq_yfth_inventory_alert_store_sku',
-] as $index) {
-    $assert($contains($migration, $index), 'migration_contains_index_' . $index);
+    'yfth_native_procurement_order',
+    'yfth_supply_catalog_sku',
+    'uniq_yfth_native_procurement_order',
+    'uniq_yfth_catalog_sku',
+    'uniq_yfth_procurement_snapshot_source',
+] as $schemaPart) {
+    $assert($contains($nativeMigration, $schemaPart), 'native_migration_contains:' . $schemaPart);
 }
+$assert(
+    $contains($nativeMigration, 'yfth_native_procurement_snapshot_must_be_empty_before_rollback')
+    && $contains($nativeMigration, 'yfth_native_procurement_ledger_must_be_empty_before_rollback'),
+    'native_migration_blocks_lossy_rollback'
+);
+$assert(
+    $contains($nativeMigration, "'yfth-supply-chain-index'")
+    && $contains($nativeMigration, '`is_show`=0')
+    && $contains($nativeMigration, "'yfth-procurement-product-index'"),
+    'migration_hides_legacy_supply_page_and_exposes_procurement_products'
+);
+$assert(
+    $contains($nativeMigration, "'admin-user'")
+    && $contains($nativeMigration, "'yfth-user-role-management-index'")
+    && $contains($nativeMigration, "'/user/yfth-user-role'"),
+    'migration_places_user_role_under_customer_and_member'
+);
 
-$assert($contains($migration, "'auth_type' => 2"), 'migration_seeds_api_permissions');
-$assert($contains($migration, 'yfth-supply-chain-index'), 'migration_seeds_supply_page_menu');
-$assert($contains($migration, 'DELETE FROM `') && $contains($migration, 'system_menus'), 'migration_down_removes_seeded_menus');
-$assert($contains($migration, "->table('yfth_inventory_alert_rule')->drop()") || $contains($migration, '$this->table($table)->drop()'), 'migration_down_drops_tables');
+$assert($contains($service, 'prepareNativeCheckout'), 'service_exposes_native_checkout');
+$assert(
+    $contains($service, "throw new ApiException('procurement_legacy_runtime_disabled')"),
+    'legacy_procurement_writes_are_disabled'
+);
+$assert(
+    $contains($service, "['channel' => 'procurement'")
+    || ($contains($service, "'channel' => 'procurement'") && $contains($service, 'StoreCartServices::class')),
+    'native_checkout_creates_procurement_cart'
+);
+$assert(
+    $contains($service, "'order_confirm_url' => '/pages/goods/order_confirm/index"),
+    'native_checkout_reuses_crmeb_order_confirmation'
+);
+$assert($contains($service, "'sku_prices'") || $contains($service, '$skuPrices'), 'catalog_supports_sku_procurement_prices');
+$assert($contains($service, "->where('is_virtual', 0)"), 'catalog_rejects_virtual_products');
+$assert(!$contains($service, "return in_array('store_purchase', \$capabilities, true);"), 'procurement_has_no_extra_store_capability_gate');
+$assert(!$contains($service, "Db::name('store_order')->insert"), 'catalog_service_does_not_bypass_native_order_service');
 
-$assert($contains($service, 'CurrentBusinessContextServices::class'), 'service_uses_current_business_context');
-$assert($contains($service, 'AdminStoreContextServices::class'), 'service_uses_admin_store_context');
-$assert($contains($service, "STORE_WRITE_ROLES = ['store_manager']"), 'service_only_manager_in_write_roles');
-$assert($contains($service, "STORE_READ_ROLES = ['store_manager', 'store_staff', 'county_partner', 'prefecture_partner', 'province_partner', 'regional_director', 'platform_director']"), 'service_staff_read_allowed');
-$assert($contains($service, 'supply_purchase_store_field_forbidden'), 'service_rejects_client_store_fields_on_create');
-$assert($contains($service, 'supply_receipt_store_field_forbidden'), 'service_rejects_client_store_fields_on_receipt');
-$assert($contains($service, '$query->where(\'store_id\', $storeId)') || $contains($service, "['store_id' => (int)\$scope['store_id']"), 'service_filters_store_queries_by_resolved_store');
-$assert($contains($service, 'lockPurchaseOrder') && $contains($service, '->lock(true)->find()'), 'service_locks_purchase_order_for_state_transitions');
-$assert($contains($service, "return in_array('store_purchase', \$capabilities, true);"), 'service_requires_explicit_store_purchase_capability');
-$assert($contains($service, 'supply_receive:') && $contains($service, 'supply_purchase_create:'), 'service_generates_server_side_idempotency_keys');
-$assert($contains($service, 'idempotency_key_required') && !$contains($service, 'if ($key === \'\') {' . "\n" . '            return $callback();'), 'service_does_not_bypass_empty_idempotency_key');
-$assert($contains($service, 'decimalToCents') && $contains($service, 'centsToDecimal') && !$contains($service, '(float)'), 'service_avoids_float_money_calculation');
-$assert($contains($service, 'FIND_IN_SET(:store_type, allow_store_types)') && !$contains($service, "whereOr('allow_store_types', 'like'"), 'service_uses_exact_store_type_matching');
-$assert($contains($service, 'normalizeCatalogPayload(array $data, int $adminId, array $before = [])'), 'service_catalog_update_accepts_existing_create_fields');
-$assert($contains($service, "'created_uid' => \$before ?") && $contains($service, "'create_time' => \$before ?"), 'service_catalog_update_preserves_created_fields');
-$assert($contains($service, 'store_product_attr_value'), 'service_reuses_crmeb_sku_table');
-$assert($contains($service, 'store_product'), 'service_reuses_crmeb_product_table');
-$assert($contains($service, 'adminImportVisibleProducts'), 'service_can_import_visible_products');
-$assert($contains($service, "->where('is_virtual', 0)"), 'catalog_import_excludes_virtual_products');
-$assert($contains($service, "'import_visible_product'"), 'catalog_import_is_audited');
-$assert(!$contains($service, 'decStockIncSales('), 'service_does_not_decrement_crmeb_sales_stock');
-$assert(!$contains($service, 'incStockDecSales('), 'service_does_not_increment_crmeb_sales_stock');
-$assert(!$contains($service, "Db::name('store_order')->insert"), 'service_does_not_create_crmeb_order');
-$assert(!$contains($service, "Db::name('store_product')->update"), 'service_does_not_update_crmeb_product_stock');
-$assert($contains($service, 'YfthInventoryLedgerDao::class') && $contains($service, 'purchase_inbound'), 'service_writes_inventory_ledger');
-$assert($contains($service, 'IdempotencyRecordServices::class'), 'service_reuses_yfth_idempotency');
-$assert($contains($service, 'AuditEventServices::class'), 'service_reuses_yfth_audit');
+$assert($contains($cartService, '$allowHiddenProduct'), 'cart_accepts_hidden_procurement_only_products');
+$assert($contains($cartService, "'yfth_channel'] = 'procurement'"), 'cart_caches_procurement_channel');
+$assert($contains($cartService, "'yfth_procurement_unit_price'"), 'cart_caches_procurement_price');
+$assert($contains($cartService, "'price_type'] = 'procurement'"), 'cart_restores_procurement_price');
 
-$assert($contains($apiRoute, 'AuthTokenMiddleware::class'), 'api_route_uses_user_token_middleware');
-$assert($contains($apiRoute, "yfth/supply/purchase_order/:id/receive"), 'api_route_has_receipt_endpoint');
-$assert($contains($apiRoute, "yfth/supply/inventory"), 'api_route_has_inventory_endpoint');
-$assert($contains($adminRoute, "Route::group('supply_chain'"), 'admin_route_has_supply_group');
-$assert($contains($adminRoute, 'AdminAuthTokenMiddleware::class'), 'admin_route_uses_admin_token_middleware');
-$assert($contains($adminController, 'assertApiAuthForAdmin'), 'admin_controller_asserts_api_auth');
-$assert($contains($adminController, "yfth/supply_chain/catalog/import_visible"), 'admin_controller_asserts_catalog_import_permission');
-$assert($contains($adminController, "yfth/supply_chain/purchase_order/<id>/ship"), 'admin_controller_asserts_ship_permission');
+$assert($contains($orderCreateService, 'resolveProcurementContext'), 'order_create_validates_procurement_cart_context');
+$assert($contains($orderCreateService, 'procurement_cart_mixed_channel'), 'order_create_rejects_mixed_cart_channels');
+$assert($contains($orderCreateService, "Db::name('yfth_native_procurement_order')->insert"), 'order_create_writes_procurement_sidecar');
+$assert($contains($orderCreateService, "->mark((int)\$order['id'], 'procurement')"), 'order_create_marks_procurement_commission_source');
+$assert($contains($orderCreateService, 'excludesCrmebBrokerage'), 'order_create_excludes_crmeb_legacy_brokerage');
 
-$assert($contains($apiController, '$request->post()'), 'api_controller_checks_raw_post_fields');
-$assert($contains($apiController, 'Idempotency-Key'), 'api_controller_accepts_idempotency_header');
-$assert($contains($uniApi, 'createYfthPurchaseOrder'), 'uni_api_has_purchase_create');
-$assert($contains($uniApi, 'receiveYfthPurchaseOrder'), 'uni_api_has_receive');
-$assert($contains($adminApi, 'yfthSupplyCatalogSave'), 'admin_api_has_catalog_save');
-$assert($contains($adminApi, 'yfthSupplyCatalogImportVisible'), 'admin_api_has_catalog_import');
-$assert($contains($adminApi, 'yfthPurchaseOrderShip'), 'admin_api_has_ship');
-$assert($contains($adminPage, 'yfthSupplyCatalogList') && $contains($adminPage, 'yfthSupplyCatalogImportVisible') && $contains($adminPage, 'yfthPurchaseOrderAudit'), 'admin_page_uses_real_api');
-$assert($contains($productRouter, '商城商品管理'), 'admin_product_menu_identifies_retail_products');
-$assert($contains($productRouter, '采购商品管理'), 'admin_product_menu_exposes_procurement_products');
-$assert($contains($procurementMenuMigration, 'yfth-procurement-product-index'), 'migration_creates_procurement_product_page_permission');
-$assert($contains($procurementMenuMigration, 'yfth-supply-catalog-import-visible'), 'migration_creates_catalog_import_permission');
-$assert($contains($purchasePage, 'getYfthSupplyCatalog') && $contains($purchaseCheckoutPage, 'createYfthPurchaseOrder') && $contains($purchaseDetailPage, 'receiveYfthPurchaseOrder'), 'purchase_pages_use_real_api');
-$assert($contains($purchasePage, "context.role_code !== 'store_manager'") && $contains($purchasePage, '仅店长可进入采购商城'), 'purchase_page_rejects_non_manager_roles');
-$assert($contains($purchasePage, 'v-if="accessGranted"') && $contains($purchasePage, "uni.reLaunch({ url: '/pages/yfth/workbench/index' })"), 'purchase_page_hides_content_until_manager_verified');
-$assert($contains($purchaseCheckoutPage, 'getAddressDefault') && $contains($purchaseCheckoutPage, 'address_id: this.address.id'), 'purchase_checkout_uses_crmeb_address');
-$assert($contains($purchaseDetailPage, 'logistics_company') && $contains($purchaseDetailPage, 'logistics_no'), 'purchase_detail_exposes_logistics');
-$assert($contains($inventoryPage, 'getYfthInventory') && $contains($inventoryPage, 'getYfthInventoryLedger'), 'inventory_page_uses_real_api');
+$assert(
+    $contains($sourceService, 'public function sourceType(int $orderId)')
+    && $contains($sourceService, 'public function isSource(int $orderId, string $sourceType)'),
+    'order_source_service_is_authoritative'
+);
+$assert($contains($payListener, "isSource(\$orderId, 'procurement')"), 'ordinary_mall_pay_reward_skips_procurement');
+$assert($contains($refundListener, "isSource(\$orderId, 'procurement')"), 'ordinary_mall_refund_reward_skips_procurement');
+$assert($contains($orderService, "'yfth_order_source'") && $contains($orderService, '门店采购订单'), 'native_order_list_exposes_procurement_tag');
+
+$assert($contains($apiRoute, 'supply/native_checkout'), 'api_exposes_native_checkout');
+$assert($contains($uniApi, 'prepareYfthNativeProcurementCheckout'), 'uni_api_uses_native_checkout');
+$assert($contains($checkoutPage, 'prepareYfthNativeProcurementCheckout'), 'checkout_page_prepares_native_cart');
+$assert($contains($checkoutPage, 'data.order_confirm_url'), 'checkout_page_enters_native_confirmation');
+$assert($contains($purchasePage, '/pages/goods/order_list/index'), 'procurement_page_reuses_native_order_list');
+$assert($contains($purchasePage, '总部采购价'), 'procurement_page_labels_procurement_price');
+
+$assert($contains($adminPage, '采购商品管理'), 'admin_has_procurement_product_management');
+$assert($contains($adminPage, 'sku_prices'), 'admin_can_set_procurement_sku_prices');
+$assert(!$contains($adminPage, 'yfthPurchaseOrderAudit'), 'admin_has_no_legacy_purchase_audit_action');
+$assert($contains($orderTable, "yfth_order_source === 'procurement'"), 'admin_native_order_table_tags_procurement_orders');
+$assert($contains($userRouter, 'yfth-user-role'), 'user_role_route_is_under_user_module');
+$assert(!$contains($yfthRouter, 'yfth-user-role'), 'user_role_route_is_not_duplicated_under_yfth_module');
 
 if ($failures) {
-    echo "YFTH supply chain contract check failed:\n";
+    echo "YFTH native procurement contract check failed:\n";
     foreach ($failures as $failure) {
         echo " - {$failure}\n";
     }
     exit(1);
 }
 
-echo '[OK] YFTH supply chain contract check passed with ' . count($passes) . " assertions.\n";
+echo '[OK] YFTH native procurement contract check passed with ' . count($passes) . " assertions.\n";

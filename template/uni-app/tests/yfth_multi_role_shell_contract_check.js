@@ -82,8 +82,11 @@ assertContains('pages/yfth/workbench/index.vue', "item.action === 'mall'", 'work
 assertContains('pages/yfth/workbench/index.vue', 'const cachedContext = currentContext()', 'workbench must keep the cached operating navigation stable during server refresh');
 assertContains('pages/yfth/workbench/index.vue', 'v-if="navItems.length" class="nav"', 'workbench must hide navigation instead of flashing customer tabs without an operating context');
 assertContains('pages/yfth/workbench/index.vue', 'if (!this.context || !isBusinessRole(this.context.role_code)) return [];', 'workbench navigation must never fall back to customer tabs during route transitions');
-assertContains('pages/yfth/workbench/index.vue', "canPurchaseInventory() {\n\t\t\treturn this.context.role_code === 'store_manager';", 'only store managers may see the purchase entry');
-assertContains('pages/yfth/workbench/purchase/index.vue', "return this.context.role_code === 'store_manager';", 'direct purchase-page access must require a server-validated store manager');
+assert(
+	/canPurchaseInventory\(\)\s*\{\s*return this\.context\.role_code === 'store_manager';\s*\}/.test(read('pages/yfth/workbench/index.vue')),
+	'only store managers may see the purchase entry'
+);
+assertContains('pages/yfth/workbench/purchase/index.vue', "context.role_code !== 'store_manager'", 'direct purchase-page access must require a server-validated store manager');
 assertContains('pages/yfth/workbench/purchase/index.vue', 'v-if="accessGranted"', 'purchase content must stay hidden until the manager context is verified');
 assertContains('pages/yfth/workbench/purchase/index.vue', 'window.location.replace(target)', 'H5 direct access must have a workbench redirect fallback');
 assertNotContains('pages/yfth/workbench/index.vue', 'backCustomer', 'a higher operating identity must not fall back to the customer surface');

@@ -12,6 +12,7 @@ use app\dao\yfth\YfthPurchaseReceiptDao;
 use app\dao\yfth\YfthPurchaseShipmentDao;
 use app\dao\yfth\YfthStockLocationDao;
 use app\dao\yfth\YfthSupplyCatalogDao;
+use app\services\order\StoreCartServices;
 use crmeb\exceptions\ApiException;
 use think\facade\Db;
 
@@ -74,7 +75,8 @@ class SupplyChainServices extends YfthFoundationBaseServices
         $before = $id > 0 ? $this->rowArray($this->dao->get($id)) : [];
         $payload = $this->normalizeCatalogPayload($data, $adminId, $before);
 
-        return Db::transaction(function () use ($id, $payload, $before, $adminId) {
+        $skuPrices = (array)($data['sku_prices'] ?? []);
+        return Db::transaction(function () use ($id, $payload, $before, $adminId, $skuPrices) {
             if ($id > 0) {
                 if (!$before) {
                     throw new ApiException('supply_catalog_not_found');
@@ -90,6 +92,7 @@ class SupplyChainServices extends YfthFoundationBaseServices
                 $row = $this->rowArray($created);
                 $this->audit('supply_catalog', (int)$row['id'], 'create', [], $row, $adminId, 'headquarter_admin', 0, '');
             }
+            $this->syncCatalogSkuPrices((int)$row['id'], (int)$payload['product_id'], $skuPrices);
             return ['catalog' => $this->formatCatalog($row, true)];
         });
     }
@@ -234,9 +237,7 @@ class SupplyChainServices extends YfthFoundationBaseServices
         [$page, $limit, $defaultLimit] = $this->getPageValue();
         $limit = $limit ?: $defaultLimit;
         $keyword = trim((string)($where['keyword'] ?? ''));
-        $storeType = (string)($scope['context']['store_type'] ?? '');
-
-        $buildQuery = function () use ($keyword, $storeType) {
+        $buildQuery = function () use ($keyword) {
             $query = $this->dao->search([])->where('status', 'active');
             if ($keyword !== '') {
                 if (ctype_digit($keyword)) {
@@ -248,12 +249,6 @@ class SupplyChainServices extends YfthFoundationBaseServices
                         ->column('id');
                     $query->whereIn('product_id', $ids ?: [0]);
                 }
-            }
-            if ($storeType !== '') {
-                $query->where(function ($query) use ($storeType) {
-                    $query->where('allow_store_types', '')
-                        ->whereOr('FIND_IN_SET(:store_type, allow_store_types)', ['store_type' => $storeType]);
-                });
             }
             return $query;
         };
@@ -272,22 +267,42 @@ class SupplyChainServices extends YfthFoundationBaseServices
 
     public function createPurchaseOrder(Request $request, array $data): array
     {
+        throw new ApiException('procurement_legacy_runtime_disabled');
+    }
+
+    public function prepareNativeCheckout(Request $request, array $data): array
+    {
         if ($this->hasForbiddenStoreFields($data)) {
             throw new ApiException('supply_purchase_store_field_forbidden');
         }
         $scope = $this->resolveStoreScope($request, true);
-        $key = $this->idempotencyKey(
-            $request,
-            $data,
-            'supply_purchase_create:' . (int)$scope['store_id'] . ':' . sha1(json_encode([
-                'supplier_subject_id' => (int)($data['supplier_subject_id'] ?? 0),
-                'items' => $data['items'] ?? [],
-            ]))
-        );
-        $data['idempotency_key'] = $key;
-        return $this->withIdempotency('purchase_create', $key, $data, '', function () use ($scope, $data) {
-            return $this->doCreatePurchaseOrder($scope, $data);
-        });
+        $items = $this->normalizePurchaseItems((array)($data['items'] ?? []), '');
+        $cartIds = [];
+        $cartServices = app()->make(StoreCartServices::class);
+        foreach ($items as $item) {
+            $cartIds[] = (string)$cartServices->setCart(
+                (int)$scope['operator_uid'],
+                (int)$item['product_id'],
+                (int)$item['quantity'],
+                (string)$item['sku_unique'],
+                0,
+                true,
+                0,
+                0,
+                0,
+                0,
+                [
+                    'channel' => 'procurement',
+                    'store_id' => (int)$scope['store_id'],
+                    'catalog_id' => (int)$item['catalog_id'],
+                    'unit_price' => (string)$item['purchase_price_snapshot'],
+                ]
+            );
+        }
+        return [
+            'cart_ids' => implode(',', $cartIds),
+            'order_confirm_url' => '/pages/goods/order_confirm/index?new=1&cartId=' . implode(',', $cartIds),
+        ];
     }
 
     public function storePurchaseOrderList(Request $request, array $where): array
@@ -318,87 +333,13 @@ class SupplyChainServices extends YfthFoundationBaseServices
     public function adminAuditPurchaseOrder(int $id, array $data, int $adminId, array $adminInfo = []): array
     {
         $this->assertHeadquarterAdmin($adminInfo);
-        $action = (string)($data['action'] ?? '');
-        if (!in_array($action, ['approve', 'reject'], true)) {
-            throw new ApiException('purchase_audit_action_invalid');
-        }
-        return Db::transaction(function () use ($id, $data, $adminId, $action) {
-            $before = $this->requirePurchaseOrder($id, 0);
-            if ((string)$before['status'] !== 'submitted') {
-                throw new ApiException('purchase_order_audit_status_invalid');
-            }
-            $now = time();
-            $after = $before;
-            $after['status'] = $action === 'approve' ? 'approved' : 'rejected';
-            $after['audit_status'] = $action === 'approve' ? 'approved' : 'rejected';
-            $after['audit_uid'] = $adminId;
-            $after['audit_time'] = $now;
-            $after['audit_reason'] = trim((string)($data['reason'] ?? ''));
-            $after['update_time'] = $now;
-            app()->make(YfthPurchaseOrderDao::class)->update($id, [
-                'status' => $after['status'],
-                'audit_status' => $after['audit_status'],
-                'audit_uid' => $adminId,
-                'audit_time' => $now,
-                'audit_reason' => $after['audit_reason'],
-                'update_time' => $now,
-            ]);
-            if ($action === 'reject') {
-                app()->make(ProductQuotaPurchaseServices::class)->release($id, 'purchase_rejected');
-            }
-            $this->audit('purchase_order', $id, $action, $before, $after, $adminId, 'headquarter_admin', (int)$before['store_id'], $after['audit_reason']);
-            return $this->purchaseOrderDetail($id, 0);
-        });
+        throw new ApiException('procurement_legacy_runtime_disabled');
     }
 
     public function adminShipPurchaseOrder(int $id, array $data, int $adminId, array $adminInfo = []): array
     {
         $this->assertHeadquarterAdmin($adminInfo);
-        return Db::transaction(function () use ($id, $data, $adminId) {
-            $before = $this->lockPurchaseOrder($id, 0);
-            $status = (string)$before['status'];
-            $shipmentDao = app()->make(YfthPurchaseShipmentDao::class);
-            if (in_array($status, ['shipped', 'stocked'], true)) {
-                $existing = $this->rowArray($shipmentDao->getOne(['purchase_order_id' => $id]));
-                if ($existing) {
-                    return array_merge($this->purchaseOrderDetail($id, 0), ['shipment' => $this->formatShipment($existing)]);
-                }
-                throw new ApiException('purchase_order_already_shipped');
-            }
-            if ($status !== 'approved') {
-                throw new ApiException('purchase_order_ship_status_invalid');
-            }
-            if ($shipmentDao->getOne(['purchase_order_id' => $id])) {
-                throw new ApiException('purchase_order_already_shipped');
-            }
-            $now = time();
-            $shipment = $shipmentDao->save([
-                'purchase_order_id' => $id,
-                'shipment_no' => $this->makeNo('SH'),
-                'status' => 'shipped',
-                'quantity_total' => (int)$before['quantity_total'],
-                'operator_uid' => $adminId,
-                'shipped_time' => $now,
-                'logistics_company' => trim((string)($data['logistics_company'] ?? '')),
-                'logistics_no' => trim((string)($data['logistics_no'] ?? '')),
-                'create_time' => $now,
-                'update_time' => $now,
-            ]);
-            $shipment = $this->rowArray($shipment);
-            $after = array_merge($before, [
-                'status' => 'shipped',
-                'ship_time' => $now,
-                'update_time' => $now,
-            ]);
-            app()->make(YfthPurchaseOrderDao::class)->update($id, [
-                'status' => 'shipped',
-                'ship_time' => $now,
-                'update_time' => $now,
-            ]);
-            $this->audit('purchase_order', $id, 'ship', $before, $after, $adminId, 'headquarter_admin', (int)$before['store_id'], '');
-            $this->audit('purchase_shipment', (int)$shipment['id'], 'create', [], $shipment, $adminId, 'headquarter_admin', (int)$before['store_id'], '');
-            return array_merge($this->purchaseOrderDetail($id, 0), ['shipment' => $this->formatShipment($shipment)]);
-        });
+        throw new ApiException('procurement_legacy_runtime_disabled');
     }
 
     public function storeInTransitList(Request $request, array $where): array
@@ -410,15 +351,7 @@ class SupplyChainServices extends YfthFoundationBaseServices
 
     public function confirmReceipt(Request $request, int $orderId, array $data): array
     {
-        if ($this->hasForbiddenStoreFields($data)) {
-            throw new ApiException('supply_receipt_store_field_forbidden');
-        }
-        $scope = $this->resolveStoreScope($request, true);
-        $key = $this->idempotencyKey($request, $data, 'supply_receive:' . (int)$scope['store_id'] . ':' . $orderId);
-        $data['idempotency_key'] = $key;
-        return $this->withIdempotency('purchase_receipt', $key, $data, (string)$orderId, function () use ($scope, $orderId, $data) {
-            return $this->doConfirmReceipt($scope, $orderId, $data);
-        });
+        throw new ApiException('procurement_legacy_runtime_disabled');
     }
 
     public function storeInventoryList(Request $request, array $where): array
@@ -488,33 +421,7 @@ class SupplyChainServices extends YfthFoundationBaseServices
     public function alertRuleSave(array $data, array $adminInfo = []): array
     {
         $this->assertHeadquarterAdmin($adminInfo);
-        $storeId = (int)($data['store_id'] ?? 0);
-        $skuUnique = trim((string)($data['sku_unique'] ?? ''));
-        $threshold = max(0, (int)($data['threshold_quantity'] ?? 0));
-        if ($storeId <= 0 || $skuUnique === '') {
-            throw new ApiException('inventory_alert_rule_store_sku_required');
-        }
-        $sku = $this->requireSku(0, $skuUnique);
-        $location = $this->ensureStoreLocation($storeId);
-        $dao = app()->make(YfthInventoryAlertRuleDao::class);
-        $existing = $dao->getOne(['store_id' => $storeId, 'sku_unique' => $skuUnique]);
-        $payload = [
-            'store_id' => $storeId,
-            'location_id' => (int)$location['id'],
-            'product_id' => (int)$sku['product_id'],
-            'sku_unique' => $skuUnique,
-            'threshold_quantity' => $threshold,
-            'status' => $this->normalizeStatus((string)($data['status'] ?? 'active'), self::CATALOG_STATUSES, 'active'),
-            'update_time' => time(),
-        ];
-        if ($existing) {
-            $dao->update((int)$existing['id'], $payload);
-            $row = array_merge($this->rowArray($existing), $payload);
-        } else {
-            $payload['create_time'] = time();
-            $row = $this->rowArray($dao->save($payload));
-        }
-        return ['alert_rule' => $row];
+        throw new ApiException('procurement_legacy_runtime_disabled');
     }
 
     private function doCreatePurchaseOrder(array $scope, array $data): array
@@ -807,11 +714,16 @@ class SupplyChainServices extends YfthFoundationBaseServices
             if ($quantity < $min || $quantity % $multiple !== 0) {
                 throw new ApiException('purchase_quantity_rule_invalid');
             }
-            $priceCents = $this->decimalToCents((string)$catalog['purchase_price']);
+            $skuPrice = Db::name('yfth_supply_catalog_sku')
+                ->where('catalog_id', (int)$catalog['id'])
+                ->where('sku_unique', $skuUnique)
+                ->value('purchase_price');
+            $priceCents = $this->decimalToCents((string)($skuPrice ?: $catalog['purchase_price']));
             $price = $this->centsToDecimal($priceCents);
             $amount = $this->centsToDecimal($priceCents * $quantity);
             $result[] = [
                 'product_id' => $productId,
+                'catalog_id' => (int)$catalog['id'],
                 'sku_unique' => $skuUnique,
                 'product_name_snapshot' => (string)($product['store_name'] ?? ''),
                 'sku_name_snapshot' => (string)($sku['suk'] ?? ''),
@@ -830,10 +742,6 @@ class SupplyChainServices extends YfthFoundationBaseServices
             throw new ApiException('purchase_catalog_not_available');
         }
         $catalog = $this->rowArray($catalog);
-        $allowed = array_filter(array_map('trim', explode(',', (string)($catalog['allow_store_types'] ?? ''))));
-        if ($allowed && $storeType !== '' && !in_array($storeType, $allowed, true)) {
-            throw new ApiException('purchase_catalog_store_type_forbidden');
-        }
         return $catalog;
     }
 
@@ -865,8 +773,8 @@ class SupplyChainServices extends YfthFoundationBaseServices
             'retail_reference_price' => $retailPrice,
             'min_purchase_quantity' => $min,
             'package_multiple' => $multiple,
-            'allow_store_types' => $this->normalizeCsv((string)($data['allow_store_types'] ?? '')),
-            'qualification_requirement' => substr(trim((string)($data['qualification_requirement'] ?? '')), 0, 255),
+            'allow_store_types' => '',
+            'qualification_requirement' => '',
             'created_uid' => $before ? (int)($before['created_uid'] ?? 0) : $adminId,
             'updated_uid' => $adminId,
             'create_time' => $before ? (int)($before['create_time'] ?? 0) : $now,
@@ -887,21 +795,12 @@ class SupplyChainServices extends YfthFoundationBaseServices
             throw new ApiException('supply_store_id_required');
         }
         app()->make(StoreAccessServices::class)->assertStoreActive($storeId);
-        if ($write && !$this->hasStorePurchaseCapability($context)) {
-            throw new ApiException('supply_store_purchase_capability_required');
-        }
         return [
             'context' => $context,
             'store_id' => $storeId,
             'role_code' => $roleCode,
             'operator_uid' => (int)($context['uid'] ?? 0),
         ];
-    }
-
-    private function hasStorePurchaseCapability(array $context): bool
-    {
-        $capabilities = (array)($context['capabilities'] ?? []);
-        return in_array('store_purchase', $capabilities, true);
     }
 
     private function requirePurchaseOrder(int $id, int $storeId = 0): array
@@ -1002,6 +901,15 @@ class SupplyChainServices extends YfthFoundationBaseServices
         if (!$skus && !empty($row['product_id'])) {
             $skus = $this->skuMap([(int)$row['product_id']])[(int)$row['product_id']] ?? [];
         }
+        $skuPriceRows = Db::name('yfth_supply_catalog_sku')
+            ->where('catalog_id', (int)($row['id'] ?? 0))
+            ->column('purchase_price', 'sku_unique');
+        $defaultPurchasePrice = (string)($row['purchase_price'] ?? '0.00');
+        foreach ($skus as &$sku) {
+            $unique = (string)($sku['sku_unique'] ?? '');
+            $sku['purchase_price'] = (string)($skuPriceRows[$unique] ?? $defaultPurchasePrice);
+        }
+        unset($sku);
         $payload = [
             'id' => (int)($row['id'] ?? 0),
             'product_id' => (int)($row['product_id'] ?? 0),
@@ -1028,6 +936,32 @@ class SupplyChainServices extends YfthFoundationBaseServices
             $payload['update_time'] = (int)($row['update_time'] ?? 0);
         }
         return $payload;
+    }
+
+    private function syncCatalogSkuPrices(int $catalogId, int $productId, array $skuPrices): void
+    {
+        $now = time();
+        $rows = [];
+        foreach ($skuPrices as $item) {
+            $unique = trim((string)($item['sku_unique'] ?? ''));
+            $price = $this->normalizeMoney((string)($item['purchase_price'] ?? ''));
+            if ($unique === '' || $price === '') {
+                throw new ApiException('supply_catalog_sku_price_invalid');
+            }
+            $this->requireSku($productId, $unique);
+            $rows[] = [
+                'catalog_id' => $catalogId,
+                'product_id' => $productId,
+                'sku_unique' => $unique,
+                'purchase_price' => $price,
+                'create_time' => $now,
+                'update_time' => $now,
+            ];
+        }
+        Db::name('yfth_supply_catalog_sku')->where('catalog_id', $catalogId)->delete();
+        if ($rows) {
+            Db::name('yfth_supply_catalog_sku')->insertAll($rows);
+        }
     }
 
     private function formatPurchaseOrder(array $row, bool $detail = false): array

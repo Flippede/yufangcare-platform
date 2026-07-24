@@ -38,6 +38,15 @@ export default {
       component: () => import('@/pages/user/list/index'),
     },
     {
+      path: 'yfth-user-role',
+      name: 'yfth_user_role',
+      meta: {
+        auth: ['yfth-user-role-management-index'],
+        title: '用户经营身份',
+      },
+      component: () => import('@/pages/yfth/userRole/index'),
+    },
+    {
       path: 'level',
       name: `${pre}level`,
       meta: {
