@@ -40,7 +40,12 @@
               <el-button type="text" icon="el-icon-close" class="reject-button" @click="openReview(scope.row, 'reject')">驳回申请</el-button>
             </template>
             <el-button v-else-if="scope.row.status === 'pending_contract' && !scope.row.approved_store_id" type="text" icon="el-icon-s-shop" @click="openReview(scope.row, 'approve')">补齐门店与店长</el-button>
-            <el-tag v-else-if="scope.row.status === 'pending_contract'" size="mini" type="success">店长已生效</el-tag>
+            <el-button
+              v-else-if="scope.row.status === 'pending_contract' && scope.row.approved_store_id"
+              type="text"
+              icon="el-icon-refresh"
+              @click="syncLegacyAttribution(scope.row)"
+            >同步合伙人归属</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -124,6 +129,17 @@ export default {
       this.currentRow = row;
       const location = [row.city, row.region].filter(Boolean).join('');
       this.reviewForm = { action, reason: '', store_mode: 'new', store_id: '', store_name: `${location}${row.name || ''}加盟店` };
+      this.reviewVisible = true;
+    },
+    syncLegacyAttribution(row) {
+      this.currentRow = row;
+      this.reviewForm = {
+        action: 'approve',
+        reason: '补齐历史开店记录的招商合伙人归属',
+        store_mode: 'existing',
+        store_id: Number(row.approved_store_id),
+        store_name: '',
+      };
       this.reviewVisible = true;
     },
     submitReview() {
