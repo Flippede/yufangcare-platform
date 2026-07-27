@@ -101,6 +101,12 @@ $storePage = (string)file_get_contents($projectRoot . DIRECTORY_SEPARATOR . 'tem
 foreach (['yfth-finance', 'withdrawal', 'yfth-finance-withdrawal-index'] as $needle) {
     $assert(strpos($adminRouter, $needle) !== false, 'admin_router_contains:' . $needle);
 }
+$assert(strpos($adminRouter, "header: 'finance'") !== false, 'admin_router_uses_existing_finance_header');
+$assert(strpos($migration, "menu('admin-finance')") !== false, 'migration_reuses_existing_finance_root');
+$assert(strpos($migration, "'menu_name' => '御方通和资金'") !== false, 'migration_creates_yfth_finance_group');
+$menuRepairMigration = (string)file_get_contents($projectRoot . DIRECTORY_SEPARATOR . 'crmeb/database/migrations/20260727113000_attach_yfth_withdrawal_to_finance_menu.php');
+$assert(strpos($menuRepairMigration, "'menu_name' => '御方通和资金'") !== false, 'menu_repair_uses_yfth_finance_group_name');
+$assert(strpos($menuRepairMigration, "'menu_name' => '提现审核'") !== false, 'menu_repair_uses_withdrawal_review_name');
 foreach (['审核通过', '驳回', '确认线下打款', 'pay_reference'] as $needle) {
     $assert(strpos($adminPage, $needle) !== false, 'admin_page_contains:' . $needle);
 }

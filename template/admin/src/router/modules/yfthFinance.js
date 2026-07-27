@@ -6,7 +6,7 @@ const routePre = setting.routePre;
 export default {
   path: routePre + '/yfth-finance',
   name: 'yfth_finance',
-  header: 'yfth-finance',
+  header: 'finance',
   redirect: {
     name: 'yfth_finance_withdrawal',
   },

@@ -132,12 +132,16 @@ class CreateYfthFundWithdrawalFinanceV1 extends Migrator
 
     private function seedMenus(): void
     {
+        $financeRoot = $this->menu('admin-finance');
+        if (!$financeRoot) {
+            throw new RuntimeException('admin_finance_menu_required');
+        }
         $root = $this->ensureMenu([
-            'pid' => 0, 'icon' => 'md-cash', 'menu_name' => '财务', 'module' => 'admin',
+            'pid' => (int)$financeRoot['id'], 'icon' => 'md-cash', 'menu_name' => '御方通和资金', 'module' => 'admin',
             'controller' => '', 'action' => '', 'api_url' => '', 'methods' => 'GET',
-            'params' => '', 'sort' => 27, 'is_show' => 1, 'is_show_path' => 1, 'access' => 1,
-            'menu_path' => '/yfth-finance', 'path' => '/yfth-finance', 'auth_type' => 1,
-            'header' => 'yfth-finance', 'is_header' => 1, 'unique_auth' => self::MENU_AUTHS[0],
+            'params' => '', 'sort' => 5, 'is_show' => 1, 'is_show_path' => 1, 'access' => 1,
+            'menu_path' => '/yfth-finance', 'path' => (string)$financeRoot['id'], 'auth_type' => 1,
+            'header' => 'finance', 'is_header' => 0, 'unique_auth' => self::MENU_AUTHS[0],
             'is_del' => 0, 'mark' => 'yfth-finance',
         ]);
         $page = $this->ensureMenu([
@@ -145,8 +149,9 @@ class CreateYfthFundWithdrawalFinanceV1 extends Migrator
             'module' => 'admin', 'controller' => 'v1.yfth.FundFinance', 'action' => 'index',
             'api_url' => 'yfth/fund_finance/withdrawal', 'methods' => 'GET', 'params' => '',
             'sort' => 10, 'is_show' => 1, 'is_show_path' => 1, 'access' => 1,
-            'menu_path' => '/yfth-finance/withdrawal', 'path' => (string)$root['id'],
-            'auth_type' => 1, 'header' => 'yfth-finance', 'is_header' => 0,
+            'menu_path' => '/yfth-finance/withdrawal',
+            'path' => (int)$financeRoot['id'] . '/' . (int)$root['id'],
+            'auth_type' => 1, 'header' => 'finance', 'is_header' => 0,
             'unique_auth' => self::MENU_AUTHS[1], 'is_del' => 0, 'mark' => 'yfth-finance',
         ]);
         foreach ([
@@ -160,10 +165,19 @@ class CreateYfthFundWithdrawalFinanceV1 extends Migrator
                 'module' => 'admin', 'controller' => 'v1.yfth.FundFinance', 'action' => '',
                 'api_url' => $def[1], 'methods' => $def[2], 'params' => '', 'sort' => 0,
                 'is_show' => 0, 'is_show_path' => 0, 'access' => 1, 'menu_path' => '',
-                'path' => (string)$page['id'], 'auth_type' => 2, 'header' => 'yfth-finance',
+                'path' => (int)$financeRoot['id'] . '/' . (int)$root['id'] . '/' . (int)$page['id'],
+                'auth_type' => 2, 'header' => 'finance',
                 'is_header' => 0, 'unique_auth' => $def[3], 'is_del' => 0, 'mark' => 'yfth-finance',
             ]);
         }
+    }
+
+    private function menu(string $auth): array
+    {
+        return $this->getAdapter()->fetchRow(
+            'SELECT * FROM `' . $this->prefixed('system_menus') . '` WHERE `unique_auth`=' .
+            $this->quote($auth) . ' AND `is_del`=0 LIMIT 1'
+        ) ?: [];
     }
 
     private function ensureMenu(array $row): array
