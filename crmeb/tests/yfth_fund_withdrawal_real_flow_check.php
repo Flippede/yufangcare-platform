@@ -111,7 +111,8 @@ try {
             'amount_cent' => 20000,
             'status' => 'pending',
             'source_unique_key' => 'withdrawal-reject-' . $run,
-            'create_time' => $now - 8 * 86400,
+            'effective_time' => $now - 8 * 86400,
+            'create_time' => $now,
             'update_time' => $now,
         ]);
         $rejected = $create->invoke(

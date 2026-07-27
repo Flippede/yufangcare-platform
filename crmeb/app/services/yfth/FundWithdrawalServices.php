@@ -305,7 +305,7 @@ class FundWithdrawalServices
         $queries = [
             ['partner_reward', 'yfth_partner_reward_candidate', 'beneficiary_uid', 'confirmed', 'amount', true, 'operator_time'],
             ['procurement_profit', 'yfth_procurement_profit_ledger', 'beneficiary_uid', 'pending', 'amount_cent', false, 'create_time'],
-            ['opening_reward', 'yfth_partner_opening_reward_ledger', 'partner_uid', 'pending', 'amount_cent', false, 'create_time'],
+            ['opening_reward', 'yfth_partner_opening_reward_ledger', 'partner_uid', 'pending', 'amount_cent', false, 'effective_time'],
             ['platform_dividend', 'yfth_platform_dividend_item', 'beneficiary_uid', 'pending', 'amount_cent', false, 'create_time'],
         ];
         foreach ($queries as $def) {

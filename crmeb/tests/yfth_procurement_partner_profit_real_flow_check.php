@@ -251,9 +251,11 @@ function ppRunBusinessFlow(callable $assert): void
             'regional_director' => 3000,
         ], 'five_level_procurement_profit_matches_frozen_rates');
 
-        $opening = $services->recordOpeningReward($run, $storeId, $uids['county_partner']);
-        $openingReplay = $services->recordOpeningReward($run, $storeId, $uids['county_partner']);
+        $openingEffectiveTime = time() - 9 * 86400;
+        $opening = $services->recordOpeningReward($run, $storeId, $uids['county_partner'], $openingEffectiveTime);
+        $openingReplay = $services->recordOpeningReward($run, $storeId, $uids['county_partner'], $openingEffectiveTime);
         $assert((int)($opening['reward']['amount_cent'] ?? 0) === 1760000, 'county_opening_reward_is_17600');
+        $assert((int)($opening['reward']['effective_time'] ?? 0) === $openingEffectiveTime, 'opening_reward_preserves_business_effective_time');
         $assert(($openingReplay['idempotent'] ?? false) === true, 'opening_reward_is_idempotent');
         $assert((int)Db::name('yfth_partner_opening_reward_ledger')->where('application_id', $run)->count() === 1, 'opening_reward_has_single_row');
 

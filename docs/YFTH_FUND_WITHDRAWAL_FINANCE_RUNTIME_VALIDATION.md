@@ -1,5 +1,15 @@
 # YFTH Partner And Store Withdrawal Finance V1 Runtime Validation
 
+## Opening Reward Observation Time Correction
+
+- Validation date: `2026-07-27`.
+- Root cause: a historically projected CNY 17,600 opening reward used its ledger `create_time`, so a `2026-07-27` projection incorrectly restarted the observation period for an opening approved on `2026-07-18`.
+- Correction: opening rewards persist an authoritative `effective_time`; withdrawal eligibility uses that field. The latest real `offline_review_approved` event wins, with a controlled fallback to the combined approval/opening event for records created by the newer single-step flow.
+- Exact isolated backfill result for `FA202607181032090000047999`: `effective_time=2026-07-18 14:22:21`, while the historical projection remains `2026-07-27 11:21:05`.
+- MySQL Community 8.0.46 verification passed for migration run, targeted rollback and rerun, including the new column, backfill, index and migration record.
+- PHP 7.4 syntax and the focused contracts passed. The procurement partner-profit real flow preserved CNY 17,600 and idempotency. A direct withdrawal-source check confirmed the reward is available after seven days.
+- The full existing fund-withdrawal real-flow fixture was also run. Its pre-existing source-change assertion (`refund_or_dispute_change_blocks_approval`) remains failing and was not relaxed; it is unrelated to the corrected observation-time calculation.
+
 ## Environment
 
 - PHP: 7.4.33 portable runtime

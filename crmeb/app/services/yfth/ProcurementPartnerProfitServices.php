@@ -374,7 +374,7 @@ class ProcurementPartnerProfitServices
         return ['reversed_amount_cent' => (int)$snapshot['reversed_amount_cent'] + $reversalBase, 'idempotent' => false];
     }
 
-    public function recordOpeningReward(int $applicationId, int $storeId, int $directPartnerUid): array
+    public function recordOpeningReward(int $applicationId, int $storeId, int $directPartnerUid, int $effectiveTime = 0): array
     {
         if ($applicationId <= 0 || $storeId <= 0 || $directPartnerUid <= 0) {
             return ['created' => false, 'reason' => 'opening_reward_scope_missing'];
@@ -395,6 +395,7 @@ class ProcurementPartnerProfitServices
             return ['created' => false, 'idempotent' => true, 'reward' => $existing];
         }
         $now = time();
+        $effectiveTime = $effectiveTime > 0 ? $effectiveTime : $now;
         $inserted = $this->insertImmutable('yfth_partner_opening_reward_ledger', [
             'application_id' => $applicationId,
             'store_id' => $storeId,
@@ -404,6 +405,7 @@ class ProcurementPartnerProfitServices
             'amount_cent' => $amount,
             'status' => 'pending',
             'source_unique_key' => $sourceKey,
+            'effective_time' => $effectiveTime,
             'create_time' => $now,
             'update_time' => $now,
         ]);

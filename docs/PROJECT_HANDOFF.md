@@ -1,5 +1,15 @@
 # 项目交接文档
 
+## Current Fact Snapshot - Opening Reward Observation Time Correction
+
+- Development branch: `codex/yfth-opening-reward-observation-time-fix`; baseline: `fcb2c1f3bfd5db8383ac46ff590af5c5c55799ff`. Final `main`, `origin/main` and production commits must be read from real Git after merge and deployment.
+- The county-partner opening-service reward observation period now starts from the authoritative headquarters offline approval time, not from a later historical projection or ledger creation time.
+- For application `FA202607181032090000047999`, headquarters approved the opening on `2026-07-18 14:22:21`; the `2026-07-27 11:21:05` event only repaired the historical store/team projection and must not restart the seven-day observation period.
+- Opening reward rows now persist `effective_time`. Existing rows are forward-backfilled from the latest `offline_review_approved` event, with controlled fallbacks for the combined approval/opening event and legacy records. The partner/status/effective-time index supports withdrawal eligibility queries.
+- The withdrawal source query uses `effective_time`, so the CNY 17,600 opening reward becomes eligible after the configured seven days when no refund, dispute, freeze or prior allocation blocks it.
+- Focused validation passed: PHP 7.4 syntax; fund-withdrawal, procurement-partner-profit and franchise-partner contracts; procurement-partner-profit real flow; isolated MySQL 8.0.46 migration run/targeted rollback/rerun; exact historical-time backfill; and direct withdrawal availability. The broader pre-existing fund-withdrawal fixture still reports its unrelated source-change assertion and was not weakened.
+- No real withdrawal, bank payment, WeChat payment, SMS or production data deletion is part of this correction.
+
 ## Current Fact Snapshot - Partner And Store Withdrawal Finance V1
 
 - Development branch: `codex/yfth-partner-store-withdrawal-finance-v1`; baseline: `3c57e2e21f877c76d1c0c5695f81e60d56ff97ec`. Final `main`, `origin/main` and production commits must be read from real Git after merge and deployment.

@@ -981,12 +981,13 @@ class FranchisePartnerServices extends YfthFoundationBaseServices
         }
         $chain = $this->decode((string)($source['chain_snapshot'] ?? ''));
         $now = time();
+        $openedTime = $this->resolveOpeningEffectiveTime($application);
         $performanceId = (int)Db::name('yfth_partner_opening_performance')->insertGetId([
             'performance_no' => 'YFPOP' . date('YmdHis') . str_pad((string)$applicationId, 8, '0', STR_PAD_LEFT),
             'application_id' => $applicationId, 'applicant_uid' => (int)$application['applicant_uid'], 'store_id' => $storeId,
             'direct_partner_uid' => (int)($source['direct_partner_uid'] ?? 0), 'rule_version_id' => (int)$rule['id'],
             'order_amount' => $rule['order_amount'], 'bottle_count' => (int)$rule['bottle_count'],
-            'chain_snapshot' => $this->json($chain), 'status' => 'valid', 'opened_time' => $now,
+            'chain_snapshot' => $this->json($chain), 'status' => 'valid', 'opened_time' => $openedTime,
             'invalid_reason' => '', 'create_time' => $now, 'update_time' => $now,
         ]);
         // V1 deliberately creates no hierarchy cash candidate. The durable reward event
@@ -995,10 +996,46 @@ class FranchisePartnerServices extends YfthFoundationBaseServices
         app()->make(ProcurementPartnerProfitServices::class)->recordOpeningReward(
             $applicationId,
             $storeId,
-            (int)($source['direct_partner_uid'] ?? 0)
+            (int)($source['direct_partner_uid'] ?? 0),
+            $openedTime
         );
         $this->recordAudit('partner_opening_performance', $performanceId, 'opening_performance_create', [], $performance, $adminId, $storeId, 'formal_franchise_opening');
         return $performance;
+    }
+
+    private function resolveOpeningEffectiveTime(array $application): int
+    {
+        $applicationId = (int)($application['id'] ?? 0);
+        if ($applicationId > 0) {
+            $auditTime = (int)Db::name('yfth_audit_event')
+                ->where([
+                    'business_domain' => 'yfth_franchise_application',
+                    'object_type' => 'franchise_application',
+                    'object_id' => (string)$applicationId,
+                    'action' => 'offline_review_approved',
+                ])
+                ->where('add_time', '>', 0)
+                ->order('add_time desc,id desc')
+                ->value('add_time');
+            if ($auditTime > 0) {
+                return $auditTime;
+            }
+            $auditTime = (int)Db::name('yfth_audit_event')
+                ->where([
+                    'business_domain' => 'yfth_franchise_application',
+                    'object_type' => 'franchise_application',
+                    'object_id' => (string)$applicationId,
+                    'action' => 'offline_review_approved_and_opened',
+                ])
+                ->where('add_time', '>', 0)
+                ->order('add_time asc,id asc')
+                ->value('add_time');
+            if ($auditTime > 0) {
+                return $auditTime;
+            }
+        }
+        $applicationTime = (int)($application['update_time'] ?? 0);
+        return $applicationTime > 0 ? $applicationTime : time();
     }
 
     public function adminCancelOpening(int $applicationId, string $reason, int $adminId, array $adminInfo): array

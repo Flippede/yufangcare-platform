@@ -22,6 +22,7 @@ $contains = static function (string $text, string $needle): bool {
 
 $baseMigration = $read('database/migrations/20260723150000_create_yfth_procurement_partner_profit_v1.php');
 $nativeMigration = $read('database/migrations/20260724120000_unify_yfth_procurement_with_store_orders.php');
+$observationMigration = $read('database/migrations/20260727123000_add_opening_reward_effective_time.php');
 $service = $read('app/services/yfth/ProcurementPartnerProfitServices.php');
 $sourceService = $read('app/services/yfth/YfthOrderSourceServices.php');
 $payListener = $read('app/listener/yfth/ProcurementPartnerProfitPayListener.php');
@@ -54,6 +55,13 @@ $assert($contains($service, 'nearestCountyPartner'), 'profit_keeps_nearest_count
 $assert($contains($service, 'chain_snapshot') && $contains($service, 'rate_snapshot'), 'profit_freezes_chain_and_rule_rates');
 $assert($contains($service, "source_unique_key' => \$sourceKey"), 'profit_ledger_has_idempotency_key');
 $assert($contains($service, 'recordOpeningReward'), 'county_opening_reward_is_preserved');
+$assert($contains($service, "'effective_time' => \$effectiveTime"), 'opening_reward_preserves_business_effective_time');
+$assert(
+    $contains($observationMigration, "'offline_review_approved'")
+    && $contains($observationMigration, "'offline_review_approved_and_opened'")
+    && $contains($observationMigration, 'effective_time'),
+    'opening_reward_observation_backfills_from_real_approval_time'
+);
 $assert($contains($service, 'generateDividend'), 'platform_weighted_dividend_is_preserved');
 
 $assert($contains($payListener, 'freezeForStoreOrder'), 'native_payment_freezes_partner_profit');
