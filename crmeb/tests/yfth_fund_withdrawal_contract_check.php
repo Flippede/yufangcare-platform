@@ -107,6 +107,10 @@ $assert(strpos($migration, "'menu_name' => '御方通和资金'") !== false, 'mi
 $menuRepairMigration = (string)file_get_contents($projectRoot . DIRECTORY_SEPARATOR . 'crmeb/database/migrations/20260727113000_attach_yfth_withdrawal_to_finance_menu.php');
 $assert(strpos($menuRepairMigration, "'menu_name' => '御方通和资金'") !== false, 'menu_repair_uses_yfth_finance_group_name');
 $assert(strpos($menuRepairMigration, "'menu_name' => '提现审核'") !== false, 'menu_repair_uses_withdrawal_review_name');
+$directMenuMigration = (string)file_get_contents($projectRoot . DIRECTORY_SEPARATOR . 'crmeb/database/migrations/20260727120000_expose_yfth_withdrawal_as_direct_finance_entry.php');
+$assert(strpos($directMenuMigration, "'pid' => (int)\$finance['id']") !== false, 'withdrawal_page_is_direct_finance_child');
+$assert(strpos($directMenuMigration, "'menu_name' => '御方通和提现审核'") !== false, 'withdrawal_page_has_clear_finance_label');
+$assert(strpos($directMenuMigration, "'is_show' => 0") !== false, 'obsolete_intermediate_finance_group_hidden');
 foreach (['审核通过', '驳回', '确认线下打款', 'pay_reference'] as $needle) {
     $assert(strpos($adminPage, $needle) !== false, 'admin_page_contains:' . $needle);
 }
