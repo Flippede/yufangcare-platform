@@ -112,17 +112,17 @@
 						<view><strong>￥{{ withdrawalSummary.frozen || '0.00' }}</strong><span>审核/打款中</span></view>
 						<view><strong>￥{{ withdrawalSummary.paid || '0.00' }}</strong><span>已打款</span></view>
 					</view>
-					<button v-if="!withdrawalFormVisible" class="withdraw-button" @click="withdrawalFormVisible = true">申请提现</button>
-					<view v-else class="withdraw-form">
-						<input v-model="withdrawalForm.amount" type="digit" placeholder="提现金额（元）" />
-						<input v-model="withdrawalForm.receiver_name" placeholder="收款人姓名" />
-						<input v-model="withdrawalForm.receiver_account" type="number" placeholder="银行卡号" />
-						<input v-model="withdrawalForm.bank_name" placeholder="开户银行" />
-						<input v-model="withdrawalForm.remark" placeholder="申请说明（可选）" />
-						<view class="withdraw-actions">
-							<button class="light" @click="withdrawalFormVisible = false">取消</button>
-							<button :disabled="withdrawalSubmitting" @click="submitWithdrawal">{{ withdrawalSubmitting ? '提交中...' : '提交申请' }}</button>
+					<view class="beneficiary-row" @click="goBeneficiary">
+						<view>
+							<strong>{{ beneficiary.configured ? beneficiary.bank_name : '尚未设置收款账户' }}</strong>
+							<text v-if="beneficiary.configured">{{ beneficiary.receiver_name_masked }} · {{ beneficiary.receiver_account_masked }}</text>
+							<text v-else>请先在“我的”中维护银行卡资料</text>
 						</view>
+						<text>{{ beneficiary.configured ? '修改' : '去设置' }} ›</text>
+					</view>
+					<view class="withdraw-form compact">
+						<input v-model="withdrawalForm.amount" type="digit" placeholder="提现金额（元）" />
+						<button :disabled="withdrawalSubmitting" @click="submitWithdrawal">{{ withdrawalSubmitting ? '提交中...' : '确认申请' }}</button>
 					</view>
 					<view class="withdraw-list">
 						<view v-for="item in withdrawalRequests" :key="item.id" class="row">
@@ -186,6 +186,7 @@ import {
 	createYfthPartnerInvite,
 	createYfthPartnerWithdrawal,
 	getYfthPartnerTeam,
+	getYfthWithdrawalBeneficiary,
 	getYfthPartnerWithdrawalSummary,
 	getYfthPartnerWithdrawals,
 	getYfthPartnerWorkbench
@@ -206,15 +207,9 @@ export default {
 			invite: {},
 			withdrawalSummary: {},
 			withdrawalRequests: [],
-			withdrawalFormVisible: false,
+			beneficiary: {},
 			withdrawalSubmitting: false,
-			withdrawalForm: {
-				amount: '',
-				receiver_name: '',
-				receiver_account: '',
-				bank_name: '',
-				remark: ''
-			},
+			withdrawalForm: { amount: '' },
 			qrImage: '',
 			qrError: '',
 			qrRenderKey: 0,
@@ -308,6 +303,9 @@ export default {
 				}),
 				getYfthPartnerWithdrawals({ page: 1, limit: 30 }).then((res) => {
 					this.withdrawalRequests = (res.data && res.data.list) || [];
+				}),
+				getYfthWithdrawalBeneficiary().then((res) => {
+					this.beneficiary = res.data || {};
 				})
 			]).catch((err) => {
 				uni.showToast({ title: String((err && err.msg) || err || '提现信息加载失败'), icon: 'none' });
@@ -315,28 +313,29 @@ export default {
 		},
 		submitWithdrawal() {
 			const amountCent = Math.round(Number(this.withdrawalForm.amount || 0) * 100);
-			if (amountCent <= 0 || !this.withdrawalForm.receiver_name.trim()
-				|| !this.withdrawalForm.receiver_account.trim() || !this.withdrawalForm.bank_name.trim()) {
-				return uni.showToast({ title: '请完整填写金额和收款银行卡信息', icon: 'none' });
+			if (!this.beneficiary.configured) {
+				uni.showToast({ title: '请先设置提现收款账户', icon: 'none' });
+				return this.goBeneficiary();
+			}
+			if (amountCent <= 0) {
+				return uni.showToast({ title: '请输入正确的提现金额', icon: 'none' });
 			}
 			this.withdrawalSubmitting = true;
 			createYfthPartnerWithdrawal({
 				amount_cent: amountCent,
-				receiver_name: this.withdrawalForm.receiver_name.trim(),
-				receiver_account: this.withdrawalForm.receiver_account.trim(),
-				bank_name: this.withdrawalForm.bank_name.trim(),
-				remark: this.withdrawalForm.remark.trim(),
 				request_id: `partner-withdrawal-${Date.now()}`
 			}).then(() => {
 				uni.showToast({ title: '提现申请已提交', icon: 'success' });
-				this.withdrawalFormVisible = false;
-				this.withdrawalForm = { amount: '', receiver_name: '', receiver_account: '', bank_name: '', remark: '' };
+				this.withdrawalForm = { amount: '' };
 				return this.loadWithdrawal();
 			}).catch((err) => {
 				uni.showToast({ title: String((err && err.msg) || err || '提现申请失败'), icon: 'none' });
 			}).finally(() => {
 				this.withdrawalSubmitting = false;
 			});
+		},
+		goBeneficiary() {
+			uni.navigateTo({ url: '/pages/yfth/withdrawal/account' });
 		},
 		sumProfit(status) {
 			const total = ['procurement', 'opening_service', 'platform_dividend'].reduce((sum, key) => {
@@ -489,11 +488,14 @@ export default {
 .withdraw-summary strong,.withdraw-summary span { display: block; }
 .withdraw-summary strong { color: #74502e; font-size: 28rpx; }
 .withdraw-summary span { margin-top: 7rpx; color: #91847a; font-size: 21rpx; }
-.panel button.withdraw-button { width: 100%; margin-top: 18rpx; }
+.beneficiary-row { display: flex; align-items: center; justify-content: space-between; gap: 16rpx; margin-top: 18rpx; padding: 18rpx; border: 1rpx solid #ead9bf; border-radius: 12rpx; background: #fffdf9; color: #74512f; }
+.beneficiary-row>view { display: flex; flex-direction: column; gap: 7rpx; }
+.beneficiary-row text { color: #8f806f; font-size: 21rpx; }
 .withdraw-form { margin-top: 18rpx; padding: 18rpx; border-radius: 12rpx; background: #faf6ef; }
 .withdraw-form input { height: 72rpx; margin-top: 12rpx; padding: 0 18rpx; border: 1rpx solid #e4d4bd; border-radius: 10rpx; background: #fff; font-size: 24rpx; }
-.withdraw-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 14rpx; margin-top: 16rpx; }
-.withdraw-actions button { width: 100%; }
+.withdraw-form.compact { display: grid; grid-template-columns: 1fr 210rpx; gap: 14rpx; }
+.withdraw-form.compact input { margin-top: 0; }
+.withdraw-form.compact button { width: 100%; margin: 0; }
 .withdraw-list { margin-top: 12rpx; }
 .partner-tabbar { position: fixed; z-index: 30; right: 0; bottom: 0; left: 0; display: grid; grid-template-columns: repeat(6,1fr); min-height: calc(106rpx + env(safe-area-inset-bottom)); max-width: 750px; margin: 0 auto; padding: 0 8rpx env(safe-area-inset-bottom); box-sizing: border-box; border-top: 1rpx solid #eadfce; background: #fffaf3; }
 .partner-tab { display: flex; align-items: center; justify-content: center; min-height: 106rpx; overflow: hidden; color: #75695f; font-size: 21rpx; text-align: center; text-overflow: ellipsis; white-space: nowrap; }

@@ -405,6 +405,12 @@
 					}
 				},
 				{
+					"path": "withdrawal/account",
+					"style": {
+						"navigationBarTitleText": "提现收款账户"
+					}
+				},
+				{
 					"path": "product_quota/index",
 					"style": {
 						"navigationBarTitleText": "产品额度"

@@ -7,6 +7,20 @@ use app\services\yfth\FundWithdrawalServices;
 
 class FundWithdrawalController
 {
+    public function beneficiary(Request $request, FundWithdrawalServices $services)
+    {
+        return app('json')->success($services->beneficiaryProfile($request));
+    }
+
+    public function saveBeneficiary(Request $request, FundWithdrawalServices $services)
+    {
+        return app('json')->success($services->saveBeneficiaryProfile($request, $request->postMore([
+            ['receiver_name', ''],
+            ['receiver_account', ''],
+            ['bank_name', ''],
+        ])));
+    }
+
     public function partnerSummary(Request $request, FundWithdrawalServices $services)
     {
         return app('json')->success($services->partnerSummary($request));
@@ -45,9 +59,6 @@ class FundWithdrawalController
     {
         $data = $request->postMore([
             [['amount_cent', 'd'], 0],
-            ['receiver_name', ''],
-            ['receiver_account', ''],
-            ['bank_name', ''],
             ['remark', ''],
             ['request_id', ''],
         ]);

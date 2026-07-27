@@ -16,6 +16,7 @@ foreach ([
     'app/api/controller/v1/yfth/FundWithdrawalController.php',
     'app/adminapi/controller/v1/yfth/FundFinance.php',
     'database/migrations/20260727100000_create_yfth_fund_withdrawal_finance_v1.php',
+    'database/migrations/20260727160000_create_yfth_fund_beneficiary_profile.php',
 ] as $file) {
     $assert(is_file($root . DIRECTORY_SEPARATOR . $file), 'file_exists:' . $file);
 }
@@ -40,6 +41,10 @@ foreach ([
     'store_manual_withdrawal_paid',
     'receiver_name_enc',
     'receiver_account_enc',
+    'beneficiaryProfile',
+    'saveBeneficiaryProfile',
+    'beneficiaryForWithdrawal',
+    'fund_withdrawal_beneficiary_required',
 ] as $needle) {
     $assert(strpos($service, $needle) !== false, 'service_contains:' . $needle);
 }
@@ -64,6 +69,7 @@ foreach ([
     'yfth/franchise/partner/withdrawal',
     'yfth/store_workbench/withdrawal/summary',
     'yfth/store_workbench/withdrawal',
+    'yfth/fund/beneficiary',
 ] as $needle) {
     $assert(strpos($apiRoute, $needle) !== false, 'api_route_contains:' . $needle);
 }
@@ -77,6 +83,16 @@ foreach ([
     'FundFinance/paid',
 ] as $needle) {
     $assert(strpos($adminRoute, $needle) !== false, 'admin_route_contains:' . $needle);
+}
+
+$beneficiaryMigration = $read('database/migrations/20260727160000_create_yfth_fund_beneficiary_profile.php');
+foreach ([
+    'yfth_fund_beneficiary_profile',
+    'uniq_yfth_fund_beneficiary_uid',
+    'receiver_name_enc',
+    'receiver_account_enc',
+] as $needle) {
+    $assert(strpos($beneficiaryMigration, $needle) !== false, 'beneficiary_migration_contains:' . $needle);
 }
 
 $migration = $read('database/migrations/20260727100000_create_yfth_fund_withdrawal_finance_v1.php');
@@ -98,6 +114,7 @@ $adminRouter = (string)file_get_contents($projectRoot . DIRECTORY_SEPARATOR . 't
 $adminPage = (string)file_get_contents($projectRoot . DIRECTORY_SEPARATOR . 'template/admin/src/pages/yfth/financeWithdrawal/index.vue');
 $partnerPage = (string)file_get_contents($projectRoot . DIRECTORY_SEPARATOR . 'template/uni-app/pages/yfth/franchise/partner/index.vue');
 $storePage = (string)file_get_contents($projectRoot . DIRECTORY_SEPARATOR . 'template/uni-app/pages/yfth/workbench/commission/index.vue');
+$beneficiaryPage = (string)file_get_contents($projectRoot . DIRECTORY_SEPARATOR . 'template/uni-app/pages/yfth/withdrawal/account.vue');
 foreach (['yfth-finance', 'withdrawal', 'yfth-finance-withdrawal-index'] as $needle) {
     $assert(strpos($adminRouter, $needle) !== false, 'admin_router_contains:' . $needle);
 }
@@ -114,11 +131,22 @@ $assert(strpos($directMenuMigration, "'is_show' => 0") !== false, 'obsolete_inte
 foreach (['审核通过', '驳回', '确认线下打款', 'pay_reference'] as $needle) {
     $assert(strpos($adminPage, $needle) !== false, 'admin_page_contains:' . $needle);
 }
-foreach (['申请提现', '可提现', '观察期中', '已打款'] as $needle) {
+foreach (['确认申请', '可提现', '观察期中', '已打款'] as $needle) {
     $assert(strpos($partnerPage, $needle) !== false, 'partner_page_contains:' . $needle);
 }
 foreach (['门店提现', 'store_manager', '店员可查看'] as $needle) {
     $assert(strpos($storePage, $needle) !== false, 'store_page_contains:' . $needle);
+}
+foreach (['确认申请', 'getYfthWithdrawalBeneficiary', '/pages/yfth/withdrawal/account'] as $needle) {
+    $assert(strpos($partnerPage, $needle) !== false, 'partner_simple_withdrawal_contains:' . $needle);
+    $assert(strpos($storePage, $needle) !== false, 'store_simple_withdrawal_contains:' . $needle);
+}
+foreach (['v-model="withdrawalForm.receiver_name"', 'v-model="withdrawalForm.receiver_account"', 'v-model="withdrawalForm.bank_name"'] as $needle) {
+    $assert(strpos($partnerPage, $needle) === false, 'partner_does_not_collect_bank_per_request:' . $needle);
+    $assert(strpos($storePage, $needle) === false, 'store_does_not_collect_bank_per_request:' . $needle);
+}
+foreach (['提现收款账户', 'saveYfthWithdrawalBeneficiary', 'receiver_account_masked'] as $needle) {
+    $assert(strpos($beneficiaryPage, $needle) !== false, 'beneficiary_page_contains:' . $needle);
 }
 
 if ($failures) {

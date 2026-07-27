@@ -61,6 +61,7 @@ function assertFundWithdrawalSchema(callable $assert, bool $exists, string $labe
         'yfth_fund_withdrawal_setting',
         'yfth_fund_withdrawal_request',
         'yfth_fund_withdrawal_allocation',
+        'yfth_fund_beneficiary_profile',
     ] as $table) {
         $found = (int)Db::query(
             'SELECT COUNT(*) AS aggregate FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = ?',
@@ -68,6 +69,11 @@ function assertFundWithdrawalSchema(callable $assert, bool $exists, string $labe
         )[0]['aggregate'] > 0;
         $assert($found === $exists, $label . ':table:' . $table . ':' . ($exists ? 'exists' : 'missing'));
     }
+    $beneficiaryIndex = (int)Db::query(
+        'SELECT COUNT(*) AS aggregate FROM information_schema.statistics WHERE table_schema = DATABASE() AND table_name = ? AND index_name = ?',
+        [$prefix . 'yfth_fund_beneficiary_profile', 'uniq_yfth_fund_beneficiary_uid']
+    )[0]['aggregate'];
+    $assert($beneficiaryIndex === ($exists ? 1 : 0), $label . ':beneficiary_unique_index:' . $beneficiaryIndex);
     $count = (int)Db::name('system_menus')->whereIn('unique_auth', [
         'yfth-finance',
         'yfth-finance-withdrawal-index',

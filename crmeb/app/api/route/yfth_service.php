@@ -116,9 +116,11 @@ Route::group(function () {
     Route::get('yfth/store_workbench/commission/c1_settlement', 'v1.yfth.CommissionStoreController/c1Settlements')->option(['real_name' => 'YFTH store C1 settlement list']);
     Route::post('yfth/store_workbench/commission/c1_settlement/:id/complete', 'v1.yfth.CommissionStoreController/completeC1Settlement')->option(['real_name' => 'YFTH store complete C1 offline settlement']);
     Route::get('yfth/store_workbench/commission/settlement_batch', 'v1.yfth.CommissionStoreController/settlementBatches')->option(['real_name' => 'YFTH store settlement batch list']);
-    Route::get('yfth/store_workbench/withdrawal/summary', 'v1.yfth.FundWithdrawalController/storeSummary')->option(['real_name' => 'YFTH store withdrawal summary']);
-    Route::get('yfth/store_workbench/withdrawal', 'v1.yfth.FundWithdrawalController/storeRequests')->option(['real_name' => 'YFTH store withdrawal requests']);
-    Route::post('yfth/store_workbench/withdrawal', 'v1.yfth.FundWithdrawalController/storeCreate')->option(['real_name' => 'YFTH store withdrawal create']);
+      Route::get('yfth/store_workbench/withdrawal/summary', 'v1.yfth.FundWithdrawalController/storeSummary')->option(['real_name' => 'YFTH store withdrawal summary']);
+      Route::get('yfth/store_workbench/withdrawal', 'v1.yfth.FundWithdrawalController/storeRequests')->option(['real_name' => 'YFTH store withdrawal requests']);
+      Route::post('yfth/store_workbench/withdrawal', 'v1.yfth.FundWithdrawalController/storeCreate')->option(['real_name' => 'YFTH store withdrawal create']);
+      Route::get('yfth/fund/beneficiary', 'v1.yfth.FundWithdrawalController/beneficiary')->option(['real_name' => 'YFTH withdrawal beneficiary profile']);
+      Route::put('yfth/fund/beneficiary', 'v1.yfth.FundWithdrawalController/saveBeneficiary')->option(['real_name' => 'YFTH withdrawal beneficiary profile save']);
 })->middleware(\app\http\middleware\AllowOriginMiddleware::class)
     ->middleware(\app\api\middleware\StationOpenMiddleware::class)
     ->middleware(\app\api\middleware\AuthTokenMiddleware::class)

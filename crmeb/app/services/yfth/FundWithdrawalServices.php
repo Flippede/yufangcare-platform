@@ -66,6 +66,16 @@ class FundWithdrawalServices
         return $this->createRequest('store', $storeId, (int)$context['uid'], '', $storeId, $data);
     }
 
+    public function beneficiaryProfile(Request $request): array
+    {
+        return $this->beneficiaryProfileDto((int)$request->uid());
+    }
+
+    public function saveBeneficiaryProfile(Request $request, array $data): array
+    {
+        return $this->saveBeneficiaryForUid((int)$request->uid(), $data);
+    }
+
     public function financeList(array $where): array
     {
         [$page, $limit] = $this->paging($where);
@@ -197,15 +207,12 @@ class FundWithdrawalServices
         }
         $amountCent = max(0, (int)($data['amount_cent'] ?? 0));
         $requestId = trim((string)($data['request_id'] ?? ''));
-        $receiverName = trim((string)($data['receiver_name'] ?? ''));
-        $receiverAccount = preg_replace('/\s+/', '', trim((string)($data['receiver_account'] ?? '')));
-        $bankName = trim((string)($data['bank_name'] ?? ''));
-        if ($amountCent <= 0 || $requestId === '' || $receiverName === '' || $receiverAccount === '' || $bankName === '') {
+        if ($amountCent <= 0 || $requestId === '') {
             throw new ApiException('fund_withdrawal_request_invalid');
         }
         return Db::transaction(function () use (
             $ownerType, $ownerId, $applicantUid, $rankCode, $storeId, $data,
-            $amountCent, $requestId, $receiverName, $receiverAccount, $bankName
+            $amountCent, $requestId
         ) {
             $existing = Db::name('yfth_fund_withdrawal_request')->where([
                 'owner_type' => $ownerType, 'owner_id' => $ownerId, 'request_id' => $requestId,
@@ -213,6 +220,7 @@ class FundWithdrawalServices
             if ($existing) {
                 return $this->requestDto($existing, false);
             }
+            $beneficiary = $this->beneficiaryForWithdrawal($applicantUid, true);
             $summary = $this->ownerSummary($ownerType, $ownerId, $rankCode, true);
             if ((int)$summary['available_cent'] < $amountCent) {
                 throw new ApiException('fund_withdrawal_available_insufficient');
@@ -228,11 +236,11 @@ class FundWithdrawalServices
                 'amount_cent' => $amountCent,
                 'status' => 'pending_review',
                 'payout_method' => 'bank',
-                'receiver_name_enc' => $this->encrypt($receiverName),
-                'receiver_name_masked' => $this->maskName($receiverName),
-                'receiver_account_enc' => $this->encrypt($receiverAccount),
-                'receiver_account_masked' => $this->maskAccount($receiverAccount),
-                'bank_name' => mb_substr($bankName, 0, 128),
+                'receiver_name_enc' => $this->encrypt($beneficiary['receiver_name']),
+                'receiver_name_masked' => $beneficiary['receiver_name_masked'],
+                'receiver_account_enc' => $this->encrypt($beneficiary['receiver_account']),
+                'receiver_account_masked' => $beneficiary['receiver_account_masked'],
+                'bank_name' => $beneficiary['bank_name'],
                 'request_id' => mb_substr($requestId, 0, 96),
                 'applicant_remark' => mb_substr(trim((string)($data['remark'] ?? '')), 0, 255),
                 'review_admin_id' => 0, 'review_reason' => '', 'review_time' => 0,
@@ -256,6 +264,85 @@ class FundWithdrawalServices
             }
             return $this->requestDto($row, false);
         });
+    }
+
+    private function saveBeneficiaryForUid(int $uid, array $data): array
+    {
+        $receiverName = trim((string)($data['receiver_name'] ?? ''));
+        $receiverAccount = preg_replace('/\s+/', '', trim((string)($data['receiver_account'] ?? '')));
+        $bankName = trim((string)($data['bank_name'] ?? ''));
+        if ($uid <= 0 || mb_strlen($receiverName) < 2 || mb_strlen($receiverName) > 64
+            || !preg_match('/^[0-9]{8,32}$/', $receiverAccount)
+            || $bankName === '' || mb_strlen($bankName) > 128) {
+            throw new ApiException('fund_withdrawal_beneficiary_invalid');
+        }
+        Db::transaction(function () use ($uid, $receiverName, $receiverAccount, $bankName) {
+            $now = time();
+            $row = [
+                'payout_method' => 'bank',
+                'receiver_name_enc' => $this->encrypt($receiverName),
+                'receiver_name_masked' => $this->maskName($receiverName),
+                'receiver_account_enc' => $this->encrypt($receiverAccount),
+                'receiver_account_masked' => $this->maskAccount($receiverAccount),
+                'bank_name' => mb_substr($bankName, 0, 128),
+                'status' => 'active',
+                'update_time' => $now,
+            ];
+            $existing = Db::name('yfth_fund_beneficiary_profile')->where('uid', $uid)->lock(true)->find();
+            if ($existing) {
+                Db::name('yfth_fund_beneficiary_profile')->where('id', (int)$existing['id'])->update($row);
+                return;
+            }
+            $row['uid'] = $uid;
+            $row['add_time'] = $now;
+            Db::name('yfth_fund_beneficiary_profile')->insert($row);
+        });
+        return $this->beneficiaryProfileDto($uid);
+    }
+
+    private function beneficiaryProfileDto(int $uid): array
+    {
+        $row = Db::name('yfth_fund_beneficiary_profile')->where([
+            'uid' => $uid,
+            'status' => 'active',
+        ])->find();
+        if (!$row) {
+            return [
+                'configured' => false,
+                'payout_method' => 'bank',
+                'receiver_name_masked' => '',
+                'receiver_account_masked' => '',
+                'bank_name' => '',
+                'update_time' => 0,
+            ];
+        }
+        return [
+            'configured' => true,
+            'payout_method' => 'bank',
+            'receiver_name_masked' => (string)$row['receiver_name_masked'],
+            'receiver_account_masked' => (string)$row['receiver_account_masked'],
+            'bank_name' => (string)$row['bank_name'],
+            'update_time' => (int)$row['update_time'],
+        ];
+    }
+
+    private function beneficiaryForWithdrawal(int $uid, bool $lock): array
+    {
+        $query = Db::name('yfth_fund_beneficiary_profile')->where([
+            'uid' => $uid,
+            'status' => 'active',
+        ]);
+        $row = $lock ? $query->lock(true)->find() : $query->find();
+        if (!$row) {
+            throw new ApiException('fund_withdrawal_beneficiary_required');
+        }
+        return [
+            'receiver_name' => $this->decrypt((string)$row['receiver_name_enc']),
+            'receiver_name_masked' => (string)$row['receiver_name_masked'],
+            'receiver_account' => $this->decrypt((string)$row['receiver_account_enc']),
+            'receiver_account_masked' => (string)$row['receiver_account_masked'],
+            'bank_name' => (string)$row['bank_name'],
+        ];
     }
 
     private function ownerSummary(string $ownerType, int $ownerId, string $rankCode = '', bool $lock = false): array
@@ -573,6 +660,7 @@ class FundWithdrawalServices
     private function encryptionKey(): string
     {
         $key = trim((string)Env::get('yfth.settlement_key', ''));
+        if ($key === '') $key = trim((string)getenv('YFTH_SETTLEMENT_KEY'));
         if ($key === '') $key = trim((string)Env::get('app.app_key', ''));
         if ($key === '' || $key === 'default') throw new ApiException('fund_withdrawal_encryption_key_missing');
         return hash('sha256', $key, true);

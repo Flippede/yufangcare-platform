@@ -27,6 +27,7 @@ $userPage = $read('../template/uni-app/pages/users/user_cancellation/index.vue')
 $assert(strpos($service, "private const CONFIRMATION_PHRASE = '确认注销'") !== false, 'exact_confirmation_phrase');
 $assert(strpos($yfthConfig, "user_account_closure_enabled', false") !== false, 'closure_is_fail_closed_without_environment_flag');
 $assert(strpos($service, 'PERSONAL_DELETE_REFERENCES') !== false && strpos($service, 'RETAINED_HISTORY') !== false, 'explicit_business_domain_matrix');
+$assert(strpos($service, "'yfth_fund_beneficiary_profile' => ['uid']") !== false, 'withdrawal_beneficiary_profile_is_deleted_on_closure');
 $assert(strpos($service, 'information_schema.COLUMNS') === false && strpos($service, 'discoverReferences') === false, 'schema_wide_uid_scanner_removed');
 $assert(strpos($service, "'store_order' => ['domain' => 'mall_order'") !== false, 'orders_are_anonymized_not_deleted');
 $assert(strpos($service, "'yfth_direct_referral_reward_settlement_ledger' => ['domain' => 'reward_settlement'") !== false, 'settlement_history_is_anonymized');

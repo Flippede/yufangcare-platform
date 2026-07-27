@@ -463,6 +463,14 @@ export function createYfthStoreWithdrawal(data) {
 	return request.post('yfth/store_workbench/withdrawal' + payload.query, payload.body);
 }
 
+export function getYfthWithdrawalBeneficiary() {
+	return request.get('yfth/fund/beneficiary');
+}
+
+export function saveYfthWithdrawalBeneficiary(data) {
+	return request.put('yfth/fund/beneficiary', data || {});
+}
+
 export function confirmYfthStoreRewardCandidate(id, data) {
 	const payload = splitYfthContext(data || {});
 	return request.post('yfth/store_workbench/reward_settlement/candidate/' + id + '/confirm' + payload.query, payload.body);

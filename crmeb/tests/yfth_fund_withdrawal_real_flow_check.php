@@ -43,6 +43,8 @@ try {
     $create->setAccessible(true);
     $summary = new ReflectionMethod(FundWithdrawalServices::class, 'ownerSummary');
     $summary->setAccessible(true);
+    $saveBeneficiary = new ReflectionMethod(FundWithdrawalServices::class, 'saveBeneficiaryForUid');
+    $saveBeneficiary->setAccessible(true);
     $storeApplicant = new ReflectionMethod(FundWithdrawalServices::class, 'assertStoreApplicant');
     $storeApplicant->setAccessible(true);
     $storeReader = new ReflectionMethod(FundWithdrawalServices::class, 'assertStoreReader');
@@ -60,6 +62,7 @@ try {
         ]);
 
         $partnerUid = $run + 1;
+        $saveBeneficiary->invoke($service, $partnerUid, withdrawalBeneficiaryPayload());
         Db::name('yfth_procurement_profit_ledger')->insert([
             'snapshot_id' => 0,
             'purchase_order_id' => $run,
@@ -136,6 +139,7 @@ try {
         $storeId = $run + 2;
         $managerUid = $run + 3;
         $staffUid = $run + 4;
+        $saveBeneficiary->invoke($service, $managerUid, withdrawalBeneficiaryPayload());
         $managerContext = ['uid' => $managerUid, 'store_id' => $storeId, 'role_code' => 'store_manager'];
         $staffContext = ['uid' => $staffUid, 'store_id' => $storeId, 'role_code' => 'store_staff'];
         $assert((int)$storeApplicant->invoke($service, $managerContext) === $storeId, 'store_manager_can_create_withdrawal');
@@ -203,9 +207,14 @@ function withdrawalPayload(string $requestId, int $amountCent): array
     return [
         'request_id' => $requestId,
         'amount_cent' => $amountCent,
+    ];
+}
+
+function withdrawalBeneficiaryPayload(): array
+{
+    return [
         'receiver_name' => 'TEST Receiver',
         'receiver_account' => '6222020202020202020',
         'bank_name' => 'TEST Bank',
-        'remark' => 'isolated validation only',
     ];
 }

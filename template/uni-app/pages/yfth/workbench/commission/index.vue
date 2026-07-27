@@ -21,19 +21,19 @@
 				<text class="section-title">门店提现</text>
 				<text class="section-hint">仅店长可提交。财务核对后线下银行打款，确认打款完成时才对冲金额。</text>
 			</view>
-			<button v-if="isManager && !withdrawalFormVisible" @click="withdrawalFormVisible = true">申请提现</button>
-			<text v-else-if="!isManager" class="read-only">店员可查看，申请由店长提交</text>
+			<text v-if="!isManager" class="read-only">店员可查看，申请由店长提交</text>
 		</view>
-		<view v-if="withdrawalFormVisible" class="withdraw-form">
-			<input v-model="withdrawalForm.amount" type="digit" placeholder="提现金额（元）" />
-			<input v-model="withdrawalForm.receiver_name" placeholder="收款人姓名" />
-			<input v-model="withdrawalForm.receiver_account" type="number" placeholder="银行卡号" />
-			<input v-model="withdrawalForm.bank_name" placeholder="开户银行" />
-			<input v-model="withdrawalForm.remark" placeholder="申请说明（可选）" />
-			<view class="form-actions">
-				<button class="light" @click="withdrawalFormVisible = false">取消</button>
-				<button :disabled="withdrawalSubmitting" @click="submitWithdrawal">{{ withdrawalSubmitting ? '提交中...' : '提交申请' }}</button>
+		<view v-if="isManager" class="beneficiary-row" @click="goBeneficiary">
+			<view>
+				<text class="section-title">{{ beneficiary.configured ? beneficiary.bank_name : '尚未设置收款账户' }}</text>
+				<text class="section-hint" v-if="beneficiary.configured">{{ beneficiary.receiver_name_masked }} · {{ beneficiary.receiver_account_masked }}</text>
+				<text class="section-hint" v-else>请先在“我的”中维护银行卡资料</text>
 			</view>
+			<text>{{ beneficiary.configured ? '修改' : '去设置' }} ›</text>
+		</view>
+		<view v-if="isManager" class="withdraw-form compact">
+			<input v-model="withdrawalForm.amount" type="digit" placeholder="提现金额（元）" />
+			<button :disabled="withdrawalSubmitting" @click="submitWithdrawal">{{ withdrawalSubmitting ? '提交中...' : '确认申请' }}</button>
 		</view>
 
 		<view class="tabs">
@@ -78,7 +78,8 @@ import {
 	getYfthStoreCommissionLedger,
 	getYfthStoreCommissionSummary,
 	getYfthStoreWithdrawals,
-	getYfthStoreWithdrawalSummary
+	getYfthStoreWithdrawalSummary,
+	getYfthWithdrawalBeneficiary
 } from '@/api/yfth.js';
 import { currentContext } from '@/libs/yfthContext.js';
 
@@ -92,9 +93,9 @@ export default {
 			withdrawalSummary: {},
 			withdrawals: [],
 			tab: 'withdrawals',
-			withdrawalFormVisible: false,
+			beneficiary: {},
 			withdrawalSubmitting: false,
-			withdrawalForm: { amount: '', receiver_name: '', receiver_account: '', bank_name: '', remark: '' }
+			withdrawalForm: { amount: '' }
 		};
 	},
 	computed: {
@@ -122,13 +123,15 @@ export default {
 				getYfthStoreCommissionLedger(params),
 				getYfthStoreC1Settlements(params),
 				getYfthStoreWithdrawalSummary(params),
-				getYfthStoreWithdrawals(params)
-			]).then(([summary, ledger, c1, withdrawalSummary, withdrawals]) => {
+				getYfthStoreWithdrawals(params),
+				getYfthWithdrawalBeneficiary()
+			]).then(([summary, ledger, c1, withdrawalSummary, withdrawals, beneficiary]) => {
 				this.c1Account = (summary.data && summary.data.c1_account) || {};
 				this.ledger = (ledger.data && ledger.data.list) || [];
 				this.c1Settlements = (c1.data && c1.data.list) || [];
 				this.withdrawalSummary = withdrawalSummary.data || {};
 				this.withdrawals = (withdrawals.data && withdrawals.data.list) || [];
+				this.beneficiary = beneficiary.data || {};
 			}).catch((err) => uni.showToast({
 				title: String((err && err.msg) || err || '门店资金加载失败'),
 				icon: 'none'
@@ -136,22 +139,20 @@ export default {
 		},
 		submitWithdrawal() {
 			const amountCent = Math.round(Number(this.withdrawalForm.amount || 0) * 100);
-			if (amountCent <= 0 || !this.withdrawalForm.receiver_name.trim()
-				|| !this.withdrawalForm.receiver_account.trim() || !this.withdrawalForm.bank_name.trim()) {
-				return uni.showToast({ title: '请完整填写金额和收款银行卡信息', icon: 'none' });
+			if (!this.beneficiary.configured) {
+				uni.showToast({ title: '请先设置提现收款账户', icon: 'none' });
+				return this.goBeneficiary();
+			}
+			if (amountCent <= 0) {
+				return uni.showToast({ title: '请输入正确的提现金额', icon: 'none' });
 			}
 			this.withdrawalSubmitting = true;
 			createYfthStoreWithdrawal(Object.assign(this.params(), {
 				amount_cent: amountCent,
-				receiver_name: this.withdrawalForm.receiver_name.trim(),
-				receiver_account: this.withdrawalForm.receiver_account.trim(),
-				bank_name: this.withdrawalForm.bank_name.trim(),
-				remark: this.withdrawalForm.remark.trim(),
 				request_id: `store-withdrawal-${Date.now()}`
 			})).then(() => {
 				uni.showToast({ title: '提现申请已提交', icon: 'success' });
-				this.withdrawalFormVisible = false;
-				this.withdrawalForm = { amount: '', receiver_name: '', receiver_account: '', bank_name: '', remark: '' };
+				this.withdrawalForm = { amount: '' };
 				return this.load();
 			}).catch((err) => uni.showToast({
 				title: String((err && err.msg) || err || '提现申请失败'),
@@ -159,6 +160,9 @@ export default {
 			})).finally(() => {
 				this.withdrawalSubmitting = false;
 			});
+		},
+		goBeneficiary() {
+			uni.navigateTo({ url: '/pages/yfth/withdrawal/account' });
 		},
 		completeC1(item) {
 			uni.showModal({
@@ -212,6 +216,7 @@ export default {
 .metrics text:first-child { color: #74532f; font-size: 31rpx; font-weight: 700; }
 .metrics text:last-child { color: #85796d; font-size: 21rpx; }
 .withdraw-panel { display: flex; align-items: center; justify-content: space-between; gap: 16rpx; margin-top: 18rpx; padding: 22rpx; border-radius: 14rpx; background: #fff; }
+.beneficiary-row { display: flex; align-items: center; justify-content: space-between; gap: 16rpx; margin-top: 14rpx; padding: 20rpx 22rpx; border-radius: 14rpx; background: #fff; color: #75512f; }
 .section-title,.section-hint { display: block; }
 .section-title { font-size: 28rpx; font-weight: 700; }
 .section-hint { margin-top: 8rpx; color: #8b7b6a; font-size: 21rpx; line-height: 1.5; }
@@ -219,6 +224,9 @@ export default {
 .read-only { color: #9b8770; font-size: 21rpx; }
 .withdraw-form { margin-top: 14rpx; padding: 20rpx; border-radius: 14rpx; background: #fff; }
 .withdraw-form input { height: 72rpx; margin-top: 12rpx; padding: 0 18rpx; border: 1rpx solid #e4d4bd; border-radius: 10rpx; background: #faf8f4; font-size: 24rpx; }
+.withdraw-form.compact { display: grid; grid-template-columns: 1fr 210rpx; gap: 14rpx; }
+.withdraw-form.compact input { margin-top: 0; }
+.withdraw-form.compact button { width: 100%; margin: 0; border-radius: 10rpx; background: #75512f; color: #fff; font-size: 23rpx; }
 .form-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 14rpx; margin-top: 16rpx; }
 .form-actions button { width: 100%; }
 .form-actions button.light { background: #f3eadc; color: #75512f; }

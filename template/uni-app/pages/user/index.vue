@@ -163,6 +163,10 @@
 							<view class="service-icon service-icon-cooperate">合</view>
 							<text class="name">御方通和合作中心</text>
 						</view>
+						<view class="item yfth-service-item" v-if="isLogin" @click="goYfthWithdrawalBeneficiary">
+							<view class="service-icon">卡</view>
+							<text class="name">提现收款账户</text>
+						</view>
 						<!-- #ifdef APP-PLUS || H5 -->
 						<block v-for="(item, index) in MyMenus" :key="index">
 							<view class="item" v-if="item.url != '#' && item.url != '/pages/service/index'" @click="goMenuPage(item.url, item.name)">
@@ -836,6 +840,14 @@ export default {
 			uni.navigateTo({
 				url: '/pages/yfth/franchise/index'
 			});
+		},
+
+		goYfthWithdrawalBeneficiary() {
+			if (!this.isLogin) {
+				toLogin();
+				return;
+			}
+			uni.navigateTo({ url: '/pages/yfth/withdrawal/account' });
 		},
 
 		goYfthAttribution() {

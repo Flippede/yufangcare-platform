@@ -55,6 +55,7 @@ class UserAccountClosureServices
         'yfth_user_store_role' => ['uid'],
         'yfth_permanent_membership' => ['uid'],
         'yfth_partner_invite_code' => ['partner_uid'],
+        'yfth_fund_beneficiary_profile' => ['uid'],
     ];
 
     /**

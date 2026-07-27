@@ -1,5 +1,14 @@
 # 项目交接文档
 
+## Current Fact Snapshot - Withdrawal Beneficiary Profile Closure
+
+- Development branch: `codex/yfth-withdrawal-beneficiary-profile-v1`; baseline: `34953c3851286341f1c33c8e6ea4c8c74e272a3`. Final `main`, `origin/main` and production commits must be read from real Git after merge and deployment.
+- Partner and B1 store-manager withdrawal forms now contain only the withdrawal amount and one confirmation command. They no longer collect payee name, bank account, bank name or a per-request remark.
+- A user maintains one reusable withdrawal beneficiary profile under the personal center. Withdrawal creation requires a complete active profile and records an immutable encrypted and masked beneficiary snapshot for finance review.
+- Payee names and bank accounts remain encrypted at rest. User APIs return masked data only, and account closure deletes the current beneficiary profile together with other account-use personal data.
+- Focused validation passed: PHP 7.4 syntax; withdrawal and account-closure contracts; isolated MySQL Community 8.0.46 migration run, targeted rollback, rerun and duplicate run; withdrawal real flow including observation periods, idempotency, finance review/payment, rejection release and store-role authorization; H5 and mp-weixin production builds; request fallback; sensitive-data scan; and `git diff --check`.
+- No real withdrawal, bank payment, WeChat payment, SMS or production user deletion was performed during isolated validation.
+
 ## Current Fact Snapshot - Opening Reward Observation Time Correction
 
 - Development branch: `codex/yfth-opening-reward-observation-time-fix`; baseline: `fcb2c1f3bfd5db8383ac46ff590af5c5c55799ff`. Final `main`, `origin/main` and production commits must be read from real Git after merge and deployment.
