@@ -644,6 +644,7 @@ class FranchisePartnerServices extends YfthFoundationBaseServices
 
     public function adminSettleReward(int $id, array $data, int $adminId, array $adminInfo): array
     {
+        throw new ApiException('partner_reward_manual_settlement_disabled_use_withdrawal');
         $this->assertHeadquarters($adminInfo);
         $reason = $this->requiredReason($data);
         $evidence = trim((string)($data['evidence'] ?? ''));
@@ -859,7 +860,10 @@ class FranchisePartnerServices extends YfthFoundationBaseServices
     {
         $uid = $this->requestUid($request);
         $this->profile($uid, true);
-        return ['tree' => $this->teamTree($uid, 0, 5)];
+        return [
+            'stores' => $this->partnerStores($uid),
+            'tree' => $this->teamTree($uid, 0, 5),
+        ];
     }
 
     public function myRewards(Request $request, array $filters): array
@@ -1245,9 +1249,21 @@ class FranchisePartnerServices extends YfthFoundationBaseServices
             ->field('r.partner_uid,p.rank_code,p.status,u.nickname,u.account')->select()->toArray();
         foreach ($rows as &$row) {
             $row['rank_name'] = self::RANKS[(string)$row['rank_code']]['name'] ?? (string)$row['rank_code'];
+            $row['stores'] = $this->partnerStores((int)$row['partner_uid']);
             $row['children'] = $this->teamTree((int)$row['partner_uid'], $depth + 1, $maxDepth);
         }
         return $rows;
+    }
+
+    private function partnerStores(int $uid): array
+    {
+        return Db::name('yfth_partner_store_binding')->alias('b')
+            ->leftJoin('system_store s', 's.id=b.store_id')
+            ->where(['b.partner_uid' => $uid, 'b.status' => 'active'])
+            ->field('b.store_id,b.source_type,b.source_id,b.valid_from,s.name AS store_name,s.is_show,s.is_del')
+            ->order('b.id asc')
+            ->select()
+            ->toArray();
     }
 
     private function profile(int $uid, bool $requireActive): array

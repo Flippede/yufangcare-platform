@@ -450,6 +450,19 @@ export function getYfthStoreCommissionSettlementBatches(data) {
 	return request.get('yfth/store_workbench/commission/settlement_batch', data || {});
 }
 
+export function getYfthStoreWithdrawalSummary(data) {
+	return request.get('yfth/store_workbench/withdrawal/summary', data || {});
+}
+
+export function getYfthStoreWithdrawals(data) {
+	return request.get('yfth/store_workbench/withdrawal', data || {});
+}
+
+export function createYfthStoreWithdrawal(data) {
+	const payload = splitYfthContext(data || {});
+	return request.post('yfth/store_workbench/withdrawal' + payload.query, payload.body);
+}
+
 export function confirmYfthStoreRewardCandidate(id, data) {
 	const payload = splitYfthContext(data || {});
 	return request.post('yfth/store_workbench/reward_settlement/candidate/' + id + '/confirm' + payload.query, payload.body);
@@ -486,6 +499,18 @@ export function getYfthPartnerTeam() {
 
 export function getYfthPartnerRewards(data) {
 	return request.get('yfth/franchise/partner/rewards', data || {});
+}
+
+export function getYfthPartnerWithdrawalSummary() {
+	return request.get('yfth/franchise/partner/withdrawal/summary');
+}
+
+export function getYfthPartnerWithdrawals(data) {
+	return request.get('yfth/franchise/partner/withdrawal', data || {});
+}
+
+export function createYfthPartnerWithdrawal(data) {
+	return request.post('yfth/franchise/partner/withdrawal', data || {});
 }
 
 export function applyYfthPartnerPromotion(data) {

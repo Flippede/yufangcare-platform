@@ -1269,3 +1269,19 @@ export function yfthCommissionSettlementBatchStart(id) { return request({ url: `
 export function yfthCommissionSettlementBatchCallback(id, data) { return request({ url: `yfth/commission/settlement_batch/${id}/callback`, method: 'post', data }); }
 export function yfthCommissionRetry(data) { return request({ url: 'yfth/commission/retry', method: 'post', data }); }
 export function yfthCommissionLegacyReport() { return request({ url: 'yfth/commission/legacy_report', method: 'get' }); }
+
+export function yfthFundWithdrawalList(params) {
+  return request({ url: 'yfth/fund_finance/withdrawal', method: 'get', params });
+}
+
+export function yfthFundWithdrawalDetail(id) {
+  return request({ url: `yfth/fund_finance/withdrawal/${id}`, method: 'get' });
+}
+
+export function yfthFundWithdrawalReview(id, data) {
+  return request({ url: `yfth/fund_finance/withdrawal/${id}/review`, method: 'post', data });
+}
+
+export function yfthFundWithdrawalPaid(id, data) {
+  return request({ url: `yfth/fund_finance/withdrawal/${id}/paid`, method: 'post', data });
+}

@@ -1,6 +1,7 @@
 <?php
 
 use app\services\yfth\FranchisePartnerServices;
+use app\services\yfth\FranchiseApplicationServices;
 use app\services\yfth\HqAcceptanceFixtureServices;
 use app\Request;
 use think\facade\Config;
@@ -241,13 +242,22 @@ try {
     $openingStore['phone'] = '195' . str_pad(substr($suffix, -8), 8, '0', STR_PAD_LEFT);
     $openingStore['add_time'] = time();
     $openingStoreId = (int)Db::name('system_store')->insertGetId($openingStore);
-    $legacyRoleId = 0;
     $assetFields = 'uid,now_money,integral,brokerage_price';
     $assetBefore = Db::name('user')->whereIn('uid', array_merge([$applicantUid], array_values($rankUids)))->field($assetFields)->order('uid asc')->select()->toArray();
-    $application = Db::name('yfth_franchise_application')->where('id', $applicationId)->find();
-    $opened = Db::transaction(function () use ($partner, $application, $openingStoreId, $legacyRoleId) {
-        return $partner->finalizeOpeningInTransaction($application, $openingStoreId, $legacyRoleId, 1);
-    });
+    $applicationService = app()->make(FranchiseApplicationServices::class);
+    $reviewed = $applicationService->review(
+        $applicationId,
+        'approve',
+        'TEST headquarters offline approval',
+        $openingStoreId,
+        '',
+        1,
+        $hq
+    );
+    $opened = $reviewed['opening'];
+    $assert((string)$reviewed['application']['status'] === 'opened'
+        && (int)$reviewed['application']['approved_store_id'] === $openingStoreId
+        && $reviewed['store_manager_granted'] === true, 'headquarters_approval_opens_store_and_grants_manager');
     $assert((int)$opened['partner']['uid'] === $rankUids['county_partner'], 'opening_keeps_existing_county_partner_as_sponsor');
     $assert((int)Db::name('yfth_partner_profile')->where('uid', $applicantUid)->count() === 0, 'opening_does_not_turn_manager_applicant_into_partner');
     $assert((int)Db::name('yfth_partner_store_binding')->where([
@@ -259,9 +269,16 @@ try {
     $assert((int)Db::name('yfth_reward_event')->where('id', (int)$opened['reward_event_id'])
         ->where('event_type', 'partner_store_opened')->count() === 1, 'opening_enqueues_unified_partner_reward_event');
 
-    Db::transaction(function () use ($partner, $application, $openingStoreId, $legacyRoleId) {
-        $partner->finalizeOpeningInTransaction($application, $openingStoreId, $legacyRoleId, 1);
-    });
+    $reviewedAgain = $applicationService->review(
+        $applicationId,
+        'approve',
+        'TEST headquarters approval replay',
+        $openingStoreId,
+        '',
+        1,
+        $hq
+    );
+    $assert($reviewedAgain['idempotent'] === true, 'duplicate_headquarters_approval_is_idempotent');
     $assert((int)Db::name('yfth_partner_opening_performance')->where('application_id', $applicationId)->count() === 1, 'duplicate_opening_keeps_one_performance');
     $assert((int)Db::name('yfth_reward_event')->where('event_type', 'partner_store_opened')
         ->where('source_id', (string)$applicationId)->count() === 1, 'duplicate_opening_keeps_one_reward_event');

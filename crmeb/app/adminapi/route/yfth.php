@@ -258,6 +258,12 @@ Route::group('yfth', function () {
         Route::post('settlement_batch/:id/start', 'v1.yfth.CommissionFinance/settlementBatchStart')->option(['real_name' => '发起微信分账预留']);
         Route::post('retry', 'v1.yfth.CommissionFinance/retry')->option(['real_name' => '到期佣金补偿']);
     })->option(['parent' => 'yfth', 'cate_name' => '佣金与结算']);
+    Route::group('fund_finance', function () {
+        Route::get('withdrawal', 'v1.yfth.FundFinance/index')->option(['real_name' => '提现申请列表']);
+        Route::get('withdrawal/:id', 'v1.yfth.FundFinance/detail')->option(['real_name' => '提现申请详情']);
+        Route::post('withdrawal/:id/review', 'v1.yfth.FundFinance/review')->option(['real_name' => '提现申请审核']);
+        Route::post('withdrawal/:id/paid', 'v1.yfth.FundFinance/paid')->option(['real_name' => '确认线下打款']);
+    })->option(['parent' => 'yfth-finance', 'cate_name' => '提现审核']);
 })->middleware([
     \app\http\middleware\AllowOriginMiddleware::class,
     \app\adminapi\middleware\AdminAuthTokenMiddleware::class,

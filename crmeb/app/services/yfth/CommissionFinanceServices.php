@@ -9,9 +9,9 @@ use think\facade\Env;
 /**
  * YFTH commission settlement projections and controlled settlement facts.
  *
- * C1 settlements are completed offline by the responsible B1. B1 commission
- * is never withdrawable: headquarters groups immutable store ledger entries
- * into settlement-cycle batches reserved for WeChat profit sharing.
+ * C1 settlements are completed offline by the responsible B1. Historical B1
+ * settlement batches remain readable, while new B1 payouts use the dedicated
+ * headquarters-reviewed manual withdrawal authority.
  */
 class CommissionFinanceServices
 {
@@ -264,6 +264,7 @@ class CommissionFinanceServices
 
     public function generateSettlementBatches(int $periodStart, int $periodEnd, int $adminUid): array
     {
+        throw new ApiException('store_settlement_batch_write_disabled_use_withdrawal');
         if ($periodEnd <= 0 || $periodStart < 0 || $periodStart > $periodEnd) {
             throw new ApiException('settlement_period_invalid');
         }
@@ -342,6 +343,7 @@ class CommissionFinanceServices
 
     public function startSettlementBatch(int $id, int $adminUid): array
     {
+        throw new ApiException('store_settlement_batch_write_disabled_use_withdrawal');
         app()->make(AutomaticCommissionMigrationHealthServices::class)->assertHealthy();
         $batch = Db::transaction(function () use ($id, $adminUid) {
             $row = $this->row(Db::name('yfth_store_settlement_batch')->where('id', $id)->lock(true)->find());

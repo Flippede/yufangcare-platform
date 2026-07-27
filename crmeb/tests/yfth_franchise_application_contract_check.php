@@ -144,14 +144,17 @@ foreach ([
     'object_type\', \'franchise_follow_record\'',
     'add_time',
     'public function review(',
-    'offline_review_approved',
+    'offline_review_approved_and_opened',
     'offline_review_rejected',
     "['approve', 'reject']",
-    "? 'pending_contract' : 'terminated'",
+    "? 'opened' : 'terminated'",
     '$action === \'reject\' && $current === \'pending_contract\'',
     'approved_store_id',
     'createApprovedStore',
     'grantApprovedStoreManager',
+    'finalizeOpeningInTransaction',
+    'UnifiedRewardOrchestratorServices',
+    '->process(',
     "'role_code' => 'store_manager'",
 ] as $needle) {
     $assert(strpos($service, $needle) !== false, 'service_contains:' . $needle);
@@ -268,6 +271,8 @@ $reviewMethod = $methodBlock($service, 'review');
 foreach ([
     'createApprovedStore',
     'grantApprovedStoreManager',
+    'finalizeOpeningInTransaction',
+    '->process(',
     "'approved_store_id'",
 ] as $needle) {
     $assert(strpos($reviewMethod, $needle) !== false, 'review_grants_store_manager:' . $needle);

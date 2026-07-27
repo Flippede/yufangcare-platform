@@ -116,6 +116,9 @@ Route::group(function () {
     Route::get('yfth/store_workbench/commission/c1_settlement', 'v1.yfth.CommissionStoreController/c1Settlements')->option(['real_name' => 'YFTH store C1 settlement list']);
     Route::post('yfth/store_workbench/commission/c1_settlement/:id/complete', 'v1.yfth.CommissionStoreController/completeC1Settlement')->option(['real_name' => 'YFTH store complete C1 offline settlement']);
     Route::get('yfth/store_workbench/commission/settlement_batch', 'v1.yfth.CommissionStoreController/settlementBatches')->option(['real_name' => 'YFTH store settlement batch list']);
+    Route::get('yfth/store_workbench/withdrawal/summary', 'v1.yfth.FundWithdrawalController/storeSummary')->option(['real_name' => 'YFTH store withdrawal summary']);
+    Route::get('yfth/store_workbench/withdrawal', 'v1.yfth.FundWithdrawalController/storeRequests')->option(['real_name' => 'YFTH store withdrawal requests']);
+    Route::post('yfth/store_workbench/withdrawal', 'v1.yfth.FundWithdrawalController/storeCreate')->option(['real_name' => 'YFTH store withdrawal create']);
 })->middleware(\app\http\middleware\AllowOriginMiddleware::class)
     ->middleware(\app\api\middleware\StationOpenMiddleware::class)
     ->middleware(\app\api\middleware\AuthTokenMiddleware::class)
@@ -175,6 +178,9 @@ Route::group(function () {
     Route::get('yfth/franchise/partner/team', 'v1.yfth.FranchisePartnerController/team')->option(['real_name' => 'YFTH招商团队']);
     Route::get('yfth/franchise/partner/rewards', 'v1.yfth.FranchisePartnerController/rewards')->option(['real_name' => 'YFTH招商收益']);
     Route::post('yfth/franchise/partner/promotion/apply', 'v1.yfth.FranchisePartnerController/promotionApply')->option(['real_name' => 'YFTH招商晋级申请']);
+    Route::get('yfth/franchise/partner/withdrawal/summary', 'v1.yfth.FundWithdrawalController/partnerSummary')->option(['real_name' => 'YFTH partner withdrawal summary']);
+    Route::get('yfth/franchise/partner/withdrawal', 'v1.yfth.FundWithdrawalController/partnerRequests')->option(['real_name' => 'YFTH partner withdrawal requests']);
+    Route::post('yfth/franchise/partner/withdrawal', 'v1.yfth.FundWithdrawalController/partnerCreate')->option(['real_name' => 'YFTH partner withdrawal create']);
 })->middleware(\app\http\middleware\AllowOriginMiddleware::class)
     ->middleware(\app\api\middleware\StationOpenMiddleware::class)
     ->middleware(\app\api\middleware\AuthTokenMiddleware::class)

@@ -1,5 +1,16 @@
 # 项目交接文档
 
+## Current Fact Snapshot - Partner And Store Withdrawal Finance V1
+
+- Development branch: `codex/yfth-partner-store-withdrawal-finance-v1`; baseline: `3c57e2e21f877c76d1c0c5695f81e60d56ff97ec`. Final `main`, `origin/main` and production commits must be read from real Git after merge and deployment.
+- All five partner ranks can apply to withdraw only confirmed earnings whose observation period has ended and which are not refunded, reversed, disputed or already allocated. B1 store managers can apply for the store's eligible confirmed commission; store staff have read-only access.
+- Withdrawal requests freeze exact source rows. Headquarters finance can approve or reject a request, records the external bank/U-shield payment reference, and only the final paid confirmation offsets the frozen amount. Repeated requests, reviews and payment confirmations are idempotent.
+- The new headquarters top-level `财务` module contains `提现审核`. Its menu and API permissions are separate so a finance-only headquarters account can be introduced later; this task does not implement administrator identity switching.
+- Receiver names and bank accounts are encrypted at rest and are not returned by list APIs. Full receiver details are available only on the finance detail endpoint. No bank credentials, payment secrets or private test credentials are stored in Git.
+- Existing C1-to-B1 offline settlement remains a separate workflow handled by the authoritative B1 manager or staff. Headquarters finance does not approve or pay C1 settlement requests.
+- Headquarters offline approval of a franchise application now immediately opens/binds the store, grants the applicant the store-manager role and projects the store into the recruiting county partner's team. Repeated approval is idempotent.
+- Focused validation passed: PHP 7.4 syntax and contracts; isolated MySQL Community 8.0.46 migration run/targeted rollback/rerun/duplicate run; partner/store withdrawal real flow; five-rank franchise opening and team projection; Admin/H5/mp-weixin production builds; sensitive-data checks; and `git diff --check`. Production migration and deployment facts must be recorded only after they actually complete.
+
 ## Current Fact Snapshot - Partner Context Isolation V1
 
 - Development branch: `codex/yfth-partner-context-isolation-v1`; baseline: `1337ddb00fc42b65ead6c64f88538ea6f8027d4c`. Final `main`, `origin/main` and production commits must be read from real Git after this task's merge and deployment.

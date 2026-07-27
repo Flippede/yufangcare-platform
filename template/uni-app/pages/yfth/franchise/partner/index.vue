@@ -50,6 +50,9 @@
 					<view v-if="flattenedTeam.length">
 						<view v-for="item in flattenedTeam" :key="item.partner_uid" class="tree-row" :style="{ paddingLeft: (item.depth * 24) + 'rpx' }">
 							<view><b>{{ item.nickname || item.account || ('UID ' + item.partner_uid) }}</b><span>{{ item.rank_name }} · {{ item.status }}</span></view>
+							<view v-for="store in (item.stores || [])" :key="store.store_id" class="tree-store">
+								{{ store.store_name || ('门店 ' + store.store_id) }}
+							</view>
 						</view>
 					</view>
 					<view v-else class="inline-empty">暂无直属合伙人。</view>
@@ -95,6 +98,40 @@
 			</block>
 
 			<block v-else-if="activeTab === 'earnings'">
+				<view class="panel">
+					<view class="panel-head">
+						<view>
+							<view class="title">收益提现</view>
+							<view class="hint">仅可申请已确认、观察期结束且无退款或争议的收益。财务线下打款完成后才扣减可提现金额。</view>
+						</view>
+						<button class="light" @click="loadWithdrawal">刷新</button>
+					</view>
+					<view class="withdraw-summary">
+						<view><strong>￥{{ withdrawalSummary.available || '0.00' }}</strong><span>可申请</span></view>
+						<view><strong>￥{{ withdrawalSummary.observing || '0.00' }}</strong><span>观察期中</span></view>
+						<view><strong>￥{{ withdrawalSummary.frozen || '0.00' }}</strong><span>审核/打款中</span></view>
+						<view><strong>￥{{ withdrawalSummary.paid || '0.00' }}</strong><span>已打款</span></view>
+					</view>
+					<button v-if="!withdrawalFormVisible" class="withdraw-button" @click="withdrawalFormVisible = true">申请提现</button>
+					<view v-else class="withdraw-form">
+						<input v-model="withdrawalForm.amount" type="digit" placeholder="提现金额（元）" />
+						<input v-model="withdrawalForm.receiver_name" placeholder="收款人姓名" />
+						<input v-model="withdrawalForm.receiver_account" type="number" placeholder="银行卡号" />
+						<input v-model="withdrawalForm.bank_name" placeholder="开户银行" />
+						<input v-model="withdrawalForm.remark" placeholder="申请说明（可选）" />
+						<view class="withdraw-actions">
+							<button class="light" @click="withdrawalFormVisible = false">取消</button>
+							<button :disabled="withdrawalSubmitting" @click="submitWithdrawal">{{ withdrawalSubmitting ? '提交中...' : '提交申请' }}</button>
+						</view>
+					</view>
+					<view class="withdraw-list">
+						<view v-for="item in withdrawalRequests" :key="item.id" class="row">
+							<view><b>￥{{ item.amount }}</b><span>{{ withdrawalStatus(item.status) }} · {{ timeText(item.add_time) }}</span></view>
+							<em>{{ item.receiver_account_masked }}</em>
+						</view>
+						<view v-if="!withdrawalRequests.length" class="inline-empty">暂无提现申请。</view>
+					</view>
+				</view>
 				<view class="panel">
 					<view class="title">采购分润</view>
 					<view class="reward-grid">
@@ -144,7 +181,15 @@
 </template>
 
 <script>
-import { applyYfthPartnerPromotion, createYfthPartnerInvite, getYfthPartnerTeam, getYfthPartnerWorkbench } from '@/api/yfth.js';
+import {
+	applyYfthPartnerPromotion,
+	createYfthPartnerInvite,
+	createYfthPartnerWithdrawal,
+	getYfthPartnerTeam,
+	getYfthPartnerWithdrawalSummary,
+	getYfthPartnerWithdrawals,
+	getYfthPartnerWorkbench
+} from '@/api/yfth.js';
 import { enterYfthBusinessMall, enterYfthBusinessUserCenter, roleNav } from '@/libs/yfthContext.js';
 import zbCode from '@/components/zb-code/zb-code.vue';
 
@@ -157,7 +202,19 @@ export default {
 			activeTab: 'dashboard',
 			data: {},
 			team: [],
+			teamStores: [],
 			invite: {},
+			withdrawalSummary: {},
+			withdrawalRequests: [],
+			withdrawalFormVisible: false,
+			withdrawalSubmitting: false,
+			withdrawalForm: {
+				amount: '',
+				receiver_name: '',
+				receiver_account: '',
+				bank_name: '',
+				remark: ''
+			},
 			qrImage: '',
 			qrError: '',
 			qrRenderKey: 0,
@@ -230,7 +287,7 @@ export default {
 			this.error = '';
 			return getYfthPartnerWorkbench().then((res) => {
 				this.data = res.data || {};
-				return this.loadTeam();
+				return Promise.all([this.loadTeam(), this.loadWithdrawal()]);
 			}).catch((err) => {
 				this.error = String((err && err.msg) || err || '招商身份读取失败');
 			}).finally(() => {
@@ -239,7 +296,46 @@ export default {
 		},
 		loadTeam() {
 			return getYfthPartnerTeam().then((res) => {
-				this.team = (res.data || {}).tree || [];
+				const data = res.data || {};
+				this.team = data.tree || [];
+				this.teamStores = data.stores || [];
+			});
+		},
+		loadWithdrawal() {
+			return Promise.all([
+				getYfthPartnerWithdrawalSummary().then((res) => {
+					this.withdrawalSummary = res.data || {};
+				}),
+				getYfthPartnerWithdrawals({ page: 1, limit: 30 }).then((res) => {
+					this.withdrawalRequests = (res.data && res.data.list) || [];
+				})
+			]).catch((err) => {
+				uni.showToast({ title: String((err && err.msg) || err || '提现信息加载失败'), icon: 'none' });
+			});
+		},
+		submitWithdrawal() {
+			const amountCent = Math.round(Number(this.withdrawalForm.amount || 0) * 100);
+			if (amountCent <= 0 || !this.withdrawalForm.receiver_name.trim()
+				|| !this.withdrawalForm.receiver_account.trim() || !this.withdrawalForm.bank_name.trim()) {
+				return uni.showToast({ title: '请完整填写金额和收款银行卡信息', icon: 'none' });
+			}
+			this.withdrawalSubmitting = true;
+			createYfthPartnerWithdrawal({
+				amount_cent: amountCent,
+				receiver_name: this.withdrawalForm.receiver_name.trim(),
+				receiver_account: this.withdrawalForm.receiver_account.trim(),
+				bank_name: this.withdrawalForm.bank_name.trim(),
+				remark: this.withdrawalForm.remark.trim(),
+				request_id: `partner-withdrawal-${Date.now()}`
+			}).then(() => {
+				uni.showToast({ title: '提现申请已提交', icon: 'success' });
+				this.withdrawalFormVisible = false;
+				this.withdrawalForm = { amount: '', receiver_name: '', receiver_account: '', bank_name: '', remark: '' };
+				return this.loadWithdrawal();
+			}).catch((err) => {
+				uni.showToast({ title: String((err && err.msg) || err || '提现申请失败'), icon: 'none' });
+			}).finally(() => {
+				this.withdrawalSubmitting = false;
 			});
 		},
 		sumProfit(status) {
@@ -332,6 +428,17 @@ export default {
 		cent(value) {
 			return `￥${(Number(value || 0) / 100).toFixed(2)}`;
 		},
+		withdrawalStatus(value) {
+			return ({
+				pending_review: '待财务审核',
+				approved: '待线下打款',
+				rejected: '已驳回',
+				paid: '已打款'
+			})[value] || value;
+		},
+		timeText(value) {
+			return value ? new Date(Number(value) * 1000).toLocaleDateString() : '-';
+		},
 		formatRule(value) {
 			const data = value || {};
 			const entries = Object.keys(data).map((key) => key + '=' + data[key]);
@@ -364,6 +471,7 @@ export default {
 .invite-actions { display: flex; justify-content: center; gap: 16rpx; }
 .invite-link { margin: 14rpx 0; padding: 14rpx; border-radius: 10rpx; background: #faf6ef; color: #786a60; font-size: 20rpx; word-break: break-all; }
 .row,.tree-row { padding-top: 18rpx; padding-bottom: 18rpx; border-bottom: 1rpx solid #f0e8de; }
+.tree-store { margin-top: 10rpx; padding: 10rpx 14rpx; border-radius: 8rpx; background: #faf3e8; color: #75512f; font-size: 21rpx; }
 .row b,.tree-row b { font-size: 25rpx; }
 .row em { color: #a8753e; font-size: 22rpx; font-style: normal; }
 .rule-line { margin-top: 18rpx; padding: 16rpx; background: #faf6ef; }
@@ -376,6 +484,17 @@ export default {
 .profit-row { display: flex; align-items: center; justify-content: space-between; gap: 16rpx; padding: 18rpx 0; border-top: 1rpx solid #f0e8de; }
 .profit-row b,.profit-row strong { color: #74502e; font-size: 25rpx; }
 .profit-row span { display: block; margin-top: 5rpx; color: #91847a; font-size: 21rpx; }
+.withdraw-summary { display: grid; grid-template-columns: repeat(2,1fr); gap: 12rpx; margin-top: 18rpx; }
+.withdraw-summary>view { padding: 18rpx 10rpx; border-radius: 12rpx; background: #faf6ef; text-align: center; }
+.withdraw-summary strong,.withdraw-summary span { display: block; }
+.withdraw-summary strong { color: #74502e; font-size: 28rpx; }
+.withdraw-summary span { margin-top: 7rpx; color: #91847a; font-size: 21rpx; }
+.panel button.withdraw-button { width: 100%; margin-top: 18rpx; }
+.withdraw-form { margin-top: 18rpx; padding: 18rpx; border-radius: 12rpx; background: #faf6ef; }
+.withdraw-form input { height: 72rpx; margin-top: 12rpx; padding: 0 18rpx; border: 1rpx solid #e4d4bd; border-radius: 10rpx; background: #fff; font-size: 24rpx; }
+.withdraw-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 14rpx; margin-top: 16rpx; }
+.withdraw-actions button { width: 100%; }
+.withdraw-list { margin-top: 12rpx; }
 .partner-tabbar { position: fixed; z-index: 30; right: 0; bottom: 0; left: 0; display: grid; grid-template-columns: repeat(6,1fr); min-height: calc(106rpx + env(safe-area-inset-bottom)); max-width: 750px; margin: 0 auto; padding: 0 8rpx env(safe-area-inset-bottom); box-sizing: border-box; border-top: 1rpx solid #eadfce; background: #fffaf3; }
 .partner-tab { display: flex; align-items: center; justify-content: center; min-height: 106rpx; overflow: hidden; color: #75695f; font-size: 21rpx; text-align: center; text-overflow: ellipsis; white-space: nowrap; }
 .partner-tab.active { color: #8b633b; font-weight: 700; }

@@ -271,16 +271,24 @@ class FranchiseApplicationServices extends YfthFoundationBaseServices
             throw new ApiException('franchise_application_store_name_required');
         }
 
-        return Db::transaction(function () use ($id, $action, $reason, $storeId, $storeName, $adminId) {
+        $result = Db::transaction(function () use ($id, $action, $reason, $storeId, $storeName, $adminId) {
             $before = Db::name('yfth_franchise_application')->where('id', $id)->lock(true)->find();
             if (!$before) {
                 throw new ApiException('franchise_application_not_found');
             }
             $current = (string)$before['status'];
+            if ($action === 'approve' && $current === 'opened') {
+                return [
+                    'application' => $this->formatApplication($before, true, $this->userMap([(int)$before['applicant_uid']]), $this->adminMap([(int)$before['assigned_uid']])),
+                    'store_manager_granted' => true,
+                    'opening' => [],
+                    'idempotent' => true,
+                ];
+            }
             if (in_array($current, ['signed', 'preparing', 'opened'], true)) {
                 throw new ApiException('franchise_application_review_status_invalid');
             }
-            $targetStatus = $action === 'approve' ? 'pending_contract' : 'terminated';
+            $targetStatus = $action === 'approve' ? 'opened' : 'terminated';
             if ($current === 'terminated') {
                 throw new ApiException('franchise_application_review_status_invalid');
             }
@@ -292,6 +300,7 @@ class FranchiseApplicationServices extends YfthFoundationBaseServices
             $after['status'] = $targetStatus;
             $after['update_time'] = time();
             $update = ['status' => $targetStatus, 'update_time' => $after['update_time']];
+            $opening = [];
             if ($action === 'approve') {
                 $approvedStoreId = (int)($before['approved_store_id'] ?? 0);
                 if ($approvedStoreId <= 0) {
@@ -304,10 +313,18 @@ class FranchiseApplicationServices extends YfthFoundationBaseServices
                 $this->grantApprovedStoreManager((int)$before['applicant_uid'], $approvedStoreId, $adminId, $reason);
             }
             $this->dao->update($id, $update);
+            if ($action === 'approve') {
+                $opening = app()->make(FranchisePartnerServices::class)->finalizeOpeningInTransaction(
+                    $after,
+                    (int)$after['approved_store_id'],
+                    0,
+                    $adminId
+                );
+            }
             $this->audit(
                 'franchise_application',
                 $id,
-                $action === 'approve' ? 'offline_review_approved' : 'offline_review_rejected',
+                $action === 'approve' ? 'offline_review_approved_and_opened' : 'offline_review_rejected',
                 $before,
                 $after,
                 $adminId,
@@ -319,8 +336,29 @@ class FranchiseApplicationServices extends YfthFoundationBaseServices
             return [
                 'application' => $this->formatApplication($after, true, $this->userMap([(int)$after['applicant_uid']]), $this->adminMap([(int)$after['assigned_uid']])),
                 'store_manager_granted' => $action === 'approve',
+                'opening' => $opening,
+                'idempotent' => false,
             ];
         });
+        $eventId = (int)($result['opening']['reward_event_id'] ?? 0);
+        if ($eventId > 0) {
+            try {
+                app()->make(UnifiedRewardOrchestratorServices::class)->process($eventId, 'franchise-application-review');
+            } catch (\Throwable $e) {
+                $this->audit(
+                    'franchise_application',
+                    $id,
+                    'reward_event_deferred',
+                    [],
+                    ['reward_event_id' => $eventId, 'error' => substr($e->getMessage(), 0, 255)],
+                    $adminId,
+                    'headquarter_admin',
+                    (int)($result['application']['approved_store_id'] ?? 0),
+                    'reward_event_deferred'
+                );
+            }
+        }
+        return $result;
     }
 
     private function assertApprovedStore(int $storeId): int
