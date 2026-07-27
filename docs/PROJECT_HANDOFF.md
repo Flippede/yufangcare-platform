@@ -1,5 +1,14 @@
 # 项目交接文档
 
+## Current Fact Snapshot - Partner Withdrawal Source Settlement Repair
+
+- Development branch: `codex/yfth-partner-withdrawal-source-settlement-fix`; baseline: `05821790168e44e6498066efb9fa18ea6da22aa3`. Final `main`, `origin/main` and production commits must be read from real Git after merge and deployment.
+- The finance paid transition now settles the exact partner earning sources frozen by the withdrawal allocation. A fully paid opening-service reward moves from pending to settled; partial payment keeps the residual pending until cumulative paid allocations cover the source.
+- Partner withdrawal availability, opening/procurement/dividend summaries and the partner workbench now derive pending and settled amounts from the same source ledger plus immutable paid allocations. Negative adjustment rows remain in the pending balance and cannot be silently discarded.
+- A controlled idempotent repair entry updates historical partner requests that were already marked paid before source settlement synchronization existed.
+- Focused validation passed: PHP 7.4 syntax; withdrawal, procurement-profit and franchise-partner contracts; isolated MySQL Community 8.0.46 withdrawal real flow; partial/full source settlement; historical paid-request repair; procurement partner-profit real flow; franchise partner real flow; and `git diff --check`.
+- No real payment, refund, SMS, WeChat operation or unrelated production-data change is part of this repair.
+
 ## Current Fact Snapshot - Withdrawal Beneficiary Profile Closure
 
 - Development branch: `codex/yfth-withdrawal-beneficiary-profile-v1`; baseline: `34953c3851286341f1c33c8e6ea4c8c74e272a3`. Final `main`, `origin/main` and production commits must be read from real Git after merge and deployment.

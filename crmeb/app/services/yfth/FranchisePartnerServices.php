@@ -1184,9 +1184,40 @@ class FranchisePartnerServices extends YfthFoundationBaseServices
     private function rewardSummary(int $uid): array
     {
         $summary = ['pending' => '0.00', 'confirmed' => '0.00', 'settled' => '0.00', 'cancelled' => '0.00'];
-        $rows = Db::name('yfth_partner_reward_candidate')->where('beneficiary_uid', $uid)->field('status,SUM(amount) AS amount')->group('status')->select()->toArray();
+        $paidBySource = [];
+        $paidRows = Db::name('yfth_fund_withdrawal_allocation')
+            ->where([
+                'owner_type' => 'partner',
+                'owner_id' => $uid,
+                'source_type' => 'partner_reward',
+                'status' => 'paid',
+            ])
+            ->field('source_id,amount_cent')
+            ->select()
+            ->toArray();
+        foreach ($paidRows as $paidRow) {
+            $sourceId = (int)$paidRow['source_id'];
+            $paidBySource[$sourceId] = (int)($paidBySource[$sourceId] ?? 0) + (int)$paidRow['amount_cent'];
+        }
+        $amounts = ['pending' => 0, 'confirmed' => 0, 'settled' => 0, 'cancelled' => 0];
+        $rows = Db::name('yfth_partner_reward_candidate')
+            ->where('beneficiary_uid', $uid)
+            ->field('id,status,amount')
+            ->select()
+            ->toArray();
         foreach ($rows as $row) {
-            $summary[(string)$row['status']] = (string)$row['amount'];
+            $status = (string)$row['status'];
+            $amountCent = (int)round((float)$row['amount'] * 100);
+            if ($status === 'confirmed') {
+                $paidCent = min($amountCent, max(0, (int)($paidBySource[(int)$row['id']] ?? 0)));
+                $amounts['settled'] += $paidCent;
+                $amounts['confirmed'] += $amountCent - $paidCent;
+            } elseif (isset($amounts[$status])) {
+                $amounts[$status] += $amountCent;
+            }
+        }
+        foreach ($amounts as $status => $amountCent) {
+            $summary[$status] = number_format($amountCent / 100, 2, '.', '');
         }
         return $summary;
     }

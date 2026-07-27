@@ -415,9 +415,9 @@ class ProcurementPartnerProfitServices
 
     public function partnerSummary(int $uid): array
     {
-        $procurement = $this->sumByStatus('yfth_procurement_profit_ledger', 'beneficiary_uid', $uid);
-        $opening = $this->sumByStatus('yfth_partner_opening_reward_ledger', 'partner_uid', $uid);
-        $dividend = $this->sumByStatus('yfth_platform_dividend_item', 'beneficiary_uid', $uid);
+        $procurement = $this->sumByStatus('yfth_procurement_profit_ledger', 'beneficiary_uid', $uid, 'procurement_profit');
+        $opening = $this->sumByStatus('yfth_partner_opening_reward_ledger', 'partner_uid', $uid, 'opening_reward');
+        $dividend = $this->sumByStatus('yfth_platform_dividend_item', 'beneficiary_uid', $uid, 'platform_dividend');
         return [
             'procurement' => $procurement,
             'opening_service' => $opening,
@@ -729,10 +729,25 @@ class ProcurementPartnerProfitServices
         return $map;
     }
 
-    private function sumByStatus(string $table, string $uidField, int $uid): array
+    private function sumByStatus(string $table, string $uidField, int $uid, string $sourceType): array
     {
         $result = ['pending_cent' => 0, 'settled_cent' => 0, 'reversed_cent' => 0];
-        $rows = Db::name($table)->where($uidField, $uid)->field('status,SUM(amount_cent) AS amount_cent')->group('status')->select()->toArray();
+        $paidBySource = [];
+        $paidRows = Db::name('yfth_fund_withdrawal_allocation')
+            ->where([
+                'owner_type' => 'partner',
+                'owner_id' => $uid,
+                'source_type' => $sourceType,
+                'status' => 'paid',
+            ])
+            ->field('source_id,amount_cent')
+            ->select()
+            ->toArray();
+        foreach ($paidRows as $paidRow) {
+            $sourceId = (int)$paidRow['source_id'];
+            $paidBySource[$sourceId] = (int)($paidBySource[$sourceId] ?? 0) + (int)$paidRow['amount_cent'];
+        }
+        $rows = Db::name($table)->where($uidField, $uid)->field('id,status,amount_cent')->select()->toArray();
         foreach ($rows as $row) {
             $status = (string)$row['status'];
             $amount = (int)$row['amount_cent'];
@@ -741,7 +756,9 @@ class ProcurementPartnerProfitServices
             } elseif ($status === 'reversed') {
                 $result['reversed_cent'] += $amount;
             } else {
-                $result['pending_cent'] += $amount;
+                $paid = $amount > 0 ? min($amount, max(0, (int)($paidBySource[(int)$row['id']] ?? 0))) : 0;
+                $result['settled_cent'] += $paid;
+                $result['pending_cent'] += $amount - $paid;
             }
         }
         foreach ($result as $key => $value) {

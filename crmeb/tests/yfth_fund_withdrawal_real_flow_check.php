@@ -1,6 +1,8 @@
 <?php
 
 use app\services\yfth\FundWithdrawalServices;
+use app\services\yfth\FranchisePartnerServices;
+use app\services\yfth\ProcurementPartnerProfitServices;
 use think\facade\Config;
 use think\facade\Db;
 
@@ -104,6 +106,21 @@ try {
         $service->confirmPaid((int)$partnerRequest['id'], 'BANK-PARTNER-' . $run, 'isolated bank replay', 1);
         $partnerAfter = $summary->invoke($service, 'partner', $partnerUid, 'county_partner', false);
         $assert((int)$partnerAfter['available_cent'] === 40000 && (int)$partnerAfter['paid_cent'] === 60000, 'partner_paid_offsets_available_once');
+        $procurementSource = Db::name('yfth_procurement_profit_ledger')
+            ->where('source_unique_key', 'withdrawal-real-flow-' . $run)->find();
+        $assert((string)$procurementSource['status'] === 'pending', 'partial_payment_keeps_source_pending');
+
+        $partnerRemainder = $create->invoke(
+            $service, 'partner', $partnerUid, $partnerUid, 'county_partner', 0,
+            withdrawalPayload('partner-paid-remainder-' . $run, 40000)
+        );
+        $service->review((int)$partnerRemainder['id'], 'approve', 'isolated remainder approval', 1);
+        $service->confirmPaid((int)$partnerRemainder['id'], 'BANK-PARTNER-REMAINDER-' . $run, 'isolated remainder payment', 1);
+        $procurementSettled = Db::name('yfth_procurement_profit_ledger')
+            ->where('source_unique_key', 'withdrawal-real-flow-' . $run)->find();
+        $partnerFullyPaid = $summary->invoke($service, 'partner', $partnerUid, 'county_partner', false);
+        $assert((string)$procurementSettled['status'] === 'settled', 'full_payment_settles_source_ledger');
+        $assert((int)$partnerFullyPaid['available_cent'] === 0 && (int)$partnerFullyPaid['paid_cent'] === 100000, 'full_payment_offsets_source_once');
 
         Db::name('yfth_partner_opening_reward_ledger')->insert([
             'application_id' => $run,
@@ -135,6 +152,85 @@ try {
         $expect(function () use ($service, $changed) {
             $service->review((int)$changed['id'], 'approve', 'source changed before review', 1);
         }, 'fund_withdrawal_funds_changed', 'refund_or_dispute_change_blocks_approval');
+
+        Db::name('yfth_partner_opening_reward_ledger')->insert([
+            'application_id' => $run + 1,
+            'store_id' => 0,
+            'partner_uid' => $partnerUid,
+            'rank_code' => 'county_partner',
+            'rule_version_id' => 0,
+            'amount_cent' => 1760000,
+            'status' => 'pending',
+            'source_unique_key' => 'withdrawal-opening-paid-' . $run,
+            'effective_time' => $now - 8 * 86400,
+            'create_time' => $now,
+            'update_time' => $now,
+        ]);
+        $openingRequest = $create->invoke(
+            $service, 'partner', $partnerUid, $partnerUid, 'county_partner', 0,
+            withdrawalPayload('partner-opening-paid-' . $run, 1760000)
+        );
+        $service->review((int)$openingRequest['id'], 'approve', 'opening reward approval', 1);
+        $service->confirmPaid((int)$openingRequest['id'], 'BANK-OPENING-' . $run, 'opening reward bank payment', 1);
+        $openingSource = Db::name('yfth_partner_opening_reward_ledger')
+            ->where('source_unique_key', 'withdrawal-opening-paid-' . $run)->find();
+        $profitSummary = app()->make(ProcurementPartnerProfitServices::class)->partnerSummary($partnerUid);
+        $assert((string)$openingSource['status'] === 'settled', 'opening_reward_source_settled_after_payment');
+        $assert(
+            (int)$profitSummary['opening_service']['pending_cent'] === 0
+            && (int)$profitSummary['opening_service']['settled_cent'] === 1760000,
+            'opening_reward_summary_moves_from_pending_to_settled'
+        );
+
+        Db::name('yfth_partner_opening_reward_ledger')->insert([
+            'application_id' => $run + 2,
+            'store_id' => 0,
+            'partner_uid' => $partnerUid,
+            'rank_code' => 'county_partner',
+            'rule_version_id' => 0,
+            'amount_cent' => 30000,
+            'status' => 'pending',
+            'source_unique_key' => 'withdrawal-opening-reconcile-' . $run,
+            'effective_time' => $now - 8 * 86400,
+            'create_time' => $now,
+            'update_time' => $now,
+        ]);
+        $legacyRequest = $create->invoke(
+            $service, 'partner', $partnerUid, $partnerUid, 'county_partner', 0,
+            withdrawalPayload('partner-opening-reconcile-' . $run, 30000)
+        );
+        $service->review((int)$legacyRequest['id'], 'approve', 'legacy paid request approval', 1);
+        Db::name('yfth_fund_withdrawal_allocation')->where('request_id', (int)$legacyRequest['id'])
+            ->update(['status' => 'paid', 'update_time' => $now]);
+        Db::name('yfth_fund_withdrawal_request')->where('id', (int)$legacyRequest['id'])->update([
+            'status' => 'paid',
+            'pay_admin_id' => 1,
+            'paid_time' => $now,
+            'update_time' => $now,
+        ]);
+        $service->reconcilePaidPartnerRequest((int)$legacyRequest['id'], 1);
+        $service->reconcilePaidPartnerRequest((int)$legacyRequest['id'], 1);
+        $legacyOpeningSource = Db::name('yfth_partner_opening_reward_ledger')
+            ->where('source_unique_key', 'withdrawal-opening-reconcile-' . $run)->find();
+        $profitSummaryAfterRepair = app()->make(ProcurementPartnerProfitServices::class)->partnerSummary($partnerUid);
+        $assert((string)$legacyOpeningSource['status'] === 'settled', 'historical_paid_request_reconciles_source_idempotently');
+        $assert(
+            (int)$profitSummaryAfterRepair['opening_service']['pending_cent'] === 0
+            && (int)$profitSummaryAfterRepair['opening_service']['settled_cent'] === 1790000,
+            'historical_repair_updates_opening_reward_summary'
+        );
+        $unified = new ReflectionMethod(FranchisePartnerServices::class, 'unifiedEarningSummary');
+        $unified->setAccessible(true);
+        $workbenchSummary = $unified->invoke(
+            app()->make(FranchisePartnerServices::class),
+            ['pending' => '0.00', 'confirmed' => '0.00', 'settled' => '0.00', 'cancelled' => '0.00'],
+            $profitSummaryAfterRepair
+        );
+        $assert(
+            (string)$workbenchSummary['pending'] === '0.00'
+            && (string)$workbenchSummary['settled'] === '18900.00',
+            'partner_workbench_uses_settled_source_totals'
+        );
 
         $storeId = $run + 2;
         $managerUid = $run + 3;

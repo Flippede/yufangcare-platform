@@ -181,6 +181,9 @@ class FundWithdrawalServices
             }
             Db::name('yfth_fund_withdrawal_allocation')->where('request_id', $id)
                 ->where('status', 'frozen')->update(['status' => 'paid', 'update_time' => $now]);
+            if ((string)$row['owner_type'] === 'partner') {
+                $this->settlePaidPartnerSources($id, (int)$row['owner_id'], $adminId, $now);
+            }
             Db::name('yfth_fund_withdrawal_request')->where('id', $id)->update([
                 'status' => 'paid',
                 'pay_admin_id' => $adminId,
@@ -189,6 +192,23 @@ class FundWithdrawalServices
                 'paid_time' => $now,
                 'update_time' => $now,
             ]);
+            return $this->requestDto($this->requestRow($id), false);
+        });
+    }
+
+    public function reconcilePaidPartnerRequest(int $id, int $adminId = 0): array
+    {
+        return Db::transaction(function () use ($id, $adminId) {
+            $row = $this->requestRow($id, true);
+            if ((string)$row['owner_type'] !== 'partner' || (string)$row['status'] !== 'paid') {
+                throw new ApiException('fund_withdrawal_paid_partner_request_required');
+            }
+            $this->settlePaidPartnerSources(
+                $id,
+                (int)$row['owner_id'],
+                $adminId > 0 ? $adminId : (int)$row['pay_admin_id'],
+                (int)$row['paid_time'] > 0 ? (int)$row['paid_time'] : time()
+            );
             return $this->requestDto($this->requestRow($id), false);
         });
     }
@@ -362,17 +382,17 @@ class FundWithdrawalServices
         $eligibleSources = array_values(array_filter($allSources, function (array $row) use ($cutoff) {
             return (int)$row['effective_time'] <= $cutoff;
         }));
-        $eligible = array_sum(array_column($eligibleSources, 'amount_cent'));
-        $total = array_sum(array_column($allSources, 'amount_cent'));
+        $eligibleGross = array_sum(array_column($eligibleSources, 'amount_cent'));
+        $eligible = array_sum(array_column($eligibleSources, 'remaining_cent'));
+        $total = array_sum(array_column($allSources, 'remaining_cent'));
         $observing = max(0, $total - $eligible);
         $frozen = $this->requestAmount($ownerType, $ownerId, self::ACTIVE_STATUSES);
         $paid = $this->requestAmount($ownerType, $ownerId, ['paid']);
-        $available = max(0, $eligible - $frozen - $paid);
-        return array_merge($this->moneySummary($available, $observing, $frozen, $paid), [
+        return array_merge($this->moneySummary(max(0, $eligible), $observing, $frozen, $paid), [
             'rank_code' => $rankCode,
             'observation_days' => $days,
-            'eligible_gross_cent' => $eligible,
-            'eligible_gross' => $this->money($eligible),
+            'eligible_gross_cent' => $eligibleGross,
+            'eligible_gross' => $this->money($eligibleGross),
         ]);
     }
 
@@ -389,6 +409,18 @@ class FundWithdrawalServices
     private function partnerSources(int $uid, int $cutoff, bool $lock): array
     {
         $sources = [];
+        $allocated = [];
+        $allocationQuery = Db::name('yfth_fund_withdrawal_allocation')
+            ->where(['owner_type' => 'partner', 'owner_id' => $uid])
+            ->whereIn('status', ['frozen', 'paid'])
+            ->field('source_type,source_id,amount_cent');
+        if ($lock) {
+            $allocationQuery->lock(true);
+        }
+        foreach ($allocationQuery->select()->toArray() as $row) {
+            $key = (string)$row['source_type'] . ':' . (int)$row['source_id'];
+            $allocated[$key] = (int)($allocated[$key] ?? 0) + (int)$row['amount_cent'];
+        }
         $queries = [
             ['partner_reward', 'yfth_partner_reward_candidate', 'beneficiary_uid', 'confirmed', 'amount', true, 'operator_time'],
             ['procurement_profit', 'yfth_procurement_profit_ledger', 'beneficiary_uid', 'pending', 'amount_cent', false, 'create_time'],
@@ -405,10 +437,20 @@ class FundWithdrawalServices
                 $query->lock(true);
             }
             foreach ($query->order($timeField . ' asc,id asc')->select()->toArray() as $row) {
+                $amountCent = $decimal ? $this->amountToCent((string)$row[$amountField]) : (int)$row[$amountField];
+                $allocatedCent = max(0, (int)($allocated[$type . ':' . (int)$row['id']] ?? 0));
+                if ($amountCent <= 0 && $allocatedCent > 0) {
+                    throw new ApiException('fund_withdrawal_negative_source_allocated');
+                }
+                if ($amountCent > 0 && $allocatedCent > $amountCent) {
+                    throw new ApiException('fund_withdrawal_source_allocation_inconsistent');
+                }
                 $sources[] = [
                     'source_type' => $type,
                     'source_id' => (int)$row['id'],
-                    'amount_cent' => $decimal ? $this->amountToCent((string)$row[$amountField]) : (int)$row[$amountField],
+                    'amount_cent' => $amountCent,
+                    'allocated_cent' => $allocatedCent,
+                    'remaining_cent' => $amountCent > 0 ? $amountCent - $allocatedCent : $amountCent,
                     'effective_time' => max(0, (int)($row[$timeField] ?: ($row['create_time'] ?? 0))),
                 ];
             }
@@ -453,6 +495,7 @@ class FundWithdrawalServices
     {
         if ((string)$row['owner_type'] === 'partner') {
             $this->assertFrozenPartnerSources((int)$row['id'], (int)$row['owner_id']);
+            return;
         }
         $summary = $this->ownerSummary(
             (string)$row['owner_type'],
@@ -471,11 +514,6 @@ class FundWithdrawalServices
                 throw new ApiException('fund_withdrawal_funds_changed');
             }
             return;
-        }
-        $paid = $this->requestAmount('partner', (int)$row['owner_id'], ['paid']);
-        $gross = (int)$summary['eligible_gross_cent'];
-        if ($gross < $paid + $activeTotal) {
-            throw new ApiException('fund_withdrawal_funds_changed');
         }
     }
 
@@ -558,6 +596,94 @@ class FundWithdrawalServices
                 'snapshot_json' => json_encode(['withdrawal_request_no' => $row['request_no']], JSON_UNESCAPED_UNICODE),
                 'operator_uid' => $adminId, 'add_time' => $now,
             ]);
+        }
+    }
+
+    private function settlePaidPartnerSources(int $requestId, int $ownerId, int $adminId, int $now): void
+    {
+        $definitions = [
+            'partner_reward' => [
+                'table' => 'yfth_partner_reward_candidate',
+                'owner_field' => 'beneficiary_uid',
+                'source_status' => 'confirmed',
+                'amount_field' => 'amount',
+                'decimal' => true,
+                'update' => [
+                    'status' => 'settled',
+                    'operator_uid' => $adminId,
+                    'operator_time' => $now,
+                    'remark' => '总部确认线下打款',
+                    'update_time' => $now,
+                ],
+            ],
+            'procurement_profit' => [
+                'table' => 'yfth_procurement_profit_ledger',
+                'owner_field' => 'beneficiary_uid',
+                'source_status' => 'pending',
+                'amount_field' => 'amount_cent',
+                'decimal' => false,
+                'update' => ['status' => 'settled', 'settled_time' => $now, 'update_time' => $now],
+            ],
+            'opening_reward' => [
+                'table' => 'yfth_partner_opening_reward_ledger',
+                'owner_field' => 'partner_uid',
+                'source_status' => 'pending',
+                'amount_field' => 'amount_cent',
+                'decimal' => false,
+                'update' => ['status' => 'settled', 'update_time' => $now],
+            ],
+            'platform_dividend' => [
+                'table' => 'yfth_platform_dividend_item',
+                'owner_field' => 'beneficiary_uid',
+                'source_status' => 'pending',
+                'amount_field' => 'amount_cent',
+                'decimal' => false,
+                'update' => ['status' => 'settled', 'update_time' => $now],
+            ],
+        ];
+        $allocations = Db::name('yfth_fund_withdrawal_allocation')
+            ->where(['request_id' => $requestId, 'owner_type' => 'partner', 'owner_id' => $ownerId])
+            ->where('status', 'paid')
+            ->lock(true)
+            ->select()
+            ->toArray();
+        if (!$allocations) {
+            throw new ApiException('fund_withdrawal_paid_allocation_missing');
+        }
+        foreach ($allocations as $allocation) {
+            $sourceType = (string)$allocation['source_type'];
+            if (!isset($definitions[$sourceType])) {
+                throw new ApiException('fund_withdrawal_source_type_invalid');
+            }
+            $definition = $definitions[$sourceType];
+            $source = Db::name($definition['table'])
+                ->where('id', (int)$allocation['source_id'])
+                ->where($definition['owner_field'], $ownerId)
+                ->lock(true)
+                ->find();
+            if (!$source) {
+                throw new ApiException('fund_withdrawal_source_missing');
+            }
+            $sourceCent = $definition['decimal']
+                ? $this->amountToCent((string)$source[$definition['amount_field']])
+                : (int)$source[$definition['amount_field']];
+            $paidCent = (int)Db::name('yfth_fund_withdrawal_allocation')
+                ->where(['owner_type' => 'partner', 'owner_id' => $ownerId])
+                ->where(['source_type' => $sourceType, 'source_id' => (int)$allocation['source_id']])
+                ->where('status', 'paid')
+                ->sum('amount_cent');
+            if ($sourceCent <= 0 || $paidCent > $sourceCent) {
+                throw new ApiException('fund_withdrawal_source_allocation_inconsistent');
+            }
+            if ((string)$source['status'] === 'settled') {
+                continue;
+            }
+            if ((string)$source['status'] !== $definition['source_status']) {
+                throw new ApiException('fund_withdrawal_source_status_inconsistent');
+            }
+            if ($paidCent === $sourceCent) {
+                Db::name($definition['table'])->where('id', (int)$source['id'])->update($definition['update']);
+            }
         }
     }
 
