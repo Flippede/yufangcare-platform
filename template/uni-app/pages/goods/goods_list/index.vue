@@ -48,15 +48,21 @@
 						</view>
 						<view class='text' :class='is_switch==true?"":"on"'>
 							<view class='name line2'>{{item.store_name}}</view>
-							<view class='money font-color' :class='is_switch==true?"":"on"'>{{$t(`￥`)}}<text
-									class='num'>{{item.price}}</text></view>
+							<view class='price-row acea-row row-between-wrapper'>
+								<view class='money font-color' :class='is_switch==true?"":"on"'>{{$t(`￥`)}}<text
+										class='num'>{{item.price}}</text></view>
+								<view class='cart-action iconfont icon-gouwuche6 acea-row row-center-wrapper'
+									:class='{ disabled: !item.stock }' @click.stop='addToCart(item, index)'>
+									<text class='cart-count' v-if='item.cart_num'>{{item.cart_num}}</text>
+								</view>
+							</view>
 							<view class='vip acea-row row-between-wrapper' :class='is_switch==true?"":"on"'>
 								<view class='vip-money' v-if="item.vip_price && item.vip_price > 0">
 									{{$t(`￥`)}}{{item.vip_price}}
 									<image src='../../../static/images/vip.png'></image>
 								</view>
 								<view v-else></view>
-								<view>{{$t(`已售`)}} {{item.sales}}{{$t(item.unit_name) || $t(`件`)}}</view>
+								<view>{{$t(`销量`)}} {{item.sales || 0}}</view>
 							</view>
 						</view>
 					</view>
@@ -88,12 +94,16 @@
 	import home from '@/components/home';
 	import {
 		getProductslist,
-		getProductHot
+		getProductHot,
+		postCartNum
 	} from '@/api/store.js';
 	import recommend from '@/components/recommend';
 	import {
 		mapGetters
 	} from "vuex";
+	import {
+		toLogin
+	} from '@/libs/login.js';
 	import {
 		goShopDetail
 	} from '@/libs/order.js'
@@ -102,7 +112,7 @@
 	} from '@/config/app';
 	import colors from '@/mixins/color.js';
 	export default {
-		computed: mapGetters(['uid']),
+		computed: mapGetters(['uid', 'isLogin']),
 		components: {
 			recommend,
 			home
@@ -151,6 +161,36 @@
 			this.get_product_list();
 		},
 		methods: {
+			addToCart(item, index) {
+				if (!item.stock) {
+					return this.$util.Tips({
+						title: this.$t(`已售罄`)
+					});
+				}
+				if (!this.isLogin) {
+					return toLogin();
+				}
+				if (item.spec_type || !item.cart_button || item.is_virtual || (item.activity && item.activity.type)) {
+					return this.godDetail(item);
+				}
+				postCartNum({
+					product_id: item.id,
+					type: 1,
+					num: item.min_qty || 1,
+					unique: ''
+				}).then(() => {
+					const cartNum = Number(item.cart_num || 0) + Number(item.min_qty || 1);
+					this.$set(this.productList[index], 'cart_num', cartNum);
+					this.$util.Tips({
+						title: this.$t(`加入购物车成功`)
+					});
+				}).catch(err => {
+					const message = err && (err.msg || err.message) ? err.msg || err.message : String(err || this.$t(`操作失败，请稍后重试`));
+					this.$util.Tips({
+						title: message
+					});
+				});
+			},
 			scroll(e) {
 				this.scrollTopShow = e.detail.scrollTop > 150
 				this.old.scrollTop = e.detail.scrollTop
@@ -462,6 +502,49 @@
 
 	.productList .list .item .text .money .num {
 		font-size: 34rpx;
+	}
+
+	.productList .list .item .text .price-row {
+		min-height: 58rpx;
+		margin-top: 8rpx;
+	}
+
+	.productList .list .item .text .price-row .money,
+	.productList .list .item .text .price-row .money.on {
+		margin-top: 0;
+	}
+
+	.productList .list .item .text .cart-action {
+		position: relative;
+		flex: 0 0 52rpx;
+		width: 52rpx;
+		height: 52rpx;
+		border-radius: 50%;
+		background: var(--view-theme);
+		color: #fff;
+		font-size: 30rpx;
+		box-shadow: 0 8rpx 18rpx rgba(159, 119, 65, 0.2);
+	}
+
+	.productList .list .item .text .cart-action.disabled {
+		background: #ccc;
+		box-shadow: none;
+	}
+
+	.productList .list .item .text .cart-action .cart-count {
+		position: absolute;
+		top: -12rpx;
+		right: -10rpx;
+		min-width: 30rpx;
+		height: 30rpx;
+		padding: 0 6rpx;
+		box-sizing: border-box;
+		border-radius: 15rpx;
+		background: var(--view-priceColor);
+		color: #fff;
+		font-size: 18rpx;
+		line-height: 30rpx;
+		text-align: center;
 	}
 
 	.productList .list .item .text .vip {

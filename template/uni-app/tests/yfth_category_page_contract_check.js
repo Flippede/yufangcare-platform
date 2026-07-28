@@ -2,10 +2,12 @@ const fs = require('fs');
 const path = require('path');
 
 const root = path.resolve(__dirname, '..');
-const categoryPage = fs.readFileSync(path.join(root, 'pages/goods_cate/goods_cate.vue'), 'utf8');
-const categoryFirst = fs.readFileSync(path.join(root, 'pages/goods_cate/goods_cate1.vue'), 'utf8');
-const customHome = fs.readFileSync(path.join(root, 'pages/index/components/yfthCustomHome.vue'), 'utf8');
-const requestUtil = fs.readFileSync(path.join(root, 'utils/request.js'), 'utf8');
+const readSource = (file) => fs.readFileSync(path.join(root, file), 'utf8').replace(/\r\n/g, '\n');
+const categoryPage = readSource('pages/goods_cate/goods_cate.vue');
+const categoryFirst = readSource('pages/goods_cate/goods_cate1.vue');
+const customHome = readSource('pages/index/components/yfthCustomHome.vue');
+const goodsList = readSource('pages/goods/goods_list/index.vue');
+const requestUtil = readSource('utils/request.js');
 
 function requireText(source, text, name) {
   if (!source.includes(text)) throw new Error(`missing:${name}`);
@@ -34,6 +36,14 @@ function requireText(source, text, name) {
   ['/pages/goods_details/index?id=', 'product_navigation'],
   ["/pages/yfth/package/list", 'package_navigation'],
 ].forEach(([text, name]) => requireText(customHome, text, name));
+
+[
+  ["@click.stop='addToCart(item, index)'", 'goods_list_cart_action'],
+  ['postCartNum({', 'goods_list_existing_cart_api'],
+  ["this.$set(this.productList[index], 'cart_num'", 'goods_list_cart_count_feedback'],
+  ['{{$t(`销量`)}} {{item.sales || 0}}', 'goods_list_sales_display'],
+  ['if (item.spec_type || !item.cart_button', 'goods_list_spec_guard'],
+].forEach(([text, name]) => requireText(goodsList, text, name));
 
 [
   ['function h5FetchRequest', 'h5_fetch_adapter'],
