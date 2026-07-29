@@ -498,6 +498,6 @@ export default {
 .withdraw-form.compact button { width: 100%; margin: 0; }
 .withdraw-list { margin-top: 12rpx; }
 .partner-tabbar { position: fixed; z-index: 30; right: 0; bottom: 0; left: 0; display: grid; grid-template-columns: repeat(6,1fr); min-height: calc(106rpx + env(safe-area-inset-bottom)); max-width: 750px; margin: 0 auto; padding: 0 8rpx env(safe-area-inset-bottom); box-sizing: border-box; border-top: 1rpx solid #eadfce; background: #fffaf3; }
-.partner-tab { display: flex; align-items: center; justify-content: center; min-height: 106rpx; overflow: hidden; color: #75695f; font-size: 21rpx; text-align: center; text-overflow: ellipsis; white-space: nowrap; }
+.partner-tab { display: flex; align-items: center; justify-content: center; min-height: 106rpx; overflow: hidden; color: #75695f; font-size: 23rpx; text-align: center; text-overflow: ellipsis; white-space: nowrap; }
 .partner-tab.active { color: #8b633b; font-weight: 700; }
 </style>

@@ -123,6 +123,9 @@ assertContains('pages/yfth/workbench/customer/index.vue', 'business-pane="custom
 assertContains('pages/yfth/workbench/customer/detail.vue', 'business-pane="customers"', 'customer detail must retain the shared operating footer');
 assertContains('pages/yfth/workbench/customer/follow.vue', 'business-pane="customers"', 'customer follow must retain the shared operating footer');
 assertContains('components/pageFooter/index.vue', 'businessActivePane', 'shared footer must support active operating panes outside the workbench route');
+assertContains('components/pageFooter/index.vue', 'isPartnerRole(context.role_code)', 'shared mall footer must route partner panes back to the partner workbench');
+assertContains('components/pageFooter/index.vue', '/pages/yfth/franchise/partner/index?tab=${encodeURIComponent(item.pane)}', 'shared mall footer must preserve the selected partner pane');
+assert(partnerPage.includes('font-size: 23rpx'), 'partner internal tabs must match the shared mall and user-center footer font size');
 assertContains('components/pageFooter/index.vue', 'isBusinessNavActive(item)', 'shared footer must use one active-state resolver for actions and panes');
 assertContains('pages/yfth/workbench/customer/index.vue', 'phone_masked', 'customer list must render masked phone only');
 assertNotContains('pages/yfth/workbench/customer/index.vue', 'phone }}</', 'customer list must not render raw phone');

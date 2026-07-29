@@ -58,6 +58,7 @@ import {
 	enterYfthBusinessMall,
 	enterYfthBusinessUserCenter,
 	isBusinessRole,
+	isPartnerRole,
 	isYfthBusinessMallBrowsing,
 	isYfthBusinessUserCenterBrowsing,
 	leaveYfthBusinessMall,
@@ -249,7 +250,11 @@ export default {
 				return;
 			}
 			if (item.pane) {
-				uni.reLaunch({ url: `/pages/yfth/workbench/index?pane=${encodeURIComponent(item.pane)}` });
+				const context = currentContext();
+				const url = isPartnerRole(context.role_code)
+					? `/pages/yfth/franchise/partner/index?tab=${encodeURIComponent(item.pane)}`
+					: `/pages/yfth/workbench/index?pane=${encodeURIComponent(item.pane)}`;
+				uni.reLaunch({ url });
 				return;
 			}
 			if (!item.url) return;
