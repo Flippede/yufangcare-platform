@@ -40,6 +40,9 @@ assert(userPage.includes('yfthBusinessIdentityRequestSeq'), 'user center must gu
 assert(userPage.includes('requestUid') && userPage.includes('currentUid'), 'user center must prevent stale identity requests from writing after user switch');
 assert(userPage.includes("uni.navigateTo({ url: '/pages/yfth/referral/code' });"), 'customer identity-code entry must open the shared identity/referral code page');
 assert(!userPage.includes('if (!this.isYfthPermanentMember) { this.goYfthPackagePurchase(); return; }'), 'ordinary customers must not be redirected from their identity code to package purchase');
+assert(userPage.includes('@click="goYfthHeadquartersMall"'), 'partner headquarters mall entry must use the explicit business mall route');
+assert(userPage.includes('enterYfthBusinessMall();') && userPage.includes("uni.switchTab({ url: '/pages/index/index' });"), 'partner headquarters mall entry must preserve operating context without bouncing to the workbench');
+assert(!userPage.includes(`@click="goMenuPage('/pages/index/index')"`) , 'partner headquarters mall entry must not use the generic route fallback');
 
 const referralCodePage = read('pages/yfth/referral/code.vue');
 assert(referralCodePage.includes('v-if="!isMember"') && referralCodePage.includes('我的身份码'), 'ordinary customers must render the identity-code panel');

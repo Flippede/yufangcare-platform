@@ -100,7 +100,7 @@
 							<view @click="goYfthReferralCode"><text class="exclusive-icon">招</text><text>招商申请码</text></view>
 							<view @click="goYfthPartnerTeam"><text class="exclusive-icon">队</text><text>团队与门店</text></view>
 							<view @click="goYfthCommissionAccount"><text class="exclusive-icon">益</text><text>合伙人收益</text></view>
-							<view @click="goMenuPage('/pages/index/index')"><text class="exclusive-icon">商</text><text>总部商城</text></view>
+							<view @click="goYfthHeadquartersMall"><text class="exclusive-icon">商</text><text>总部商城</text></view>
 						</view>
 						<view v-else class="exclusive-grid">
 							<view @click="goYfthReferralCode"><text class="exclusive-icon">码</text><text>{{ yfthCodeLabel }}</text></view>
@@ -244,7 +244,7 @@ import colors from '@/mixins/color';
 import pageFooter from '@/components/pageFooter/index.vue';
 import { getCustomer } from '@/utils/index.js';
 import editUserModal from '@/components/eidtUserModal/index.vue';
-import { currentContext, dominantYfthIdentities, isBusinessRole, isPartnerRole, isYfthBusinessUserCenterBrowsing, leaveYfthBusinessUserCenter, loadYfthIdentities, resolveDominantYfthContext, roleLabel } from '@/libs/yfthContext.js';
+import { currentContext, dominantYfthIdentities, enterYfthBusinessMall, isBusinessRole, isPartnerRole, isYfthBusinessUserCenterBrowsing, leaveYfthBusinessUserCenter, loadYfthIdentities, resolveDominantYfthContext, roleLabel } from '@/libs/yfthContext.js';
 import { getYfthPackageMembershipMe, getYfthCommissionSummary, getYfthPartnerWorkbench } from '@/api/yfth.js';
 export default {
 	components: {
@@ -830,6 +830,11 @@ export default {
 			}).catch((err) => {
 				uni.showToast({ title: String((err && err.msg) || err || '身份读取失败'), icon: 'none' });
 			});
+		},
+
+		goYfthHeadquartersMall() {
+			enterYfthBusinessMall();
+			uni.switchTab({ url: '/pages/index/index' });
 		},
 
 		goYfthFranchiseApplications() {
