@@ -1,21 +1,13 @@
 <template>
 	<!-- 底部导航 -->
 	<view v-if="businessMode">
-		<view class="fixed-lb w-full pb-safe z-999 business-footer-fixed">
-			<view class="business-footer">
-				<view
-					v-for="(item, index) in businessNavs"
-					:key="index"
-					class="business-footer-item"
-					:class="{ active: isBusinessNavActive(item) }"
-					@click="goBusinessRouter(item)"
-				>
-					{{ item.title }}
-				</view>
-			</view>
-		</view>
-		<view class="business-footer-space"></view>
-		<view class="safe-area-inset-bottom"></view>
+		<yfth-business-footer
+			:items="businessNavs"
+			:active-action="businessActiveAction"
+			:active-pane="businessActivePane"
+			:reserve-space="true"
+			@select="goBusinessRouter"
+		/>
 	</view>
 	<view v-else-if="showTabBar">
 		<view class="fixed-lb w-full pb-safe z-999" :class="{ 'centered-h5-footer': centeredH5 }" :style="[bgColor]">
@@ -53,6 +45,7 @@ import { mapState, mapGetters } from 'vuex';
 import { getNavigation } from '@/api/public.js';
 // import {getCartCounts} from '@/api/order.js';
 import BaseBadge from '@/components/BaseBadge/index.vue';
+import YfthBusinessFooter from '@/components/yfthBusinessFooter/index.vue';
 import {
 	currentContext,
 	enterYfthBusinessMall,
@@ -67,7 +60,7 @@ import {
 } from '@/libs/yfthContext.js';
 export default {
 	name: 'pageFooter',
-	components: { BaseBadge },
+	components: { BaseBadge, YfthBusinessFooter },
 	props: {
 		businessPane: {
 			type: String,
@@ -351,46 +344,8 @@ export default {
 	position: relative;
 }
 
-.business-footer-fixed {
-	background: #fffaf4;
-	border-top: 1rpx solid #eadfce;
-}
-
-.business-footer {
-	display: flex;
-	height: 106rpx;
-}
-
-.business-footer-item {
-	min-width: 0;
-	flex: 1;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	color: #786b73;
-	font-size: 23rpx;
-	white-space: nowrap;
-}
-
-.business-footer-item.active {
-	color: #6f4c2f;
-	font-weight: 700;
-}
-
-.business-footer-space {
-	height: 106rpx;
-}
-
 /* #ifdef H5 */
 @media screen and (min-width: 768px) {
-	.business-footer-fixed {
-		left: 50%;
-		right: auto;
-		width: 540px !important;
-		max-width: 100%;
-		transform: translateX(-50%);
-	}
-
 	.fixed-lb.centered-h5-footer {
 		left: 50%;
 		right: auto;

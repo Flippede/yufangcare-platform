@@ -257,16 +257,12 @@
 			</view>
 		</block>
 
-		<view v-if="navItems.length" class="nav">
-			<view
-				v-for="item in navItems"
-				:key="item.title"
-				:class="['nav-item', activeNav(item) ? 'active' : '']"
-				@click="tapNav(item)"
-			>
-				<text>{{ item.title }}</text>
-			</view>
-		</view>
+		<yfth-business-footer
+			v-if="navItems.length"
+			:items="navItems"
+			:active-pane="pane"
+			@select="tapNav"
+		/>
 	</view>
 </template>
 
@@ -301,8 +297,10 @@ import {
 	roleNav,
 	switchYfthStore
 } from '@/libs/yfthContext.js';
+import YfthBusinessFooter from '@/components/yfthBusinessFooter/index.vue';
 
 export default {
+	components: { YfthBusinessFooter },
 	data() {
 		const cachedContext = currentContext();
 		return {
@@ -912,7 +910,4 @@ button { font-size: 26rpx; }
 .error { color: #a74e4e; }
 input { background: #fffaf2; border-radius: 10rpx; padding: 0 20rpx; height: 64rpx; line-height: 64rpx; font-size: 26rpx; flex: 1; }
 .token-input { margin-top: 16rpx; width: auto; }
-.nav { position: fixed; left: 0; right: 0; bottom: 0; height: 106rpx; background: #fffaf4; border-top: 1rpx solid #eadfce; display: flex; z-index: 30; }
-.nav-item { min-width: 0; flex: 1; display: flex; align-items: center; justify-content: center; color: #786b73; font-size: 23rpx; white-space: nowrap; }
-.nav-item.active { color: #6f4c2f; font-weight: 700; }
 </style>

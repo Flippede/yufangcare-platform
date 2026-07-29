@@ -86,7 +86,8 @@ assertContains('pages/yfth/workbench/index.vue', 'resolveDominantYfthContext', '
 assertContains('pages/yfth/workbench/index.vue', "/pages/yfth/franchise/partner/index?tab=dashboard", 'partner roles must leave the store workbench before store APIs are called');
 assertContains('pages/yfth/workbench/index.vue', "item.action === 'mall'", 'workbench mall entry must opt into headquarters mall browsing');
 assertContains('pages/yfth/workbench/index.vue', 'const cachedContext = currentContext()', 'workbench must keep the cached operating navigation stable during server refresh');
-assertContains('pages/yfth/workbench/index.vue', 'v-if="navItems.length" class="nav"', 'workbench must hide navigation instead of flashing customer tabs without an operating context');
+assertContains('pages/yfth/workbench/index.vue', '<yfth-business-footer', 'workbench must use the shared operating footer');
+assertContains('pages/yfth/workbench/index.vue', 'v-if="navItems.length"', 'workbench must hide navigation instead of flashing customer tabs without an operating context');
 assertContains('pages/yfth/workbench/index.vue', 'if (!this.context || !isBusinessRole(this.context.role_code)) return [];', 'workbench navigation must never fall back to customer tabs during route transitions');
 assert(
 	/canPurchaseInventory\(\)\s*\{\s*return this\.context\.role_code === 'store_manager';\s*\}/.test(read('pages/yfth/workbench/index.vue')),
@@ -107,7 +108,7 @@ assert(partnerPage.includes("activeTab === 'dashboard'") && partnerPage.includes
 assert(partnerPage.includes('合伙人收益与门店 C1/B1 佣金分开核算'), 'partner workbench must state the isolated earning boundary');
 assert(partnerPage.includes('招商申请二维码') && partnerPage.includes('不会建立 C1 推荐关系'), 'partner QR must remain an application-source code');
 assert(partnerPage.includes('unified_earning_summary'), 'partner workbench must use the unified partner earning summary');
-assert(partnerPage.includes('min-height: 106rpx'), 'partner workbench footer must match the shared mall and user-center footer height');
+assertContains('pages/yfth/franchise/partner/index.vue', '<yfth-business-footer', 'partner workbench must use the shared operating footer');
 assert(userPage.includes("this.isYfthPartner ? '/pages/yfth/franchise/partner/index?tab=earnings'"), 'partner account entry must use the unified partner earning surface');
 assert(userPage.includes("goYfthPartnerTeam") && userPage.includes('合伙人中心'), 'partner user center must expose partner-specific entries');
 
@@ -125,7 +126,13 @@ assertContains('pages/yfth/workbench/customer/follow.vue', 'business-pane="custo
 assertContains('components/pageFooter/index.vue', 'businessActivePane', 'shared footer must support active operating panes outside the workbench route');
 assertContains('components/pageFooter/index.vue', 'isPartnerRole(context.role_code)', 'shared mall footer must route partner panes back to the partner workbench');
 assertContains('components/pageFooter/index.vue', '/pages/yfth/franchise/partner/index?tab=${encodeURIComponent(item.pane)}', 'shared mall footer must preserve the selected partner pane');
-assert(partnerPage.includes('font-size: 23rpx'), 'partner internal tabs must match the shared mall and user-center footer font size');
+const businessFooter = read('components/yfthBusinessFooter/index.vue');
+assertContains('components/pageFooter/index.vue', '<yfth-business-footer', 'mall and user-center surfaces must use the global operating footer');
+assert(businessFooter.includes('height: 106rpx') && businessFooter.includes('font-size: 23rpx'), 'global operating footer must own the shared height and font size');
+assert(businessFooter.includes('display: flex') && businessFooter.includes('min-width: 0') && businessFooter.includes('flex: 1'), 'global operating footer must own equal-width tab spacing');
+assert(businessFooter.includes('padding-bottom: env(safe-area-inset-bottom)') && businessFooter.includes('width: 540px'), 'global operating footer must own safe-area and desktop bounds');
+assertNotContains('pages/yfth/franchise/partner/index.vue', '.partner-tabbar', 'partner page must not keep a private footer style');
+assertNotContains('pages/yfth/workbench/index.vue', '.nav-item', 'store workbench must not keep a private footer style');
 assertContains('components/pageFooter/index.vue', 'isBusinessNavActive(item)', 'shared footer must use one active-state resolver for actions and panes');
 assertContains('pages/yfth/workbench/customer/index.vue', 'phone_masked', 'customer list must render masked phone only');
 assertNotContains('pages/yfth/workbench/customer/index.vue', 'phone }}</', 'customer list must not render raw phone');
