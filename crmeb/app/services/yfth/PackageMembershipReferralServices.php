@@ -123,42 +123,8 @@ class PackageMembershipReferralServices extends YfthFoundationBaseServices
         }
 
         $rewardByUid = [];
-        $rewardRows = Db::name('yfth_direct_referral_reward_candidate')
-            ->where('referrer_uid', $uid)
-            ->whereIn('referred_uid', $referredUids)
-            ->field('referred_uid,status,SUM(reward_amount_cent) AS amount_cent,COUNT(*) AS candidate_count')
-            ->group('referred_uid,status')
-            ->select()
-            ->toArray();
-        foreach ($rewardRows as $reward) {
-            $referredUid = (int)$reward['referred_uid'];
-            $status = (string)$reward['status'];
-            $amount = (int)$reward['amount_cent'];
-            $candidateCount = (int)$reward['candidate_count'];
-            if (!isset($rewardByUid[$referredUid])) {
-                $rewardByUid[$referredUid] = [
-                    'reward_amount_cent' => 0,
-                    'pending_amount_cent' => 0,
-                    'settled_amount_cent' => 0,
-                    'candidate_count' => 0,
-                ];
-            }
-            if ($status === 'cancelled') {
-                continue;
-            }
-            $rewardByUid[$referredUid]['reward_amount_cent'] += $amount;
-            $rewardByUid[$referredUid]['candidate_count'] += $candidateCount;
-            if ($status === 'settled') {
-                $rewardByUid[$referredUid]['settled_amount_cent'] += $amount;
-            } elseif (in_array($status, ['pending', 'confirmed'], true)) {
-                $rewardByUid[$referredUid]['pending_amount_cent'] += $amount;
-            }
-        }
-
-        // Automatic commission is now the only writer for new package and mall
-        // rewards. Keep legacy candidates readable, but project current accruals
-        // into the same narrow user DTO so the referral screen never depends on
-        // a second, stale execution path.
+        // Automatic accrual is the sole C-end reward source. The amount snapshot
+        // is now executed and displayed as points, never as withdrawable cash.
         $automaticRows = Db::name('yfth_commission_accrual')
             ->where('c1_uid', $uid)
             ->whereIn('buyer_uid', $referredUids)
@@ -174,21 +140,19 @@ class PackageMembershipReferralServices extends YfthFoundationBaseServices
             $accrualCount = (int)$reward['accrual_count'];
             if (!isset($rewardByUid[$referredUid])) {
                 $rewardByUid[$referredUid] = [
-                    'reward_amount_cent' => 0,
-                    'pending_amount_cent' => 0,
-                    'settled_amount_cent' => 0,
-                    'candidate_count' => 0,
+                    'reward_point_cent' => 0,
+                    'observing_point_cent' => 0,
+                    'reward_count' => 0,
                 ];
             }
             if (in_array($status, ['cancelled', 'reversed'], true)) {
                 continue;
             }
-            $rewardByUid[$referredUid]['reward_amount_cent'] += $amount;
-            $rewardByUid[$referredUid]['candidate_count'] += $accrualCount;
-            // C1's line-item settlement is a separate local settlement fact;
-            // observing and credited automatic amounts remain payable until it
-            // is completed through that existing B1 workflow.
-            $rewardByUid[$referredUid]['pending_amount_cent'] += $amount;
+            $rewardByUid[$referredUid]['reward_point_cent'] += $amount;
+            $rewardByUid[$referredUid]['reward_count'] += $accrualCount;
+            if ($status === 'observing') {
+                $rewardByUid[$referredUid]['observing_point_cent'] += $amount;
+            }
         }
 
         $list = [];
@@ -209,10 +173,9 @@ class PackageMembershipReferralServices extends YfthFoundationBaseServices
                 'avatar' => (string)($user['avatar'] ?? ''),
                 'relation_status' => (string)$relation['status'],
                 'started_at' => (int)$relation['started_at'],
-                'reward_amount_cent' => (int)($reward['reward_amount_cent'] ?? 0),
-                'pending_amount_cent' => (int)($reward['pending_amount_cent'] ?? 0),
-                'settled_amount_cent' => (int)($reward['settled_amount_cent'] ?? 0),
-                'candidate_count' => (int)($reward['candidate_count'] ?? 0),
+                'reward_points' => rtrim(rtrim(number_format((int)($reward['reward_point_cent'] ?? 0) / 100, 2, '.', ''), '0'), '.'),
+                'observing_points' => rtrim(rtrim(number_format((int)($reward['observing_point_cent'] ?? 0) / 100, 2, '.', ''), '0'), '.'),
+                'reward_count' => (int)($reward['reward_count'] ?? 0),
             ];
         }
 

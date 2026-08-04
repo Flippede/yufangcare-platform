@@ -175,6 +175,12 @@
 					}
 				},
 				{
+					"path": "customer_service/index",
+					"style": {
+						"navigationBarTitleText": "客服工作台"
+					}
+				},
+				{
 					"path": "workbench/role_switch",
 					"style": {
 						"navigationBarTitleText": "选择身份"

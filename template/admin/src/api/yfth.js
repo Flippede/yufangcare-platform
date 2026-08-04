@@ -56,6 +56,14 @@ export function yfthUserPartnerRevoke(uid, data) {
   return request({ url: `yfth/user_role/user/${uid}/partner/revoke`, method: 'post', data });
 }
 
+export function yfthUserCustomerServiceGrant(uid, data) {
+  return request({ url: `yfth/user_role/user/${uid}/customer_service/grant`, method: 'post', data });
+}
+
+export function yfthCustomerServiceBindingRevoke(id, data) {
+  return request({ url: `yfth/user_role/customer_service/binding/${id}/revoke`, method: 'post', data });
+}
+
 export function yfthUserAccountClosurePreflight(uid) {
   return request({ url: `yfth/user_role/user/${uid}/closure/preflight`, method: 'get' });
 }
@@ -1257,6 +1265,9 @@ export function yfthPartnerMigrationIssues(params) { return request({ url: 'yfth
 export function yfthCommissionRuleList(params) { return request({ url: 'yfth/commission/rule', method: 'get', params }); }
 export function yfthCommissionRuleSave(data) { return request({ url: 'yfth/commission/rule', method: 'post', data }); }
 export function yfthCommissionRulePublish(id) { return request({ url: `yfth/commission/rule/${id}/publish`, method: 'post' }); }
+export function yfthMemberPointsConfig() { return request({ url: 'yfth/commission/points_config', method: 'get' }); }
+export function yfthMemberPointsConfigSave(data) { return request({ url: 'yfth/commission/points_config', method: 'post', data }); }
+export function yfthMemberPointsConvertLegacy(data) { return request({ url: 'yfth/commission/points_convert_legacy', method: 'post', data }); }
 export function yfthCommissionAccrualList(params) { return request({ url: 'yfth/commission/accrual', method: 'get', params }); }
 export function yfthCommissionLedgerList(params) { return request({ url: 'yfth/commission/ledger', method: 'get', params }); }
 export function yfthCommissionAccount(params) { return request({ url: 'yfth/commission/account', method: 'get', params }); }

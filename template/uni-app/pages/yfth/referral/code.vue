@@ -38,7 +38,7 @@
 				</view>
 				<view class="panel links">
 					<view @click="goAttribution"><text>我的归属</text><text>›</text></view>
-					<view @click="goRewards"><text>我的奖励</text><text>›</text></view>
+					<view @click="goRewards"><text>我的积分</text><text>›</text></view>
 				</view>
 				<view class="panel direct-panel">
 					<view class="direct-heading">
@@ -46,7 +46,7 @@
 							<view class="panel-title">我的直推</view>
 							<view class="direct-subtitle">已邀请 {{ referralsCount }} 人</view>
 						</view>
-						<view class="amount-note">奖励候选 / 线下结算</view>
+						<view class="amount-note">推荐积分</view>
 					</view>
 					<view v-if="referralsLoading && !referrals.length" class="direct-state">正在读取直推记录...</view>
 					<view v-else-if="referralsError && !referrals.length" class="direct-state direct-error" @click="loadReferrals(true)">{{ referralsError }}，点击重试</view>
@@ -60,16 +60,15 @@
 								<view class="direct-meta">{{ relationStatusText(item.relation_status) }} · {{ formatDate(item.started_at) }}</view>
 							</view>
 							<view class="direct-reward">
-								<view class="reward-total">¥{{ formatMoney(item.reward_amount_cent) }}</view>
-								<view class="reward-detail">待处理 ¥{{ formatMoney(item.pending_amount_cent) }}</view>
-								<view class="reward-detail">已结算 ¥{{ formatMoney(item.settled_amount_cent) }}</view>
+								<view class="reward-total">{{ item.reward_points || 0 }}积分</view>
+								<view class="reward-detail">观察期 {{ item.observing_points || 0 }}积分</view>
 							</view>
 						</view>
 						<button v-if="referrals.length < referralsCount" class="load-more" :loading="referralsLoading" @click="loadReferrals(false)">查看更多</button>
 					</view>
-					<view class="direct-footnote">金额来自现有奖励候选和线下结算台账，不代表平台自动打款或到账。</view>
+					<view class="direct-footnote">推荐奖励统一发放为商城积分，积分不能提现。</view>
 				</view>
-				<view class="notice">推广码只建立御方通和一级推荐和永久归属，不使用 CRMEB 旧分销关系。推荐收益为候选记录，不代表自动到账。</view>
+				<view class="notice">推广码只建立御方通和一级推荐和永久归属，不使用 CRMEB 旧分销关系。奖励按规则发放积分。</view>
 			</block>
 		</block>
 	</view>
@@ -227,7 +226,7 @@ export default {
 		},
 		goPackage() { uni.navigateTo({ url: '/pages/yfth/package/list' }); },
 		goAttribution() { uni.navigateTo({ url: '/pages/yfth/authority/index' }); },
-		goRewards() { uni.navigateTo({ url: '/pages/yfth/referral/ledger' }); }
+		goRewards() { uni.navigateTo({ url: '/pages/yfth/commission/account' }); }
 	}
 };
 </script>

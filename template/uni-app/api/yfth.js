@@ -12,6 +12,10 @@ export function getYfthContext(data) {
 	return request.get('yfth/context', data || {});
 }
 
+export function getYfthCustomerServiceWorkbench() {
+	return request.get('yfth/customer_service/workbench');
+}
+
 export function getYfthStoreAcquisitionCode(data) {
 	return request.get('yfth/store_acquisition/code', data || {});
 }
@@ -393,10 +397,6 @@ export function acceptYfthDirectReferralInvite(data) {
 	return request.post('yfth/package_membership/invite/accept', data || {});
 }
 
-export function getYfthDirectReferralCandidates(data) {
-	return request.get('yfth/package_membership/candidate', data || {});
-}
-
 export function getYfthDirectReferrals(data) {
 	return request.get('yfth/package_membership/referral', data || {});
 }
@@ -421,29 +421,12 @@ export function getYfthCommissionLedger(data) {
 	return request.get('yfth/commission/ledger', data || {});
 }
 
-export function getYfthCommissionSettlements(data) {
-	return request.get('yfth/commission/settlement', data || {});
-}
-
-export function requestYfthCommissionSettlement(data) {
-	return request.post('yfth/commission/settlement', data || {});
-}
-
 export function getYfthStoreCommissionSummary(data) {
 	return request.get('yfth/store_workbench/commission/summary', data || {});
 }
 
 export function getYfthStoreCommissionLedger(data) {
 	return request.get('yfth/store_workbench/commission/ledger', data || {});
-}
-
-export function getYfthStoreC1Settlements(data) {
-	return request.get('yfth/store_workbench/commission/c1_settlement', data || {});
-}
-
-export function completeYfthStoreC1Settlement(id, data) {
-	const payload = splitYfthContext(data || {});
-	return request.post('yfth/store_workbench/commission/c1_settlement/' + id + '/complete' + payload.query, payload.body);
 }
 
 export function getYfthStoreCommissionSettlementBatches(data) {

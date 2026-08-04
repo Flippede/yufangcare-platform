@@ -51,7 +51,8 @@
       <el-table-column label="有效经营身份" min-width="260">
         <template slot-scope="{ row }">
           <el-tag v-if="row.partner_identity && row.partner_identity.active" size="mini" type="warning" class="role-tag">{{ row.partner_identity.rank_name }}</el-tag>
-          <span v-if="!row.store_roles.length && !(row.partner_identity && row.partner_identity.active)">-</span>
+          <el-tag v-if="row.customer_service && row.customer_service.active" size="mini" type="success" class="role-tag">客服 · {{ row.customer_service.stores.length }}家门店</el-tag>
+          <span v-if="!row.store_roles.length && !(row.partner_identity && row.partner_identity.active) && !(row.customer_service && row.customer_service.active)">-</span>
           <el-tag v-for="role in row.store_roles" :key="role.id" size="mini" class="role-tag">{{ role.store_name || ('门店 ' + role.store_id) }} · {{ role.role_name }}</el-tag>
         </template>
       </el-table-column>
@@ -63,6 +64,7 @@
           <el-button v-if="!(row.partner_identity && row.partner_identity.active)" type="text" @click="openPartnerGrant(row)">授予五级合伙人</el-button>
           <el-button v-else type="text" class="danger" @click="openPartnerRevoke(row)">撤销{{ row.partner_identity.rank_name }}</el-button>
           <el-button type="text" @click="openGrant(row)">店长/店员</el-button>
+          <el-button type="text" @click="openCustomerServiceGrant(row)">客服</el-button>
           <el-button type="text" class="danger" @click="openClosure(row)">账号销户</el-button>
         </template>
       </el-table-column>
@@ -110,6 +112,20 @@
         <el-form-item label="二次确认"><el-input v-model.trim="membershipRevokeForm.confirmation" placeholder="请输入：确认解除会员" @keyup.enter.native="revokeMembership" /><div class="form-tip danger">必须完整输入“确认解除会员”后才能执行。</div></el-form-item>
       </el-form>
       <span slot="footer"><el-button @click="membershipRevokeVisible = false">取消</el-button><el-button type="danger" :disabled="!membershipRevokeReady" :loading="membershipRevokeSaving" @click="revokeMembership">确认解除会员</el-button></span>
+    </el-dialog>
+
+    <el-dialog title="授予客服并分配B端门店" :visible.sync="customerServiceVisible" width="520px" :close-on-click-modal="false">
+      <el-alert title="客服只可查看分配给自己的B端门店，不显示C端客户、收益、佣金或提现数据。每家门店同一时间只能有一名客服。" type="info" :closable="false" />
+      <el-form label-width="100px" class="partner-grant-form">
+        <el-form-item label="用户"><span>{{ selected ? `${selected.nickname || selected.account}（UID ${selected.uid}）` : '' }}</span></el-form-item>
+        <el-form-item label="B端门店"><el-select v-model="customerServiceForm.store_id" filterable placeholder="选择要服务的门店"><el-option v-for="store in stores" :key="store.id" :label="store.name" :value="store.id" /></el-select></el-form-item>
+        <el-form-item label="操作原因"><el-input v-model.trim="customerServiceForm.reason" type="textarea" :rows="3" maxlength="255" show-word-limit /></el-form-item>
+      </el-form>
+      <div v-if="selected && selected.customer_service && selected.customer_service.stores.length" class="customer-service-bindings">
+        <b>当前服务门店</b>
+        <el-tag v-for="store in selected.customer_service.stores" :key="store.binding_id" closable @close="revokeCustomerServiceBinding(store)">{{ store.store_name || ('门店 ' + store.store_id) }}</el-tag>
+      </div>
+      <span slot="footer"><el-button @click="customerServiceVisible = false">取消</el-button><el-button type="primary" :disabled="!customerServiceReady" :loading="saving" @click="grantCustomerService">确认分配</el-button></span>
     </el-dialog>
 
     <el-dialog title="授予五级招商合伙人身份" :visible.sync="partnerGrantVisible" width="600px" :close-on-click-modal="false">
@@ -199,6 +215,8 @@ import {
   yfthUserRoleGrant,
   yfthUserRoleRevoke,
   yfthUserRoleUsers,
+  yfthUserCustomerServiceGrant,
+  yfthCustomerServiceBindingRevoke,
 } from '@/api/yfth';
 
 export default {
@@ -208,6 +226,7 @@ export default {
       query: { keyword: '', page: 1, limit: 20 }, detail: null, selected: null,
       detailVisible: false, grantVisible: false, grantPresetRole: '', partnerGrantVisible: false, partnerRevokeVisible: false, partnerRevokeSaving: false, closureVisible: false, closureSaving: false,
       membershipRevokeVisible: false, membershipRevokeSaving: false, membershipRevokeForm: { confirmation: '', reason: '' },
+      customerServiceVisible: false, customerServiceForm: { store_id: '', reason: '' },
       grantForm: { store_id: '', role_code: '', reason: '' },
       partnerGrantForm: { rank_code: '', parent_uid: '', reason: '' },
       partnerRevokeForm: { confirmation: '', reason: '' },
@@ -259,6 +278,9 @@ export default {
       return Boolean(this.closurePreflight && this.closurePreflight.can_close
         && this.closureForm.confirmation === this.closurePreflight.confirmation_phrase
         && String(this.closureForm.reason || '').trim().length >= 4);
+    },
+    customerServiceReady() {
+      return Boolean(this.selected && this.customerServiceForm.store_id && String(this.customerServiceForm.reason || '').trim().length >= 2);
     },
   },
   created() {
@@ -341,6 +363,30 @@ export default {
       this.selected = row;
       this.membershipRevokeForm = { confirmation: '', reason: '' };
       this.membershipRevokeVisible = true;
+    },
+    openCustomerServiceGrant(row) {
+      this.selected = row;
+      this.customerServiceForm = { store_id: '', reason: '' };
+      this.customerServiceVisible = true;
+    },
+    grantCustomerService() {
+      if (!this.customerServiceReady) return;
+      this.saving = true;
+      yfthUserCustomerServiceGrant(this.selected.uid, {
+        store_id: Number(this.customerServiceForm.store_id),
+        reason: this.customerServiceForm.reason,
+        request_id: `hq-customer-service-${Date.now()}`,
+      }).then(() => {
+        this.$message.success('客服身份和门店服务关系已生效');
+        this.customerServiceVisible = false;
+        return this.load();
+      }).finally(() => { this.saving = false; });
+    },
+    revokeCustomerServiceBinding(store) {
+      this.$prompt('请输入解除客服门店关系的原因', '解除客服门店关系', {
+        inputValidator: (value) => String(value || '').trim().length >= 2 || '请填写至少2个字',
+      }).then(({ value }) => yfthCustomerServiceBindingRevoke(store.binding_id, { reason: String(value).trim() }))
+        .then(() => { this.$message.success('已解除'); this.customerServiceVisible = false; return this.load(); });
     },
     revokeMembership() {
       if (!this.membershipRevokeReady || !this.selected) return;
@@ -513,6 +559,7 @@ export default {
 .form-tip { margin-top: 8px; font-size: 12px; line-height: 1.55; }
 .partner-grant-form { margin-top: 18px; }
 .partner-grant-form .el-select { width: 100%; }
+.customer-service-bindings { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; padding: 12px; background: #f7f8fa; }
 .partner-rank-chain { margin-top: 12px; padding: 10px 14px; color: #8a5b24; background: #fff8eb; border: 1px solid #ecd5ad; font-weight: 600; text-align: center; }
 .revoke-icon { margin-left: 6px; cursor: pointer; }
 .danger { color: #f56c6c; }

@@ -262,6 +262,13 @@ class HqUserRoleManagementServices
                 ->field('p.uid,p.rank_code,p.status,u.nickname,u.account')->find() ?: [])
             : [];
         $relationship = $this->relationshipAuthority->resolve($uid);
+        $customerServiceIdentity = Db::name('yfth_user_identity')->where([
+            'uid' => $uid, 'role_code' => 'customer_service', 'status' => 'active',
+        ])->find() ?: [];
+        $customerServiceStores = $customerServiceIdentity ? Db::name('yfth_customer_service_store_binding')->alias('b')
+            ->leftJoin('system_store s', 's.id=b.store_id')->where([
+                'b.customer_service_uid' => $uid, 'b.status' => 'active',
+            ])->field('b.id AS binding_id,b.store_id,s.name AS store_name')->order('b.id desc')->select()->toArray() : [];
         $auditEvents = [];
         if ($includeHistory && $roleRows) {
             $auditEvents = Db::name('yfth_audit_event')
@@ -322,6 +329,11 @@ class HqUserRoleManagementServices
                     'platform_director' => '平台董事',
                 ][(string)($partnerParent['rank_code'] ?? '')] ?? '',
             ] : null,
+            'customer_service' => [
+                'active' => !empty($customerServiceIdentity),
+                'identity_id' => (int)($customerServiceIdentity['id'] ?? 0),
+                'stores' => $customerServiceStores,
+            ],
             'audit_events' => $auditEvents,
         ];
     }

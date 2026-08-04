@@ -8,6 +8,7 @@ use app\services\yfth\HqAcceptanceFixtureServices;
 use app\services\yfth\HqUserRoleManagementServices;
 use app\services\yfth\FranchisePartnerServices;
 use app\services\yfth\UserAccountClosureServices;
+use app\services\yfth\CustomerServiceServices;
 
 class HqUserRole extends AuthController
 {
@@ -100,6 +101,30 @@ class HqUserRole extends AuthController
             ['reason', ''],
             ['request_id', ''],
         ]), (int)$this->adminId, $this->adminInfo ?: []));
+    }
+
+    public function customerServices(CustomerServiceServices $services)
+    {
+        $this->auth('yfth/user_role/user', 'GET');
+        return app('json')->success($services->adminList($this->request->getMore([
+            ['keyword', ''], [['page', 'd'], 1], [['limit', 'd'], 20],
+        ])));
+    }
+
+    public function grantCustomerService(CustomerServiceServices $services, $uid)
+    {
+        $this->auth('yfth/user_role/user/<uid>/grant', 'POST');
+        return app('json')->success($services->grant((int)$uid, $this->request->postMore([
+            [['store_id', 'd'], 0], ['reason', ''], ['request_id', ''],
+        ]), (int)$this->adminId));
+    }
+
+    public function revokeCustomerServiceBinding(CustomerServiceServices $services, $id)
+    {
+        $this->auth('yfth/user_role/role/<id>/revoke', 'POST');
+        return app('json')->success($services->revokeBinding(
+            (int)$id, (string)$this->request->post('reason', ''), (int)$this->adminId
+        ));
     }
 
     public function fixture(HqAcceptanceFixtureServices $services)

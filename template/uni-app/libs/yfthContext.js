@@ -8,6 +8,7 @@ export const YFTH_ROLE_LABELS = {
 	store_manager: '店长',
 	store_staff: '店员',
 	service_mentor: '服务导师',
+	customer_service: '客服',
 	county_partner: '县级招商合伙人',
 	prefecture_partner: '地市级招商合伙人',
 	province_partner: '省级招商合伙人',
@@ -55,6 +56,11 @@ export const YFTH_ROLE_NAVS = {
 		{ title: '资料', pane: 'materials' },
 		{ title: '商城', url: '/pages/index/index', type: 'switchTab', action: 'mall' },
 		{ title: '我的', url: '/pages/user/index', type: 'switchTab', action: 'user_center' }
+	],
+	customer_service: [
+		{ title: '客服工作台', url: '/pages/yfth/customer_service/index', type: 'reLaunch' },
+		{ title: '商城', url: '/pages/index/index', type: 'switchTab', action: 'mall' },
+		{ title: '我的', url: '/pages/user/index', type: 'switchTab', action: 'user_center' }
 	]
 };
 
@@ -75,6 +81,7 @@ export const YFTH_ROLE_PRIORITY = {
 	store_manager: 300,
 	store_staff: 200,
 	service_mentor: 100,
+	customer_service: 440,
 	customer: 0
 };
 
@@ -87,7 +94,7 @@ export function roleNav(roleCode) {
 }
 
 export function isBusinessRole(roleCode) {
-	return ['store_manager', 'store_staff', 'service_mentor'].concat(PARTNER_ROLES).indexOf(roleCode) !== -1;
+	return ['store_manager', 'store_staff', 'service_mentor', 'customer_service'].concat(PARTNER_ROLES).indexOf(roleCode) !== -1;
 }
 
 export function isPartnerRole(roleCode) {

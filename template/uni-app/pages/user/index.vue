@@ -92,7 +92,7 @@
 							<text class="asset-value">{{ userInfo.couponCount || 0 }}</text>
 							<text class="asset-label">优惠券</text>
 						</view>
-						<view class="asset-note">商城资产与御方通和推荐佣金分别记录，互不混用</view>
+						<view class="asset-note">推荐奖励统一发放为商城积分；B端与合伙人收益仍独立核算</view>
 					</view>
 					<view class="member-exclusive" v-if="isLogin">
 						<view class="section-title">{{ isYfthPartner ? '合伙人中心' : '会员专属' }}</view>
@@ -106,7 +106,7 @@
 							<view @click="goYfthReferralCode"><text class="exclusive-icon">码</text><text>{{ yfthCodeLabel }}</text></view>
 							<view @click="goYfthAttribution"><text class="exclusive-icon">归</text><text>我的归属</text></view>
 							<view @click="goYfthPackageMembership"><text class="exclusive-icon">会</text><text>套餐会员</text></view>
-							<view @click="goYfthRewards"><text class="exclusive-icon">奖</text><text>我的奖励</text></view>
+							<view @click="goYfthRewards"><text class="exclusive-icon">积</text><text>我的积分</text></view>
 						</view>
 					</view>
 					<view class="order-wrapper">
@@ -163,7 +163,7 @@
 							<view class="service-icon service-icon-cooperate">合</view>
 							<text class="name">御方通和合作中心</text>
 						</view>
-						<view class="item yfth-service-item" v-if="isLogin" @click="goYfthWithdrawalBeneficiary">
+						<view class="item yfth-service-item" v-if="isLogin && (isYfthPartner || isYfthStoreOperator)" @click="goYfthWithdrawalBeneficiary">
 							<view class="service-icon">卡</view>
 							<text class="name">提现收款账户</text>
 						</view>
@@ -286,7 +286,7 @@ export default {
 			return isPartnerRole(String((this.yfthCurrentContext || {}).role_code || ''));
 		},
 		yfthAccountLabel() {
-			return this.isYfthPartner ? '合伙人收益' : '账户余额';
+			return this.isYfthPartner ? '合伙人收益' : '商城余额';
 		},
 		yfthCodeLabel() {
 			if (this.isYfthPartner) return '招商申请码';
@@ -297,7 +297,7 @@ export default {
 				const summary = this.yfthPartnerProfile.unified_earning_summary || {};
 				return (Number(summary.pending || 0) + Number(summary.settled || 0)).toFixed(2);
 			}
-			return (Number(this.userInfo.now_money || 0) + Number(this.yfthCommissionProfile.account && this.yfthCommissionProfile.account.available || 0)).toFixed(2);
+			return Number(this.userInfo.now_money || 0).toFixed(2);
 		}
 	},
 	filters: {
@@ -546,7 +546,7 @@ export default {
 					this.yfthCurrentContext = context;
 					if (isPartnerRole(context.role_code)) this.loadYfthPartnerFinance();
 					if (!keepUserCenter) {
-						uni.reLaunch({ url: isPartnerRole(context.role_code) ? '/pages/yfth/franchise/partner/index?tab=dashboard' : '/pages/yfth/workbench/index' });
+						uni.reLaunch({ url: this.yfthWorkbenchUrl(context) });
 					}
 					return true;
 				});
@@ -555,7 +555,7 @@ export default {
 					const cached = currentContext();
 					this.hasYfthBusinessIdentity = Boolean(cached.is_business_role);
 					if (cached.is_business_role && !keepUserCenter) {
-						uni.reLaunch({ url: isPartnerRole(cached.role_code) ? '/pages/yfth/franchise/partner/index?tab=dashboard' : '/pages/yfth/workbench/index' });
+						uni.reLaunch({ url: this.yfthWorkbenchUrl(cached) });
 					}
 				}
 				return false;
@@ -609,7 +609,7 @@ export default {
 		},
 		goYfthCommissionAccount() {
 			if (!this.isLogin) { toLogin(); return; }
-			uni.navigateTo({ url: this.isYfthPartner ? '/pages/yfth/franchise/partner/index?tab=earnings' : '/pages/yfth/commission/account' });
+			uni.navigateTo({ url: this.isYfthPartner ? '/pages/yfth/franchise/partner/index?tab=earnings' : '/pages/users/user_money/index' });
 		},
 		serviceMenuInitial(name) {
 			const text = String(name || '服务').trim();
@@ -826,10 +826,16 @@ export default {
 				return;
 			}
 			loadYfthIdentities().then((list) => resolveDominantYfthContext(list)).then((context) => {
-				uni.reLaunch({ url: context.is_business_role ? '/pages/yfth/workbench/index' : '/pages/index/index' });
+				uni.reLaunch({ url: context.is_business_role ? this.yfthWorkbenchUrl(context) : '/pages/index/index' });
 			}).catch((err) => {
 				uni.showToast({ title: String((err && err.msg) || err || '身份读取失败'), icon: 'none' });
 			});
+		},
+		yfthWorkbenchUrl(context) {
+			const roleCode = String((context || {}).role_code || 'customer');
+			if (isPartnerRole(roleCode)) return '/pages/yfth/franchise/partner/index?tab=dashboard';
+			if (roleCode === 'customer_service') return '/pages/yfth/customer_service/index';
+			return '/pages/yfth/workbench/index';
 		},
 
 		goYfthHeadquartersMall() {
@@ -891,7 +897,7 @@ export default {
 				this.goYfthWorkbench();
 				return;
 			}
-			uni.navigateTo({ url: this.isYfthPartner ? '/pages/yfth/franchise/partner/index?tab=dashboard' : '/pages/yfth/workbench/index' });
+			uni.navigateTo({ url: this.yfthWorkbenchUrl(this.yfthCurrentContext) });
 		},
 
 		goYfthReferralCode() {
@@ -914,7 +920,7 @@ export default {
 
 		goYfthRewards() {
 			if (!this.isLogin) { toLogin(); return; }
-			uni.navigateTo({ url: '/pages/yfth/referral/ledger' });
+			uni.navigateTo({ url: '/pages/yfth/commission/account' });
 		},
 
 		goYfthPartnerTeam() {

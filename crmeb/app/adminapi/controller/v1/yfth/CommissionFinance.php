@@ -7,6 +7,7 @@ use app\services\system\admin\SystemRoleServices;
 use app\services\yfth\AdminStoreContextServices;
 use app\services\yfth\AutomaticCommissionServices;
 use app\services\yfth\CommissionFinanceServices;
+use app\services\yfth\MemberPointsServices;
 
 class CommissionFinance extends AuthController
 {
@@ -34,11 +35,11 @@ class CommissionFinance extends AuthController
         return app('json')->success($services->publishRule((int)$id, (int)$this->adminId));
     }
 
-    public function accounts(CommissionFinanceServices $services)
+    public function accounts(CommissionFinanceServices $services, MemberPointsServices $pointsServices)
     {
         $this->auth('yfth/commission/account', 'GET');
         $data = $this->request->getMore([[['uid', 'd'], 0], [['store_id', 'd'], 0]]);
-        if ((int)$data['uid'] > 0) return app('json')->success($services->userSummary((int)$data['uid']));
+        if ((int)$data['uid'] > 0) return app('json')->success($pointsServices->summary((int)$data['uid']));
         if ((int)$data['store_id'] > 0) {
             return app('json')->success($services->storeSummary([
                 'uid' => 0, 'role_code' => 'store_manager', 'store_id' => (int)$data['store_id'],
@@ -82,8 +83,27 @@ class CommissionFinance extends AuthController
             return app('json')->success($services->adjustStore((int)$data['account_id'], (string)$data['bucket'],
                 (int)$data['delta_cent'], (int)$this->adminId, (string)$data['reason'], (string)$data['request_id']));
         }
-        return app('json')->success($services->adjustUser((int)$data['account_id'], (int)$data['delta_cent'],
-            (int)$this->adminId, (string)$data['reason'], (string)$data['request_id']));
+        throw new \crmeb\exceptions\ApiException('c1_cash_adjustment_retired_use_points');
+    }
+
+    public function pointsConfig(MemberPointsServices $services)
+    {
+        $this->auth('yfth/commission/rule', 'GET');
+        return app('json')->success($services->config());
+    }
+
+    public function pointsConfigSave(MemberPointsServices $services)
+    {
+        $this->auth('yfth/commission/rule', 'POST');
+        return app('json')->success($services->saveConfig($this->request->postMore([
+            [['enabled', 'd'], 1], [['max_deduction_bps', 'd'], 9900], [['min_cash_cent', 'd'], 10],
+        ]), (int)$this->adminId));
+    }
+
+    public function convertLegacyPoints(MemberPointsServices $services)
+    {
+        $this->auth('yfth/commission/rule', 'POST');
+        return app('json')->success($services->convertLegacyBalances((int)$this->request->post('limit', 500)));
     }
 
     public function settlementBatches(CommissionFinanceServices $services)

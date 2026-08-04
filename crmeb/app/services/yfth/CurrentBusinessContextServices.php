@@ -58,6 +58,20 @@ class CurrentBusinessContextServices
             ]);
         }
 
+        if ($roleCode === 'customer_service') {
+            $identity = app()->make(UserIdentityServices::class)->assertActiveIdentity($uid, $roleCode);
+            $assignedStoreCount = (int)Db::name('yfth_customer_service_store_binding')->where([
+                'customer_service_uid' => $uid, 'status' => 'active',
+            ])->count();
+            return array_merge($this->baseContext($uid, $roleCode), [
+                'store_id' => 0, 'store_name' => '', 'store_status' => '', 'store_type' => '',
+                'store_role_id' => 0, 'identity_id' => (int)($identity['id'] ?? 0),
+                'permission_scope' => ['assigned_store_count' => $assignedStoreCount],
+                'business_context_source' => 'server_customer_service_binding',
+                'subject_status' => '', 'qualification_status' => '', 'capabilities' => [],
+            ]);
+        }
+
         /** @var UserIdentityServices $identityServices */
         $identityServices = app()->make(UserIdentityServices::class);
         $identity = $identityServices->assertActiveIdentity($uid, $roleCode);

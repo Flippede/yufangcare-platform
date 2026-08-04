@@ -2,7 +2,7 @@
 	<view class="page">
 		<view class="hero">
 			<view class="title">推荐中心</view>
-			<view class="desc">查看推荐进度与总部确认的只读奖励台账</view>
+			<view class="desc">查看一级推荐关系与商城积分</view>
 		</view>
 		<view class="grid">
 			<view class="tile" @click="go('/pages/yfth/referral/code')">
@@ -13,13 +13,9 @@
 				<view class="tile-title">招商开店申请</view>
 				<view class="tile-desc">合伙人招商申请入口</view>
 			</view>
-			<view class="tile" @click="go('/pages/yfth/referral/candidates')">
-				<view class="tile-title">推荐进度</view>
-				<view class="tile-desc">候选关系与归因状态</view>
-			</view>
-			<view class="tile" @click="go('/pages/yfth/referral/ledger')">
-				<view class="tile-title">奖励台账</view>
-				<view class="tile-desc">只读记录与线下结算状态</view>
+			<view class="tile" @click="go('/pages/yfth/commission/account')">
+				<view class="tile-title">我的积分</view>
+				<view class="tile-desc">查看推荐积分与冲正明细</view>
 			</view>
 		</view>
 	</view>

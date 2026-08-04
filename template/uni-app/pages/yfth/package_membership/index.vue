@@ -46,20 +46,9 @@
 			</view>
 
 			<view v-if="isMember" class="panel">
-				<view class="panel-head">
-					<view class="panel-title">奖励候选</view>
-					<text class="link" @click="loadCandidates">刷新</text>
-				</view>
-				<view v-if="!candidates.length" class="empty">暂无奖励候选记录</view>
-				<view v-for="item in candidates" :key="item.candidate_no" class="candidate">
-					<view>
-						<view class="strong">{{ item.candidate_type === 'package_activation' ? '套餐激活' : '普通商城消费' }}</view>
-					<view class="muted">候选编号 {{ item.candidate_no }} · {{ candidateStatus(item.status) }}</view>
-					<view v-if="item.status === 'settled'" class="muted">门店已记录线下结算，平台不会自动打款</view>
-					</view>
-					<view class="amount">{{ money(item.reward_amount_cent) }}</view>
-				</view>
-				<view class="notice">待确认收益，不代表已支付、已结算或已打款；全额退款后对应候选将失效。</view>
+				<view class="panel-title">会员推荐积分</view>
+				<view class="muted">直推用户激活套餐后，15% / 25% / 60%阶梯奖励统一发放为商城积分。积分不能提现，可按总部配置抵扣符合条件的普通商品。</view>
+				<button class="primary wide" @click="goPoints">查看我的积分</button>
 			</view>
 		</block>
 	</view>
@@ -67,7 +56,6 @@
 
 <script>
 import {
-	getYfthDirectReferralCandidates,
 	getYfthPackageMembershipMe,
 	issueYfthDirectReferralInvite
 } from '@/api/yfth.js';
@@ -76,7 +64,7 @@ import { YFTH_HEADQUARTERS_HOME_ROUTE, yfthReferralAcceptRoute } from '@/libs/yf
 export default {
 	data() {
 		return {
-			loading: true, error: '', profile: {}, candidates: [], inviteToken: '', acceptToken: ''
+			loading: true, error: '', profile: {}, inviteToken: '', acceptToken: ''
 		};
 	},
 	computed: {
@@ -103,7 +91,6 @@ export default {
 			this.loading = true; this.error = '';
 			getYfthPackageMembershipMe().then((res) => {
 				this.profile = res.data || {};
-				if (this.isMember) this.loadCandidates();
 			}).catch((err) => { this.error = (err && err.msg) || '会员资格读取失败'; })
 				.finally(() => { this.loading = false; });
 		},
@@ -125,18 +112,10 @@ export default {
 		goPurchase() {
 			uni.navigateTo({ url: '/pages/yfth/package/list' });
 		},
-		loadCandidates() {
-			getYfthDirectReferralCandidates({ page: 1, limit: 20 }).then((res) => {
-				this.candidates = (res.data && res.data.list) || [];
-			});
-		},
+		goPoints() { uni.navigateTo({ url: '/pages/yfth/commission/account' }); },
 		copyInvite() {
 			uni.setClipboardData({ data: this.inviteToken });
 		},
-		candidateStatus(status) {
-			return ({ pending: '待确认', confirmed: '已确认', settled: '已结算', cancelled: '已取消' })[status] || status;
-		},
-		money(value) { return `¥${(Number(value || 0) / 100).toFixed(2)}`; }
 	}
 };
 </script>

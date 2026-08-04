@@ -7,117 +7,40 @@ use think\facade\Db;
 use think\facade\Env;
 
 /**
- * YFTH commission settlement projections and controlled settlement facts.
+ * YFTH B1 commission settlement projections and controlled settlement facts.
  *
- * C1 settlements are completed offline by the responsible B1. Historical B1
- * settlement batches remain readable, while new B1 payouts use the dedicated
- * headquarters-reviewed manual withdrawal authority.
+ * C-end rewards are exposed through MemberPointsServices. Historical C1 cash
+ * records remain query-compatible only; every C1 cash write path fails closed.
  */
 class CommissionFinanceServices
 {
     public function userSummary(int $uid): array
     {
-        $account = $this->userAccount($uid);
-        $observingCent = (int)Db::name('yfth_commission_accrual')->where('c1_uid', $uid)
-            ->where('status', 'observing')->sum('c1_amount_cent');
-        $packageRewards = Db::name('yfth_commission_accrual')->where('c1_uid', $uid)
-            ->where('source_type', 'package_activation')->order('id desc')->limit(20)->select()->toArray();
-        $packageRewards = array_map(function (array $row) {
-            $buyer = $this->row(Db::name('user')->where('uid', (int)$row['buyer_uid'])
-                ->field('nickname,phone,avatar')->find());
-            return [
-                'buyer' => [
-                    'nickname' => (string)($buyer['nickname'] ?? ''),
-                    'phone_masked' => $this->maskPhone((string)($buyer['phone'] ?? '')),
-                    'avatar' => (string)($buyer['avatar'] ?? ''),
-                ],
-                'ratio_bps' => (int)$row['c1_ratio_bps'],
-                'ratio_percent' => $this->ratioPercent((int)$row['c1_ratio_bps']),
-                'amount_cent' => (int)$row['c1_amount_cent'],
-                'amount' => $this->money((int)$row['c1_amount_cent']),
-                'status' => (string)$row['status'],
-                'package_sequence_no' => (int)($row['package_sequence_no'] ?? 0),
-                'due_at' => (int)$row['due_at'],
-                'add_time' => (int)$row['add_time'],
-            ];
-        }, $packageRewards);
-        return [
-            'account' => $this->moneyDto($account, ['available_cent', 'frozen_cent', 'withdrawn_cent']),
-            'observing_cent' => $observingCent,
-            'observing' => $this->money($observingCent),
-            'recent_package_rewards' => $packageRewards,
-            'notice' => '御方通和推荐收益由责任门店线下结算，不进入商城余额或积分。',
-        ];
-    }
-
-    private function ratioPercent(int $basisPoints): string
-    {
-        return rtrim(rtrim(number_format($basisPoints / 100, 2, '.', ''), '0'), '.');
+        return app()->make(MemberPointsServices::class)->summary($uid);
     }
 
     public function userLedger(int $uid, array $where = []): array
     {
-        return $this->ledgerPage('user', $uid, $where);
+        return app()->make(MemberPointsServices::class)->ledger($uid, $where);
     }
 
     public function userSettlements(int $uid, array $where = []): array
     {
-        $query = Db::name('yfth_c1_settlement_request')->where('uid', $uid);
-        if (!empty($where['status'])) $query->where('status', (string)$where['status']);
-        return $this->page($query, $where, function (array $row) {
-            return $this->moneyDto($row, ['amount_cent']);
-        });
+        return ['list' => [], 'count' => 0, 'retired' => true, 'notice' => 'C端现金结算已停用，奖励统一发放为积分。'];
     }
 
     public function requestUserSettlement(int $uid, int $amountCent, string $requestId): array
     {
-        if ($uid <= 0 || $amountCent <= 0 || trim($requestId) === '') {
-            throw new ApiException('commission_settlement_request_invalid');
-        }
-        return Db::transaction(function () use ($uid, $amountCent, $requestId) {
-            $existing = $this->row(Db::name('yfth_c1_settlement_request')->where([
-                'uid' => $uid, 'request_id' => $requestId,
-            ])->lock(true)->find());
-            if ($existing) return $this->moneyDto($existing, ['amount_cent']);
-
-            $attribution = $this->row(Db::name('yfth_hq_customer_attribution_current')->where([
-                'uid' => $uid, 'status' => 'active',
-            ])->lock(true)->find());
-            $storeId = (int)($attribution['store_id'] ?? 0);
-            if ($storeId <= 0) throw new ApiException('commission_responsible_store_missing');
-
-            $account = $this->lockUserAccount($uid);
-            if ((int)$account['available_cent'] < $amountCent) {
-                throw new ApiException('commission_balance_insufficient');
-            }
-            $now = time();
-            $row = [
-                'settlement_no' => $this->makeNo('YFCS'), 'uid' => $uid, 'store_id' => $storeId,
-                'amount_cent' => $amountCent, 'status' => 'pending', 'offline_ref_no' => '',
-                'proof_ref' => '', 'remark' => '', 'request_id' => $requestId,
-                'operator_uid' => 0, 'completed_at' => 0, 'add_time' => $now, 'update_time' => $now,
-            ];
-            $row['id'] = (int)Db::name('yfth_c1_settlement_request')->insertGetId($row);
-            $this->moveUserToFrozen($account, $amountCent, $row);
-            $this->audit('c1_settlement', (string)$row['id'], 'request', [], $row, $uid, 'customer', $storeId, '', $requestId);
-            return $this->moneyDto($row, ['amount_cent']);
-        });
+        throw new ApiException('c1_cash_settlement_retired_use_points');
     }
 
     public function storeSummary(array $context): array
     {
         $storeId = $this->assertStoreContext($context);
         $account = $this->storeAccount($storeId);
-        $c1Account = [
-            'unsettled_cent' => (int)$account['c1_pending_cent'],
-            'settled_cent' => (int)$account['c1_paid_cent'],
-        ];
         return [
             'store_id' => $storeId,
             'account' => $this->moneyDto($account, [
-                'unsettled_cent', 'settled_cent',
-            ]),
-            'c1_account' => $this->moneyDto($c1Account, [
                 'unsettled_cent', 'settled_cent',
             ]),
             'notice' => '门店佣金按总部结算周期处理；页面不提供余额或提现能力。',
@@ -141,62 +64,14 @@ class CommissionFinanceServices
 
     public function storeUserSettlements(array $context, array $where = []): array
     {
-        $storeId = $this->assertStoreContext($context);
-        $query = Db::name('yfth_c1_settlement_request')->where('store_id', $storeId);
-        if (!empty($where['status'])) $query->where('status', (string)$where['status']);
-        return $this->page($query, $where, function (array $row) {
-            $user = $this->row(Db::name('user')->where('uid', (int)$row['uid'])
-                ->field('uid,nickname,avatar,phone')->find());
-            $row['user'] = [
-                'nickname' => (string)($user['nickname'] ?? ''),
-                'avatar' => (string)($user['avatar'] ?? ''),
-                'phone_masked' => $this->maskPhone((string)($user['phone'] ?? '')),
-            ];
-            return $this->moneyDto($row, ['amount_cent']);
-        });
+        $this->assertStoreContext($context);
+        return ['list' => [], 'count' => 0, 'retired' => true, 'notice' => 'C1现金结算已停用，奖励统一发放为积分。'];
     }
 
     public function completeUserSettlement(array $context, int $id, array $data): array
     {
-        $storeId = $this->assertStoreContext($context);
-        $requestId = trim((string)($data['request_id'] ?? ''));
-        if ($requestId === '') throw new ApiException('idempotency_key_required');
-        return Db::transaction(function () use ($context, $storeId, $id, $data, $requestId) {
-            $row = $this->row(Db::name('yfth_c1_settlement_request')->where([
-                'id' => $id, 'store_id' => $storeId,
-            ])->lock(true)->find());
-            if (!$row) throw new ApiException('c1_settlement_not_found');
-            if ((string)$row['status'] === 'paid') return $this->moneyDto($row, ['amount_cent']);
-            if ((string)$row['status'] !== 'pending') throw new ApiException('c1_settlement_status_invalid');
-
-            $user = $this->lockUserAccount((int)$row['uid']);
-            $amount = (int)$row['amount_cent'];
-            if ((int)$user['frozen_cent'] < $amount) throw new ApiException('c1_settlement_frozen_inconsistent');
-            $now = time();
-            $update = [
-                'status' => 'paid',
-                'offline_ref_no' => substr(trim((string)($data['offline_ref_no'] ?? '')), 0, 128),
-                'proof_ref' => substr(trim((string)($data['proof_ref'] ?? '')), 0, 255),
-                'remark' => substr(trim((string)($data['remark'] ?? '')), 0, 255),
-                'operator_uid' => (int)$context['uid'], 'completed_at' => $now, 'update_time' => $now,
-            ];
-            Db::name('yfth_c1_settlement_request')->where('id', $id)->update($update);
-            Db::name('yfth_user_commission_account')->where('id', (int)$user['id'])->update([
-                'frozen_cent' => (int)$user['frozen_cent'] - $amount,
-                'withdrawn_cent' => (int)$user['withdrawn_cent'] + $amount,
-                'version' => (int)$user['version'] + 1, 'update_time' => $now,
-            ]);
-            $this->insertTransferLedger('user', (int)$row['uid'], 'c1_commission', $amount,
-                (int)$user['available_cent'], (int)$user['frozen_cent'] - $amount,
-                (int)$user['withdrawn_cent'] + $amount, 'c1_settlement_paid', (string)$id,
-                'c1-settlement-paid:' . $id, (int)$context['uid'], $update);
-            $this->increaseStoreCounter($storeId, 'c1_pending_cent', -$amount);
-            $this->increaseStoreCounter($storeId, 'c1_paid_cent', $amount);
-            $after = array_merge($row, $update);
-            $this->audit('c1_settlement', (string)$id, 'offline_paid', $row, $after,
-                (int)$context['uid'], (string)$context['role_code'], $storeId, (string)$update['remark'], $requestId);
-            return $this->moneyDto($after, ['amount_cent']);
-        });
+        $this->assertStoreContext($context);
+        throw new ApiException('c1_cash_settlement_retired_use_points');
     }
 
     public function headquartersLedger(array $where = []): array
@@ -526,20 +401,7 @@ class CommissionFinanceServices
 
     public function adjustUser(int $uid, int $deltaCent, int $adminUid, string $reason, string $requestId): array
     {
-        if ($uid <= 0 || $deltaCent === 0 || mb_strlen(trim($reason)) < 4 || trim($requestId) === '') {
-            throw new ApiException('commission_adjustment_invalid');
-        }
-        return Db::transaction(function () use ($uid, $deltaCent, $adminUid, $reason, $requestId) {
-            $key = hash('sha256', 'adjust-user|' . $uid . '|' . $requestId);
-            $existing = $this->row(Db::name('yfth_commission_ledger')->where('source_unique_key', $key)->find());
-            if ($existing) return $this->moneyDto($existing, ['amount_cent', 'balance_after_cent']);
-            $account = $this->lockUserAccount($uid); $before = (int)$account['available_cent']; $after = $before + $deltaCent;
-            Db::name('yfth_user_commission_account')->where('id', (int)$account['id'])->update([
-                'available_cent' => $after, 'version' => (int)$account['version'] + 1, 'update_time' => time(),
-            ]);
-            return $this->insertBalanceLedger('user', $uid, 'c1_commission', $deltaCent, $before, $after,
-                'manual_adjustment', (string)$uid, $key, $adminUid, $reason);
-        });
+        throw new ApiException('c1_cash_adjustment_retired_use_points');
     }
 
     public function adjustStore(int $storeId, string $bucket, int $deltaCent, int $adminUid, string $reason, string $requestId): array
@@ -559,42 +421,6 @@ class CommissionFinanceServices
             return $this->insertBalanceLedger('store', $storeId, 'store_commission', $deltaCent, $before, $after,
                 'manual_adjustment', (string)$storeId, $key, $adminUid, $reason);
         });
-    }
-
-    private function moveUserToFrozen(array $account, int $amount, array $request): void
-    {
-        $now = time();
-        Db::name('yfth_user_commission_account')->where('id', (int)$account['id'])->update([
-            'available_cent' => (int)$account['available_cent'] - $amount,
-            'frozen_cent' => (int)$account['frozen_cent'] + $amount,
-            'version' => (int)$account['version'] + 1, 'update_time' => $now,
-        ]);
-        $this->insertTransferLedger('user', (int)$account['uid'], 'c1_commission', $amount,
-            (int)$account['available_cent'] - $amount, (int)$account['frozen_cent'] + $amount,
-            (int)$account['withdrawn_cent'], 'c1_settlement_requested', (string)$request['id'],
-            'c1-settlement-request:' . $request['id'], (int)$account['uid'], $request);
-    }
-
-    private function insertTransferLedger(string $type, int $accountId, string $bucket, int $amount,
-                                          int $available, int $frozen, int $withdrawn, string $sourceType,
-                                          string $sourceId, string $uniqueSeed, int $operatorUid, array $snapshot): array
-    {
-        $key = hash('sha256', $uniqueSeed);
-        $existing = $this->row(Db::name('yfth_commission_ledger')->where('source_unique_key', $key)->find());
-        if ($existing) return $existing;
-        $row = [
-            'ledger_no' => $this->makeNo('YFCL'), 'account_type' => $type, 'account_id' => $accountId,
-            'bucket' => $bucket, 'direction' => 'transfer', 'amount_cent' => $amount,
-            'balance_before_cent' => $available, 'balance_after_cent' => $available,
-            'available_after_cent' => $available, 'frozen_after_cent' => $frozen,
-            'withdrawn_after_cent' => $withdrawn, 'source_type' => $sourceType, 'source_id' => $sourceId,
-            'source_order_id' => 0, 'source_order_item_id' => '', 'rule_version_id' => 0,
-            'c1_ratio_bps' => 0, 'b1_ratio_bps' => 0, 'reverse_ledger_id' => 0,
-            'source_unique_key' => $key, 'reason' => '', 'snapshot_json' => $this->json($snapshot),
-            'operator_uid' => $operatorUid, 'add_time' => time(),
-        ];
-        $row['id'] = (int)Db::name('yfth_commission_ledger')->insertGetId($row);
-        return $row;
     }
 
     private function insertBalanceLedger(string $type, int $accountId, string $bucket, int $delta,
@@ -701,30 +527,9 @@ class CommissionFinanceServices
         return number_format($cent / 100, 2, '.', '');
     }
 
-    private function userAccount(int $uid): array
-    {
-        return Db::transaction(function () use ($uid) { return $this->lockUserAccount($uid); });
-    }
-
     private function storeAccount(int $storeId): array
     {
         return Db::transaction(function () use ($storeId) { return $this->lockStoreAccount($storeId); });
-    }
-
-    private function lockUserAccount(int $uid): array
-    {
-        $row = $this->row(Db::name('yfth_user_commission_account')->where('uid', $uid)->lock(true)->find());
-        if ($row) return $row;
-        $now = time();
-        try {
-            Db::name('yfth_user_commission_account')->insert([
-                'uid' => $uid, 'available_cent' => 0, 'frozen_cent' => 0, 'withdrawn_cent' => 0,
-                'version' => 0, 'add_time' => $now, 'update_time' => $now,
-            ]);
-        } catch (\Throwable $e) {
-            if (!$this->uniqueConflict($e)) throw $e;
-        }
-        return $this->row(Db::name('yfth_user_commission_account')->where('uid', $uid)->lock(true)->find());
     }
 
     private function lockStoreAccount(int $storeId): array

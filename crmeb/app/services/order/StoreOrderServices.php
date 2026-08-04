@@ -1771,7 +1771,9 @@ HTML;
             $user['discount'] = $userLevel['discount'] ?? 0;
         }
         $data['userInfo'] = $user;
-        $data['integralRatio'] = $other['integralRatio'];
+        $memberPointsPolicy = app()->make(\app\services\yfth\MemberPointsServices::class)
+            ->deductionPolicy($validCartInfo, (string)$priceGroup['totalPrice']);
+        $data['integralRatio'] = !empty($memberPointsPolicy['eligible']) ? 1 : $other['integralRatio'];
         $data['offline_pay_status'] = (int)sys_config('offline_pay_status') ?? (int)2;
         $data['yue_pay_status'] = (int)sys_config('balance_func_status') && (int)sys_config('yue_pay_status') == 1 ? (int)1 : (int)2;//余额支付 1 开启 2 关闭
         $data['pay_weixin_open'] = sys_config('pay_weixin_open', '0') != '0';//微信支付 1 开启 0 关闭
@@ -1793,7 +1795,8 @@ HTML;
         /** @var UserBillServices $userBillServices */
         $userBillServices = app()->make(UserBillServices::class);
         $data['usable_integral'] = bcsub((string)$user['integral'], (string)$userBillServices->getBillSum(['uid' => $user['uid'], 'is_frozen' => 1]), 0);
-        $data['integral_open'] = sys_config('integral_ratio', 0) > 0;
+        $data['integral_open'] = !empty($memberPointsPolicy['eligible']);
+        $data['yfth_points_policy'] = $memberPointsPolicy;
 
         //自动领取优惠券
         app()->make(StoreCouponUserServices::class)->autoReceiveCoupon($user['uid'], $cartGroup);

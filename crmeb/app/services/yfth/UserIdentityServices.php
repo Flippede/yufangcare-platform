@@ -92,6 +92,13 @@ class UserIdentityServices extends YfthFoundationBaseServices
         $storeNames = $storeIds ? Db::name('system_store')->whereIn('id', $storeIds)->column('name', 'id') : [];
         foreach ($roles as &$role) {
             $role['store_name'] = (string)($storeNames[(int)($role['store_id'] ?? 0)] ?? '');
+            if (($role['role_code'] ?? '') === 'customer_service') {
+                $role['permission_scope'] = [
+                    'assigned_store_count' => (int)Db::name('yfth_customer_service_store_binding')->where([
+                        'customer_service_uid' => $uid, 'status' => 'active',
+                    ])->count(),
+                ];
+            }
         }
         unset($role);
         return $roles;

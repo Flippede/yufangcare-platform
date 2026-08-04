@@ -13,7 +13,7 @@
 			<view><text>{{ withdrawalSummary.available || '0.00' }}</text><text>可申请提现</text></view>
 			<view><text>{{ withdrawalSummary.frozen || '0.00' }}</text><text>审核/打款中</text></view>
 			<view><text>{{ withdrawalSummary.paid || '0.00' }}</text><text>已打款</text></view>
-			<view><text>{{ c1Account.unsettled || '0.00' }}</text><text>C1待线下结算</text></view>
+			<view><text>{{ withdrawalSummary.total || withdrawalSummary.available || '0.00' }}</text><text>门店累计收益</text></view>
 		</view>
 
 		<view class="withdraw-panel">
@@ -48,14 +48,6 @@
 			</view>
 			<view v-if="!withdrawals.length" class="empty">暂无门店提现申请</view>
 		</view>
-		<view v-else-if="tab === 'c1'" class="section">
-			<view v-for="item in c1Settlements" :key="item.id" class="record">
-				<view class="record-head"><text>{{ item.user && item.user.nickname || 'C1用户' }}</text><text>¥ {{ item.amount || '0.00' }}</text></view>
-				<view class="record-sub">{{ item.user && item.user.phone_masked }} · {{ item.status === 'paid' ? '已完成结算' : '已申请结算' }}</view>
-				<button v-if="item.status === 'pending'" class="outline" @click="completeC1(item)">线下完成后标记结算完成</button>
-			</view>
-			<view v-if="!c1Settlements.length" class="empty">暂无 C1 结算申请</view>
-		</view>
 		<view v-else class="section">
 			<view v-for="item in ledger" :key="item.id" class="record">
 				<view class="record-head">
@@ -72,9 +64,7 @@
 
 <script>
 import {
-	completeYfthStoreC1Settlement,
 	createYfthStoreWithdrawal,
-	getYfthStoreC1Settlements,
 	getYfthStoreCommissionLedger,
 	getYfthStoreCommissionSummary,
 	getYfthStoreWithdrawals,
@@ -87,9 +77,7 @@ export default {
 	data() {
 		return {
 			context: currentContext(),
-			c1Account: {},
 			ledger: [],
-			c1Settlements: [],
 			withdrawalSummary: {},
 			withdrawals: [],
 			tab: 'withdrawals',
@@ -103,7 +91,6 @@ export default {
 		tabs() {
 			return [
 				{ key: 'withdrawals', label: '提现记录' },
-				{ key: 'c1', label: 'C1结算' },
 				{ key: 'ledger', label: '佣金明细' }
 			];
 		}
@@ -121,14 +108,11 @@ export default {
 			return Promise.all([
 				getYfthStoreCommissionSummary(params),
 				getYfthStoreCommissionLedger(params),
-				getYfthStoreC1Settlements(params),
 				getYfthStoreWithdrawalSummary(params),
 				getYfthStoreWithdrawals(params),
 				getYfthWithdrawalBeneficiary()
-			]).then(([summary, ledger, c1, withdrawalSummary, withdrawals, beneficiary]) => {
-				this.c1Account = (summary.data && summary.data.c1_account) || {};
+			]).then(([summary, ledger, withdrawalSummary, withdrawals, beneficiary]) => {
 				this.ledger = (ledger.data && ledger.data.list) || [];
-				this.c1Settlements = (c1.data && c1.data.list) || [];
 				this.withdrawalSummary = withdrawalSummary.data || {};
 				this.withdrawals = (withdrawals.data && withdrawals.data.list) || [];
 				this.beneficiary = beneficiary.data || {};
@@ -164,25 +148,6 @@ export default {
 		goBeneficiary() {
 			uni.navigateTo({ url: '/pages/yfth/withdrawal/account' });
 		},
-		completeC1(item) {
-			uni.showModal({
-				title: '确认线下结算',
-				content: '仅在线下款项已支付给 C1 后操作。',
-				success: (res) => {
-					if (!res.confirm) return;
-					completeYfthStoreC1Settlement(item.id, Object.assign(this.params(), {
-						request_id: 'c1-settled-' + item.id,
-						remark: '门店确认线下结算完成'
-					})).then(() => {
-						uni.showToast({ title: '已完成', icon: 'success' });
-						this.load();
-					}).catch((err) => uni.showToast({
-						title: String((err && err.msg) || err || '操作失败'),
-						icon: 'none'
-					}));
-				}
-			});
-		},
 		withdrawalStatus(value) {
 			return ({
 				pending_review: '待财务审核',
@@ -193,7 +158,6 @@ export default {
 		},
 		sourceLabel(value) {
 			return ({
-				commission_c1_responsibility_credit: 'C1佣金责任额',
 				commission_b1_credit: 'B1佣金',
 				store_manual_withdrawal_paid: '门店提现打款',
 				manual_adjustment: '总部台账调整'

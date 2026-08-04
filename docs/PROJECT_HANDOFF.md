@@ -1,5 +1,15 @@
 # 项目交接文档
 
+## Current Fact Snapshot - Customer Service And C-end Member Points V1
+
+- Development branch: `codex/yfth-customer-service-points-v1`; baseline: `301fcdfedcf33b6ef722e382b83ca2c4211071a4`. This snapshot records development facts only; the branch has not been merged to `main` or deployed to production.
+- Existing platform-director, regional, province, prefecture and county partner roles and workbenches are unchanged. A separate `customer_service` operating identity has been added: one customer service may serve multiple B-end stores, while each store may have only one current customer service. The workbench exposes assigned-store and masked store-manager contact information only, with no C-end customer, commission, settlement or withdrawal data.
+- C-end C1 ordinary-mall and package 15% / 25% / 60% rewards now enter the shared CRMEB mall-points balance at `CNY 1 reward = 1 point`. The automatic commission accrual, observation-period, snapshot, idempotency and refund-reversal engine remains authoritative; B1 and partner cash commission behavior is unchanged.
+- C-end cash reward, settlement and withdrawal write surfaces are fail-closed. The customer UI exposes points and points history only. Historical C1 cash records remain for audit; a controlled headquarters action converts only unpaid available/frozen C1 balances and does not reissue already paid cash history.
+- Headquarters can configure the global maximum points deduction ratio and cash floor. Eligible ordinary C-end mall goods use `1 point = CNY 1`; package, procurement, store-opening and shipping amounts are excluded, and every order retains at least CNY 0.10 cash payment. CRMEB's existing order/refund path remains responsible for returning used points on eligible refunds.
+- Focused evidence includes PHP 7.4 syntax; dedicated, Automatic Commission and package-referral contracts; isolated MySQL Community 8.0.46 direct migration `up -> down -> up -> duplicate up`; points/customer-service real flow; Admin/H5/mp-weixin production builds; generated-artifact checks; and the final source hygiene checks. The repository-wide migration runner remains blocked before this migration by the pre-existing duplicate historical version `20260718100000`; this task does not rewrite historical migrations or claim that runner as passed.
+
+
 ## Current Fact Snapshot - Partner Withdrawal Source Settlement Repair
 
 - Development branch: `codex/yfth-partner-withdrawal-source-settlement-fix`; baseline: `05821790168e44e6498066efb9fa18ea6da22aa3`. Final `main`, `origin/main` and production commits must be read from real Git after merge and deployment.

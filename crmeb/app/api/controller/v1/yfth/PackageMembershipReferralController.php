@@ -3,7 +3,6 @@
 namespace app\api\controller\v1\yfth;
 
 use app\Request;
-use app\services\yfth\DirectReferralRewardServices;
 use app\services\yfth\PackageMembershipReferralServices;
 use crmeb\exceptions\ApiException;
 
@@ -57,9 +56,12 @@ class PackageMembershipReferralController
         return app('json')->success($services->acceptInvite((int)$request->uid(), (string)$data['invite_token'], $data));
     }
 
-    public function candidates(Request $request, DirectReferralRewardServices $services)
+    public function candidates(Request $request)
     {
-        return app('json')->success($services->userCandidates((int)$request->uid()));
+        return app('json')->success([
+            'list' => [], 'count' => 0, 'retired' => true,
+            'notice' => 'C端现金奖励候选已停用，奖励统一发放为积分。',
+        ]);
     }
 
     public function referrals(Request $request, PackageMembershipReferralServices $services)

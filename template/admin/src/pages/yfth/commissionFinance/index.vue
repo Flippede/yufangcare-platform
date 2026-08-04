@@ -3,7 +3,7 @@
     <div class="page-head">
       <div>
         <h2>佣金与结算</h2>
-        <p>普通商城佣金自动入账；会员套餐继续使用 15% / 25% / 60% 独立规则。</p>
+        <p>C端奖励统一发放积分；B1与合伙人现金佣金继续独立结算。</p>
       </div>
       <el-button icon="el-icon-refresh" @click="refreshCurrent">刷新</el-button>
     </div>
@@ -20,7 +20,7 @@
           <el-table-column prop="version_no" label="版本" width="80" />
           <el-table-column prop="scope_type" label="范围" width="90" />
           <el-table-column prop="scope_id" label="范围ID" width="90" />
-          <el-table-column label="C1比例" width="100"><template slot-scope="{ row }">{{ row.c1_ratio_bps / 100 }}%</template></el-table-column>
+          <el-table-column label="C1积分比例" width="110"><template slot-scope="{ row }">{{ row.c1_ratio_bps / 100 }}%</template></el-table-column>
           <el-table-column label="B1比例" width="100"><template slot-scope="{ row }">{{ row.b1_ratio_bps / 100 }}%</template></el-table-column>
           <el-table-column prop="observation_days" label="观察期(天)" width="110" />
           <el-table-column label="启用" width="80"><template slot-scope="{ row }">{{ row.enabled ? '是' : '否' }}</template></el-table-column>
@@ -33,6 +33,16 @@
             <template slot-scope="{ row }"><el-button v-if="row.status === 'draft'" type="text" @click="publishRule(row)">发布</el-button></template>
           </el-table-column>
         </el-table>
+        <div class="section-title">
+          <div><strong>C端积分抵扣</strong><span>1积分抵扣1元，仅限普通商城商品，至少保留0.1元现金支付。</span></div>
+          <el-button type="warning" plain @click="convertLegacyPoints">转换历史未支付C1余额</el-button>
+        </div>
+        <el-form inline class="points-policy">
+          <el-form-item label="启用"><el-switch v-model="pointsConfig.enabled" :active-value="1" :inactive-value="0" /></el-form-item>
+          <el-form-item label="最大抵扣比例(BPS)"><el-input-number v-model="pointsConfig.max_deduction_bps" :min="0" :max="9999" /></el-form-item>
+          <el-form-item label="最低现金(分)"><el-input-number v-model="pointsConfig.min_cash_cent" :min="10" /></el-form-item>
+          <el-form-item><el-button type="primary" @click="savePointsConfig">保存积分配置</el-button></el-form-item>
+        </el-form>
         <div class="section-title">
           <div><strong>会员套餐奖励规则</strong><span>15% / 25% / 60% 循环比例独立于普通商城佣金。</span></div>
           <el-button type="primary" plain @click="openPackageRule()">新建套餐规则版本</el-button>
@@ -72,7 +82,7 @@
           <el-table-column prop="order_id" label="订单ID" width="90" />
           <el-table-column label="用户" min-width="130"><template slot-scope="{ row }">{{ row.c1_name || '-' }}<br><small>{{ row.c1_phone_masked || '-' }}</small></template></el-table-column>
           <el-table-column label="B1门店" min-width="140"><template slot-scope="{ row }">{{ row.store_name || `门店 ${row.store_id}` }}</template></el-table-column>
-          <el-table-column prop="c1_amount" label="C1佣金" width="100" />
+          <el-table-column prop="c1_amount" label="C1积分" width="100" />
           <el-table-column prop="b1_amount" label="B1佣金" width="100" />
           <el-table-column label="冲正明细" min-width="150"><template slot-scope="{ row }">C1 {{ row.reversed_c1 || '0.00' }} / B1 {{ row.reversed_b1 || '0.00' }}</template></el-table-column>
           <el-table-column label="状态" width="110"><template slot-scope="{ row }">{{ accrualStatus(row.status) }}</template></el-table-column>
@@ -136,6 +146,7 @@ import {
   yfthCommissionAccrualList, yfthCommissionSettlementBatchList,
   yfthCommissionRetry, yfthCommissionLegacyReport,
   yfthPackageMembershipRuleList, yfthPackageMembershipRuleSave, yfthPackageMembershipRulePublish,
+  yfthMemberPointsConfig, yfthMemberPointsConfigSave, yfthMemberPointsConvertLegacy,
 } from '@/api/yfth';
 
 export default {
@@ -148,6 +159,7 @@ export default {
       ruleVisible: false, packageRuleVisible: false,
       ruleForm: { scope_type: 'all', scope_id: 0, c1_ratio_bps: 500, b1_ratio_bps: 500, observation_days: 0, enabled: 1, effective_at: 0, expires_at: 0, note: '' },
       packageRuleForm: {},
+      pointsConfig: { enabled: 1, max_deduction_bps: 9900, min_cash_cent: 10 },
     };
   },
   created() { this.loadRules(); },
@@ -158,7 +170,14 @@ export default {
     loadRules() { return this.withLoading(Promise.all([
       yfthCommissionRuleList({ limit: 100 }).then((r) => { this.rules = (r.data && r.data.list) || []; }),
       yfthPackageMembershipRuleList({ limit: 100 }).then((r) => { this.packageRules = (r.data && r.data.list) || []; }),
+      yfthMemberPointsConfig().then((r) => { this.pointsConfig = Object.assign(this.pointsConfig, r.data || {}); }),
     ])); },
+    savePointsConfig() { yfthMemberPointsConfigSave(this.pointsConfig).then(() => this.$message.success('积分抵扣配置已保存')); },
+    convertLegacyPoints() {
+      this.$confirm('仅转换尚未支付的C1可用/冻结余额；已线下结算历史不会重复补发积分。是否继续？', '转换历史C1余额', { type: 'warning' })
+        .then(() => yfthMemberPointsConvertLegacy({ limit: 500 }))
+        .then((r) => { this.$message.success(`已转换 ${Number((r.data || {}).converted_accounts || 0)} 个账户`); });
+    },
     openRule() { this.ruleVisible = true; },
     saveRule() { yfthCommissionRuleSave(this.ruleForm).then(() => { this.$message.success('规则草稿已保存'); this.ruleVisible = false; this.loadRules(); }); },
     publishRule(row) { this.$confirm('发布后仅影响新订单，历史快照不会重算。', '确认发布').then(() => yfthCommissionRulePublish(row.id)).then(() => { this.$message.success('规则已发布'); this.loadRules(); }); },
@@ -193,5 +212,6 @@ export default {
 .section-title { display: flex; justify-content: space-between; align-items: center; margin: 24px 0 12px; }
 .section-title strong, .section-title span { display: block; }
 .section-title span { margin-top: 5px; color: #888; font-size: 13px; }
+.points-policy { padding: 16px; background: #f7f8fa; }
 small { color: #999; }
 </style>

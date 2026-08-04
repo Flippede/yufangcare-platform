@@ -21,6 +21,7 @@ class YfthConstants
             'store_manager' => 'Store manager',
             'store_staff' => 'Store staff',
             'service_mentor' => 'Service mentor',
+            'customer_service' => '客服',
             'supplier' => 'Supplier',
             'headquarter_operator' => 'Headquarter operator',
             'county_partner' => '县级招商合伙人',

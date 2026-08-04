@@ -3,35 +3,30 @@
 namespace app\api\controller\v1\yfth;
 
 use app\Request;
-use app\services\yfth\CommissionFinanceServices;
+use app\services\yfth\MemberPointsServices;
+use crmeb\exceptions\ApiException;
 
 class CommissionAccountController
 {
-    public function summary(Request $request, CommissionFinanceServices $services)
+    public function summary(Request $request, MemberPointsServices $services)
     {
-        return app('json')->success($services->userSummary((int)$request->uid()));
+        return app('json')->success($services->summary((int)$request->uid()));
     }
 
-    public function ledger(Request $request, CommissionFinanceServices $services)
+    public function ledger(Request $request, MemberPointsServices $services)
     {
-        return app('json')->success($services->userLedger((int)$request->uid(), $request->getMore([
-            ['bucket', ''], ['source_type', ''], [['page', 'd'], 1], [['limit', 'd'], 20],
+        return app('json')->success($services->ledger((int)$request->uid(), $request->getMore([
+            ['source_type', ''], [['page', 'd'], 1], [['limit', 'd'], 20],
         ])));
     }
 
-    public function settlements(Request $request, CommissionFinanceServices $services)
+    public function settlements(Request $request)
     {
-        return app('json')->success($services->userSettlements((int)$request->uid(), $request->getMore([
-            ['status', ''], [['page', 'd'], 1], [['limit', 'd'], 20],
-        ])));
+        return app('json')->success(['list' => [], 'count' => 0, 'retired' => true, 'notice' => 'C端现金结算已停用，奖励统一发放为积分。']);
     }
 
-    public function settle(Request $request, CommissionFinanceServices $services)
+    public function settle(Request $request)
     {
-        $data = $request->postMore([[['amount_cent', 'd'], 0], ['request_id', '']]);
-        $data['request_id'] = $data['request_id'] ?: (string)$request->header('Idempotency-Key', '');
-        return app('json')->success($services->requestUserSettlement(
-            (int)$request->uid(), (int)$data['amount_cent'], (string)$data['request_id']
-        ));
+        throw new ApiException('c1_cash_settlement_retired_use_points');
     }
 }

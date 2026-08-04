@@ -64,6 +64,13 @@ Route::group(function () {
     ->option(['mark' => 'yfth_commission_user', 'mark_name' => 'YFTH commission restricted balance API']);
 
 Route::group(function () {
+    Route::get('yfth/customer_service/workbench', 'v1.yfth.CustomerServiceController/workbench')->option(['real_name' => 'YFTH customer service B-store workbench']);
+})->middleware(\app\http\middleware\AllowOriginMiddleware::class)
+    ->middleware(\app\api\middleware\StationOpenMiddleware::class)
+    ->middleware(\app\api\middleware\AuthTokenMiddleware::class)
+    ->option(['mark' => 'yfth_customer_service_user', 'mark_name' => 'YFTH customer service workbench']);
+
+Route::group(function () {
     Route::get('yfth/store_acquisition/code', 'v1.yfth.StoreAcquisitionController/current')->option(['real_name' => 'YFTH current store acquisition code']);
     Route::post('yfth/store_acquisition/code', 'v1.yfth.StoreAcquisitionController/issue')->option(['real_name' => 'YFTH store acquisition code issue']);
     Route::post('yfth/store_acquisition/accept', 'v1.yfth.StoreAcquisitionController/accept')->option(['real_name' => 'YFTH store acquisition accept']);

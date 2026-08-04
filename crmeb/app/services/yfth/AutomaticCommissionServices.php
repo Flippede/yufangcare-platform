@@ -500,13 +500,11 @@ class AutomaticCommissionServices
         $c1 = (int)$accrual['c1_amount_cent'];
         $b1 = (int)$accrual['b1_amount_cent'];
         if ($c1 > 0 && (int)$accrual['c1_uid'] > 0) {
-            $this->postUser((int)$accrual['c1_uid'], $c1, 'commission_credit', (int)$accrual['id'], 'credit');
-            $this->postStore((int)$accrual['store_id'], $c1, 'commission_c1_responsibility_credit', (int)$accrual['id'], 'c1-credit');
+            app()->make(MemberPointsServices::class)->creditAccrual($accrual, $c1);
         }
         if ($b1 > 0) {
             $this->postStore((int)$accrual['store_id'], $b1, 'commission_b1_credit', (int)$accrual['id'], 'b1-credit');
         }
-        $this->syncStoreC1Pending((int)$accrual['store_id']);
         $update = ['status' => 'credited', 'credited_at' => time(), 'update_time' => time()];
         Db::name('yfth_commission_accrual')->where('id', (int)$accrual['id'])->update($update);
         return ['accrual' => array_merge($accrual, $update), 'created' => true];
@@ -518,13 +516,11 @@ class AutomaticCommissionServices
         $b1Cent = min($b1Cent, max(0, (int)$accrual['b1_amount_cent'] - (int)$accrual['reversed_b1_cent']));
         $sequence = $idempotencySuffix !== '' ? $idempotencySuffix : (int)$accrual['reversed_c1_cent'] . ':' . (int)$accrual['reversed_b1_cent'];
         if ($c1Cent > 0 && (int)$accrual['c1_uid'] > 0) {
-            $this->postUser((int)$accrual['c1_uid'], -$c1Cent, $reason, (int)$accrual['id'], 'reverse:' . $sequence);
-            $this->postStore((int)$accrual['store_id'], -$c1Cent, $reason . '_c1_responsibility', (int)$accrual['id'], 'c1-reverse:' . $sequence);
+            app()->make(MemberPointsServices::class)->reverseAccrual($accrual, $c1Cent, $reason, 'reverse:' . $sequence);
         }
         if ($b1Cent > 0) {
             $this->postStore((int)$accrual['store_id'], -$b1Cent, $reason . '_b1', (int)$accrual['id'], 'b1-reverse:' . $sequence);
         }
-        $this->syncStoreC1Pending((int)$accrual['store_id']);
         $reversedC1 = (int)$accrual['reversed_c1_cent'] + $c1Cent;
         $reversedB1 = (int)$accrual['reversed_b1_cent'] + $b1Cent;
         $fully = $reversedC1 >= (int)$accrual['c1_amount_cent'] && $reversedB1 >= (int)$accrual['b1_amount_cent'];

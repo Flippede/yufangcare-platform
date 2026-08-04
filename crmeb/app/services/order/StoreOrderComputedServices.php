@@ -114,7 +114,7 @@ class StoreOrderComputedServices extends BaseServices
             //使用优惠劵
             [$payPrice, $couponPrice] = $this->useCouponId($couponId, $uid, $cartInfo, $payPrice, $isCreate);
             //使用积分
-            [$payPrice, $deductionPrice, $usedIntegral, $SurplusIntegral] = $this->useIntegral($useIntegral, $userInfo, $payPrice, $other);
+            [$payPrice, $deductionPrice, $usedIntegral, $SurplusIntegral] = $this->useIntegral($useIntegral, $userInfo, $payPrice, $other, $cartInfo);
         }
 
         //计算邮费
@@ -223,7 +223,7 @@ class StoreOrderComputedServices extends BaseServices
      * @param $other
      * @return array
      */
-    public function useIntegral(bool $useIntegral, $userInfo, string $payPrice, array $other)
+    public function useIntegral(bool $useIntegral, $userInfo, string $payPrice, array $other, array $cartInfo = [])
     {
         /** @var UserBillServices $userBillServices */
         $userBillServices = app()->make(UserBillServices::class);
@@ -231,23 +231,14 @@ class StoreOrderComputedServices extends BaseServices
         $usable = bcsub((string)$userInfo['integral'], (string)$userBillServices->getBillSum(['uid' => $userInfo['uid'], 'is_frozen' => 1]), 0);
 
         $SurplusIntegral = $usable;
-        if ($useIntegral && $userInfo['integral'] > 0 && $other['integralRatio'] > 0) {
+        $yfthPolicy = app()->make(\app\services\yfth\MemberPointsServices::class)->deductionPolicy($cartInfo, $payPrice);
+        if ($useIntegral && $userInfo['integral'] > 0 && !empty($yfthPolicy['eligible'])) {
             //积分抵扣上限
-            $integralMaxNum = sys_config('integral_max_num', 200);
-            if ($integralMaxNum > 0 && $usable > $integralMaxNum) {
-                $integral = $integralMaxNum;
-            } else {
-                $integral = $usable;
-            }
-            $deductionPrice = (float)bcmul((string)$integral, (string)$other['integralRatio'], 2);
-            if ($deductionPrice < $payPrice) {
-                $payPrice = bcsub((string)$payPrice, (string)$deductionPrice, 2);
-                $usedIntegral = $integral;
-            } else {
-                $deductionPrice = $payPrice;
-                $usedIntegral = (int)ceil(bcdiv((string)$payPrice, (string)$other['integralRatio'], 2));
-                $payPrice = 0;
-            }
+            $maxDeduction = (float)$yfthPolicy['max_deduction'];
+            $integral = min((int)$usable, (int)floor($maxDeduction));
+            $deductionPrice = (float)$integral;
+            $usedIntegral = $integral;
+            $payPrice = bcsub((string)$payPrice, (string)$deductionPrice, 2);
             $deductionPrice = $deductionPrice > 0 ? $deductionPrice : 0;
             $usedIntegral = $usedIntegral > 0 ? $usedIntegral : 0;
             $SurplusIntegral = (int)bcsub((string)$usable, $usedIntegral, 0);

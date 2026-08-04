@@ -233,6 +233,9 @@ Route::group('yfth', function () {
         Route::post('user/:uid/membership/revoke', 'v1.yfth.HqUserRole/revokeMembership')->option(['real_name' => '总部解除用户永久会员']);
         Route::post('user/:uid/partner/grant', 'v1.yfth.HqUserRole/grantPartner')->option(['real_name' => '总部授予用户招商合伙人身份']);
         Route::post('user/:uid/partner/revoke', 'v1.yfth.HqUserRole/revokePartner')->option(['real_name' => '总部撤销用户招商合伙人身份']);
+        Route::get('customer_service', 'v1.yfth.HqUserRole/customerServices')->option(['real_name' => '总部客服列表']);
+        Route::post('user/:uid/customer_service/grant', 'v1.yfth.HqUserRole/grantCustomerService')->option(['real_name' => '总部授予客服并绑定门店']);
+        Route::post('customer_service/binding/:id/revoke', 'v1.yfth.HqUserRole/revokeCustomerServiceBinding')->option(['real_name' => '总部解除客服门店绑定']);
         Route::get('user/:uid/closure/preflight', 'v1.yfth.HqUserRole/closurePreflight')->option(['real_name' => '总部用户销户预检']);
         Route::delete('user/:uid/closure', 'v1.yfth.HqUserRole/closure')->option(['real_name' => '总部代办用户销户']);
         Route::post('role/:id/revoke', 'v1.yfth.HqUserRole/revoke')->option(['real_name' => '总部撤销用户经营身份']);
@@ -257,6 +260,9 @@ Route::group('yfth', function () {
         Route::post('settlement_batch/generate', 'v1.yfth.CommissionFinance/settlementBatchGenerate')->option(['real_name' => '生成门店结算批次']);
         Route::post('settlement_batch/:id/start', 'v1.yfth.CommissionFinance/settlementBatchStart')->option(['real_name' => '发起微信分账预留']);
         Route::post('retry', 'v1.yfth.CommissionFinance/retry')->option(['real_name' => '到期佣金补偿']);
+        Route::get('points_config', 'v1.yfth.CommissionFinance/pointsConfig')->option(['real_name' => '会员积分抵扣配置']);
+        Route::post('points_config', 'v1.yfth.CommissionFinance/pointsConfigSave')->option(['real_name' => '保存会员积分抵扣配置']);
+        Route::post('points_convert_legacy', 'v1.yfth.CommissionFinance/convertLegacyPoints')->option(['real_name' => '转换历史C1余额为积分']);
     })->option(['parent' => 'yfth', 'cate_name' => '佣金与结算']);
     Route::group('fund_finance', function () {
         Route::get('withdrawal', 'v1.yfth.FundFinance/index')->option(['real_name' => '提现申请列表']);
