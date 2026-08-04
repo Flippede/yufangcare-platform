@@ -401,7 +401,7 @@
 				{
 					"path": "commission/account",
 					"style": {
-						"navigationBarTitleText": "账户余额"
+						"navigationBarTitleText": "我的积分"
 					}
 				},
 				{
