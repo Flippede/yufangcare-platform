@@ -1,6 +1,6 @@
 <template>
   <div class="user-role-page">
-    <el-alert title="永久会员、门店岗位和招商合伙人是三套独立资格。总部可授予五级合伙人；平台董事无需上级，其余职级必须且只能绑定一名相邻上级。所有变更均写入审计。" type="info" :closable="false" />
+    <el-alert title="永久会员、门店岗位和客服是独立资格。所有总部授权变更均写入审计。" type="info" :closable="false" />
     <el-card class="fixture-card" shadow="never">
       <div slot="header" class="fixture-header">
         <div>
@@ -61,8 +61,6 @@
           <el-button type="text" @click="openDetail(row)">查看</el-button>
           <el-button v-if="!row.permanent_member" type="text" @click="openGrant(row, 'permanent_member')">授权会员</el-button>
           <el-button v-else type="text" class="danger" @click="openMembershipRevoke(row)">解除会员</el-button>
-          <el-button v-if="!(row.partner_identity && row.partner_identity.active)" type="text" @click="openPartnerGrant(row)">授予五级合伙人</el-button>
-          <el-button v-else type="text" class="danger" @click="openPartnerRevoke(row)">撤销{{ row.partner_identity.rank_name }}</el-button>
           <el-button type="text" @click="openGrant(row)">店长/店员</el-button>
           <el-button type="text" @click="openCustomerServiceGrant(row)">客服</el-button>
           <el-button type="text" class="danger" @click="openClosure(row)">账号销户</el-button>
@@ -75,7 +73,7 @@
       <div v-if="detail" class="detail-head"><b>{{ detail.nickname || detail.account || '-' }}</b><span>UID {{ detail.uid }}</span><span>{{ detail.phone_masked }}</span></div>
       <div v-if="detail" class="identity-summary">
         <div><b>基础身份</b><el-tag size="mini">顾客</el-tag><el-tag v-if="detail.permanent_member" size="mini" type="success">永久会员</el-tag><span v-else class="muted">未授权永久会员</span><el-button v-if="!detail.permanent_member" type="primary" size="mini" @click="openGrant(detail, 'permanent_member')">总部授权永久会员</el-button><el-button v-else type="danger" plain size="mini" @click="openMembershipRevoke(detail)">解除永久会员</el-button></div>
-        <div><b>招商职级</b><span v-if="!(detail.partner_identity && detail.partner_identity.active)" class="muted">尚未授予招商合伙人身份</span><template v-else><el-tag size="mini" type="warning">{{ detail.partner_identity.rank_name }}</el-tag><span v-if="detail.partner_identity.parent_uid">直属上级：{{ detail.partner_identity.parent_name || ('UID ' + detail.partner_identity.parent_uid) }} · {{ detail.partner_identity.parent_rank_name }}</span><span v-else>总部直属（无上级）</span><el-button type="danger" plain size="mini" @click="openPartnerRevoke(detail)">撤销{{ detail.partner_identity.rank_name }}</el-button></template><el-button v-if="!(detail.partner_identity && detail.partner_identity.active)" type="warning" size="mini" @click="openPartnerGrant(detail)">总部授予五级合伙人</el-button></div>
+        <div><b>招商职级</b><span v-if="!(detail.partner_identity && detail.partner_identity.active)" class="muted">尚未授予招商合伙人身份</span><template v-else><el-tag size="mini" type="warning">{{ detail.partner_identity.rank_name }}</el-tag><span v-if="detail.partner_identity.parent_uid">直属上级：{{ detail.partner_identity.parent_name || ('UID ' + detail.partner_identity.parent_uid) }} · {{ detail.partner_identity.parent_rank_name }}</span><span v-else>总部直属（无上级）</span></template></div>
       </div>
       <el-table :data="detail ? storeStaffRoles(detail) : []" border size="small">
         <el-table-column prop="store_name" label="门店" min-width="160" />
@@ -128,42 +126,6 @@
       <span slot="footer"><el-button @click="customerServiceVisible = false">取消</el-button><el-button type="primary" :disabled="!customerServiceReady" :loading="saving" @click="grantCustomerService">确认分配</el-button></span>
     </el-dialog>
 
-    <el-dialog title="授予五级招商合伙人身份" :visible.sync="partnerGrantVisible" width="600px" :close-on-click-modal="false">
-      <el-alert title="平台董事由总部直接授予；大区总监、省级、地级、县级必须选择唯一的相邻上级。合伙人身份独立于门店岗位。" type="warning" :closable="false" />
-      <div class="partner-rank-chain">平台董事 → 大区总监 → 省级合伙人 → 地级合伙人 → 县级合伙人</div>
-      <el-form label-width="110px" class="partner-grant-form">
-        <el-form-item label="用户"><span>{{ selected ? `${selected.nickname || selected.account}（UID ${selected.uid}）` : '' }}</span></el-form-item>
-        <el-form-item label="合伙人职级">
-          <el-select v-model="partnerGrantForm.rank_code" placeholder="选择五级合伙人身份" @change="loadPartnerParents">
-            <el-option v-for="rank in partnerRankOptions" :key="rank.value" :label="rank.label" :value="rank.value" />
-          </el-select>
-        </el-form-item>
-        <el-form-item v-if="partnerParentRequired" :label="`直属${partnerParentRankName}`">
-          <el-select v-model="partnerGrantForm.parent_uid" filterable placeholder="必须选择一名直属上级" :loading="partnerOptionsLoading">
-            <el-option v-for="parent in partnerParentOptions" :key="parent.uid" :label="partnerParentLabel(parent)" :value="parent.uid" />
-          </el-select>
-          <div v-if="!partnerOptionsLoading && !partnerParentOptions.length" class="form-tip danger">当前没有可用的{{ partnerParentRankName }}，请先授予上一级身份。</div>
-        </el-form-item>
-        <el-form-item v-else-if="partnerGrantForm.rank_code === 'platform_director'" label="直属上级"><el-tag type="success">平台董事由总部直接设置，无需上级</el-tag></el-form-item>
-        <el-form-item label="操作原因"><el-input v-model.trim="partnerGrantForm.reason" type="textarea" :rows="3" maxlength="255" show-word-limit /></el-form-item>
-      </el-form>
-      <span slot="footer"><el-button @click="partnerGrantVisible = false">取消</el-button><el-button type="warning" :disabled="!partnerGrantReady" :loading="saving" @click="grantPartner">确认授予{{ selectedPartnerRankName }}</el-button></span>
-    </el-dialog>
-
-    <el-dialog title="撤销招商合伙人" :visible.sync="partnerRevokeVisible" width="560px" :close-on-click-modal="false">
-      <div class="membership-revoke-warning">
-        <i class="el-icon-warning" aria-hidden="true" />
-        <div><b>重要：撤销后立即失去当前招商职级和团队管理权限。</b><p>已产生的审计、业绩和结算历史不会被删除。如仍有直属下级，系统会要求先转移下级后再撤销。</p></div>
-      </div>
-      <el-form label-width="110px" class="membership-revoke-form">
-        <el-form-item label="目标用户"><span>{{ selected ? `${selected.nickname || selected.account || '-'}（UID ${selected.uid}）` : '' }}</span></el-form-item>
-        <el-form-item label="当前职级"><el-tag type="warning">{{ selected && selected.partner_identity ? selected.partner_identity.rank_name : '-' }}</el-tag></el-form-item>
-        <el-form-item label="操作原因"><el-input v-model.trim="partnerRevokeForm.reason" type="textarea" :rows="3" maxlength="255" show-word-limit placeholder="请填写不少于4个字的撤销原因" /></el-form-item>
-        <el-form-item label="二次确认"><el-input v-model.trim="partnerRevokeForm.confirmation" placeholder="请输入：确认撤销合伙人" @keyup.enter.native="revokePartner" /><div class="form-tip danger">必须完整输入“确认撤销合伙人”后才能执行。</div></el-form-item>
-      </el-form>
-      <span slot="footer"><el-button @click="partnerRevokeVisible = false">取消</el-button><el-button type="danger" :disabled="!partnerRevokeReady" :loading="partnerRevokeSaving" @click="revokePartner">确认撤销合伙人</el-button></span>
-    </el-dialog>
-
     <el-dialog title="总部代办用户销户" :visible.sync="closureVisible" width="680px" :close-on-click-modal="false">
       <div class="closure-danger-header">
         <i class="el-icon-warning" aria-hidden="true" />
@@ -204,11 +166,8 @@ import {
   yfthAcceptanceFixtureGenerate,
   yfthAcceptanceFixturePasswordReset,
   yfthAcceptanceFixtureReset,
-  yfthPartnerGrantOptions,
   yfthUserMembershipGrant,
   yfthUserMembershipRevoke,
-  yfthUserPartnerGrant,
-  yfthUserPartnerRevoke,
   yfthUserAccountClosure,
   yfthUserAccountClosurePreflight,
   yfthUserRoleDetail,
@@ -224,13 +183,10 @@ export default {
     return {
       loading: false, saving: false, fixtureSaving: false, list: [], total: 0, stores: [], roleOptions: [],
       query: { keyword: '', page: 1, limit: 20 }, detail: null, selected: null,
-      detailVisible: false, grantVisible: false, grantPresetRole: '', partnerGrantVisible: false, partnerRevokeVisible: false, partnerRevokeSaving: false, closureVisible: false, closureSaving: false,
+      detailVisible: false, grantVisible: false, grantPresetRole: '', closureVisible: false, closureSaving: false,
       membershipRevokeVisible: false, membershipRevokeSaving: false, membershipRevokeForm: { confirmation: '', reason: '' },
       customerServiceVisible: false, customerServiceForm: { store_id: '', reason: '' },
       grantForm: { store_id: '', role_code: '', reason: '' },
-      partnerGrantForm: { rank_code: '', parent_uid: '', reason: '' },
-      partnerRevokeForm: { confirmation: '', reason: '' },
-      partnerRankOptions: [], partnerParentOptions: [], partnerParentRequired: false, partnerParentRankName: '', partnerOptionsLoading: false,
       closurePreflight: null, closureForm: { confirmation: '', reason: '' },
       fixture: { enabled: false, exists: false, status: 'not_generated', store: {}, accounts: [] },
     };
@@ -259,20 +215,6 @@ export default {
     membershipRevokeReady() {
       return this.membershipRevokeForm.confirmation === '确认解除会员'
         && String(this.membershipRevokeForm.reason || '').trim().length >= 4;
-    },
-    partnerRevokeReady() {
-      return this.partnerRevokeForm.confirmation === '确认撤销合伙人'
-        && String(this.partnerRevokeForm.reason || '').trim().length >= 4;
-    },
-    partnerGrantReady() {
-      return Boolean(this.selected
-        && this.partnerGrantForm.rank_code
-        && String(this.partnerGrantForm.reason || '').trim().length >= 4
-        && (!this.partnerParentRequired || this.partnerGrantForm.parent_uid));
-    },
-    selectedPartnerRankName() {
-      const option = this.partnerRankOptions.find((item) => item.value === this.partnerGrantForm.rank_code);
-      return option ? option.label : '合伙人';
     },
     closureReady() {
       return Boolean(this.closurePreflight && this.closurePreflight.can_close
@@ -403,77 +345,6 @@ export default {
         return this.load();
       }).finally(() => { this.membershipRevokeSaving = false; });
     },
-    openPartnerGrant(row) {
-      this.selected = row;
-      this.partnerGrantForm = { rank_code: '', parent_uid: '', reason: '' };
-      this.partnerParentOptions = [];
-      this.partnerParentRequired = false;
-      this.partnerParentRankName = '';
-      this.partnerGrantVisible = true;
-      this.partnerOptionsLoading = true;
-      yfthPartnerGrantOptions({ rank_code: '' }).then((res) => {
-        this.partnerRankOptions = (res.data || {}).rank_options || [];
-      }).finally(() => { this.partnerOptionsLoading = false; });
-    },
-    loadPartnerParents(rankCode) {
-      this.partnerGrantForm.parent_uid = '';
-      this.partnerParentOptions = [];
-      this.partnerOptionsLoading = true;
-      yfthPartnerGrantOptions({ rank_code: rankCode }).then((res) => {
-        const data = res.data || {};
-        this.partnerRankOptions = data.rank_options || this.partnerRankOptions;
-        this.partnerParentRequired = Boolean(data.parent_required);
-        this.partnerParentRankName = data.required_parent_rank_name || '';
-        this.partnerParentOptions = data.parent_options || [];
-      }).finally(() => { this.partnerOptionsLoading = false; });
-    },
-    partnerParentLabel(parent) {
-      const name = parent.nickname || parent.account || `UID ${parent.uid}`;
-      const account = parent.account && parent.account !== name ? ` · ${parent.account}` : '';
-      return `${name}${account} · UID ${parent.uid}`;
-    },
-    grantPartner() {
-      if (!this.partnerGrantReady) return this.$message.warning('请选择合伙人职级、直属上级并填写不少于4个字的原因');
-      if (this.partnerParentRequired && !this.partnerGrantForm.parent_uid) return this.$message.warning(`必须选择一名${this.partnerParentRankName}`);
-      this.saving = true;
-      const data = {
-        rank_code: this.partnerGrantForm.rank_code,
-        parent_uid: this.partnerParentRequired ? Number(this.partnerGrantForm.parent_uid) : 0,
-        reason: this.partnerGrantForm.reason,
-        request_id: `hq-partner-grant-${Date.now()}`,
-      };
-      yfthUserPartnerGrant(this.selected.uid, data).then(() => {
-        this.$message.success('招商合伙人身份已授予');
-        this.partnerGrantVisible = false;
-        this.detailVisible = false;
-        return this.load();
-      }).finally(() => { this.saving = false; });
-    },
-    openPartnerRevoke(row) {
-      this.selected = row;
-      this.partnerRevokeForm = { confirmation: '', reason: '' };
-      this.partnerRevokeVisible = true;
-    },
-    revokePartner() {
-      if (!this.partnerRevokeReady || !this.selected) return;
-      this.partnerRevokeSaving = true;
-      yfthUserPartnerRevoke(this.selected.uid, {
-        confirmation: this.partnerRevokeForm.confirmation,
-        reason: this.partnerRevokeForm.reason,
-        request_id: `hq-partner-revoke-${Date.now()}`,
-      }).then(() => {
-        this.$message.success('该用户的招商合伙人身份已撤销');
-        this.partnerRevokeVisible = false;
-        this.detailVisible = false;
-        return this.load();
-      }).catch((error) => {
-        const code = String((error && (error.msg || error.message)) || '');
-        if (code === 'partner_active_children_must_be_reassigned') {
-          return this.$alert('该合伙人仍有有效直属下级，请先在招商合伙人管理中转移下级关系。', '暂时不能撤销', { type: 'warning' });
-        }
-        return this.$alert(code || '撤销失败，请刷新后重试。', '撤销未完成', { type: 'error' });
-      }).finally(() => { this.partnerRevokeSaving = false; });
-    },
     openClosure(row) {
       this.selected = row;
       this.closurePreflight = null;
@@ -560,7 +431,6 @@ export default {
 .partner-grant-form { margin-top: 18px; }
 .partner-grant-form .el-select { width: 100%; }
 .customer-service-bindings { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; padding: 12px; background: #f7f8fa; }
-.partner-rank-chain { margin-top: 12px; padding: 10px 14px; color: #8a5b24; background: #fff8eb; border: 1px solid #ecd5ad; font-weight: 600; text-align: center; }
 .revoke-icon { margin-left: 6px; cursor: pointer; }
 .danger { color: #f56c6c; }
 .membership-revoke-warning { display: flex; gap: 12px; padding: 14px 16px; color: #c45656; background: #fef0f0; border: 1px solid #fbc4c4; }
