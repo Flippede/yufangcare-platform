@@ -89,6 +89,7 @@ Route::group(function () {
     ->option(['mark' => 'yfth_permanent_membership_user', 'mark_name' => 'YFTH permanent membership user API']);
 
 Route::group(function () {
+    Route::get('yfth/store_workbench/customer_service/contact', 'v1.yfth.CustomerServiceController/storeContact')->option(['real_name' => 'YFTH store dedicated customer service contact']);
     Route::get('yfth/store_workbench/overview', 'v1.yfth.StoreWorkbenchController/overview')->option(['real_name' => 'YFTH store workbench overview']);
     Route::get('yfth/store_workbench/customer_attribution', 'v1.yfth.HqAuthorityStoreReadController/index')->option(['real_name' => 'YFTH store customer attribution list']);
     Route::get('yfth/store_workbench/customer_attribution/:id', 'v1.yfth.HqAuthorityStoreReadController/detail')->option(['real_name' => 'YFTH store customer attribution detail']);

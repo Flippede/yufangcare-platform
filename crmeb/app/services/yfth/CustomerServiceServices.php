@@ -2,11 +2,47 @@
 
 namespace app\services\yfth;
 
+use app\Request;
 use crmeb\exceptions\ApiException;
 use think\facade\Db;
 
 class CustomerServiceServices
 {
+    /**
+     * Returns only the dedicated customer service contact for the caller's current B-store.
+     */
+    public function storeContact(Request $request): array
+    {
+        $context = app()->make(CurrentBusinessContextServices::class)->fromRequest($request);
+        if (!in_array((string)($context['role_code'] ?? ''), ['store_manager', 'store_staff'], true)) {
+            throw new ApiException('store_customer_service_scope_forbidden');
+        }
+        $storeId = (int)($context['store_id'] ?? 0);
+        if ($storeId <= 0) {
+            throw new ApiException('store_customer_service_store_required');
+        }
+
+        $binding = Db::name('yfth_customer_service_store_binding')->alias('b')
+            ->join('user u', 'u.uid=b.customer_service_uid')
+            ->where(['b.store_id' => $storeId, 'b.status' => 'active'])
+            ->field('b.id AS binding_id,b.store_id,u.uid,u.nickname,u.avatar,u.phone')
+            ->find();
+        $binding = $this->row($binding);
+        if (!$binding) {
+            return ['assigned' => false, 'store_id' => $storeId, 'contact' => null];
+        }
+
+        return [
+            'assigned' => true,
+            'store_id' => $storeId,
+            'contact' => [
+                'name' => (string)($binding['nickname'] ?? ''),
+                'avatar' => (string)($binding['avatar'] ?? ''),
+                'phone' => (string)($binding['phone'] ?? ''),
+            ],
+        ];
+    }
+
     public function workbench(int $uid): array
     {
         $this->assertRole($uid);

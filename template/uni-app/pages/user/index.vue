@@ -154,6 +154,16 @@
 				<!-- 我的服务：YFTH 固定业务入口与后台配置菜单统一展示 -->
 				<view class="user-menus customer-services" v-if="isLogin || (my_menus_status && MyMenus.length)">
 					<view class="menu-title">{{ $t('我的服务') }}</view>
+					<view v-if="isLogin && isYfthStoreOperator" class="yfth-customer-service-card" :class="{ 'is-unassigned': !yfthCustomerServiceContact.assigned }" @click="callYfthCustomerService">
+						<image v-if="yfthCustomerServiceContact.assigned && yfthCustomerServiceContact.contact.avatar" :src="yfthCustomerServiceContact.contact.avatar" mode="aspectFill"></image>
+						<view v-else class="customer-service-avatar">客</view>
+						<view class="customer-service-copy">
+							<text class="customer-service-label">专属客服</text>
+							<text class="customer-service-name">{{ yfthCustomerServiceContact.assigned ? (yfthCustomerServiceContact.contact.name || '客服') : '暂无客服' }}</text>
+							<text class="customer-service-phone">{{ yfthCustomerServiceContact.assigned ? (yfthCustomerServiceContact.contact.phone || '暂未填写联系电话') : '总部尚未分配专属客服' }}</text>
+						</view>
+						<text v-if="yfthCustomerServiceContact.assigned && yfthCustomerServiceContact.contact.phone" class="customer-service-call">拨打电话</text>
+					</view>
 					<view class="list-box">
 						<view class="item yfth-service-item" v-if="isLogin && hasYfthBusinessIdentity" @click="goYfthWorkbench">
 							<view class="service-icon service-icon-work">营</view>
@@ -245,7 +255,7 @@ import pageFooter from '@/components/pageFooter/index.vue';
 import { getCustomer } from '@/utils/index.js';
 import editUserModal from '@/components/eidtUserModal/index.vue';
 import { currentContext, dominantYfthIdentities, enterYfthBusinessMall, isBusinessRole, isPartnerRole, isYfthBusinessUserCenterBrowsing, leaveYfthBusinessUserCenter, loadYfthIdentities, resolveDominantYfthContext, roleLabel } from '@/libs/yfthContext.js';
-import { getYfthPackageMembershipMe, getYfthCommissionSummary, getYfthPartnerWorkbench } from '@/api/yfth.js';
+import { getYfthPackageMembershipMe, getYfthCommissionSummary, getYfthPartnerWorkbench, getYfthStoreCustomerServiceContact } from '@/api/yfth.js';
 export default {
 	components: {
 		pageFooter,
@@ -381,6 +391,7 @@ export default {
 			yfthMembershipState: 'idle',
 			yfthMembershipRequestSeq: 0,
 			yfthCommissionProfile: {},
+			yfthCustomerServiceContact: {},
 			yfthPartnerProfile: {},
 			my_banner_status: 0,
 			is_diy: uni.getStorageSync('is_diy')
@@ -516,6 +527,7 @@ export default {
 			this.yfthIdentities = [];
 			this.yfthCurrentContext = {};
 			this.yfthPartnerProfile = {};
+			this.yfthCustomerServiceContact = {};
 			this.yfthBusinessIdentityRequestSeq += 1;
 		},
 		loadYfthBusinessEntry() {
@@ -545,6 +557,8 @@ export default {
 				return resolveDominantYfthContext(list).then((context) => {
 					this.yfthCurrentContext = context;
 					if (isPartnerRole(context.role_code)) this.loadYfthPartnerFinance();
+					if (['store_manager', 'store_staff'].includes(String(context.role_code || ''))) this.loadYfthCustomerServiceContact(context);
+					else this.yfthCustomerServiceContact = {};
 					if (!keepUserCenter) {
 						uni.reLaunch({ url: this.yfthWorkbenchUrl(context) });
 					}
@@ -558,6 +572,21 @@ export default {
 						uni.reLaunch({ url: this.yfthWorkbenchUrl(cached) });
 					}
 				}
+				return false;
+			});
+		},
+		loadYfthCustomerServiceContact(context) {
+			const storeId = Number((context || {}).store_id || 0);
+			const roleCode = String((context || {}).role_code || '');
+			if (!storeId || !['store_manager', 'store_staff'].includes(roleCode)) {
+				this.yfthCustomerServiceContact = {};
+				return Promise.resolve(false);
+			}
+			return getYfthStoreCustomerServiceContact({ role_code: roleCode, store_id: storeId }).then((res) => {
+				this.yfthCustomerServiceContact = res.data || {};
+				return true;
+			}).catch(() => {
+				this.yfthCustomerServiceContact = { assigned: false };
 				return false;
 			});
 		},
@@ -898,6 +927,18 @@ export default {
 				return;
 			}
 			uni.navigateTo({ url: this.yfthWorkbenchUrl(this.yfthCurrentContext) });
+		},
+		callYfthCustomerService() {
+			const contact = (this.yfthCustomerServiceContact || {}).contact || {};
+			if (!this.yfthCustomerServiceContact.assigned) {
+				uni.showToast({ title: '当前门店暂无客服', icon: 'none' });
+				return;
+			}
+			if (!contact.phone) {
+				uni.showToast({ title: '客服暂未填写联系电话', icon: 'none' });
+				return;
+			}
+			uni.makePhoneCall({ phoneNumber: String(contact.phone) });
 		},
 
 		goYfthReferralCode() {
@@ -1420,6 +1461,43 @@ body {
 		border-radius: 16rpx;
 		&.customer-services {
 			margin-top: 20rpx;
+		}
+		.yfth-customer-service-card {
+			display: flex;
+			align-items: center;
+			gap: 18rpx;
+			margin: -10rpx 20rpx 24rpx;
+			padding: 20rpx;
+			border: 1rpx solid #eadcc8;
+			border-radius: 14rpx;
+			background: #fffaf2;
+			image,
+			.customer-service-avatar {
+				width: 76rpx;
+				height: 76rpx;
+				border-radius: 50%;
+				flex: 0 0 76rpx;
+			}
+			.customer-service-avatar {
+				display: flex;
+				align-items: center;
+				justify-content: center;
+				background: #eddcc2;
+				color: #906637;
+				font-size: 30rpx;
+				font-weight: 700;
+			}
+			.customer-service-copy {
+				display: flex;
+				min-width: 0;
+				flex: 1;
+				flex-direction: column;
+			}
+			.customer-service-label,
+			.customer-service-phone { color: #8b7b68; font-size: 22rpx; }
+			.customer-service-name { margin: 4rpx 0; color: #382d22; font-size: 28rpx; font-weight: 700; }
+			.customer-service-call { color: #a66f33; font-size: 23rpx; }
+			&.is-unassigned { background: #f7f4ef; border-color: #ece5dc; }
 		}
 		.column-box {
 			padding: 30rpx 20rpx 10rpx 30rpx;

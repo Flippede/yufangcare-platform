@@ -16,6 +16,10 @@ export function getYfthCustomerServiceWorkbench() {
 	return request.get('yfth/customer_service/workbench');
 }
 
+export function getYfthStoreCustomerServiceContact(data) {
+	return request.get('yfth/store_workbench/customer_service/contact', data || {});
+}
+
 export function getYfthStoreAcquisitionCode(data) {
 	return request.get('yfth/store_acquisition/code', data || {});
 }

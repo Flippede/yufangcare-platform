@@ -18,6 +18,8 @@ $finance = $source('app/services/yfth/CommissionFinanceServices.php');
 $computed = $source('app/services/order/StoreOrderComputedServices.php');
 $order = $source('app/services/order/StoreOrderServices.php');
 $customerService = $source('app/services/yfth/CustomerServiceServices.php');
+$customerServiceController = $source('app/api/controller/v1/yfth/CustomerServiceController.php');
+$customerServiceRoute = $source('app/api/route/yfth_service.php');
 $context = $source('app/services/yfth/CurrentBusinessContextServices.php');
 $api = $source('../template/uni-app/api/yfth.js');
 $userCenter = $source('../template/uni-app/pages/user/index.vue');
@@ -44,6 +46,10 @@ $assert(strpos($order, "['integral_open'] = !empty(\$memberPointsPolicy['eligibl
 foreach (['customer_service_uid', 'active_store_key', 'store_customer_service_already_assigned', "'role_code' => 'customer_service'"] as $needle) {
     $assert(strpos($customerService, $needle) !== false, 'customer_service_contains:' . $needle);
 }
+$assert(strpos($customerService, 'function storeContact(Request $request)') !== false, 'customer_service_has_store_contact_reader');
+$assert(strpos($customerService, "['store_manager', 'store_staff']") !== false, 'customer_service_contact_is_store_operator_scoped');
+$assert(strpos($customerServiceController, 'storeContact(Request $request') !== false, 'customer_service_contact_controller_exists');
+$assert(strpos($customerServiceRoute, 'yfth/store_workbench/customer_service/contact') !== false, 'customer_service_contact_route_exists');
 $assert(strpos($customerService, 'yfth_hq_customer_attribution_current') === false, 'customer_service_does_not_read_c_end_customers');
 $assert(strpos($customerService, 'commission') === false && strpos($customerService, 'withdrawal') === false, 'customer_service_has_no_finance_access');
 $assert(strpos($context, "if (\$roleCode === 'customer_service')") !== false, 'customer_service_has_server_context');
@@ -53,6 +59,9 @@ foreach (['requestYfthCommissionSettlement', 'getYfthStoreC1Settlements', 'compl
 }
 $assert(strpos($storeCommission, 'C1线下结算') === false, 'store_workbench_has_no_c1_cash_settlement');
 $assert(strpos($userCenter, '我的积分') !== false, 'user_center_exposes_points');
+$assert(strpos($api, 'getYfthStoreCustomerServiceContact') !== false, 'user_api_exposes_store_customer_service_contact');
+$assert(strpos($userCenter, '专属客服') !== false, 'store_user_center_exposes_dedicated_customer_service');
+$assert(strpos($userCenter, '暂无客服') !== false, 'store_user_center_has_no_customer_service_state');
 
 foreach ([
     'yfth_member_points_account', 'yfth_member_points_ledger', 'yfth_member_points_config',

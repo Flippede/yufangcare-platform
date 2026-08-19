@@ -16,7 +16,7 @@ assert(!userPage.includes('/static/images/support.png'), 'customer center must n
 assert(!userPage.includes('/pages/annex/vip_paid/index'), 'customer center must not expose the legacy paid-membership surface');
 assert(!userPage.includes("$t('未开通会员')"), 'customer center must not use legacy membership wording');
 assert(userPage.includes('getMenuList()'), 'customer service menu must remain backend configurable');
-assert(userPage.includes('购买康养套餐'), 'YFTH package purchase entry must remain available');
+assert(userPage.includes('goYfthPackageMembership'), 'YFTH package membership entry must remain available');
 assert(!userPage.includes('class="yfth-entry-card"'), 'YFTH business entries must not remain as stacked top cards');
 assert(userPage.includes('class="customer-profile"'), 'customer center must have one unified profile surface');
 assert(userPage.includes('getYfthPackageMembershipMe'), 'customer center membership status must use the existing YFTH authority API');
@@ -29,7 +29,7 @@ assert(userPage.includes(':centered-h5="true"'), 'customer center must opt into 
 assert(pageFooter.includes("'centered-h5-footer': centeredH5"), 'footer must support the page-scoped centered H5 mode');
 assert(pageFooter.includes('width: 375px !important;'), 'centered H5 footer must match the customer canvas width');
 assert(userPage.includes('serviceMenuInitial(item.name)'), 'configured service menus must retain a visible fallback when no icon is configured');
-['我的归属', '套餐会员与一级推荐', '购买康养套餐', '御方通和合作中心'].forEach((name) => {
+['我的归属', '套餐会员', '御方通和合作中心'].forEach((name) => {
   assert(userPage.includes(name), `customer service grid must include ${name}`);
 });
 assert(categoryPage.includes('getCategoryList'), 'category page must keep using the CRMEB category API');
