@@ -21,6 +21,9 @@ assert(!userPage.includes('class="yfth-entry-card"'), 'YFTH business entries mus
 assert(userPage.includes('class="customer-profile"'), 'customer center must have one unified profile surface');
 assert(userPage.includes('getYfthPackageMembershipMe'), 'customer center membership status must use the existing YFTH authority API');
 assert(userPage.includes('class="membership-summary"'), 'customer center must render one compact membership summary');
+assert(!userPage.includes('userInfo.now_money'), 'customer center must not expose the legacy CRMEB balance as a customer asset');
+assert(!userPage.includes('/pages/users/user_money/index'), 'customer center must not navigate customers to the legacy balance page');
+assert(userPage.includes('商城积分'), 'customer center must retain the unified member-points entry');
 assert(userPage.includes('class="user-menus customer-services"'), 'YFTH and configured entries must share one service section');
 assert(userPage.includes('width: 25%;'), 'customer service grid must remain four columns on mobile');
 assert(userPage.includes('min-height: 68rpx;'), 'customer service labels must reserve equal one-line/two-line height');

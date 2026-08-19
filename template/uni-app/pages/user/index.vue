@@ -79,16 +79,16 @@
 							<view v-if="yfthCurrentContext.is_business_role" class="identity-actions" @click.stop="goYfthCurrentWorkbench">进入{{ yfthCurrentIdentityText }}工作台</view>
 						</view>
 					</view>
-					<view class="mall-assets" v-if="isLogin">
-						<view class="asset-item" @click="goYfthCommissionAccount">
+					<view class="mall-assets" :class="{ 'mall-assets--consumer': !isYfthPartner }" v-if="isLogin">
+						<view v-if="isYfthPartner" class="asset-item" @click="goYfthCommissionAccount">
 							<text class="asset-value">{{ yfthUnifiedBalance }}</text>
-							<text class="asset-label">{{ yfthAccountLabel }}</text>
+							<text class="asset-label">合伙人收益</text>
 						</view>
 						<view class="asset-item" @click="goMenuPage('/pages/users/user_integral/index')">
 							<text class="asset-value">{{ userInfo.integral || 0 }}</text>
 							<text class="asset-label">商城积分</text>
 						</view>
-						<view class="asset-item" @click="goMenuPage('/pages/users/user_coupon/index')">
+						<view class="asset-item asset-item--last" @click="goMenuPage('/pages/users/user_coupon/index')">
 							<text class="asset-value">{{ userInfo.couponCount || 0 }}</text>
 							<text class="asset-label">优惠券</text>
 						</view>
@@ -295,19 +295,13 @@ export default {
 		isYfthPartner() {
 			return isPartnerRole(String((this.yfthCurrentContext || {}).role_code || ''));
 		},
-		yfthAccountLabel() {
-			return this.isYfthPartner ? '合伙人收益' : '商城余额';
-		},
 		yfthCodeLabel() {
 			if (this.isYfthPartner) return '招商申请码';
 			return this.isYfthPermanentMember || this.isYfthStoreOperator ? '我的推广码' : '我的身份码';
 		},
 		yfthUnifiedBalance() {
-			if (this.isYfthPartner) {
-				const summary = this.yfthPartnerProfile.unified_earning_summary || {};
-				return (Number(summary.pending || 0) + Number(summary.settled || 0)).toFixed(2);
-			}
-			return Number(this.userInfo.now_money || 0).toFixed(2);
+			const summary = this.yfthPartnerProfile.unified_earning_summary || {};
+			return (Number(summary.pending || 0) + Number(summary.settled || 0)).toFixed(2);
 		}
 	},
 	filters: {
@@ -638,7 +632,7 @@ export default {
 		},
 		goYfthCommissionAccount() {
 			if (!this.isLogin) { toLogin(); return; }
-			uni.navigateTo({ url: this.isYfthPartner ? '/pages/yfth/franchise/partner/index?tab=earnings' : '/pages/users/user_money/index' });
+			uni.navigateTo({ url: '/pages/yfth/franchise/partner/index?tab=earnings' });
 		},
 		serviceMenuInitial(name) {
 			const text = String(name || '服务').trim();
@@ -1761,6 +1755,8 @@ body {
 	grid-template-columns: repeat(3, 1fr);
 	padding: 24rpx 18rpx 52rpx;
 
+	&.mall-assets--consumer { grid-template-columns: repeat(2, 1fr); }
+
 	.asset-item {
 		display: flex;
 		flex-direction: column;
@@ -1769,7 +1765,7 @@ body {
 		border-right: 1px solid #eee8df;
 	}
 
-	.asset-item:nth-child(3) { border-right: 0; }
+	.asset-item--last { border-right: 0; }
 	.asset-value { color: #6e4f2d; font-size: 31rpx; font-weight: 700; }
 	.asset-label { color: #6f6a63; font-size: 23rpx; }
 	.asset-note { position: absolute; right: 20rpx; bottom: 14rpx; color: #a1998f; font-size: 19rpx; }
