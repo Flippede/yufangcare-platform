@@ -33,6 +33,122 @@ class FranchiseApplicationServices extends YfthFoundationBaseServices
         $this->dao = $dao;
     }
 
+    public function portalDraft(Request $request): array
+    {
+        $uid = $this->requirePortalUid($request);
+        $application = Db::name('yfth_franchise_application')
+            ->where('applicant_uid', $uid)
+            ->where('status', 'draft')
+            ->order('id desc')
+            ->find();
+        if (!$application) {
+            return ['application' => [], 'profile' => []];
+        }
+        return [
+            'application' => $this->formatApplication((array)$application, false),
+            'profile' => $this->portalProfile((int)$application['id']),
+        ];
+    }
+
+    public function savePortalDraft(Request $request, array $data): array
+    {
+        $uid = $this->requirePortalUid($request);
+        $profile = $this->normalizePortalProfile($data, false);
+        return Db::transaction(function () use ($uid, $profile) {
+            $application = Db::name('yfth_franchise_application')
+                ->where('applicant_uid', $uid)
+                ->where('status', 'draft')
+                ->lock(true)
+                ->order('id desc')
+                ->find();
+            $now = time();
+            $core = $this->portalCorePayload($profile);
+            if (!$application) {
+                $applicationId = (int)Db::name('yfth_franchise_application')->insertGetId(array_merge($core, [
+                    'application_no' => $this->makeApplicationNo($uid),
+                    'applicant_uid' => $uid,
+                    'source' => 'ylz_franchise_portal',
+                    'status' => 'draft',
+                    'assigned_uid' => 0,
+                    'create_time' => $now,
+                    'update_time' => $now,
+                ]));
+                $application = Db::name('yfth_franchise_application')->where('id', $applicationId)->find();
+            } else {
+                $applicationId = (int)$application['id'];
+                Db::name('yfth_franchise_application')->where('id', $applicationId)->update(array_merge($core, ['update_time' => $now]));
+                $application = Db::name('yfth_franchise_application')->where('id', $applicationId)->find();
+            }
+            $this->savePortalProfile($applicationId, $profile, 0);
+            return ['application' => $this->formatApplication((array)$application, false), 'profile' => $profile];
+        });
+    }
+
+    public function submitPortal(Request $request, array $data): array
+    {
+        $uid = $this->requirePortalUid($request);
+        $partnerInvite = trim((string)($data['partner_invite'] ?? ''));
+        $profile = $this->normalizePortalProfile($data, true);
+        return Db::transaction(function () use ($uid, $profile, $partnerInvite) {
+            $existing = Db::name('yfth_franchise_application')
+                ->where('applicant_uid', $uid)
+                ->whereIn('status', ['submitted', 'contacting', 'communicating', 'inspecting', 'pending_contract', 'signed', 'preparing', 'opened'])
+                ->lock(true)
+                ->order('id desc')
+                ->find();
+            if ($existing) {
+                return [
+                    'application' => $this->formatApplication((array)$existing, false),
+                    'profile' => $this->portalProfile((int)$existing['id']),
+                    'already_submitted' => true,
+                ];
+            }
+            $application = Db::name('yfth_franchise_application')
+                ->where('applicant_uid', $uid)
+                ->where('status', 'draft')
+                ->lock(true)
+                ->order('id desc')
+                ->find();
+            $now = time();
+            $core = $this->portalCorePayload($profile);
+            if (!$application) {
+                $applicationId = (int)Db::name('yfth_franchise_application')->insertGetId(array_merge($core, [
+                    'application_no' => $this->makeApplicationNo($uid),
+                    'applicant_uid' => $uid,
+                    'source' => 'ylz_franchise_portal',
+                    'status' => 'submitted',
+                    'assigned_uid' => 0,
+                    'create_time' => $now,
+                    'update_time' => $now,
+                ]));
+            } else {
+                $applicationId = (int)$application['id'];
+                Db::name('yfth_franchise_application')->where('id', $applicationId)->update(array_merge($core, [
+                    'status' => 'submitted',
+                    'update_time' => $now,
+                ]));
+            }
+            $this->savePortalProfile($applicationId, $profile, $now);
+            $application = (array)Db::name('yfth_franchise_application')->where('id', $applicationId)->find();
+            $source = app()->make(FranchisePartnerServices::class)->captureRecruitSource(
+                $applicationId,
+                $uid,
+                $partnerInvite
+            );
+            $this->audit('franchise_application', $applicationId, 'submit', [], $application, $uid, 'customer', 0, 'ylz_portal_submit');
+            return [
+                'application' => $this->formatApplication($application, false),
+                'profile' => $profile,
+                'recruit_source' => [
+                    'source_type' => (string)($source['source_type'] ?? ''),
+                    'direct_partner_uid' => (int)($source['direct_partner_uid'] ?? 0),
+                    'status' => (string)($source['status'] ?? ''),
+                ],
+                'already_submitted' => false,
+            ];
+        });
+    }
+
     public function submit(Request $request, array $data): array
     {
         if (!empty($data['_forbidden_user_fields_submitted'])) {
@@ -184,6 +300,7 @@ class FranchiseApplicationServices extends YfthFoundationBaseServices
         $application = $this->requireApplication($id);
         return [
             'application' => $this->formatApplication($application, true, $this->userMap([(int)$application['applicant_uid']]), $this->adminMap([(int)$application['assigned_uid']])),
+            'portal_profile' => $this->portalProfile((int)$application['id']),
             'follow_records' => $this->followRecords((int)$application['id'], true),
             'audit_events' => $this->auditEvents((int)$application['id']),
             'recruit_source' => $this->safeRecruitSource((int)$application['id'], true),
@@ -379,7 +496,7 @@ class FranchiseApplicationServices extends YfthFoundationBaseServices
         ]));
         $saved = app()->make(SystemStoreDao::class)->save([
             'name' => mb_substr($name, 0, 100),
-            'introduction' => '总部加盟申请审核通过后创建，申请号：' . (string)$application['application_no'],
+            'introduction' => '养郎中加盟申请审核通过后创建，申请号：' . (string)$application['application_no'],
             'image' => '',
             'oblong_image' => '',
             'phone' => (string)($application['phone'] ?? ''),
@@ -504,6 +621,99 @@ class FranchiseApplicationServices extends YfthFoundationBaseServices
         }
         $payload['budget'] = sprintf('%.2f', $budget);
         return $payload;
+    }
+
+    private function requirePortalUid(Request $request): int
+    {
+        $uid = (int)$request->uid();
+        if ($uid <= 0) {
+            throw new ApiException('user_not_login');
+        }
+        return $uid;
+    }
+
+    private function normalizePortalProfile(array $data, bool $final): array
+    {
+        $fields = [
+            'name', 'phone', 'marital_status', 'household_income', 'education',
+            'knows_related_brands', 'store_experience', 'health_store_experience',
+            'career_status', 'source_channel', 'city', 'region', 'intention_area',
+            'store_type', 'budget_range', 'opening_plan', 'site_status', 'remark',
+        ];
+        $profile = [];
+        foreach ($fields as $field) {
+            $profile[$field] = trim((string)($data[$field] ?? ''));
+        }
+        if (mb_strlen($profile['name']) > 64 || mb_strlen($profile['phone']) > 32 || mb_strlen($profile['remark']) > 1000) {
+            throw new ApiException('franchise_portal_field_too_long');
+        }
+        if ($final) {
+            foreach (['name', 'phone', 'knows_related_brands', 'store_experience', 'health_store_experience', 'career_status', 'source_channel', 'city', 'region', 'intention_area', 'store_type', 'budget_range', 'opening_plan', 'site_status'] as $field) {
+                if ($profile[$field] === '') {
+                    throw new ApiException('franchise_portal_required_field_missing:' . $field);
+                }
+            }
+            if (!preg_match('/^[0-9+\-\s]{6,32}$/', $profile['phone'])) {
+                throw new ApiException('franchise_application_phone_invalid');
+            }
+        }
+        return $profile;
+    }
+
+    private function portalCorePayload(array $profile): array
+    {
+        return [
+            'name' => (string)$profile['name'],
+            'phone' => (string)$profile['phone'],
+            'city' => (string)$profile['city'],
+            'region' => (string)$profile['region'],
+            'intention_area' => (string)$profile['intention_area'],
+            'budget' => '0.00',
+            'remark' => (string)$profile['remark'],
+        ];
+    }
+
+    private function savePortalProfile(int $applicationId, array $profile, int $privacyAgreedTime): void
+    {
+        $now = time();
+        $row = [
+            'application_id' => $applicationId,
+            'form_version' => 'ylz-v1',
+            'marital_status' => $profile['marital_status'],
+            'household_income' => $profile['household_income'],
+            'education' => $profile['education'],
+            'knows_related_brands' => $profile['knows_related_brands'],
+            'store_experience' => $profile['store_experience'],
+            'health_store_experience' => $profile['health_store_experience'],
+            'career_status' => $profile['career_status'],
+            'source_channel' => $profile['source_channel'],
+            'store_type' => $profile['store_type'],
+            'budget_range' => $profile['budget_range'],
+            'opening_plan' => $profile['opening_plan'],
+            'site_status' => $profile['site_status'],
+            'privacy_agreed_time' => $privacyAgreedTime,
+            'submit_snapshot' => $privacyAgreedTime > 0 ? json_encode($profile, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) : '',
+            'update_time' => $now,
+        ];
+        $existing = Db::name('yfth_franchise_application_profile')->where('application_id', $applicationId)->find();
+        if ($existing) {
+            Db::name('yfth_franchise_application_profile')->where('application_id', $applicationId)->update($row);
+            return;
+        }
+        $row['create_time'] = $now;
+        Db::name('yfth_franchise_application_profile')->insert($row);
+    }
+
+    private function portalProfile(int $applicationId): array
+    {
+        $row = Db::name('yfth_franchise_application_profile')->where('application_id', $applicationId)->find();
+        if (!$row) {
+            return [];
+        }
+        unset($row['id'], $row['application_id'], $row['submit_snapshot'], $row['create_time'], $row['update_time']);
+        return array_map(function ($value) {
+            return is_string($value) ? $value : (string)$value;
+        }, $row);
     }
 
     private function safeRecruitSource(int $applicationId, bool $admin): array
@@ -827,6 +1037,7 @@ class FranchiseApplicationServices extends YfthFoundationBaseServices
     {
         $map = [
             self::USER_SOURCE => '小程序合作中心',
+            'ylz_franchise_portal' => '养郎中加盟门户',
             'user_apply' => '用户提交',
             'headquarters_import' => '总部导入',
         ];

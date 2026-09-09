@@ -2,7 +2,7 @@
   <div class="yfth-franchise-application">
     <div class="page-heading">
       <div>
-        <h1>总部加盟申请</h1>
+        <h1>养郎中加盟申请</h1>
         <p>招商合伙人在线下完成沟通与确认，总部这里只记录最终同意或驳回结果。</p>
       </div>
       <el-tag type="warning" effect="plain">总部确认</el-tag>
@@ -67,6 +67,12 @@
           <el-descriptions-item label="招商来源">{{ recruitSourceText(detail.recruit_source) }}</el-descriptions-item>
           <el-descriptions-item label="备注" :span="2">{{ detail.application.remark || '-' }}</el-descriptions-item>
         </el-descriptions>
+        <template v-if="detail.portal_profile && Object.keys(detail.portal_profile).length">
+          <h4>养郎中加盟资料</h4>
+          <el-descriptions :column="2" border>
+            <el-descriptions-item v-for="item in portalProfileRows" :key="item.key" :label="item.label">{{ item.value || '未填写' }}</el-descriptions-item>
+          </el-descriptions>
+        </template>
         <h4>审核记录</h4>
         <el-table :data="detail.audit_events || []" size="small" border>
           <el-table-column label="动作" width="160"><template slot-scope="scope">{{ auditActionText(scope.row.action) }}</template></el-table-column>
@@ -169,6 +175,18 @@ export default {
       const ts = Number(value || 0); if (!ts) return '-';
       const date = new Date(ts * 1000); const pad = (n) => (n < 10 ? '0' + n : '' + n);
       return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+    },
+  },
+  computed: {
+    portalProfileRows() {
+      const profile = this.detail.portal_profile || {};
+      const labels = {
+        marital_status: '婚姻状况（选填）', household_income: '家庭年收入（选填）', education: '最高学历（选填）',
+        knows_related_brands: '了解相关品牌', store_experience: '门店经营经验', health_store_experience: '健康门店经历',
+        career_status: '事业状态', source_channel: '了解渠道', store_type: '计划店型', budget_range: '预算区间',
+        opening_plan: '开店计划', site_status: '场地情况', privacy_agreed_time: '隐私授权时间', form_version: '表单版本',
+      };
+      return Object.keys(labels).map((key) => ({ key, label: labels[key], value: key === 'privacy_agreed_time' ? this.formatTime(profile[key]) : profile[key] }));
     },
   },
 };

@@ -7,6 +7,21 @@ use app\services\yfth\FranchiseApplicationServices;
 
 class FranchiseApplicationController
 {
+    public function portalDraft(Request $request, FranchiseApplicationServices $services)
+    {
+        return app('json')->success($services->portalDraft($request));
+    }
+
+    public function savePortalDraft(Request $request, FranchiseApplicationServices $services)
+    {
+        return app('json')->success($services->savePortalDraft($request, (array)$request->post()));
+    }
+
+    public function submitPortal(Request $request, FranchiseApplicationServices $services)
+    {
+        return app('json')->success($services->submitPortal($request, (array)$request->post()));
+    }
+
     public function submit(Request $request, FranchiseApplicationServices $services)
     {
         $data = $request->postMore([

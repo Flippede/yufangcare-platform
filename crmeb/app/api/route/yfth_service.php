@@ -160,6 +160,9 @@ Route::group(function () {
     ->option(['mark' => 'yfth_supply_chain_user', 'mark_name' => 'YFTH supply chain user-token API']);
 
 Route::group(function () {
+    Route::get('yfth/franchise/portal/draft', 'v1.yfth.FranchiseApplicationController/portalDraft')->option(['real_name' => '养郎中加盟申请草稿']);
+    Route::post('yfth/franchise/portal/draft', 'v1.yfth.FranchiseApplicationController/savePortalDraft')->option(['real_name' => '保存养郎中加盟申请草稿']);
+    Route::post('yfth/franchise/portal/submit', 'v1.yfth.FranchiseApplicationController/submitPortal')->option(['real_name' => '提交养郎中加盟申请']);
     Route::post('yfth/franchise/application', 'v1.yfth.FranchiseApplicationController/submit')->option(['real_name' => 'YFTH franchise application submit']);
     Route::get('yfth/franchise/application/my', 'v1.yfth.FranchiseApplicationController/myList')->option(['real_name' => 'YFTH my franchise applications']);
     Route::get('yfth/franchise/application/:id', 'v1.yfth.FranchiseApplicationController/detail')->option(['real_name' => 'YFTH my franchise application detail']);
