@@ -1,11 +1,11 @@
 <template>
   <section class="page news-page">
     <header class="top-wash">
-      <div class="brand-chip"><img src="/assets/brand-mark.png" alt="养郎中商标" /><span>养郎中品牌加盟</span></div>
+      <div class="brand-chip"><img :src="asset('brand-mark.png')" alt="养郎中商标" /><span>养郎中品牌加盟</span></div>
       <h1 class="display-title">养郎中动态</h1>
       <div class="guide-card">
         <div><span>加盟必读指南</span><button @click="$emit('navigate','apply')">查看详情 <ArrowRight :size="16" /></button></div>
-        <img src="/assets/brand-mark.png" alt="" />
+        <img :src="asset('brand-mark.png')" alt="" />
       </div>
     </header>
     <div class="page-inner">

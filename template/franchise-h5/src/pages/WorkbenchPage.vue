@@ -1,7 +1,7 @@
 <template>
   <section class="page workbench-page">
     <header class="top-wash workbench-hero">
-      <div class="brand-chip"><img src="/assets/brand-mark.png" alt="养郎中商标" /><span>加盟服务中心</span></div>
+      <div class="brand-chip"><img :src="asset('brand-mark.png')" alt="养郎中商标" /><span>加盟服务中心</span></div>
       <h1 class="display-title">申请加盟</h1>
       <p class="display-subtitle">下一个合作伙伴就是你</p>
     </header>
@@ -40,6 +40,7 @@
 import { computed, onMounted, ref } from 'vue';
 import { franchiseApi, hasLoginToken } from '../api';
 defineEmits(['navigate']);
+const asset = (name) => `${import.meta.env.BASE_URL}assets/${name}`;
 const steps=['填写申请','资格沟通','意向确认','选址','加盟签订'];
 const loading=ref(true); const error=ref(''); const applications=ref([]);
 const currentApplication=computed(()=>applications.value[0]||null);

@@ -7,7 +7,7 @@
     </header>
 
     <div class="login-brand">
-      <img src="/assets/brand-mark.png" alt="养郎中商标" />
+      <img :src="asset('brand-mark.png')" alt="养郎中商标" />
       <h1>养郎中</h1>
       <p>品牌加盟服务平台</p>
     </div>
@@ -57,6 +57,7 @@ import { onMounted, ref } from 'vue';
 import { House, MessageCircle } from '@lucide/vue';
 import { hasLoginToken, loginApi, saveLoginToken } from '../api';
 
+const asset = (name) => `${import.meta.env.BASE_URL}assets/${name}`;
 const isWechat = /micromessenger/i.test(navigator.userAgent);
 const mode = ref(isWechat ? 'wechat' : 'account');
 const agreed = ref(false);

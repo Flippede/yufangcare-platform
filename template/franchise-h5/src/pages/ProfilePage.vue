@@ -1,7 +1,7 @@
 <template>
   <section class="page profile-page">
     <header class="profile-hero">
-      <img src="/assets/brand-mark.png" alt="养郎中商标" />
+      <img :src="asset('brand-mark.png')" alt="养郎中商标" />
       <div><small>养郎中品牌加盟</small><h1>{{ loggedIn ? '尊敬的合作伙伴' : '登录后查看申请' }}</h1></div>
     </header>
     <div class="page-inner">
@@ -37,6 +37,7 @@ import { ref } from 'vue';
 import { ChevronRight, ClipboardList, Headphones, Landmark, Phone, ShieldAlert, ShieldCheck } from '@lucide/vue';
 import { clearLoginToken, hasLoginToken, loginUrl } from '../api';
 defineEmits(['navigate']);
+const asset = (name) => `${import.meta.env.BASE_URL}assets/${name}`;
 const loggedIn=hasLoginToken();
 const infoPanel=ref('');
 function logout() {

@@ -1,10 +1,10 @@
 <template>
   <section class="page home-page">
     <div class="hero">
-      <div class="brand-chip"><img src="/assets/brand-mark.png" alt="养郎中商标" /><span>养郎中品牌加盟</span></div>
+      <div class="brand-chip"><img :src="asset('brand-mark.png')" alt="养郎中商标" /><span>养郎中品牌加盟</span></div>
       <h1>尊敬的<br />品牌合作伙伴</h1>
       <p>携手打造社区智慧健康驿站</p>
-      <div class="hero-photo"><img src="/assets/storefront.png" alt="养郎中健康驿站门店" /></div>
+      <div class="hero-photo"><img :src="asset('storefront.png')" alt="养郎中健康驿站门店" /></div>
     </div>
 
     <div class="action-grid">
@@ -12,7 +12,7 @@
         <span class="eyebrow">JOIN US</span>
         <strong>加盟申请</strong>
         <span>填写合作意向 <ArrowRight :size="18" /></span>
-        <img src="/assets/brand-mark.png" alt="" />
+        <img :src="asset('brand-mark.png')" alt="" />
       </button>
       <div class="side-actions">
         <button @click="$emit('navigate', 'news')"><MapPinned /><span><strong>开放地区</strong><small>查看合作区域</small></span></button>
@@ -23,7 +23,7 @@
     <button class="notice"><Megaphone :size="20" /><span>《品牌公告》养郎中加盟合作说明</span><ArrowRight :size="18" /></button>
 
     <section class="feature-card">
-      <img src="/assets/interior-reception.png" alt="养郎中接待区" />
+      <img :src="asset('interior-reception.png')" alt="养郎中接待区" />
       <div><span>项目说明会</span><strong>走进养郎中智慧健康驿站</strong><button @click="$emit('navigate', 'news')">了解更多</button></div>
     </section>
 
@@ -49,6 +49,7 @@
 import { ref } from 'vue';
 import { ArrowRight, BadgeCheck, ClipboardCheck, Headphones, MapPinned, Megaphone, Phone, Store, Users } from '@lucide/vue';
 defineEmits(['navigate']);
+const asset = (name) => `${import.meta.env.BASE_URL}assets/${name}`;
 const requirement = ref(null);
 function scrollToRequirement() { requirement.value?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
 </script>
