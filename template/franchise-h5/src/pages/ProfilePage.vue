@@ -35,12 +35,12 @@
 <script setup>
 import { ref } from 'vue';
 import { ChevronRight, ClipboardList, Headphones, Landmark, Phone, ShieldAlert, ShieldCheck } from '@lucide/vue';
-import { hasLoginToken, loginUrl } from '../api';
+import { clearLoginToken, hasLoginToken, loginUrl } from '../api';
 defineEmits(['navigate']);
 const loggedIn=hasLoginToken();
 const infoPanel=ref('');
 function logout() {
-  window.localStorage.removeItem('LOGIN_STATUS_TOKEN');
+  clearLoginToken();
   window.location.reload();
 }
 </script>

@@ -28,6 +28,46 @@ async function request(path, options = {}) {
   return payload.data;
 }
 
+function cacheTags() {
+  try {
+    const value = JSON.parse(window.localStorage.getItem('UNI-APP-CRMEB:TAG') || '[]');
+    return Array.isArray(value) ? value : [];
+  } catch (_) {
+    return [];
+  }
+}
+
+export function saveLoginToken(data) {
+  const token = String(data?.token || '');
+  if (!token) throw new Error('登录凭证无效');
+  const expiresAt = Number(data?.expires_time || 0);
+  window.localStorage.setItem(TOKEN_KEY, JSON.stringify(token));
+  const tags = cacheTags().filter((item) => item?.key !== TOKEN_KEY);
+  tags.push({ key: TOKEN_KEY, expire: expiresAt > 0 ? expiresAt : 0 });
+  window.localStorage.setItem('UNI-APP-CRMEB:TAG', JSON.stringify(tags));
+}
+
+export function clearLoginToken() {
+  window.localStorage.removeItem(TOKEN_KEY);
+  const tags = cacheTags().filter((item) => item?.key !== TOKEN_KEY);
+  window.localStorage.setItem('UNI-APP-CRMEB:TAG', JSON.stringify(tags));
+}
+
+export const loginApi = {
+  account(account, password) {
+    return request('login', {
+      method: 'POST',
+      body: JSON.stringify({ account, password, spread: 0, agent_id: 0 })
+    });
+  },
+  wechatConfig(url) {
+    return request(`wechat/config?url=${encodeURIComponent(url)}`);
+  },
+  wechatCallback(code) {
+    return request(`v2/wechat/auth_login?code=${encodeURIComponent(code)}&spread=&agent_id=0`);
+  }
+};
+
 export const franchiseApi = {
   myApplications() {
     return request('yfth/franchise/application/my');
@@ -51,6 +91,5 @@ export function hasLoginToken() {
 }
 
 export function loginUrl() {
-  const back = encodeURIComponent(`${window.location.origin}/join/#/workbench`);
-  return `/pages/users/login/index?back_url=${back}`;
+  return `${window.location.origin}/join/#/login`;
 }

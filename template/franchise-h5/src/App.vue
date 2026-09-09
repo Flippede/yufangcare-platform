@@ -13,13 +13,15 @@ import NewsPage from './pages/NewsPage.vue';
 import WorkbenchPage from './pages/WorkbenchPage.vue';
 import ProfilePage from './pages/ProfilePage.vue';
 import ApplyPage from './pages/ApplyPage.vue';
+import LoginPage from './pages/LoginPage.vue';
 
 const routes = {
   home: HomePage,
   news: NewsPage,
   workbench: WorkbenchPage,
   profile: ProfilePage,
-  apply: ApplyPage
+  apply: ApplyPage,
+  login: LoginPage
 };
 const route = ref('home');
 
@@ -35,7 +37,7 @@ function navigate(name) {
 }
 
 const currentPage = computed(() => routes[route.value]);
-const showTabs = computed(() => route.value !== 'apply');
+const showTabs = computed(() => !['apply', 'login'].includes(route.value));
 
 onMounted(() => {
   readRoute();
