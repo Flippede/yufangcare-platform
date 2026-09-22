@@ -67,7 +67,7 @@ const ChoiceField=defineComponent({props:{title:String,required:Boolean,optional
 
 function serializableDraft(){ return {...form.value}; }
 function normalizedPhone(value){
-  let phone=String(value||'').trim().replace(/[０-９]/g,char=>String(char.charCodeAt(0)-65248)).replace(/[＋]/g,'+').replace(/[－—]/g,'-').replace(/[\s\-()（）]/g,'');
+  let phone=String(value||'').trim().replace(/[０-９]/g,char=>String.fromCharCode(char.charCodeAt(0)-65248)).replace(/[＋]/g,'+').replace(/[－—]/g,'-').replace(/[\s\-()（）]/g,'');
   if(/^0086\d{11}$/.test(phone)) phone=phone.slice(4);
   else if(/^\+86\d{11}$/.test(phone)) phone=phone.slice(3);
   else if(/^86\d{11}$/.test(phone)) phone=phone.slice(2);

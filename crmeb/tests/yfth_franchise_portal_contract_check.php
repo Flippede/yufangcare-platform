@@ -88,6 +88,7 @@ foreach ([
     'franchiseApi.submitDraft',
     '我已阅读并同意加盟申请隐私说明',
     'function normalizedPhone(',
+    'String.fromCharCode(',
     "message.includes('franchise_application_phone_invalid')",
     '请输入正确的手机号',
 ] as $needle) {
