@@ -50,6 +50,9 @@ foreach ([
     'captureRecruitSource(',
     "'ylz_portal_submit'",
     'submit_snapshot',
+    'private function normalizePhone(',
+    "'0086'",
+    "'franchise_application_phone_invalid'",
 ] as $needle) {
     $assert(strpos($service, $needle) !== false, 'service_contains:' . $needle);
 }
@@ -84,6 +87,9 @@ foreach ([
     'franchiseApi.saveDraft',
     'franchiseApi.submitDraft',
     '我已阅读并同意加盟申请隐私说明',
+    'function normalizedPhone(',
+    "message.includes('franchise_application_phone_invalid')",
+    '请输入正确的手机号',
 ] as $needle) {
     $assert(strpos($apply, $needle) !== false, 'frontend_apply_contains:' . $needle);
 }

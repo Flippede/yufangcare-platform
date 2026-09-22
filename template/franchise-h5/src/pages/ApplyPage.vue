@@ -19,7 +19,7 @@
         </section>
         <section class="form-card">
           <FieldTitle title="姓名" required /><input v-model.trim="form.name" maxlength="30" placeholder="请输入申请人姓名" />
-          <FieldTitle title="手机号" required /><input v-model.trim="form.phone" inputmode="tel" maxlength="20" placeholder="请输入联系电话" />
+          <FieldTitle title="手机号" required /><input v-model.trim="form.phone" inputmode="tel" maxlength="24" placeholder="请输入手机号" @blur="normalizePhoneInput" />
           <ChoiceField title="婚姻状况" optional :options="['已婚','未婚','其他']" v-model="form.marital_status" />
           <ChoiceField title="家庭年收入" optional :options="['20万以下','20万~40万','40万~60万','60万以上']" v-model="form.household_income" />
           <ChoiceField title="最高学历" optional :options="['初中及以下','高中','大专','本科','研究生及以上']" v-model="form.education" />
@@ -66,6 +66,21 @@ const FieldTitle=defineComponent({props:{title:String,required:Boolean,optional:
 const ChoiceField=defineComponent({props:{title:String,required:Boolean,optional:Boolean,options:Array,modelValue:String,compact:Boolean},emits:['update:modelValue'],setup(props,{emit}){return()=>h('section',{class:['choice-field',{compact:props.compact}]},[h(FieldTitle,{title:props.title,required:props.required,optional:props.optional}),h('div',{class:'choice-grid'},props.options.map(option=>h('button',{type:'button',class:{selected:props.modelValue===option},onClick:()=>emit('update:modelValue',option)},option)))]);}});
 
 function serializableDraft(){ return {...form.value}; }
+function normalizedPhone(value){
+  let phone=String(value||'').trim().replace(/[０-９]/g,char=>String(char.charCodeAt(0)-65248)).replace(/[＋]/g,'+').replace(/[－—]/g,'-').replace(/[\s\-()（）]/g,'');
+  if(/^0086\d{11}$/.test(phone)) phone=phone.slice(4);
+  else if(/^\+86\d{11}$/.test(phone)) phone=phone.slice(3);
+  else if(/^86\d{11}$/.test(phone)) phone=phone.slice(2);
+  return phone;
+}
+function normalizePhoneInput(){ form.value.phone=normalizedPhone(form.value.phone); }
+function validPhone(){ normalizePhoneInput(); return /^\+?\d{6,20}$/.test(form.value.phone); }
+function friendlyError(err){
+  const message=String(err?.message||'');
+  if(message.includes('franchise_application_phone_invalid')) return '请输入正确的手机号';
+  if(message.includes('franchise_portal_required_field_missing')) return '请完成全部必填项目后再提交';
+  return message||'申请提交失败，请稍后重试';
+}
 function saveLocal(){ window.localStorage.setItem('YLZ_FRANCHISE_DRAFT_V1',JSON.stringify(serializableDraft())); }
 watch(form,saveLocal,{deep:true});
 onMounted(async()=>{
@@ -80,13 +95,13 @@ function validateStepOne(){ const required=['name','phone','knows_related_brands
 function validateStepTwo(){ const required=['city','region','intention_area','store_type','budget_range','opening_plan','site_status']; return required.every(key=>form.value[key]); }
 async function nextOrSubmit(){
   error.value='';
-  if(step.value===1){ if(!validateStepOne()){error.value='请完成基本信息中的必填项目';return;} step.value=2; if(hasLoginToken()) franchiseApi.saveDraft(serializableDraft()).catch(()=>{}); return; }
+  if(step.value===1){ if(!validateStepOne()){error.value='请完成基本信息中的必填项目';return;} if(!validPhone()){error.value='请输入正确的手机号';return;} step.value=2; if(hasLoginToken()) franchiseApi.saveDraft(serializableDraft()).catch(()=>{}); return; }
   if(!validateStepTwo()){error.value='请完成合作方案中的必填项目';return;}
   if(!agreed.value){error.value='请先阅读并同意加盟申请隐私说明';return;}
   if(!hasLoginToken()){ saveLocal(); window.location.href=loginUrl(); return; }
   submitting.value=true;
   try { await franchiseApi.submitDraft(serializableDraft()); window.localStorage.removeItem('YLZ_FRANCHISE_DRAFT_V1'); emit('navigate','workbench'); }
-  catch(err){ error.value=err.message||'申请提交失败，请稍后重试'; }
+  catch(err){ error.value=friendlyError(err); }
   finally{ submitting.value=false; }
 }
 </script>

@@ -590,7 +590,7 @@ class FranchiseApplicationServices extends YfthFoundationBaseServices
     {
         $payload = [
             'name' => trim((string)($data['name'] ?? '')),
-            'phone' => trim((string)($data['phone'] ?? '')),
+            'phone' => $this->normalizePhone((string)($data['phone'] ?? '')),
             'city' => trim((string)($data['city'] ?? '')),
             'region' => trim((string)($data['region'] ?? '')),
             'intention_area' => trim((string)($data['intention_area'] ?? '')),
@@ -599,9 +599,6 @@ class FranchiseApplicationServices extends YfthFoundationBaseServices
         ];
         if ($payload['name'] === '' || mb_strlen($payload['name']) > 64) {
             throw new ApiException('franchise_application_name_invalid');
-        }
-        if ($payload['phone'] === '' || mb_strlen($payload['phone']) > 32 || !preg_match('/^[0-9+\-\s]{6,32}$/', $payload['phone'])) {
-            throw new ApiException('franchise_application_phone_invalid');
         }
         if ($payload['city'] === '' || mb_strlen($payload['city']) > 64) {
             throw new ApiException('franchise_application_city_invalid');
@@ -653,11 +650,30 @@ class FranchiseApplicationServices extends YfthFoundationBaseServices
                     throw new ApiException('franchise_portal_required_field_missing:' . $field);
                 }
             }
-            if (!preg_match('/^[0-9+\-\s]{6,32}$/', $profile['phone'])) {
-                throw new ApiException('franchise_application_phone_invalid');
-            }
+            $profile['phone'] = $this->normalizePhone($profile['phone']);
         }
         return $profile;
+    }
+
+    private function normalizePhone(string $phone): string
+    {
+        $phone = trim(strtr($phone, [
+            '０' => '0', '１' => '1', '２' => '2', '３' => '3', '４' => '4',
+            '５' => '5', '６' => '6', '７' => '7', '８' => '8', '９' => '9',
+            '＋' => '+', '－' => '-', '—' => '-', '（' => '(', '）' => ')',
+        ]));
+        $phone = preg_replace('/[\s\-()]+/u', '', $phone) ?? '';
+        if (strpos($phone, '0086') === 0 && strlen($phone) === 15) {
+            $phone = substr($phone, 4);
+        } elseif (strpos($phone, '+86') === 0 && strlen($phone) === 14) {
+            $phone = substr($phone, 3);
+        } elseif (strpos($phone, '86') === 0 && strlen($phone) === 13) {
+            $phone = substr($phone, 2);
+        }
+        if (!preg_match('/^\+?[0-9]{6,20}$/', $phone)) {
+            throw new ApiException('franchise_application_phone_invalid');
+        }
+        return $phone;
     }
 
     private function portalCorePayload(array $profile): array
