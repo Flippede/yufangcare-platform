@@ -3,7 +3,7 @@
 		<view class="mobile-bg"></view>
 		<view class="mobile-mask animated" :class="{slideInUp:isUp}">
 			<view class="info-box">
-				<image :src="logoUrl"></image>
+					<image :src="logoUrl" mode="aspectFit"></image>
 				<view class="title">{{$t(`获取授权`)}}</view>
 				<view class="txt">{{$t(`获取手机号授权`)}}</view>
 			</view>
@@ -143,8 +143,8 @@
 			justify-content: center;
 
 			image {
-				width: 150rpx;
-				height: 150rpx;
+				width: 360rpx;
+				height: 120rpx;
 				border-radius: 10rpx;
 			}
 

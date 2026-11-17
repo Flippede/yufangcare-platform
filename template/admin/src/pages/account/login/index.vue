@@ -10,7 +10,7 @@
       <div class="index_from page-account-container from-wh">
         <div class="page-account-top">
           <div class="page-account-top-logo">
-            <img :src="login_logo" alt="logo" style="width: 100%; height: 74px" />
+            <img :src="login_logo" alt="养郎中" class="brand-logo" />
           </div>
         </div>
         <el-form ref="formInline" :model="formInline" :rules="ruleInline" @keyup.enter="handleSubmit('formInline')">
@@ -68,11 +68,12 @@
     ></Verify>
     <div class="footer">
       <div class="pull-right" v-if="copyright">{{ copyright }}</div>
-      <div class="pull-right" v-else>御方通和总部运营管理平台</div>
+      <div class="pull-right" v-else>养郎中总部运营管理平台</div>
     </div>
   </div>
 </template>
 <script>
+import brandLogo from '@/assets/brand/yanglangzhong-logo.png';
 import { AccountLogin, loginInfoApi } from '@/api/account';
 import { getWorkermanUrl } from '@/api/kefu';
 import { setCookies } from '@/libs/util';
@@ -105,7 +106,7 @@ export default {
         password: [{ required: true, message: '请输入密码', trigger: 'blur' }],
       },
       login_captcha: 0,
-      login_logo: '',
+      login_logo: brandLogo,
       swiperList: [],
       defaultSwiperList: require('@/assets/images/sw.png'),
       key: '',
@@ -139,11 +140,11 @@ export default {
       loginInfoApi()
         .then((res) => {
           const data = res.data || {};
-          const siteName = data.site_name || '御方通和总部运营管理平台';
+          const siteName = '养郎中总部运营管理平台';
           document.title = `${siteName} - 登录`;
           localStorage.setItem('ADMIN_TITLE', siteName);
           this.$store.commit('setAdminTitle', siteName);
-          this.login_logo = data.login_logo || require('@/assets/images/logo.png');
+          this.login_logo = brandLogo;
           this.swiperList = data.slide && data.slide.length ? data.slide : [{ slide: this.defaultSwiperList }];
           this.key = data.key;
           this.copyright = data.copyright;
@@ -152,7 +153,7 @@ export default {
         })
         .catch((err) => {
           this.$message.error(err);
-          this.login_logo = require('@/assets/images/logo.png');
+          this.login_logo = brandLogo;
           this.swiperList = [{ slide: this.defaultSwiperList }];
         });
     },
@@ -189,8 +190,8 @@ export default {
           this.$store.commit('userInfo/name', data.user_info.account);
           this.$store.commit('userInfo/avatar', data.user_info.head_pic);
           this.$store.commit('userInfo/access', data.unique_auth);
-          this.$store.commit('userInfo/logo', data.logo);
-          this.$store.commit('userInfo/logoSmall', data.logo_square);
+          this.$store.commit('userInfo/logo', brandLogo);
+          this.$store.commit('userInfo/logoSmall', brandLogo);
           this.$store.commit('userInfo/version', data.version);
           this.$store.commit('userInfo/newOrderAudioLink', data.newOrderAudioLink);
           this.login_captcha = 0;
@@ -360,6 +361,13 @@ export default {
   box-sizing: border-box !important;
   display: flex;
   justify-content: center;
+}
+.brand-logo {
+  display: block;
+  width: 224px;
+  max-width: 100%;
+  height: 74px;
+  object-fit: contain;
 }
 .page-account-container {
   border-radius: 0px 6px 6px 0px;

@@ -1,5 +1,12 @@
 # 项目交接文档
 
+## Current Fact Snapshot - Unified Approved Brand Mark
+
+- Franchise portal, mall homepage/authentication pages and headquarters Admin login/sidebar now use the approved original transparent Yanglangzhong mark (558 x 184, SHA-256 `c7ab542baa1d12dc7090d41bf22ab76c671e1ae2abcc023eb53d32837343d3f2`). The source artwork is not cropped, recolored or regenerated.
+- Portal login removes the duplicate large brand heading and uses restrained spacing and a jade primary action. Mall authentication and Admin sidebar use aspect-fit horizontal containers rather than square avatar sizing. Admin browser title/favicon also use the current brand.
+- Source assets are retained under `template/franchise-h5/public/assets/brand-logo-20261104.png`, `template/uni-app/static/brand/yanglangzhong-logo.png`, and `template/admin/src/assets/brand/yanglangzhong-logo.png` (plus the Admin public favicon copy). Legacy logo API configuration no longer overrides these identity surfaces.
+- This release changes frontend branding only. Authentication, membership package availability, application flows, permissions and business data are unchanged. No database migration is required. Mini-program compilation does not imply upload or publication.
+
 ## Current Fact Snapshot - Membership Packages Paused
 
 - Membership package sales and customer activation are closed by default. Franchise applications and ordinary goods shopping retain their existing paths; existing membership qualifications and historical fulfillment callbacks are unchanged.

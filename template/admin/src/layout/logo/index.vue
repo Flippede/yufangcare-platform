@@ -5,24 +5,21 @@
     v-db-click
     @click="onThemeConfigChange"
   >
-    <img v-if="maxLogo" class="layout-logo-medium-img" :src="maxLogo" />
-    <span v-else class="layout-logo-text">御方通和总部</span>
+    <img class="layout-logo-medium-img" :src="brandLogo" alt="养郎中" />
   </div>
   <div class="layout-logo-size" v-else v-db-click @click="onThemeConfigChange">
-    <img v-if="minLogo" class="layout-logo-size-img" :src="minLogo" />
-    <span v-else class="layout-logo-size-text">御</span>
+    <img class="layout-logo-size-img" :src="brandLogo" alt="养郎中" />
   </div>
 </template>
 
 <script>
-import { getLogo } from '@/api/common';
+import brandLogo from '@/assets/brand/yanglangzhong-logo.png';
 
 export default {
   name: 'layoutLogo',
   data() {
     return {
-      minLogo: '',
-      maxLogo: '',
+      brandLogo,
     };
   },
   computed: {
@@ -35,9 +32,6 @@ export default {
       let { isCollapse, layout } = this.$store.state.themeConfig.themeConfig;
       return !isCollapse || layout === 'classic' || document.body.clientWidth < 1000;
     },
-  },
-  mounted() {
-    this.getLogo();
   },
   methods: {
     // logo 点击实现菜单展开/收起
@@ -54,12 +48,6 @@ export default {
       )
         return false;
       this.$store.state.themeConfig.themeConfig.isCollapse = !this.$store.state.themeConfig.themeConfig.isCollapse;
-    },
-    getLogo() {
-      getLogo().then((res) => {
-        this.minLogo = res.data.logo_square;
-        this.maxLogo = res.data.logo;
-      });
     },
   },
 };
@@ -83,11 +71,12 @@ export default {
     }
   }
   &-medium-img {
-    width: 100%;
-    height: 50px;
-    margin-right: 5px;
-    position: relative;
-    top: 2px;
+    width: 160px;
+    height: 44px;
+    object-fit: contain;
+    background: #fff;
+    padding: 3px 8px;
+    border-radius: 4px;
   }
 
   &-text {
@@ -105,7 +94,10 @@ export default {
 
   &-img {
     width: 50px;
-    height: 50px;
+    height: 44px;
+    object-fit: contain;
+    background: #fff;
+    padding: 2px;
     margin: auto;
     animation: logoAnimation 0.3s ease-in-out;
   }

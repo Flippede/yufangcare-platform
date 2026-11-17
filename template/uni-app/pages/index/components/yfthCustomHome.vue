@@ -1,7 +1,7 @@
 <template>
   <view class="yfth-home">
     <view class="yfth-home__hero">
-      <view class="yfth-home__brand">{{ config.header.title }}</view>
+      <view class="yfth-home__brand"><image :src="brandLogo" mode="aspectFit" aria-label="养郎中" /></view>
       <view class="yfth-home__search" @tap="openSearch">
         <text class="iconfont icon-sousuo"></text>
         <text>{{ config.header.search_placeholder }}</text>
@@ -60,6 +60,7 @@
 </template>
 
 <script>
+import { BRAND_LOGO } from '@/utils/brand.js';
 import pageFooter from '@/components/pageFooter/index.vue';
 import { membershipPackagesEnabled, membershipPackagesPausedMessage } from '@/libs/yfthPackageAvailability.js';
 
@@ -69,6 +70,9 @@ export default {
   props: {
     config: { type: Object, required: true },
     footerConfigData: { type: Object, default: () => ({}) },
+  },
+  data() {
+    return { brandLogo: BRAND_LOGO };
   },
   computed: {
     visibleQuickEntries() {
@@ -138,6 +142,7 @@ export default {
 .yfth-home { min-height: 100vh; background: #fffdf8; color: #2e2117; }
 .yfth-home__hero { background: #d6a15e; padding: calc(var(--status-bar-height) + 30rpx) 32rpx 146rpx; }
 .yfth-home__brand { color: #fffaf2; font-size: 42rpx; font-weight: 600; line-height: 1.2; margin-bottom: 24rpx; }
+.yfth-home__brand image { display: block; width: 336rpx; height: 112rpx; padding: 8rpx 16rpx; box-sizing: border-box; background: #fff; border-radius: 8rpx; }
 .yfth-home__search { height: 70rpx; border-radius: 38rpx; background: rgba(255,255,255,.35); color: #fffaf2; display: flex; align-items: center; padding: 0 28rpx; font-size: 26rpx; }
 .yfth-home__search .iconfont { margin-right: 14rpx; font-size: 28rpx; }
 .yfth-home__shortcuts { margin: -104rpx 22rpx 28rpx; padding: 26rpx 12rpx 20rpx; border-radius: 28rpx; background: #fff; display: grid; grid-template-columns: repeat(6, 1fr); box-shadow: 0 16rpx 38rpx rgba(120, 76, 31, .10); position: relative; z-index: 1; }

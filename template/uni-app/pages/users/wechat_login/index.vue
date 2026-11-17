@@ -16,9 +16,9 @@
 		</view>
 		<!-- #endif -->
 		<view class="merchant-msg">
-			<img :src="configData.wap_login_logo" />
+			<image :src="logoUrl" mode="aspectFit" />
 			<view class="name">
-				{{configData.site_name}}
+				养郎中商城
 			</view>
 		</view>
 		<view class="wechat_login">
@@ -72,6 +72,7 @@
 </template>
 
 <script>
+import { BRAND_LOGO } from '@/utils/brand.js';
 	const app = getApp();
 	let statusBarHeight = uni.getSystemInfoSync().statusBarHeight + 'px';
 	import mobileLogin from '../components/login_mobile/index.vue';
@@ -122,7 +123,7 @@
 				protocol: false,
 				isShow: false,
 				isLogin: false,
-				logoUrl: '',
+				logoUrl: BRAND_LOGO,
 				code: '',
 				authKey: '',
 				options: '',
@@ -590,10 +591,9 @@
 			position: relative;
 
 			/* #endif */
-			img {
-				width: 152rpx;
-				height: 152rpx;
-				border-radius: 50%;
+			image {
+				width: 440rpx;
+				height: 146rpx;
 			}
 
 			.name {

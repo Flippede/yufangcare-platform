@@ -1,7 +1,7 @@
 <template>
   <section class="page home-page">
     <div class="hero">
-      <div class="brand-chip"><img :src="asset('brand-logo-20261104.png')" alt="养郎中商标" /><span>养郎中品牌加盟</span></div>
+      <div class="brand-chip"><img :src="asset('brand-logo-20261104.png')" alt="养郎中商标" /><span>品牌加盟服务平台</span></div>
       <h1>尊敬的<br />品牌合作伙伴</h1>
       <p>携手打造社区智慧健康驿站</p>
       <div class="hero-photo"><img :src="asset('storefront.png')" alt="养郎中健康驿站门店" /></div>

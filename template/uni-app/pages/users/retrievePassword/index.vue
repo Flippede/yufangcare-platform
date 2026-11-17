@@ -2,7 +2,7 @@
 	<div class="register absolute">
 		<div class="shading">
 			<div class="pictrue acea-row row-center-wrapper">
-				<image src="../static/logo2.png" />
+				<image src="/static/brand/yanglangzhong-logo.png" mode="aspectFit" />
 			</div>
 		</div>
 		<div class="whiteBg">
@@ -154,6 +154,10 @@
 	};
 </script>
 <style scoped>
+	.register .shading .pictrue image {
+		width: 420rpx;
+		height: 140rpx;
+	}
 	.code img {
 		width: 100%;
 		height: 100%;

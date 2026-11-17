@@ -1,11 +1,9 @@
 <template>
 	<view class="login-wrapper" :style="colorStyle">
-		<view class="shading" aria-label="御方通和登录">
+		<view class="shading" aria-label="养郎中登录">
 			<view class="brand-mark">
 				<image v-if="logoUrl" :src="logoUrl" mode="aspectFit" />
-				<text v-else>御</text>
 			</view>
-			<view class="brand-title">御方通和</view>
 			<view class="brand-copy">康养生活服务平台</view>
 		</view>
 		<view class="whiteBg" v-if="formItem === 1">
@@ -114,11 +112,11 @@
 	</view>
 </template>
 <script>
+import { BRAND_LOGO } from '@/utils/brand.js';
 import dayjs from '@/plugin/dayjs/dayjs.min.js';
 import sendVerifyCode from '@/mixins/SendVerifyCode';
 import { loginH5, loginMobile, registerVerify, register, getCodeApi, getUserInfo, appleLogin } from '@/api/user';
 import attrs, { required, alpha_num, chs_phone } from '@/utils/validate';
-import { getLogo } from '@/api/public';
 // import cookie from "@/utils/store/cookie";
 import { VUE_APP_API_URL, isWeixin } from '@/utils';
 import { resolveLoginBackUrl } from '@/libs/login.js';
@@ -145,7 +143,7 @@ export default {
 			captcha: '',
 			formItem: 1,
 			type: 'login',
-			logoUrl: '',
+			logoUrl: BRAND_LOGO,
 			keyCode: '',
 			codeUrl: '',
 			codeVal: '',
@@ -196,10 +194,6 @@ export default {
 		if (copyRight && copyRight.copyrightContext) {
 			this.copyRight = copyRight.copyrightContext;
 		}
-	},
-	mounted() {
-		// this.getCode();
-		this.getLogoImage();
 	},
 	methods: {
 		switchWechatLogin() {
@@ -448,12 +442,6 @@ export default {
 					title: that.$t(`请输入正确的手机号码`)
 				});
 			this.$refs.verify.show();
-		},
-		async getLogoImage() {
-			let that = this;
-			getLogo(2).then((res) => {
-				that.logoUrl = res.data.logo_url;
-			});
 		},
 		async loginMobile() {
 			let that = this;
@@ -917,20 +905,18 @@ page {
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	width: 108rpx;
-	height: 108rpx;
+	width: 420rpx;
+	height: 140rpx;
 	margin-bottom: 18rpx;
-	border: 2rpx solid rgba(255, 255, 255, 0.72);
-	border-radius: 32rpx;
-	background: rgba(255, 252, 244, 0.2);
-	box-shadow: 0 12rpx 32rpx rgba(105, 67, 23, 0.15);
+	background: #fff;
+	border-radius: 8rpx;
 	font-size: 52rpx;
 	font-weight: 600;
 }
 
 .login-wrapper .brand-mark image {
-	width: 82rpx;
-	height: 82rpx;
+	width: 396rpx;
+	height: 132rpx;
 }
 
 .login-wrapper .brand-title {

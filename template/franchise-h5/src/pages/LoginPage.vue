@@ -8,7 +8,6 @@
 
     <div class="login-brand">
       <img :src="asset('brand-logo-20261104.png')" alt="养郎中商标" />
-      <h1>养郎中</h1>
       <p>品牌加盟服务平台</p>
     </div>
 
@@ -45,7 +44,7 @@
       <div>
         <button aria-label="关闭" @click="notice=''">×</button>
         <h2>{{ notice === 'terms' ? '用户服务协议' : '隐私政策' }}</h2>
-        <p v-if="notice === 'terms'">本账号与御方通和商城共用统一用户身份，仅用于登录养郎中加盟服务平台。加盟合作须经过正式审核并以签署合同为准。</p>
+        <p v-if="notice === 'terms'">本账号与养郎中商城共用统一用户身份，仅用于登录养郎中加盟服务平台。加盟合作须经过正式审核并以签署合同为准。</p>
         <p v-else>北京御生堂众康源健康管理服务有限公司仅在登录、加盟申请和审核所必需的范围内处理您的资料，不会因本页面创建第二套用户账号。</p>
       </div>
     </aside>
@@ -133,20 +132,19 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.portal-login { min-height:100vh; background:linear-gradient(180deg,#fff 0,#fff 70%,#fbf6e9); padding-bottom:40px; }
+.portal-login { min-height:100vh; background:#fff; padding-bottom:max(32px,env(safe-area-inset-bottom)); }
 .login-header { height:76px; display:grid; grid-template-columns:56px 1fr 56px; align-items:center; text-align:center; padding:0 14px; }
 .login-header button { width:46px; height:46px; display:grid; place-items:center; background:transparent; color:var(--jade); }
 .login-header strong { font-size:19px; font-weight:700; }
-.login-brand { padding:62px 24px 42px; text-align:center; }
-.login-brand img { width:min(320px, 100%); height:auto; object-fit:contain; margin:0 auto; }
-.login-brand h1 { margin:24px 0 4px; color:var(--jade); font-size:44px; font-weight:900; }
-.login-brand p { margin:0; color:#868a84; font-size:14px; }
-.login-panel { width:min(100% - 48px,460px); margin:0 auto; }
+.login-brand { padding:64px 24px 44px; text-align:center; }
+.login-brand img { display:block; width:min(280px, 100%); height:auto; aspect-ratio:558/184; object-fit:contain; margin:0 auto; }
+.login-brand p { margin:24px 0 0; color:#64766e; font-size:15px; }
+.login-panel { width:min(100% - 48px,400px); margin:0 auto; }
 .login-agreement { min-height:46px; display:flex; justify-content:center; align-items:center; flex-wrap:wrap; gap:4px; font-size:13px; color:#626862; }
 .login-agreement input { width:20px; height:20px; margin-right:4px; accent-color:var(--gold); }
 .login-agreement button { padding:0; background:transparent; color:#b77b15; }
 .login-primary,.login-secondary,.skip-login { width:100%; min-height:58px; border-radius:29px; margin-top:14px; display:flex; align-items:center; justify-content:center; gap:9px; }
-.login-primary { color:#17352d; background:linear-gradient(135deg,#e8c35b,#d4a844); font-size:18px; font-weight:800; }
+.login-primary { color:white; background:var(--jade); font-size:17px; font-weight:700; }
 .login-primary:disabled { opacity:.58; }
 .login-secondary { background:white; color:var(--jade); border:1px solid #daddd8; }
 .skip-login { min-height:44px; margin-top:12px; background:transparent; color:#777d77; }
@@ -162,5 +160,5 @@ onMounted(async () => {
 .agreement-notice button { position:absolute; right:15px; top:12px; background:transparent; font-size:28px; color:#777; }
 .agreement-notice h2 { margin:0 0 14px; color:var(--jade); font-size:20px; }
 .agreement-notice p { margin:0; color:#59615c; line-height:1.8; font-size:14px; }
-@media(max-height:700px){ .login-brand{padding-top:28px;padding-bottom:22px}.login-brand img{width:min(260px, 100%);height:auto}.login-brand h1{font-size:36px;margin-top:14px} }
+@media(max-height:700px){ .login-brand{padding-top:28px;padding-bottom:24px}.login-brand img{width:min(240px, 100%)}.login-brand p{margin-top:18px} }
 </style>

@@ -36,8 +36,8 @@ img { display: block; max-width: 100%; }
   background: linear-gradient(180deg, #f4dfa0 0%, #faf2d7 52%, #f4f5f2 100%);
   padding: 28px 24px 34px;
 }
-.brand-chip { display: inline-flex; align-items: center; gap: 10px; color: var(--jade); font-weight: 700; font-size: 14px; }
-.brand-chip img { width: 132px; height: 52px; padding: 4px; border-radius: 4px; object-fit: contain; background: var(--paper); flex-shrink: 0; }
+.brand-chip { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 12px; color: var(--jade); font-weight: 700; font-size: 13px; }
+.brand-chip img { width: 156px; height: 56px; padding: 4px 8px; border-radius: 4px; object-fit: contain; background: #fff; flex-shrink: 0; }
 .display-title { margin: 38px 0 8px; font-size: 38px; line-height: 1.08; font-weight: 900; color: var(--jade); }
 .display-subtitle { margin: 0; color: #56645e; font-size: 16px; line-height: 1.7; }
 .section-title { margin: 0 0 18px; font-size: 24px; line-height: 1.25; color: #1f2824; font-weight: 800; }
