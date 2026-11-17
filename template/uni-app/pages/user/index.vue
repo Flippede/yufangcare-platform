@@ -244,6 +244,7 @@ let sysHeight = uni.getSystemInfoSync().statusBarHeight + 'px';
 import { getMenuList, getUserInfo, setVisit, mpBindingPhone } from '@/api/user.js';
 import { wechatAuthV2, silenceAuth } from '@/api/public.js';
 import { toLogin } from '@/libs/login.js';
+import { HTTP_REQUEST_URL } from '@/config/app.js';
 import { mapState, mapGetters } from 'vuex';
 // #ifdef H5
 import Auth from '@/libs/wechat';
@@ -869,13 +870,18 @@ export default {
 		},
 
 		goYfthFranchiseApplications() {
-			if (!this.isLogin) {
-				toLogin();
+			// #ifdef H5
+			window.location.assign('/join/#/home');
+			// #endif
+			// #ifndef H5
+			if (!HTTP_REQUEST_URL) {
+				uni.showToast({ title: '加盟平台地址暂未配置', icon: 'none' });
 				return;
 			}
 			uni.navigateTo({
-				url: '/pages/yfth/franchise/index'
+				url: '/pages/annex/web_view/index?url=' + HTTP_REQUEST_URL.replace(/\/$/, '') + '/join/'
 			});
+			// #endif
 		},
 
 		goYfthWithdrawalBeneficiary() {
