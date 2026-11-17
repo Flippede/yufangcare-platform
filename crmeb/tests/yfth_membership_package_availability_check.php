@@ -88,5 +88,10 @@ namespace {
     check(strpos($templates, "'available' => false") !== false, 'closed public catalog');
     $home = file_get_contents($root . '/app/services/yfth/HomepageServices.php');
     check(strpos($home, 'excludeClosedPackages($query)') !== false, 'home excludes package-backed products');
+    $products = file_get_contents($root . '/app/services/product/product/StoreProductServices.php');
+    check(strpos($products, "$" . "where['exclude_closed_packages']") !== false, 'native catalog requests package exclusion');
+    check((bool)preg_match('/public function productDetail[^\\{]+\\{\\s*\\\\app\\\\services\\\\yfth\\\\MembershipPackageAvailability::assertProductsAvailable/s', $products), 'native detail blocks package entry');
+    $dao = file_get_contents($root . '/app/dao/product/product/StoreProductDao.php');
+    check(strpos($dao, "->where('binding_status', 'active')->field('product_id')->buildSql()") !== false, 'native catalog filters active bindings before pagination');
     echo "Membership package availability checks passed ($checks assertions; mocked read-only DB, not live MySQL).\n";
 }

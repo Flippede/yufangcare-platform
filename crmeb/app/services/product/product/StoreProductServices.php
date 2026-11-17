@@ -1187,6 +1187,7 @@ class StoreProductServices extends BaseServices
      */
     public function getGoodsList(array $where, int $uid)
     {
+        $where['exclude_closed_packages'] = !\app\services\yfth\MembershipPackageAvailability::enabled();
         $where['is_show'] = 1;
         $where['is_del'] = 0;
         $where['star'] = 1;
@@ -1425,6 +1426,7 @@ class StoreProductServices extends BaseServices
      */
     public function productDetail(Request $request, int $id, int $type)
     {
+        \app\services\yfth\MembershipPackageAvailability::assertProductsAvailable([$id]);
         $uid = (int)$request->uid();
         $data['uid'] = $uid;
 

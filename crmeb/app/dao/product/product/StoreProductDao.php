@@ -125,7 +125,11 @@ class StoreProductDao extends BaseDao
     public function getSearchList(array $where, int $page = 0, int $limit = 0, array $field = ['*'], array $with = [])
     {
         if (isset($where['star'])) $with[] = 'star';
-        return $this->search($where, false)->with($with)->when($page != 0 && $limit != 0, function ($query) use ($page, $limit) {
+        return $this->search($where, false)->with($with)
+            ->when(!empty($where['exclude_closed_packages']), function ($query) {
+                $query->whereNotIn('id', \think\facade\Db::name('yfth_package_product_binding')
+                    ->where('binding_status', 'active')->field('product_id')->buildSql());
+            })->when($page != 0 && $limit != 0, function ($query) use ($page, $limit) {
             $query->page($page, $limit);
         })->when(isset($where['sid']) && $where['sid'], function ($query) use ($where) {
             $query->whereIn('id', function ($query) use ($where) {
