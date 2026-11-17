@@ -5,7 +5,9 @@
 - Membership package sales and customer activation are closed by default. Franchise applications and ordinary goods shopping retain their existing paths; existing membership qualifications and historical fulfillment callbacks are unchanged.
 - Server configuration `yfth.membership_package_enabled` defaults to false. Package purchase intents, order creation, applications, store approval and identity-scan activation reject before writes. Cart, ordinary checkout and unpaid-order payment also reject active package-bound products/orders to prevent stale-link bypasses.
 - Home package sections, native public goods-list package entries, purchase/application tools and package-upgrade prompts are hidden or replaced with a paused notice. Native product details reject package-bound products. Reopening requires both explicit server opt-in and a client release changing `template/uni-app/libs/yfthPackageAvailability.js`.
-- Focused availability tests use a mocked read-only database, not live MySQL. This snapshot does not claim production deployment or production configuration changes.
+- Focused availability tests use a mocked read-only database, not live MySQL (27 assertions passed). Focused homepage and franchise contracts, PHP 7.4 lint, H5 production build and mp-weixin compile passed; the mini-program was not uploaded or published.
+- Deployed on 2026-11-17 after main fast-forward integration. Production backup: `/www/backup/yfth-package-paused-20261117-094832`. No migration or business-data edits were performed and the production `.env` checksum was unchanged.
+- Live read-only verification: package list returns `available=false` with no entries; package product 12 is absent from the ordinary catalog and its detail is blocked; ordinary product 13 still loads. Browser navigation from the mall home opens its ordinary product detail, and `/join/#/home` retains the independent franchise application entry. No purchase, payment, SMS or application was submitted.
 
 ## Current Fact Snapshot - Customer Service And C-end Member Points V1
 
