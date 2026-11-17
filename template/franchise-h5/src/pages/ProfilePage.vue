@@ -1,7 +1,7 @@
 <template>
   <section class="page profile-page">
     <header class="profile-hero">
-      <img :src="asset('brand-mark.png')" alt="养郎中商标" />
+      <img :src="asset('brand-logo-20261104.png')" alt="养郎中商标" />
       <div><small>养郎中品牌加盟</small><h1>{{ loggedIn ? '尊敬的合作伙伴' : '登录后查看申请' }}</h1></div>
     </header>
     <div class="page-inner">
@@ -48,8 +48,8 @@ function logout() {
 
 <style scoped>
 .profile-page { background:linear-gradient(180deg,#f1dda0 0,#f8f4e8 260px,#f4f5f2 500px); padding-top:1px; }
-.profile-hero { min-height:280px; padding:48px 28px 30px; display:flex; align-items:center; gap:20px; }
-.profile-hero img { width:118px; height:118px; border-radius:50%; object-fit:cover; border:5px solid rgba(255,255,255,.72); }
+.profile-hero { min-height:280px; padding:48px 28px 30px; display:flex; flex-direction:column; align-items:flex-start; gap:20px; }
+.profile-hero img { width:260px; height:auto; object-fit:contain; }
 .profile-hero small { color:#6f664e; }
 .profile-hero h1 { color:var(--jade); font-size:28px; margin:8px 0 0; }
 .menu-card { overflow:hidden; margin-bottom:18px; }

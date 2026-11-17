@@ -1,7 +1,7 @@
 <template>
   <section class="page home-page">
     <div class="hero">
-      <div class="brand-chip"><img :src="asset('brand-mark.png')" alt="养郎中商标" /><span>养郎中品牌加盟</span></div>
+      <div class="brand-chip"><img :src="asset('brand-logo-20261104.png')" alt="养郎中商标" /><span>养郎中品牌加盟</span></div>
       <h1>尊敬的<br />品牌合作伙伴</h1>
       <p>携手打造社区智慧健康驿站</p>
       <div class="hero-photo"><img :src="asset('storefront.png')" alt="养郎中健康驿站门店" /></div>
@@ -12,7 +12,7 @@
         <span class="eyebrow">JOIN US</span>
         <strong>加盟申请</strong>
         <span>填写合作意向 <ArrowRight :size="18" /></span>
-        <img :src="asset('brand-mark.png')" alt="" />
+        <img :src="asset('brand-logo-20261104.png')" alt="" />
       </button>
       <div class="side-actions">
         <button @click="$emit('navigate', 'news')"><MapPinned /><span><strong>开放地区</strong><small>查看合作区域</small></span></button>
@@ -70,7 +70,7 @@ function scrollToRequirement() { requirement.value?.scrollIntoView({ behavior: '
 .apply-card .eyebrow { font-size: 11px; font-weight: 800; opacity: .7; }
 .apply-card strong { font-size: 27px; margin-top: 8px; }
 .apply-card span:nth-of-type(2) { margin-top: 8px; display: flex; align-items: center; gap: 5px; }
-.apply-card img { position: absolute; width: 142px; right: -30px; bottom: -26px; border-radius: 50%; }
+.apply-card img { position: absolute; width: calc(100% - 32px); height: auto; object-fit: contain; right: 16px; bottom: 24px; }
 .side-actions { display: grid; gap: 14px; }
 .side-actions button { border-radius: 8px; background: white; color: var(--jade); padding: 18px; display: flex; align-items: center; gap: 12px; }
 .side-actions span { display: flex; flex-direction: column; gap: 4px; }

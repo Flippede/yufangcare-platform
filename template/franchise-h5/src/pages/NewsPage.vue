@@ -1,11 +1,11 @@
 <template>
   <section class="page news-page">
     <header class="top-wash">
-      <div class="brand-chip"><img :src="asset('brand-mark.png')" alt="养郎中商标" /><span>养郎中品牌加盟</span></div>
+      <div class="brand-chip"><img :src="asset('brand-logo-20261104.png')" alt="养郎中商标" /><span>养郎中品牌加盟</span></div>
       <h1 class="display-title">养郎中动态</h1>
       <div class="guide-card">
         <div><span>加盟必读指南</span><button @click="$emit('navigate','apply')">查看详情 <ArrowRight :size="16" /></button></div>
-        <img :src="asset('brand-mark.png')" alt="" />
+        <img :src="asset('brand-logo-20261104.png')" alt="" />
       </div>
     </header>
     <div class="page-inner">
@@ -43,7 +43,7 @@ const filteredCards = computed(() => cards.filter(item => item.category === tab.
 .guide-card div { display:flex; flex-direction:column; align-items:flex-start; gap:16px; z-index:1; }
 .guide-card span { font-size:25px; font-weight:850; color:var(--jade); }
 .guide-card button { background:transparent; padding:0; display:flex; align-items:center; color:#454e49; }
-.guide-card img { width:178px; height:178px; object-fit:cover; border-radius:50%; transform:translate(32px,18px); }
+.guide-card img { width:40%; height:auto; object-fit:contain; margin:0 12px; flex-shrink:0; }
 .category-tabs { display:grid; grid-template-columns:repeat(4,1fr); margin:10px 0 22px; gap:4px; }
 .category-tabs button { min-height:52px; padding:0 2px; background:transparent; font-weight:700; color:#9b9e99; font-size:14px; }
 .category-tabs button.active { color:var(--jade); font-size:16px; }

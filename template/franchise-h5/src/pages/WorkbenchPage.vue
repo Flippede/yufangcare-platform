@@ -1,7 +1,7 @@
 <template>
   <section class="page workbench-page">
     <header class="top-wash workbench-hero">
-      <div class="brand-chip"><img :src="asset('brand-mark.png')" alt="养郎中商标" /><span>加盟服务中心</span></div>
+      <div class="brand-chip"><img :src="asset('brand-logo-20261104.png')" alt="养郎中商标" /><span>加盟服务中心</span></div>
       <h1 class="display-title">申请加盟</h1>
       <p class="display-subtitle">下一个合作伙伴就是你</p>
     </header>

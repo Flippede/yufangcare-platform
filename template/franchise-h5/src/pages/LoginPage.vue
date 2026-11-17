@@ -7,7 +7,7 @@
     </header>
 
     <div class="login-brand">
-      <img :src="asset('brand-mark.png')" alt="养郎中商标" />
+      <img :src="asset('brand-logo-20261104.png')" alt="养郎中商标" />
       <h1>养郎中</h1>
       <p>品牌加盟服务平台</p>
     </div>
@@ -138,7 +138,7 @@ onMounted(async () => {
 .login-header button { width:46px; height:46px; display:grid; place-items:center; background:transparent; color:var(--jade); }
 .login-header strong { font-size:19px; font-weight:700; }
 .login-brand { padding:62px 24px 42px; text-align:center; }
-.login-brand img { width:154px; height:154px; border-radius:50%; object-fit:cover; margin:0 auto; box-shadow:0 12px 34px rgba(18,63,51,.12); }
+.login-brand img { width:min(320px, 100%); height:auto; object-fit:contain; margin:0 auto; }
 .login-brand h1 { margin:24px 0 4px; color:var(--jade); font-size:44px; font-weight:900; }
 .login-brand p { margin:0; color:#868a84; font-size:14px; }
 .login-panel { width:min(100% - 48px,460px); margin:0 auto; }
@@ -162,5 +162,5 @@ onMounted(async () => {
 .agreement-notice button { position:absolute; right:15px; top:12px; background:transparent; font-size:28px; color:#777; }
 .agreement-notice h2 { margin:0 0 14px; color:var(--jade); font-size:20px; }
 .agreement-notice p { margin:0; color:#59615c; line-height:1.8; font-size:14px; }
-@media(max-height:700px){ .login-brand{padding-top:28px;padding-bottom:22px}.login-brand img{width:112px;height:112px}.login-brand h1{font-size:36px;margin-top:14px} }
+@media(max-height:700px){ .login-brand{padding-top:28px;padding-bottom:22px}.login-brand img{width:min(260px, 100%);height:auto}.login-brand h1{font-size:36px;margin-top:14px} }
 </style>
