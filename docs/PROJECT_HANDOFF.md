@@ -1,5 +1,12 @@
 # 项目交接文档
 
+## Current Fact Snapshot - Membership Packages Paused
+
+- Membership package sales and customer activation are closed by default. Franchise applications and ordinary goods shopping retain their existing paths; existing membership qualifications and historical fulfillment callbacks are unchanged.
+- Server configuration `yfth.membership_package_enabled` defaults to false. Package purchase intents, order creation, applications, store approval and identity-scan activation reject before writes. Cart, ordinary checkout and unpaid-order payment also reject active package-bound products/orders to prevent stale-link bypasses.
+- Home package sections, purchase/application tools and package-upgrade prompts are hidden or replaced with a paused notice. Reopening requires both explicit server opt-in and a client release changing `template/uni-app/libs/yfthPackageAvailability.js`.
+- Focused availability tests use a mocked read-only database, not live MySQL. This snapshot does not claim production deployment or production configuration changes.
+
 ## Current Fact Snapshot - Customer Service And C-end Member Points V1
 
 - Development branch: `codex/yfth-customer-service-points-v1`; baseline: `301fcdfedcf33b6ef722e382b83ca2c4211071a4`. This snapshot records development facts only; the branch has not been merged to `main` or deployed to production.

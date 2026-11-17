@@ -72,6 +72,7 @@ class PermanentMembershipServices extends YfthFoundationBaseServices
 
     public function applyByCustomer(int $uid, array $data): array
     {
+        MembershipPackageAvailability::assertOpen();
         $this->assertUser($uid);
         if (app()->make(PackageMembershipServices::class)->effectiveMembership($uid)['is_member']) {
             throw new ApiException('permanent_membership_already_exists');
@@ -128,6 +129,7 @@ class PermanentMembershipServices extends YfthFoundationBaseServices
 
     public function approveForStore(Request $request, int $enrollmentId, array $data): array
     {
+        MembershipPackageAvailability::assertOpen();
         $context = $this->storeContext($request);
         return Db::transaction(function () use ($context, $enrollmentId, $data) {
             return $this->activateOfflineEnrollment(
@@ -184,6 +186,7 @@ class PermanentMembershipServices extends YfthFoundationBaseServices
 
     public function activateIdentityForStore(Request $request, string $token, array $data): array
     {
+        MembershipPackageAvailability::assertOpen();
         $context = $this->storeContext($request);
         $token = trim($token);
         if ($token === '') {

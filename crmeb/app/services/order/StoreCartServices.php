@@ -243,6 +243,7 @@ class StoreCartServices extends BaseServices
      */
     public function setCart(int $uid, int $product_id, int $cart_num = 1, string $product_attr_unique = '', int $type = 0, bool $new = true, int $combination_id = 0, int $seckill_id = 0, int $bargain_id = 0, int $advance_id = 0, array $channelContext = [])
     {
+        \app\services\yfth\MembershipPackageAvailability::assertProductsAvailable([$product_id]);
         if ($cart_num < 1) $cart_num = 1;
         $isProcurement = ($channelContext['channel'] ?? '') === 'procurement';
         if ($type == 0 && !$isProcurement) {

@@ -9,7 +9,7 @@
     </view>
 
     <view class="yfth-home__shortcuts">
-      <view v-for="(entry, index) in config.quick_entries" :key="index" class="yfth-home__shortcut" @tap="go(entry.target)">
+      <view v-for="(entry, index) in visibleQuickEntries" :key="index" class="yfth-home__shortcut" @tap="go(entry.target)">
         <image v-if="entry.icon_url" :src="entry.icon_url" class="yfth-home__shortcut-image" mode="aspectFit" />
         <view v-else class="yfth-home__shortcut-icon" :class="{ active: index === 0 }">{{ shortcutMark(entry.title) }}</view>
         <text class="yfth-home__shortcut-title">{{ entry.title }}</text>
@@ -36,7 +36,7 @@
     </view>
 
     <view class="yfth-home__sections">
-      <view v-for="(section, index) in config.sections" :key="index" class="yfth-home__section" @tap="go(section.target)">
+      <view v-for="(section, index) in visibleSections" :key="index" class="yfth-home__section" @tap="go(section.target)">
         <view class="yfth-home__section-title">
           <text>{{ section.title }}</text>
           <text class="iconfont icon-jiantou"></text>
@@ -61,6 +61,7 @@
 
 <script>
 import pageFooter from '@/components/pageFooter/index.vue';
+import { membershipPackagesEnabled, membershipPackagesPausedMessage } from '@/libs/yfthPackageAvailability.js';
 
 export default {
   name: 'YfthCustomHome',
@@ -70,11 +71,24 @@ export default {
     footerConfigData: { type: Object, default: () => ({}) },
   },
   computed: {
+    visibleQuickEntries() {
+      return (this.config.quick_entries || []).filter(this.isEntryAvailable);
+    },
+    visibleSections() {
+      return (this.config.sections || []).filter(this.isEntryAvailable);
+    },
     featuredProduct() {
       return this.config.featured_product || {};
     },
   },
   methods: {
+    isEntryAvailable(entry) {
+      return entry.visible !== false && (membershipPackagesEnabled || !this.isPackageTarget(entry.target) && entry.content_type !== 'package');
+    },
+    isPackageTarget(target) {
+      return target && (['package_list', 'package_detail'].includes(target.type)
+        || target.type === 'path' && /pages\/yfth\/(package\/|package_membership\/|permanent_membership\/)/.test(target.path || ''));
+    },
     shortcutMark(title) {
       return (title || '御').slice(0, 1);
     },
@@ -96,6 +110,10 @@ export default {
     },
     go(target) {
       if (!target) return;
+      if (!membershipPackagesEnabled && this.isPackageTarget(target)) {
+        this.$util.Tips({ title: membershipPackagesPausedMessage });
+        return;
+      }
       let url = '';
       if (target.type === 'category' && target.id) url = `/pages/goods/goods_list/index?cid=${target.id}`;
       if (target.type === 'product' && target.id) url = `/pages/goods_details/index?id=${target.id}`;

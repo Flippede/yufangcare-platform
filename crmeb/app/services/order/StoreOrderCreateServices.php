@@ -155,6 +155,9 @@ class StoreOrderCreateServices extends BaseServices
             throw new ApiException(410208);
         }
         $procurementContext = $this->resolveProcurementContext((array)($cartGroup['cartInfo'] ?? []));
+        \app\services\yfth\MembershipPackageAvailability::assertProductsAvailable(
+            array_column((array)($cartGroup['cartInfo'] ?? []), 'product_id')
+        );
         if ($procurementContext) {
             $couponId = 0;
             $useIntegral = false;

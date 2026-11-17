@@ -10,13 +10,12 @@
 			</view>
 			<view v-if="!isMember" class="panel empty-panel">
 				<view class="panel-title">身份核验码</view>
-				<view class="muted">向所属门店店长或店员出示此码，可核验账号并办理线下会员开通。普通用户身份码不具备推广能力，也不会建立一级推荐关系。</view>
+				<view class="muted">向所属门店出示此码可核验本人身份。会员套餐暂未开放。普通用户身份码不具备推广能力，也不会建立一级推荐关系。</view>
 				<view v-if="identity.token" class="qr-wrap">
 					<zb-code ref="identityQrcode" cid="yfth-identity-qr" :val="identity.token" :size="390" :onval="true" :loadMake="true" foreground="#7b572c" @result="onIdentityQrReady" />
 				</view>
 				<view v-else class="qr-placeholder">身份码生成中</view>
 				<view class="actions"><button @click="issueIdentity">刷新身份码</button><button @click="saveIdentityQr">保存身份码</button></view>
-				<button class="primary" @click="goPackage">查看康养套餐</button>
 			</view>
 			<block v-else>
 				<view class="panel code-panel">

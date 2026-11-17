@@ -11,10 +11,10 @@
 				<view class="title">{{ isMember ? '永久会员' : '尚未激活' }}</view>
 				<view class="sub" v-if="isMember && Number(member.store_id)">永久有效 · 归属门店 {{ member.store_id }}</view>
 				<view class="sub" v-else-if="isMember">永久有效 · 当前未绑定门店，可重新扫门店码绑定</view>
-				<view class="sub" v-else>购买并成功激活后获得永久会员资格</view>
+				<view class="sub" v-else>会员套餐暂未开放</view>
 			</view>
 
-			<view class="panel purchase-panel">
+			<view v-if="membershipPackagesEnabled" class="panel purchase-panel">
 				<view class="panel-title">{{ isMember ? '再次购买康养套餐' : '购买康养套餐' }}</view>
 				<view class="muted">{{ isMember ? '永久会员仍可重复购买，每笔订单分别生成新的套餐权益。' : '从已发布套餐中选择服务门店，确认协议后使用现有商城支付能力完成购买。' }}</view>
 				<button class="primary wide" @click="goPurchase">查看可购买套餐</button>
@@ -55,6 +55,7 @@
 </template>
 
 <script>
+import { membershipPackagesEnabled } from '@/libs/yfthPackageAvailability.js';
 import {
 	getYfthPackageMembershipMe,
 	issueYfthDirectReferralInvite
@@ -64,6 +65,7 @@ import { YFTH_HEADQUARTERS_HOME_ROUTE, yfthReferralAcceptRoute } from '@/libs/yf
 export default {
 	data() {
 		return {
+			membershipPackagesEnabled,
 			loading: true, error: '', profile: {}, inviteToken: '', acceptToken: ''
 		};
 	},

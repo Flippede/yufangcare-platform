@@ -106,6 +106,7 @@ class OrderPayServices
      */
     public function beforePay(array $orderInfo, string $payType, array $options = [])
     {
+        \app\services\yfth\MembershipPackageAvailability::assertOrderAvailable((int)($orderInfo['id'] ?? 0));
         $wechat = $payType == PayServices::WEIXIN_PAY;
 
         $payType = $this->getPayType($payType);
