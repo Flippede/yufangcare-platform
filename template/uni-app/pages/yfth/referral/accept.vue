@@ -12,7 +12,7 @@
 			</view>
 			<view v-else class="message error">{{ error || '邀请暂时无法处理' }}</view>
 			<button v-if="state === 'login'" class="primary" @click="login">去登录</button>
-			<view v-if="state === 'success'" class="customer-state">当前为普通顾客，购买套餐并成功激活后才可获得永久会员资格。</view>
+			<view v-if="state === 'success'" class="customer-state">门店归属已确认，可继续浏览商城。会员套餐暂未开放。</view>
 			<view v-if="state === 'error'" class="error-actions">
 				<button class="primary" @click="accept">重新尝试</button>
 				<button class="secondary" @click="goHome">返回商城首页</button>

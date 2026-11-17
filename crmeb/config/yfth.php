@@ -3,6 +3,7 @@
 use think\facade\Env;
 
 return [
+    'membership_package_enabled' => Env::get('yfth.membership_package_enabled', false),
     'acceptance_fixture_enabled' => Env::get('yfth.acceptance_fixture_enabled', false),
     'simulated_package_purchase_enabled' => Env::get('yfth.simulated_package_purchase_enabled', false),
     'acceptance_account_file' => Env::get(

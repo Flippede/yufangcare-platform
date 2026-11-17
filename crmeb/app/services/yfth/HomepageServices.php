@@ -16,6 +16,20 @@ class HomepageServices
     public function publicConfig(): array
     {
         $config = $this->config();
+        if (!MembershipPackageAvailability::enabled()) {
+            foreach ($config['quick_entries'] as &$entry) {
+                if ($this->isPackageEntry($entry)) {
+                    $entry['visible'] = false;
+                }
+            }
+            unset($entry);
+            foreach ($config['sections'] as &$section) {
+                if (($section['content_type'] ?? '') === 'package' || $this->isPackageEntry($section)) {
+                    $section['visible'] = false;
+                }
+            }
+            unset($section);
+        }
         $categories = $this->categories();
         $fallbackCategoryId = $this->fallbackCategoryId($categories);
 
@@ -53,6 +67,7 @@ class HomepageServices
 
         return [
             'enabled' => (bool)$config['enabled'],
+            'membership_package_enabled' => MembershipPackageAvailability::enabled(),
             'version' => $config['version'],
             'header' => $config['header'],
             'featured_product' => $featuredProduct,
@@ -291,6 +306,7 @@ class HomepageServices
     private function products(int $categoryId, array $productIds, int $limit): array
     {
         $query = Db::name('store_product')->where('is_show', 1)->where('is_del', 0);
+        $this->excludeClosedPackages($query);
         if ($productIds) {
             $query->whereIn('id', $productIds);
         } elseif ($categoryId) {
@@ -316,7 +332,9 @@ class HomepageServices
      */
     private function featuredProduct(): array
     {
-        $item = Db::name('store_product')
+        $query = Db::name('store_product');
+        $this->excludeClosedPackages($query);
+        $item = $query
             ->where('is_show', 1)
             ->where('is_del', 0)
             ->where('stock', '>', 0)
@@ -353,6 +371,9 @@ class HomepageServices
 
     private function packages(int $packageId, int $limit): array
     {
+        if (!MembershipPackageAvailability::enabled()) {
+            return [];
+        }
         $query = Db::name('yfth_package_template')->where('status', 'published');
         if ($packageId) {
             $query->where('id', $packageId);
@@ -362,6 +383,21 @@ class HomepageServices
             ->limit($limit)
             ->select()
             ->toArray();
+    }
+
+    private function excludeClosedPackages($query): void
+    {
+        if (!MembershipPackageAvailability::enabled()) {
+            $query->whereNotIn('id', Db::name('yfth_package_product_binding')
+                ->where('binding_status', 'active')->field('product_id')->buildSql());
+        }
+    }
+
+    private function isPackageEntry(array $entry): bool
+    {
+        $target = $this->target($entry, 0);
+        return in_array($target['type'], ['package_list', 'package_detail'], true)
+            || ($target['type'] === 'path' && preg_match('~pages/yfth/(package/|package_membership/|permanent_membership/)~', $target['path']));
     }
 
     private function target(array $entry, int $fallbackCategoryId): array

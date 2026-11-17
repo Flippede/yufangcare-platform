@@ -105,7 +105,7 @@
 						<view v-else class="exclusive-grid">
 							<view @click="goYfthReferralCode"><text class="exclusive-icon">码</text><text>{{ yfthCodeLabel }}</text></view>
 							<view @click="goYfthAttribution"><text class="exclusive-icon">归</text><text>我的归属</text></view>
-							<view @click="goYfthPackageMembership"><text class="exclusive-icon">会</text><text>套餐会员</text></view>
+							<view v-if="membershipPackagesEnabled" @click="goYfthPackageMembership"><text class="exclusive-icon">会</text><text>套餐会员</text></view>
 							<view @click="goYfthRewards"><text class="exclusive-icon">积</text><text>我的积分</text></view>
 						</view>
 					</view>
@@ -239,6 +239,7 @@
 	</view>
 </template>
 <script>
+import { membershipPackagesEnabled } from '@/libs/yfthPackageAvailability.js';
 let sysHeight = uni.getSystemInfoSync().statusBarHeight + 'px';
 import { getMenuList, getUserInfo, setVisit, mpBindingPhone } from '@/api/user.js';
 import { wechatAuthV2, silenceAuth } from '@/api/public.js';
@@ -279,7 +280,7 @@ export default {
 			if (this.yfthMembershipState === 'error') return '点击进入会员中心重新加载';
 			return this.yfthMembershipProfile.membership && this.yfthMembershipProfile.membership.is_member
 				? '永久有效，查看邀请与奖励记录'
-				: '购买并激活康养套餐后获得资格';
+				: '会员套餐暂未开放';
 		},
 		yfthCurrentIdentityText() {
 			const context = this.yfthCurrentContext || {};
@@ -320,6 +321,7 @@ export default {
 	mixins: [colors],
 	data() {
 		return {
+			membershipPackagesEnabled,
 			editModal: false, // 编辑头像信息
 			storeMenu: [], // 商家管理
 			orderMenu: [

@@ -39,6 +39,9 @@ class PackageTemplateServices extends PackageBenefitBaseServices
 
     public function publicList(array $where = []): array
     {
+        if (!MembershipPackageAvailability::enabled()) {
+            return ['list' => [], 'count' => 0, 'available' => false];
+        }
         $where = $this->cleanWhere([
             'status' => 'published',
             'package_type' => $where['package_type'] ?? '',
@@ -54,6 +57,7 @@ class PackageTemplateServices extends PackageBenefitBaseServices
 
     public function publicDetail(int $templateId): array
     {
+        MembershipPackageAvailability::assertOpen();
         $template = $this->requirePublishedTemplate($templateId);
         $detail = $this->publicTemplateRow($template);
         $rule = $this->currentRule($templateId);

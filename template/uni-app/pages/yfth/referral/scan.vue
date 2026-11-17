@@ -98,6 +98,7 @@
 </template>
 
 <script>
+import { membershipPackagesEnabled, membershipPackagesPausedMessage } from '@/libs/yfthPackageAvailability.js';
 // #ifdef H5
 import jsQR from 'jsqr';
 // #endif
@@ -388,6 +389,12 @@ export default {
 		confirmIdentityActivation(token, context) {
 			this.stopCamera();
 			this.nativeScannerOpened = false;
+			if (!membershipPackagesEnabled) {
+				this.pendingIdentityActivation = null;
+				this.activationMessage = membershipPackagesPausedMessage;
+				this.activationState = 'error';
+				return;
+			}
 			this.pendingIdentityActivation = { token, context };
 			this.activationMessage = '确认该顾客属于当前门店并已完成线下购买，为其开通永久会员？';
 			this.activationState = 'confirm';

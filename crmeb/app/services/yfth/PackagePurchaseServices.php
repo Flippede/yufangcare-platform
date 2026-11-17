@@ -43,6 +43,7 @@ class PackagePurchaseServices extends PackageBenefitBaseServices
 
     public function createIntent(int $uid, array $data): array
     {
+        MembershipPackageAvailability::assertOpen();
         $data = $this->fillDefaultBinding($data);
         $data['agreement_accepted'] = 1;
         $validation = $this->validatePurchaseRequest($uid, $data);
@@ -93,6 +94,7 @@ class PackagePurchaseServices extends PackageBenefitBaseServices
 
     public function createOrderFromIntent(int $uid, string $intentNo, array $data): array
     {
+        MembershipPackageAvailability::assertOpen();
         /** @var YfthPackagePurchaseIntentDao $intentDao */
         $intentDao = app()->make(YfthPackagePurchaseIntentDao::class);
         $requestId = trim((string)($data['request_id'] ?? '')) ?: $this->makeNo('YFREQ');
@@ -416,6 +418,7 @@ class PackagePurchaseServices extends PackageBenefitBaseServices
 
     public function createPurchase(int $uid, array $data): array
     {
+        MembershipPackageAvailability::assertOpen();
         $validation = $this->validatePurchaseRequest($uid, $data);
 
         $lastException = null;

@@ -1,6 +1,6 @@
 <template>
 	<view class="page">
-		<view class="hero"><view class="eyebrow">总部统一商城</view><view class="title">永久会员</view><view class="sub">线下购买，线上申请或由所属门店扫码开通</view></view>
+		<view class="hero"><view class="eyebrow">总部统一商城</view><view class="title">永久会员</view><view class="sub">会员套餐暂未开放，已有会员资格及历史记录保留</view></view>
 		<view class="card">
 			<view class="card-title">我的会员状态</view>
 			<view v-if="info.is_permanent_member" class="active">已开通 · 永久有效</view>

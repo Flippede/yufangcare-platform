@@ -97,7 +97,7 @@
 				</view>
 
 				<view v-else-if="pane === 'writeoff'" class="section">
-					<view class="panel">
+					<view v-if="membershipPackagesEnabled" class="panel">
 						<view class="panel-head">
 							<view>
 								<view class="panel-title">会员开通申请</view>
@@ -267,6 +267,7 @@
 </template>
 
 <script>
+import { membershipPackagesEnabled } from '@/libs/yfthPackageAvailability.js';
 import {
 	approveYfthStorePermanentMembership,
 	cancelYfthStoreWorkbenchAppointment,
@@ -304,6 +305,7 @@ export default {
 	data() {
 		const cachedContext = currentContext();
 		return {
+			membershipPackagesEnabled,
 			loading: true,
 			error: '',
 			pane: 'dashboard',
@@ -394,7 +396,7 @@ export default {
 			if (this.canReadProductQuota) {
 				tools.push({ key: 'product_quota', icon: '额', title: '进入产品额度', desc: '查看门店产品额度台账' });
 			}
-			if (this.canReadPackageMembership) {
+			if (this.membershipPackagesEnabled && this.canReadPackageMembership) {
 				tools.push({ key: 'package_membership', icon: '会', title: '进入套餐会员', desc: '查看本店套餐会员与奖励' });
 			}
 			if (this.canIssueAcquisitionCode) {
@@ -627,6 +629,7 @@ export default {
 			});
 		},
 		loadMembershipApplications() {
+			if (!this.membershipPackagesEnabled) return;
 			this.membershipApplicationLoading = true;
 			getYfthStorePermanentMemberships(this.contextParams({
 				status: 'pending_store_review',

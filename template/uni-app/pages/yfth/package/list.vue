@@ -2,7 +2,7 @@
 	<view class="page">
 		<view class="hero">
 			<view class="title">御方通和康养套餐</view>
-			<view class="sub">选择适合的套餐，完成支付并激活后获得对应权益。</view>
+			<view class="sub">会员套餐暂未开放，目前可购买商城商品或提交加盟申请。</view>
 		</view>
 		<view v-if="loading" class="state">正在加载可购买套餐...</view>
 		<view v-else-if="error" class="state error">
