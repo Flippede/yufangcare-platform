@@ -287,8 +287,13 @@ class FranchiseApplicationServices extends YfthFoundationBaseServices
 
         $userMap = $this->userMap(array_column($rows, 'applicant_uid'));
         $adminMap = $this->adminMap(array_column($rows, 'assigned_uid'));
-        $list = array_map(function ($row) use ($userMap, $adminMap) {
-            return $this->formatApplication($row, true, $userMap, $adminMap);
+        $ids = array_column($rows, 'id');
+        $budgetRanges = $ids ? Db::name('yfth_franchise_application_profile')
+            ->whereIn('application_id', $ids)->column('budget_range', 'application_id') : [];
+        $list = array_map(function ($row) use ($userMap, $adminMap, $budgetRanges) {
+            $application = $this->formatApplication($row, true, $userMap, $adminMap);
+            $application['budget_range'] = (string)($budgetRanges[(int)$row['id']] ?? '');
+            return $application;
         }, $rows);
 
         return compact('list', 'count');

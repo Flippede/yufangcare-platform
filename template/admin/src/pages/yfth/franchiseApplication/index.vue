@@ -29,19 +29,19 @@
         <el-table-column prop="phone_masked" label="电话" width="130" />
         <el-table-column prop="city" label="城市" width="110" />
         <el-table-column prop="intention_area" label="意向区域" min-width="140" />
-        <el-table-column prop="budget" label="预算" width="110" />
+        <el-table-column label="预算区间" min-width="130"><template slot-scope="scope">{{ budgetText(scope.row) }}</template></el-table-column>
         <el-table-column label="审核状态" width="120"><template slot-scope="scope">{{ reviewStatusText(scope.row.status) }}</template></el-table-column>
         <el-table-column label="提交时间" width="160"><template slot-scope="scope">{{ formatTime(scope.row.submit_time) }}</template></el-table-column>
         <el-table-column label="操作" width="300" fixed="right">
           <template slot-scope="scope">
             <el-button type="text" icon="el-icon-view" @click="openDetail(scope.row)">详情</el-button>
-            <template v-if="isReviewable(scope.row)">
+            <template v-if="canReview && isReviewable(scope.row)">
               <el-button type="text" icon="el-icon-check" class="approve-button" @click="openReview(scope.row, 'approve')">同意加盟</el-button>
               <el-button type="text" icon="el-icon-close" class="reject-button" @click="openReview(scope.row, 'reject')">驳回申请</el-button>
             </template>
-            <el-button v-else-if="scope.row.status === 'pending_contract' && !scope.row.approved_store_id" type="text" icon="el-icon-s-shop" @click="openReview(scope.row, 'approve')">补齐门店与店长</el-button>
+            <el-button v-else-if="canReview && scope.row.status === 'pending_contract' && !scope.row.approved_store_id" type="text" icon="el-icon-s-shop" @click="openReview(scope.row, 'approve')">补齐门店与店长</el-button>
             <el-button
-              v-else-if="scope.row.status === 'pending_contract' && scope.row.approved_store_id"
+              v-else-if="canReview && scope.row.status === 'pending_contract' && scope.row.approved_store_id"
               type="text"
               icon="el-icon-refresh"
               @click="syncLegacyAttribution(scope.row)"
@@ -63,7 +63,7 @@
           <el-descriptions-item label="城市">{{ detail.application.city }}</el-descriptions-item>
           <el-descriptions-item label="区域">{{ detail.application.region || '-' }}</el-descriptions-item>
           <el-descriptions-item label="意向区域">{{ detail.application.intention_area }}</el-descriptions-item>
-          <el-descriptions-item label="预算">{{ detail.application.budget }}</el-descriptions-item>
+          <el-descriptions-item label="预算区间">{{ budgetText(detail.application, detail.portal_profile) }}</el-descriptions-item>
           <el-descriptions-item label="招商来源">{{ recruitSourceText(detail.recruit_source) }}</el-descriptions-item>
           <el-descriptions-item label="备注" :span="2">{{ detail.application.remark || '-' }}</el-descriptions-item>
         </el-descriptions>
@@ -119,7 +119,7 @@ export default {
       ],
     };
   },
-  created() { this.filters.status = this.$route.query.status || ''; this.loadStores(); this.load(true); },
+  created() { this.filters.status = this.$route.query.status || ''; this.load(true); },
   methods: {
     load(reset) {
       if (reset) this.filters.page = 1;
@@ -132,12 +132,14 @@ export default {
     reset() { this.filters = { keyword: '', status: '', applicant_uid: '', assigned_uid: '', city: '', page: 1, limit: 20 }; this.load(true); },
     openDetail(row) { yfthFranchiseApplicationDetail(row.id).then((res) => { this.detail = res.data || {}; this.detailVisible = true; }); },
     openReview(row, action) {
+      if (action === 'approve') this.loadStores();
       this.currentRow = row;
       const location = [row.city, row.region].filter(Boolean).join('');
       this.reviewForm = { action, reason: '', store_mode: 'new', store_id: '', store_name: `${location}${row.name || ''}加盟店` };
       this.reviewVisible = true;
     },
     syncLegacyAttribution(row) {
+      this.loadStores();
       this.currentRow = row;
       this.reviewForm = {
         action: 'approve',
@@ -165,6 +167,11 @@ export default {
     },
     loadStores() { merchantStoreApi({ type: 0, page: 1, limit: 100 }).then((res) => { this.stores = (res.data && res.data.list) || []; }); },
     isReviewable(row) { return ['submitted', 'contacting', 'communicating', 'inspecting'].includes(row.status); },
+    budgetText(application, profile) {
+      const range = (profile && profile.budget_range) || application.budget_range;
+      if (range) return range;
+      return Number(application.budget) > 0 ? `¥${application.budget}` : '未填写';
+    },
     reviewStatusText(status) {
       if (['submitted', 'contacting', 'communicating', 'inspecting'].includes(status)) return '待总部确认';
       return { pending_contract: '总部已同意', terminated: '已驳回', signed: '已同意', preparing: '筹备中', opened: '已开业' }[status] || status;
@@ -178,6 +185,10 @@ export default {
     },
   },
   computed: {
+    canReview() {
+      const access = this.$store.state.userInfo.access;
+      return Array.isArray(access) && access.includes('yfth-franchise-application-review');
+    },
     portalProfileRows() {
       const profile = this.detail.portal_profile || {};
       const labels = {

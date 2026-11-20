@@ -372,7 +372,7 @@ foreach ([
 $userIndex = (string)file_get_contents($projectRoot . DIRECTORY_SEPARATOR . 'template/uni-app/pages/user/index.vue');
 foreach ([
     'goYfthFranchiseApplications',
-    '/pages/yfth/franchise/index',
+    '/join/#/home',
     '御方通和合作中心',
 ] as $needle) {
     $assert(strpos($userIndex, $needle) !== false, 'user_center_contains:' . $needle);
@@ -411,6 +411,13 @@ foreach ([
 }
 
 $assert(strpos($adminPage, 'scope.row.add_time') !== false, 'admin_page_contains_audit_time');
+$service = $read('app/services/yfth/FranchiseApplicationServices.php');
+$adminList = $methodBlock($service, 'adminList');
+$assert(strpos($adminList, "Db::name('yfth_franchise_application_profile')") !== false, 'admin_list_reads_portal_profile');
+$assert(strpos($adminList, "column('budget_range', 'application_id')") !== false, 'admin_list_batches_budget_ranges');
+$assert(strpos($adminPage, 'budgetText(scope.row)') !== false, 'admin_list_displays_budget_range');
+$assert(strpos($adminPage, 'budgetText(detail.application, detail.portal_profile)') !== false, 'admin_detail_displays_budget_range');
+$assert(strpos($adminPage, "access.includes('yfth-franchise-application-review')") !== false && strpos($adminPage, 'canReview && isReviewable(scope.row)') !== false, 'review_buttons_require_review_permission');
 
 if ($failures) {
     echo "YFTH franchise application contract check failed:\n";
